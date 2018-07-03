@@ -1,0 +1,8 @@
+[workspace]
+
+members= [
+	'gu-provider',
+	'gu-hub',
+	'gu-keystore'
+]
+

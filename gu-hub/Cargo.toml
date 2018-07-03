@@ -1,0 +1,5 @@
+[package]
+name = "gu-hub"
+version = "0.1.0"
+
+[dependencies]
