@@ -7,5 +7,7 @@ authors = ["Golem Unlimited Team, Piotr Chromiec <tworec@golem.network>"]
 log = "0.4"
 env_logger = "0.5"
 lazy_static = "1.0"
-eth-secp256k1 = { git = "https://github.com/paritytech/rust-secp256k1" }
 rand = "0.4"
+eth-secp256k1 = { git = "https://github.com/paritytech/rust-secp256k1" }
+tiny-keccak = "1.4"
+rustc-hex = "1.0"
