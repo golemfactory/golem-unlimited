@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate gu_keystore;
+extern crate gu_ethkeys;
 extern crate secp256k1;
 
 use std::env;
-use gu_keystore::{Keys, EthKey};
+use gu_ethkeys::{Keys, EthKey};
 use secp256k1::Message;
 
 fn main() {

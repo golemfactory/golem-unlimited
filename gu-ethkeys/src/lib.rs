@@ -14,6 +14,7 @@ use secp256k1::{Message, Signature, Error};
 use tiny_keccak::Keccak;
 use rustc_hex::ToHex;
 
+pub const KEY_FILE_NAME: &str = "keystore.json";
 pub const ADDRESS_LENGTH: usize = 20;
 
 pub type Address = [u8; ADDRESS_LENGTH];
@@ -22,17 +23,15 @@ lazy_static! {
 	static ref SECP256K1: Secp256k1 = Secp256k1::new();
 }
 
-pub const KEY_FILE_NAME: &str = "keystore.json";
-
 pub trait EthKey {
     /// generates random keys: secret + public
     fn generate() -> Self;
 
     /// get private key
-    fn private<'a>(&'a self) -> &'a SecretKey;
+    fn private(&self) -> &SecretKey;
 
     /// get public key
-    fn public<'a>(&'a self) -> &'a PublicKey;
+    fn public(&self) -> &PublicKey;
 
     /// get ethereum address
     fn address(&self) -> Address;
@@ -71,11 +70,11 @@ impl EthKey for Keys {
         Keys { private, public }
     }
 
-    fn private<'a>(&'a self) -> &'a SecretKey {
+    fn private(&self) -> &SecretKey {
         &self.private
     }
 
-    fn public<'a>(&'a self) -> &'a PublicKey {
+    fn public(&self) -> &PublicKey {
         &self.public
     }
 
