@@ -5,7 +5,7 @@ extern crate gu_ethkeys;
 extern crate secp256k1;
 
 use std::env;
-use gu_ethkeys::{Keys, EthKey};
+use gu_ethkeys::{KeyPair, EthKey};
 use secp256k1::Message;
 
 fn main() {
@@ -16,7 +16,7 @@ fn main() {
 
     info!("Starting app {:?}", env::args());
 
-    let keys : Keys = Keys::generate();
+    let keys : KeyPair = KeyPair::generate();
     info!("Generated keys: {}", keys);
     info!("Generated private key: {:?}", keys.private());
     info!("Generated public key: {:?}", keys.public());

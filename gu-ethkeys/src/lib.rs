@@ -4,6 +4,7 @@ extern crate secp256k1;
 extern crate lazy_static;
 extern crate tiny_keccak;
 extern crate rustc_hex;
+extern crate lazycell;
 
 use std::fmt;
 use std::path::Path;
@@ -13,6 +14,7 @@ use secp256k1::key::{SecretKey, PublicKey};
 use secp256k1::{Message, Signature, Error};
 use tiny_keccak::Keccak;
 use rustc_hex::ToHex;
+use lazycell::LazyCell;
 
 pub const KEY_FILE_NAME: &str = "keystore.json";
 pub const ADDRESS_LENGTH: usize = 20;
@@ -34,7 +36,7 @@ pub trait EthKey {
     fn public(&self) -> &PublicKey;
 
     /// get ethereum address
-    fn address(&self) -> Address;
+    fn address(&self) -> &Address;
 
     /// signs message with sef key
     fn sign(&self, msg: Message) -> Result<Signature, Error>;
@@ -56,18 +58,19 @@ pub trait EthKey {
 }
 
 #[derive(Debug)]
-pub struct Keys {
+pub struct KeyPair {
     private: SecretKey,
     public: PublicKey,
+    address: LazyCell<Address>,
 }
 
-impl EthKey for Keys {
+impl EthKey for KeyPair {
     fn generate() -> Self {
         let mut rng = OsRng::new().unwrap();
         let (private, public) = SECP256K1.generate_keypair(&mut rng)
             .expect("should generate key pair");
 
-        Keys { private, public }
+        KeyPair { private, public, address: LazyCell::new() }
     }
 
     fn private(&self) -> &SecretKey {
@@ -78,12 +81,14 @@ impl EthKey for Keys {
         &self.public
     }
 
-    fn address(&self) -> Address {
-        let mut hash = [0u8; 32];
-        Keccak::keccak256(&self.public.serialize_vec(&SECP256K1, false), &mut hash);
-        let mut result = [0u8; ADDRESS_LENGTH];
-        result.copy_from_slice(&hash[12..]);
-        result
+    fn address(&self) -> &Address {
+        self.address.borrow_with(|| {
+            let mut hash = [0u8; 32];
+            Keccak::keccak256(&self.public.serialize_vec(&SECP256K1, false), &mut hash);
+            let mut result = [0u8; ADDRESS_LENGTH];
+            result.copy_from_slice(&hash[12..]);
+            result
+        })
     }
 
     fn sign(&self, msg: Message) -> Result<Signature, Error> {
@@ -111,7 +116,7 @@ impl EthKey for Keys {
     }
 }
 
-impl fmt::Display for Keys {
+impl fmt::Display for KeyPair {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "\n\t{:?}\n\t{:?}\n\tAddress({})",
                self.private, self.public, self.address().to_hex())

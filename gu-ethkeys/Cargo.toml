@@ -11,3 +11,4 @@ rand = "0.4"
 eth-secp256k1 = { git = "https://github.com/paritytech/rust-secp256k1" }
 tiny-keccak = "1.4"
 rustc-hex = "1.0"
+lazycell = "1.0"
