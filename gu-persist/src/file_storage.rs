@@ -1,0 +1,82 @@
+use super::error::*;
+use super::storage;
+use actix::fut;
+use actix::prelude::*;
+use futures::prelude::*;
+use std::path::PathBuf;
+
+pub struct FileStorage {
+    dir: PathBuf,
+}
+
+impl FileStorage {
+    pub fn from_path<P: Into<PathBuf>>(path: P) -> Self {
+        FileStorage { dir: path.into() }
+    }
+
+    fn key_path(&self, key: &str) -> PathBuf {
+        self.dir.join(format!("{}.json", key))
+    }
+}
+
+impl Actor for FileStorage {
+    type Context = SyncContext<Self>;
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        println!("stoned")
+    }
+}
+
+impl Handler<storage::Fetch> for FileStorage {
+    type Result = Result<Option<Vec<u8>>>;
+
+    fn handle(&mut self, msg: storage::Fetch, ctx: &mut Self::Context) -> Self::Result {
+        use std::io::{self, BufRead, Read};
+        use std::{fs, path};
+
+        let path: PathBuf = self.key_path(&msg.0);
+
+        if !path.exists() {
+            return Ok(None);
+        }
+
+        let mut f = fs::File::open(path)?;
+
+        let meta = f.metadata()?;
+
+        let mut buf = Vec::with_capacity(meta.len() as usize);
+
+        io::copy(&mut f, &mut buf)?;
+
+        let end_meta = f.metadata()?;
+
+        if meta.modified()? != end_meta.modified()? {
+            bail!(ErrorKind::ConcurrentChange)
+        }
+
+        Ok(Some(buf))
+    }
+}
+
+impl Handler<storage::Put> for FileStorage {
+    type Result = Result<()>;
+
+    fn handle(&mut self, msg: storage::Put, ctx: &mut Self::Context) -> Self::Result {
+        use std::{fs, io, path};
+
+        let path = self.key_path(&msg.0);
+
+        if path.exists() {
+            fs::remove_file(&path)?;
+        }
+        let mut in_cursor = io::Cursor::new(msg.1);
+        let mut out_file = fs::File::create(path)?;
+
+        io::copy(&mut in_cursor, &mut out_file)?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {}

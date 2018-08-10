@@ -3,6 +3,8 @@
 members= [
 	'gu-provider',
 	'gu-hub',
-	'gu-keystore'
+	'gu-keystore',
+	'gu-p2p',
+	'gu-persist',
 ]
 

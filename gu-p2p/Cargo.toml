@@ -1,0 +1,12 @@
+[package]
+name = "gu-p2p"
+version = "0.1.0"
+
+[dependencies]
+futures="0.1"
+tokio-io="0.1"
+actix = "0.7"
+
+sha3="0.7"
+digest = "0.7"
+
