@@ -8,3 +8,5 @@ members= [
 	'gu-persist',
 ]
 
+[dependencies]
+log="0.4"

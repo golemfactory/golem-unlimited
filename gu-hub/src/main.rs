@@ -5,6 +5,7 @@ extern crate actix;
 extern crate actix_web;
 extern crate clap;
 extern crate gu_p2p;
+extern crate gu_persist;
 extern crate tokio_uds;
 
 extern crate serde;
@@ -21,7 +22,6 @@ use clap::{App, Arg, SubCommand};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-mod config;
 mod lan;
 mod server;
 

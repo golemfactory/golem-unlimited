@@ -23,7 +23,7 @@ impl Actor for FileStorage {
     type Context = SyncContext<Self>;
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
-        println!("stoned")
+        debug!("file storage stopped");
     }
 }
 

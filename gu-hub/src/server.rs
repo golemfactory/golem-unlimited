@@ -4,7 +4,8 @@ use futures::future;
 use futures::prelude::*;
 use tokio;
 
-use super::config;
+use gu_persist::config;
+
 use actix_web::server::HttpServer;
 use actix_web::server::StopServer;
 use actix_web::*;

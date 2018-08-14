@@ -1,4 +1,4 @@
-use super::error::*;
+pub use super::error::*;
 use super::storage::{Fetch, Put};
 use actix::MailboxError;
 use actix::{fut, prelude::*};
@@ -9,12 +9,18 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::ops::Deref;
+
+use std::collections::HashMap;
+use std::any::Any;
 
 type Storage = super::file_storage::FileStorage;
+
 
 #[derive(Default)]
 pub struct ConfigManager {
     storage: Option<Addr<Storage>>,
+    cache : HashMap<&'static str, Box<Any + 'static>>
 }
 
 impl ConfigManager {
@@ -75,10 +81,27 @@ impl<T: ConfigSection + 'static> Message for GetConfig<T> {
     type Result = Result<Arc<T>>;
 }
 
+#[derive(Message)]
+#[rtype(result="Result<()>")]
+pub struct SetConfig<T : ConfigSection>(Arc<T>);
+
+
+
 impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
     type Result = ActorResponse<ConfigManager, Arc<T>, Error>;
 
     fn handle(&mut self, msg: GetConfig<T>, ctx: &mut Self::Context) -> Self::Result {
+        let key = T::SECTION_ID;
+
+        if let Some(ref v) = self.cache.get(key) {
+            let y = v.downcast_ref::<Arc<T>>();
+
+            if let Some(v) = y {
+                return ActorResponse::reply(Ok(v.clone()))
+            }
+
+        }
+
         ActorResponse::async(
             self.storage()
                 .send(Fetch(Cow::Borrowed(T::SECTION_ID)))
@@ -88,7 +111,11 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
                     println!("{:?}", r);
                     match r {
                         None => {
-                            fut::ok(Arc::new(T::default()))
+                            let v = Arc::new(T::default());
+
+                            ctx.notify(SetConfig(v.clone()));
+
+                            fut::ok(v)
                         }
                         Some(v) => {
                             let p : JsonValue = serde_json::from_slice(v.as_ref()).unwrap();
@@ -97,6 +124,16 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
                     }
                 }),
         )
+    }
+}
+
+impl<T : ConfigSection> Handler<SetConfig<T>> for ConfigManager {
+    type Result = ActorResponse<ConfigManager, (), Error>;
+
+    fn handle(&mut self, msg: SetConfig<T>, ctx: &mut Self::Context) -> Self::Result {
+        let k = Cow::Borrowed(T::SECTION_ID);
+        //self.storage().send()
+        unimplemented!()
     }
 }
 

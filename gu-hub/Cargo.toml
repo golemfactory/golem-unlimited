@@ -4,6 +4,8 @@ version = "0.1.0"
 
 [dependencies]
 gu-p2p= { path="../gu-p2p" }
+gu-persist = { path = "../gu-persist" }
+
 clap = "2.32"
 env_logger = "0.5"
 tokio-uds = "0.2"

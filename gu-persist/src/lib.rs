@@ -1,9 +1,15 @@
+#[macro_use]
+extern crate log;
+
 extern crate actix;
+
+#[allow(unused_imports)]
 #[macro_use]
 extern crate actix_derive;
 
 extern crate serde;
 extern crate serde_json;
+#[allow(unused_imports)]
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
