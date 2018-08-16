@@ -1,15 +1,12 @@
 pub use super::error::*;
 use super::storage::{Fetch, Put};
-use actix::MailboxError;
 use actix::{fut, prelude::*};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value as JsonValue};
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::sync::Arc;
-use std::ops::Deref;
 
 use std::collections::HashMap;
 use std::any::Any;
@@ -41,7 +38,7 @@ impl Actor for ConfigManager {
 fn default_config_dir() -> PathBuf {
     use directories::ProjectDirs;
 
-    let p = ProjectDirs::from("network", "Golem", "Unlimited").unwrap();
+    let p = ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap();
 
     p.config_dir().into()
 }
@@ -85,12 +82,17 @@ impl<T: ConfigSection + 'static> Message for GetConfig<T> {
 #[rtype(result="Result<()>")]
 pub struct SetConfig<T : ConfigSection>(Arc<T>);
 
-
+#[derive(Message)]
+#[rtype(result="Result<()>")]
+pub enum SetConfigPath {
+    Default(Cow<'static, str>),
+    FsPath(Cow<'static, str>)
+}
 
 impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
     type Result = ActorResponse<ConfigManager, Arc<T>, Error>;
 
-    fn handle(&mut self, msg: GetConfig<T>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _: GetConfig<T>, _ctx: &mut Self::Context) -> Self::Result {
         let key = T::SECTION_ID;
 
         if let Some(ref v) = self.cache.get(key) {
@@ -107,8 +109,7 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
                 .send(Fetch(Cow::Borrowed(T::SECTION_ID)))
                 .flatten_fut()
                 .into_actor(self)
-                .and_then(|r, act, ctx| {
-                    println!("{:?}", r);
+                .and_then(|r, _act, ctx| {
                     match r {
                         None => {
                             let v = Arc::new(T::default());
@@ -118,7 +119,10 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
                             fut::ok(v)
                         }
                         Some(v) => {
-                            let p : JsonValue = serde_json::from_slice(v.as_ref()).unwrap();
+                            let p : JsonValue = match serde_json::from_slice(v.as_ref()) {
+                                Ok(v) => v,
+                                Err(e) => return fut::err(e.into())
+                            };
                             fut::ok(Arc::new(T::from_json(p).unwrap()))
                         }
                     }
@@ -127,13 +131,59 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
     }
 }
 
-impl<T : ConfigSection> Handler<SetConfig<T>> for ConfigManager {
+
+macro_rules! async_try {
+    ( $e: expr) => (match $e {
+        Ok(v) => v,
+        Err(e) => return ActorResponse::reply(Err(e.into()))
+    })
+}
+
+impl<T : ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
     type Result = ActorResponse<ConfigManager, (), Error>;
 
-    fn handle(&mut self, msg: SetConfig<T>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: SetConfig<T>, _ctx: &mut Self::Context) -> Self::Result {
         let k = Cow::Borrowed(T::SECTION_ID);
-        //self.storage().send()
-        unimplemented!()
+        let v = msg.0;
+        let json = async_try!(v.to_json());
+        let bytes = async_try!(serde_json::to_vec(&json));
+
+        self.cache.insert(T::SECTION_ID, Box::new(v));
+
+        ActorResponse::async(
+        self.storage().send(
+            Put(k, bytes)
+        ).flatten_fut()
+            .into_actor(self))
+    }
+}
+
+impl Handler<SetConfigPath> for ConfigManager {
+    type Result = Result<()>;
+
+    fn handle(&mut self, msg: SetConfigPath, ctx: &mut Self::Context) -> Self::Result {
+
+        let path = match msg {
+            SetConfigPath::Default(app_name) => {
+                use directories::ProjectDirs;
+
+                ProjectDirs::from("network", "Golem", app_name.as_ref())
+                    .unwrap()
+                    .config_dir()
+                    .into()
+            },
+            SetConfigPath::FsPath(path) => {
+                PathBuf::from(path.as_ref())
+            }
+        };
+
+        info!("new config path={:?}", path);
+
+        let file_storage = SyncArbiter::start(1, move || Storage::from_path(&path));
+
+        self.storage = Some(file_storage);
+
+        Ok(())
     }
 }
 
@@ -141,7 +191,6 @@ impl<T : ConfigSection> Handler<SetConfig<T>> for ConfigManager {
 mod test {
 
     use super::{ConfigSection, HasSectionId};
-    use std::borrow::Cow;
 
     #[derive(Deserialize, Serialize, Default)]
     struct Test {
@@ -160,7 +209,7 @@ mod test {
             b: 12,
         };
 
-        let b = t.to_json().unwrap();
+        let _b = t.to_json().unwrap();
     }
 
 }

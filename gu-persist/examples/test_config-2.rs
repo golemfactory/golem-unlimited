@@ -4,11 +4,10 @@ extern crate gu_persist;
 #[macro_use]
 extern crate serde_derive;
 
+extern crate env_logger;
+
 use actix::prelude::*;
 use futures::prelude::*;
-use gu_persist::error::*;
-use std::borrow::Cow;
-use std::env;
 use std::sync::Arc;
 
 enum Cmd {
@@ -38,12 +37,12 @@ impl Actor for MyActor {
         println!("started");
         let f = config_mgr
             .send(GetConfig::new())
-            .and_then(|r: Result<Arc<MyConfig>>| {
-                let c = r.unwrap();
+            .flatten_fut()
+            .and_then(|c: Arc<MyConfig>| {
                 println!("test={}, val={}", c.test, c.val);
                 Ok(())
             });
-        f.map_err(|e| println!("err {:?}", e))
+        f.map_err(|e| println!("my err {:?}", e))
             .then(|_| Ok(()))
             .into_actor(self)
             .spawn(ctx);
@@ -51,6 +50,9 @@ impl Actor for MyActor {
 }
 
 fn main() {
+
+    env_logger::init();
+
     let sys = actix::System::new("test-config");
 
     let _ = MyActor.start();

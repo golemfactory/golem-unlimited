@@ -1,8 +1,6 @@
 use super::error::*;
 use super::storage;
-use actix::fut;
 use actix::prelude::*;
-use futures::prelude::*;
 use std::path::PathBuf;
 
 pub struct FileStorage {
@@ -22,7 +20,7 @@ impl FileStorage {
 impl Actor for FileStorage {
     type Context = SyncContext<Self>;
 
-    fn stopped(&mut self, ctx: &mut Self::Context) {
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
         debug!("file storage stopped");
     }
 }
@@ -30,9 +28,8 @@ impl Actor for FileStorage {
 impl Handler<storage::Fetch> for FileStorage {
     type Result = Result<Option<Vec<u8>>>;
 
-    fn handle(&mut self, msg: storage::Fetch, ctx: &mut Self::Context) -> Self::Result {
-        use std::io::{self, BufRead, Read};
-        use std::{fs, path};
+    fn handle(&mut self, msg: storage::Fetch, _ctx: &mut Self::Context) -> Self::Result {
+        use std::{io, fs};
 
         let path: PathBuf = self.key_path(&msg.0);
 
@@ -61,14 +58,19 @@ impl Handler<storage::Fetch> for FileStorage {
 impl Handler<storage::Put> for FileStorage {
     type Result = Result<()>;
 
-    fn handle(&mut self, msg: storage::Put, ctx: &mut Self::Context) -> Self::Result {
-        use std::{fs, io, path};
+    fn handle(&mut self, msg: storage::Put, _ctx: &mut Self::Context) -> Self::Result {
+        use std::{fs, io};
 
         let path = self.key_path(&msg.0);
+
+        debug!("path_buf={:?}", &path);
 
         if path.exists() {
             fs::remove_file(&path)?;
         }
+
+        fs::create_dir_all(&self.dir)?;
+
         let mut in_cursor = io::Cursor::new(msg.1);
         let mut out_file = fs::File::create(path)?;
 

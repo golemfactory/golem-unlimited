@@ -35,18 +35,23 @@ pub fn clap_declare<'a, 'b>() -> clap::App<'a, 'b> {
 }
 
 pub fn clap_match(m: &ArgMatches) {
+    let config_path = match m.value_of("config-dir") {
+        Some(v) => Some(v.to_string()),
+        None => None
+    };
+
     if let Some(m) = m.subcommand_matches("server") {
         println!("server");
-        run_server();
+        run_server(config_path.to_owned());
     }
 }
 
-fn run_server() {
+fn run_server(config_path : Option<String>) {
     use actix;
 
     let sys = actix::System::new("gu-hub");
 
-    let config = ServerConfigurer(None).start();
+    let config = ServerConfigurer(None, config_path).start();
     /*
     let listener = UnixListener::bind("/tmp/gu.socket").expect("bind failed");
     server::new(|| {
@@ -65,7 +70,7 @@ fn p2p_server(r: &HttpRequest) -> &'static str {
     "ok"
 }
 
-struct ServerConfigurer(Option<Recipient<StopServer>>);
+struct ServerConfigurer(Option<Recipient<StopServer>>, Option<String>);
 
 impl Actor for ServerConfigurer {
     type Context = Context<Self>;
@@ -73,12 +78,17 @@ impl Actor for ServerConfigurer {
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
         let config = config::ConfigManager::from_registry();
 
+        println!("path={:?}", &self.1);
+        if let Some(path) = &self.1 {
+            config.do_send(config::SetConfigPath::FsPath(Cow::Owned(path.clone())));
+        }
+
         ctx.spawn(
             config
                 .send(config::GetConfig::new())
                 .map_err(|e| config::Error::from(e))
                 .and_then(|r| r)
-                .map_err(|_e| ())
+                .map_err(|e| println!("error ! {}", e))
                 .and_then(|c: Arc<ServerConfig>| {
                     let server = server::new(move || App::new().handler("/p2p", p2p_server));
                     let s = server.bind(c.p2p_addr()).unwrap().start();

@@ -46,8 +46,6 @@ fn main() {
         .subcommand(SubCommand::with_name("status"))
         .get_matches();
 
-    if let Some(path) = matches.value_of("config") {}
-
     server::clap_match(&matches);
     lan::clap_match(&matches);
 }
