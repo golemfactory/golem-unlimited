@@ -11,13 +11,13 @@ use std::path::Path;
 use rand::os::OsRng;
 use secp256k1::Secp256k1;
 use secp256k1::key::{SecretKey, PublicKey};
-use secp256k1::{Message, Signature, Error};
+pub use secp256k1::{Message, Signature, Error};
 use tiny_keccak::Keccak;
 use rustc_hex::ToHex;
 use lazycell::LazyCell;
 
-pub const KEY_FILE_NAME: &str = "keystore.json";
-pub const ADDRESS_LENGTH: usize = 20;
+const KEY_FILE_NAME: &str = "keystore.json";
+const ADDRESS_LENGTH: usize = 20;
 
 pub type Address = [u8; ADDRESS_LENGTH];
 
@@ -51,10 +51,10 @@ pub trait EthKey {
     fn decrypt(&self, encrypted: &[u8]) -> Result<Vec<u8>, Error>;
 
     /// stores keys on disk with pass
-    fn serialize(&self, file_path: &Path, passwd: String);
+    fn serialize(&self, file_path: &Path, passwd: &str);
 
     /// reads keys from disk; pass needed
-    fn deserialize(&self, file_path: &Path, passwd: String);
+    fn deserialize(&self, file_path: &Path, passwd: &str);
 }
 
 #[derive(Debug)]
@@ -107,11 +107,11 @@ impl EthKey for KeyPair {
         unimplemented!("{:?}", encrypted)
     }
 
-    fn serialize(&self, file_path: &Path, passwd: String) {
+    fn serialize(&self, file_path: &Path, passwd: &str) {
         unimplemented!("{:?}, {:?}", file_path, passwd)
     }
 
-    fn deserialize(&self, file_path: &Path, passwd: String) {
+    fn deserialize(&self, file_path: &Path, passwd: &str) {
         unimplemented!("{:?}, {:?}", file_path, passwd)
     }
 }
