@@ -3,6 +3,10 @@
 members= [
 	'gu-provider',
 	'gu-hub',
-	'gu-ethkeys'
+	'gu-ethkeys',
+	'gu-p2p',
+	'gu-persist',
 ]
 
+[dependencies]
+log="0.4"

@@ -3,3 +3,22 @@ name = "gu-hub"
 version = "0.1.0"
 
 [dependencies]
+gu-p2p= { path="../gu-p2p" }
+gu-persist = { path = "../gu-persist" }
+
+clap = "2.32"
+env_logger = "0.5"
+tokio-uds = "0.2"
+
+serde = "1.0"
+serde_derive = "1.0"
+serde_json="1.0"
+
+error-chain = "0.12"
+futures = "0.1"
+tokio="0.1"
+directories="1.0"
+
+actix = "0.7"
+actix-web = {version= "0.7", features=["tls"]}
+
