@@ -1,5 +1,6 @@
 extern crate futures;
 extern crate tokio_io;
+extern crate quick_protobuf;
 
 use futures::{future, stream};
 use tokio_io::{AsyncRead, AsyncWrite, IoStream};
@@ -32,3 +33,5 @@ trait Discovery {}
 trait Connection: AsyncRead + AsyncWrite {
     fn peer(&self) -> NodeId;
 }
+
+mod proto;

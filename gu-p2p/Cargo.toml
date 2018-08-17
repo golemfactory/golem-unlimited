@@ -10,3 +10,4 @@ actix = "0.7"
 sha3="0.7"
 digest = "0.7"
 
+quick-protobuf = "0.6"
