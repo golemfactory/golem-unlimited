@@ -110,22 +110,18 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
                 .flatten_fut()
                 .into_actor(self)
                 .and_then(|r, _act, ctx| {
-                    match r {
-                        None => {
-                            let v = Arc::new(T::default());
-
-                            ctx.notify(SetConfig(v.clone()));
-
-                            fut::ok(v)
-                        }
+                    let v= match r {
+                        None => Arc::new(T::default()),
                         Some(v) => {
                             let p : JsonValue = match serde_json::from_slice(v.as_ref()) {
                                 Ok(v) => v,
                                 Err(e) => return fut::err(e.into())
                             };
-                            fut::ok(Arc::new(T::from_json(p).unwrap()))
+                           Arc::new(T::from_json(p).unwrap())
                         }
-                    }
+                    };
+                    ctx.notify(SetConfig(v.clone()));
+                    fut::ok(v)
                 }),
         )
     }

@@ -15,14 +15,22 @@ use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tokio_uds::UnixListener;
 
+
 #[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 struct ServerConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
     p2p_port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    control_socket : Option<String>,
 }
+
+const DEFAULT_P2P_PORT : u16 = 61622;
+
 
 impl ServerConfig {
     fn p2p_addr(&self) -> impl ToSocketAddrs {
-        ("0.0.0.0", self.p2p_port.unwrap_or(61622))
+        ("0.0.0.0", self.p2p_port.unwrap_or(DEFAULT_P2P_PORT))
     }
 }
 
