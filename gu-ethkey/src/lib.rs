@@ -10,9 +10,6 @@ use ethkey::crypto::Error as CryptoError;
 use ethstore::{EthStore, SimpleSecretStore, SecretVaultRef, StoreAccountRef, Error as StoreError};
 use ethstore::accounts_dir::{KeyDirectory, RootDiskDirectory};
 
-pub const KEY_ITERATIONS: u32 = 1024;
-
-
 pub trait EthKey {
     /// generates random keys: secret + public
     fn generate() -> Self;
