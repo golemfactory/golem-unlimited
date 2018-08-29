@@ -6,6 +6,7 @@ authors = ["Golem Unlimited Team, Piotr Chromiec <tworec@golem.network>"]
 [dependencies]
 log = "0.4"
 env_logger = "0.5"
+error-chain = "0.12"
 ethkey = { path = "../../parity-ethereum/ethkey" }
 ethstore = { path = "../../parity-ethereum/ethstore" }
 

@@ -4,7 +4,7 @@ extern crate env_logger;
 extern crate gu_ethkey;
 
 use std::env;
-use gu_ethkey::{KeyPair, EthKey};
+use gu_ethkey::{KeyPair, EthKey, EthSerde};
 //use secp256k1::Message;
 
 fn main() {
@@ -15,19 +15,22 @@ fn main() {
 
     info!("Starting app {:?}", env::args());
 
-    let keys : KeyPair = KeyPair::generate();
-    info!("Generated keys: {}", keys);
-    info!("Generated private key: {:?}", keys.private());
-    info!("Generated public key: {:?}", keys.public());
-    info!("Generated address: {:?}", keys.address());
+    let key_pair : KeyPair = KeyPair::generate();
+    info!("Generated key pair: {}", key_pair);
+    info!("Generated private key: {:?}", key_pair.private());
+    info!("Generated public key: {:?}", key_pair.public());
+    info!("Generated address: {:?}", key_pair.address());
+
     let p = "hekllo".into();
-    keys.serialize("tmp/", &p);
+    let path = "/tmpa/";
+    key_pair.save_to_file(path, &p)
+        .unwrap_or_else(|e| {warn!("writing to file {}: {}", path, e)});
 
 //    let mut v = [0u8; 32];
 //    v[0]=39u8;
 //    v[1]=50u8;
 //    let msg : Message = Message::from(v);
-//    let sig = keys.sign(msg).unwrap();
+//    let sig = key_pair.sign(msg).unwrap();
 //    info!("signature {:?} for {:?}", sig, msg);
-//    assert!(keys.verify(msg, sig).is_ok());
+//    assert!(key_pair.verify(msg, sig).is_ok());
 }
