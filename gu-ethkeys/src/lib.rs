@@ -1,124 +1,94 @@
-extern crate rand;
-extern crate secp256k1;
+extern crate ethkey;
+extern crate ethstore;
 #[macro_use]
-extern crate lazy_static;
-extern crate tiny_keccak;
-extern crate rustc_hex;
-extern crate lazycell;
+extern crate log;
 
-use std::fmt;
-use std::path::Path;
-use rand::os::OsRng;
-use secp256k1::Secp256k1;
-use secp256k1::key::{SecretKey, PublicKey};
-pub use secp256k1::{Message, Signature, Error};
-use tiny_keccak::Keccak;
-use rustc_hex::ToHex;
-use lazycell::LazyCell;
+pub use ethkey::KeyPair;
+use ethkey::{Random, Generator, Secret, Public, Address, Password, Message, sign, verify_public, Signature, Error};
+use ethkey::crypto::ecies::{encrypt, decrypt};
+use ethkey::crypto::Error as CryptoError;
+use ethstore::{EthStore, SimpleSecretStore, SecretVaultRef, StoreAccountRef, Error as StoreError};
+use ethstore::accounts_dir::{KeyDirectory, RootDiskDirectory};
 
-const KEY_FILE_NAME: &str = "keystore.json";
-const ADDRESS_LENGTH: usize = 20;
+pub const KEY_ITERATIONS: u32 = 1024;
 
-pub type Address = [u8; ADDRESS_LENGTH];
-
-lazy_static! {
-	static ref SECP256K1: Secp256k1 = Secp256k1::new();
-}
 
 pub trait EthKey {
     /// generates random keys: secret + public
     fn generate() -> Self;
 
     /// get private key
-    fn private(&self) -> &SecretKey;
+    fn private(&self) -> &Secret;
 
     /// get public key
-    fn public(&self) -> &PublicKey;
+    fn public(&self) -> &Public;
 
     /// get ethereum address
-    fn address(&self) -> &Address;
+    fn address(&self) -> Address;
 
     /// signs message with sef key
-    fn sign(&self, msg: Message) -> Result<Signature, Error>;
+    fn sign(&self, msg: &Message) -> Result<Signature, Error>;
 
     /// verifies signature for message and self key
-    fn verify(&self, msg: Message, sig: Signature) -> Result<(), Error>;
+    fn verify(&self, sig: &Signature, msg: &Message) -> Result<bool, Error>;
 
     /// ciphers given plain data
-    fn encrypt(&self, plain: &[u8]) -> Result<Vec<u8>, Error>;
+    fn encrypt(&self, plain: &[u8]) -> Result<Vec<u8>, CryptoError>;
 
     /// deciphers given encrypted data
-    fn decrypt(&self, encrypted: &[u8]) -> Result<Vec<u8>, Error>;
+    fn decrypt(&self, encrypted: &[u8]) -> Result<Vec<u8>, CryptoError>;
 
     /// stores keys on disk with pass
-    fn serialize(&self, file_path: &Path, passwd: &str);
+    fn serialize(&self, store_path: &str, passwd: &Password) -> Result<StoreAccountRef, StoreError>;
 
     /// reads keys from disk; pass needed
-    fn deserialize(&self, file_path: &Path, passwd: &str);
+    fn deserialize(&self, store_path: &str, passwd: &Password);
 }
 
-#[derive(Debug)]
-pub struct KeyPair {
-    private: SecretKey,
-    public: PublicKey,
-    address: LazyCell<Address>,
-}
 
 impl EthKey for KeyPair {
     fn generate() -> Self {
-        let mut rng = OsRng::new().unwrap();
-        let (private, public) = SECP256K1.generate_keypair(&mut rng)
-            .expect("should generate key pair");
-
-        KeyPair { private, public, address: LazyCell::new() }
+        Random.generate().unwrap()
     }
 
-    fn private(&self) -> &SecretKey {
-        &self.private
+    fn private(&self) -> &Secret {
+        self.secret()
     }
 
-    fn public(&self) -> &PublicKey {
-        &self.public
+    fn public(&self) -> &Public {
+        self.public()
     }
 
-    fn address(&self) -> &Address {
-        self.address.borrow_with(|| {
-            let mut hash = [0u8; 32];
-            Keccak::keccak256(&self.public.serialize_vec(&SECP256K1, false), &mut hash);
-            let mut result = [0u8; ADDRESS_LENGTH];
-            result.copy_from_slice(&hash[12..]);
-            result
-        })
+    fn address(&self) -> Address {
+        self.address()
     }
 
-    fn sign(&self, msg: Message) -> Result<Signature, Error> {
-        SECP256K1.sign(&msg, &self.private)
+    fn sign(&self, msg: &Message) -> Result<Signature, Error> {
+        sign(self.secret(), msg)
     }
 
-    fn verify(&self, msg: Message, sig: Signature) -> Result<(), Error> {
-        SECP256K1.verify(&msg, &sig, &self.public)
+    fn verify(&self, sig: &Signature, msg: &Message) -> Result<bool, Error> {
+        verify_public(self.public(), sig, msg)
     }
 
-    fn encrypt(&self, plain: &[u8]) -> Result<Vec<u8>, Error> {
-        unimplemented!("{:?}", plain)
+    fn encrypt(&self, plain: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        encrypt(self.public(), &[0u8;0], plain)
     }
 
-    fn decrypt(&self, encrypted: &[u8]) -> Result<Vec<u8>, Error> {
-        unimplemented!("{:?}", encrypted)
+    fn decrypt(&self, encrypted: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        decrypt(self.private(), &[0u8;0], encrypted)
     }
 
-    fn serialize(&self, file_path: &Path, passwd: &str) {
-        unimplemented!("{:?}, {:?}", file_path, passwd)
+    fn serialize(&self, store_path: &str, passwd: &Password) -> Result<StoreAccountRef, StoreError> {
+        let dir = RootDiskDirectory::create(store_path)?;
+        let path = format!("{:?}", dir.path());
+        let store = EthStore::open(Box::new(dir))?;
+        let acc = store.insert_account(SecretVaultRef::Root, self.secret().to_owned(), passwd)?;
+        info!("account 0x{:x} stored in {}", acc.address, path);
+        Ok(acc)
     }
 
-    fn deserialize(&self, file_path: &Path, passwd: &str) {
-        unimplemented!("{:?}, {:?}", file_path, passwd)
-    }
-}
-
-impl fmt::Display for KeyPair {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "\n\t{:?}\n\t{:?}\n\tAddress({})",
-               self.private, self.public, self.address().to_hex())
+    fn deserialize(&self, store_path: &str, passwd: &Password) {
+        unimplemented!("{:?}, {:?}", store_path, passwd)
     }
 }
