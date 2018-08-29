@@ -1,5 +1,5 @@
 [package]
-name = "gu-ethkeys"
+name = "gu-ethkey"
 version = "0.1.0"
 authors = ["Golem Unlimited Team, Piotr Chromiec <tworec@golem.network>"]
 
