@@ -6,11 +6,16 @@ enum Role {
     BOTH = 0x03;
 };
 
+enum ReplyReason {
+
+}
+
 message Hello {
     required Role role = 1;
     optional string node_name = 2;
     required bytes node_id = 3;
-    optional string version = 4;
+    required bytes instance_id = 4;
+    optional string version = 5;
 
     optional string os = 10;
     optional uint64 max_ram = 11;
@@ -19,3 +24,15 @@ message Hello {
     repeated string exec_envs = 13;
 }
 
+message HelloReply {
+    required Role role = 1;
+    optional string node_name = 2;
+    required bytes node_id = 3;
+    optional string version = 4;
+
+    optional int32 max_ping_ms = 20;
+}
+
+message RPC {
+    required
+}

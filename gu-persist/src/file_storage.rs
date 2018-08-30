@@ -29,7 +29,7 @@ impl Handler<storage::Fetch> for FileStorage {
     type Result = Result<Option<Vec<u8>>>;
 
     fn handle(&mut self, msg: storage::Fetch, _ctx: &mut Self::Context) -> Self::Result {
-        use std::{io, fs};
+        use std::{fs, io};
 
         let path: PathBuf = self.key_path(&msg.0);
 

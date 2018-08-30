@@ -50,7 +50,6 @@ impl Actor for MyActor {
 }
 
 fn main() {
-
     env_logger::init();
 
     let sys = actix::System::new("test-config");

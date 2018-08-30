@@ -15,18 +15,16 @@ use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tokio_uds::UnixListener;
 
-
 #[derive(Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct ServerConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     p2p_port: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    control_socket : Option<String>,
+    control_socket: Option<String>,
 }
 
-const DEFAULT_P2P_PORT : u16 = 61622;
-
+const DEFAULT_P2P_PORT: u16 = 61622;
 
 impl ServerConfig {
     fn p2p_addr(&self) -> impl ToSocketAddrs {
@@ -45,7 +43,7 @@ pub fn clap_declare<'a, 'b>() -> clap::App<'a, 'b> {
 pub fn clap_match(m: &ArgMatches) {
     let config_path = match m.value_of("config-dir") {
         Some(v) => Some(v.to_string()),
-        None => None
+        None => None,
     };
 
     if let Some(m) = m.subcommand_matches("server") {
@@ -54,7 +52,7 @@ pub fn clap_match(m: &ArgMatches) {
     }
 }
 
-fn run_server(config_path : Option<String>) {
+fn run_server(config_path: Option<String>) {
     use actix;
 
     let sys = actix::System::new("gu-hub");

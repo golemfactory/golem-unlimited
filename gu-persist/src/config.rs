@@ -5,19 +5,18 @@ use serde::{Deserialize, Serialize};
 use serde_json::{self, Value as JsonValue};
 use std::borrow::Cow;
 use std::marker::PhantomData;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use std::collections::HashMap;
 use std::any::Any;
+use std::collections::HashMap;
 
 type Storage = super::file_storage::FileStorage;
-
 
 #[derive(Default)]
 pub struct ConfigManager {
     storage: Option<Addr<Storage>>,
-    cache : HashMap<&'static str, Box<Any + 'static>>
+    cache: HashMap<&'static str, Box<Any + 'static>>,
 }
 
 impl ConfigManager {
@@ -79,14 +78,14 @@ impl<T: ConfigSection + 'static> Message for GetConfig<T> {
 }
 
 #[derive(Message)]
-#[rtype(result="Result<()>")]
-pub struct SetConfig<T : ConfigSection>(Arc<T>);
+#[rtype(result = "Result<()>")]
+pub struct SetConfig<T: ConfigSection>(Arc<T>);
 
 #[derive(Message)]
-#[rtype(result="Result<()>")]
+#[rtype(result = "Result<()>")]
 pub enum SetConfigPath {
     Default(Cow<'static, str>),
-    FsPath(Cow<'static, str>)
+    FsPath(Cow<'static, str>),
 }
 
 impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
@@ -99,9 +98,8 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
             let y = v.downcast_ref::<Arc<T>>();
 
             if let Some(v) = y {
-                return ActorResponse::reply(Ok(v.clone()))
+                return ActorResponse::reply(Ok(v.clone()));
             }
-
         }
 
         ActorResponse::async(
@@ -110,14 +108,14 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
                 .flatten_fut()
                 .into_actor(self)
                 .and_then(|r, _act, ctx| {
-                    let v= match r {
+                    let v = match r {
                         None => Arc::new(T::default()),
                         Some(v) => {
-                            let p : JsonValue = match serde_json::from_slice(v.as_ref()) {
+                            let p: JsonValue = match serde_json::from_slice(v.as_ref()) {
                                 Ok(v) => v,
-                                Err(e) => return fut::err(e.into())
+                                Err(e) => return fut::err(e.into()),
                             };
-                           Arc::new(T::from_json(p).unwrap())
+                            Arc::new(T::from_json(p).unwrap())
                         }
                     };
                     ctx.notify(SetConfig(v.clone()));
@@ -127,15 +125,16 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
     }
 }
 
-
 macro_rules! async_try {
-    ( $e: expr) => (match $e {
-        Ok(v) => v,
-        Err(e) => return ActorResponse::reply(Err(e.into()))
-    })
+    ($e:expr) => {
+        match $e {
+            Ok(v) => v,
+            Err(e) => return ActorResponse::reply(Err(e.into())),
+        }
+    };
 }
 
-impl<T : ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
+impl<T: ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
     type Result = ActorResponse<ConfigManager, (), Error>;
 
     fn handle(&mut self, msg: SetConfig<T>, _ctx: &mut Self::Context) -> Self::Result {
@@ -147,10 +146,11 @@ impl<T : ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
         self.cache.insert(T::SECTION_ID, Box::new(v));
 
         ActorResponse::async(
-        self.storage().send(
-            Put(k, bytes)
-        ).flatten_fut()
-            .into_actor(self))
+            self.storage()
+                .send(Put(k, bytes))
+                .flatten_fut()
+                .into_actor(self),
+        )
     }
 }
 
@@ -158,7 +158,6 @@ impl Handler<SetConfigPath> for ConfigManager {
     type Result = Result<()>;
 
     fn handle(&mut self, msg: SetConfigPath, ctx: &mut Self::Context) -> Self::Result {
-
         let path = match msg {
             SetConfigPath::Default(app_name) => {
                 use directories::ProjectDirs;
@@ -167,10 +166,8 @@ impl Handler<SetConfigPath> for ConfigManager {
                     .unwrap()
                     .config_dir()
                     .into()
-            },
-            SetConfigPath::FsPath(path) => {
-                PathBuf::from(path.as_ref())
             }
+            SetConfigPath::FsPath(path) => PathBuf::from(path.as_ref()),
         };
 
         info!("new config path={:?}", path);
