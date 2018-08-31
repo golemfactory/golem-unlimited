@@ -1,25 +1,35 @@
 extern crate ethkey;
 extern crate ethstore;
+extern crate parity_crypto;
 #[macro_use]
 extern crate log;
 #[macro_use]
 extern crate error_chain;
 
+use std::path::Path;
+use std::io;
+use std::fs;
+
 pub use ethkey::KeyPair;
 use ethkey::{Random, Generator, Secret, Public, Address, Password, Message, sign, verify_public, Signature};
 use ethkey::crypto::ecies::{encrypt, decrypt};
-use ethstore::{EthStore, SimpleSecretStore, SecretVaultRef};
-use ethstore::accounts_dir::{KeyDirectory, RootDiskDirectory};
+use ethstore::SafeAccount;
+use ethstore::accounts_dir::{RootDiskDirectory, KeyFileManager, DiskKeyFileManager};
+
+pub const KEY_ITERATIONS: u32 = 10240;
 
 error_chain!{
     foreign_links {
+        GenerationError(io::Error);
         KeyError(ethkey::Error);
         CryptoError(ethkey::crypto::Error);
+        StoreCryptoError(parity_crypto::Error);
     }
     errors {
         StoreError(e: ethstore::Error) {
             display("Store error '{}'", e)
         }
+        InvalidPath {}
     }
 }
 
@@ -31,7 +41,7 @@ impl From<ethstore::Error> for Error {
 
 pub trait EthKey {
     /// generates random keys: secret + public
-    fn generate() -> Self;
+    fn generate() -> Result<Box<Self>>;
 
     /// get private key
     fn private(&self) -> &Secret;
@@ -55,18 +65,16 @@ pub trait EthKey {
     fn decrypt(&self, encrypted: &[u8]) -> Result<Vec<u8>>;
 }
 
-pub trait EthSerde {
+pub trait EthKeyStore {
     /// stores keys on disk with pass
-    fn save_to_file(&self, store_path: &str, passwd: &Password) -> Result<()>;
-
+    fn save_to_file<P>(&self, file_path: P, pwd: &Password) -> Result<()> where P: AsRef<Path>;
     /// reads keys from disk; pass needed
-    fn load_from_file(&self, store_path: &str, passwd: &Password) -> Result<KeyPair>;
+    fn load_from_file<P>(file_path: P, pwd: &Password) -> Result<KeyPair> where P: AsRef<Path>;
 }
 
-
 impl EthKey for KeyPair {
-    fn generate() -> Self {
-        Random.generate().unwrap()
+    fn generate() -> Result<Box<Self>> {
+        Random.generate().map(Box::new).map_err(Error::from)
     }
 
     fn private(&self) -> &Secret {
@@ -98,17 +106,29 @@ impl EthKey for KeyPair {
     }
 }
 
-impl EthSerde for KeyPair {
-    fn save_to_file(&self, store_path: &str, passwd: &Password) -> Result<()> {
-        let dir = RootDiskDirectory::create(store_path)?;
-        let path = format!("{:?}", dir.path());
-        let store = EthStore::open(Box::new(dir))?;
-        let acc = store.insert_account(SecretVaultRef::Root, self.secret().to_owned(), passwd)?;
-        info!("account 0x{:x} stored in {}", acc.address, path);
+impl EthKeyStore for KeyPair {
+
+    fn save_to_file<P>(&self, file_path: P, pwd: &Password) -> Result<()> where P: AsRef<Path> {
+        let file_path = file_path.as_ref();
+        let dir_path = file_path.parent().ok_or(ErrorKind::InvalidPath)?;
+        let file_name = file_path.file_name().and_then(|n| n.to_str())
+            .map(|f| f.to_owned()).ok_or(ErrorKind::InvalidPath)?;
+        let dir = RootDiskDirectory::create(dir_path)?;
+        let account = SafeAccount::create(
+            &self, [0u8; 16], pwd,
+            KEY_ITERATIONS, "".to_owned(), "{}".to_owned())?;
+        let account = dir.insert_with_filename(account, file_name, false);
+        info!("account 0x{:x} stored into {}", account?.address, file_path.display());
         Ok(())
     }
 
-    fn load_from_file(&self, store_path: &str, passwd: &Password) -> Result<KeyPair>{
-        unimplemented!("{:?}, {:?}", store_path, passwd)
+    fn load_from_file<P>(file_path: P, pwd: &Password) -> Result<KeyPair> where P: AsRef<Path> {
+        let account = fs::File::open(&file_path)
+            .map_err(Into::into)
+            .and_then(|file| DiskKeyFileManager.read(None, file))?;
+
+        let secret = account.crypto.secret(pwd)?;
+        info!("account 0x{:x} read from {}", account.address, file_path.as_ref().display());
+        KeyPair::from_secret(secret).map_err(Error::from)
     }
 }
