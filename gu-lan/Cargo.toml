@@ -1,0 +1,13 @@
+[package]
+name = "gu-lan"
+version = "0.1.0"
+authors = ["Hubert Banaszewski <hubert.banaszewski@golem.network>"]
+
+[dependencies]
+actix = "0.7"
+dns-parser = "0.8"
+error-chain = "0.12"
+futures = "0.1"
+socket2 = "0.3"
+tokio = "0.1"
+env_logger = "0.5"

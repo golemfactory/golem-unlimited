@@ -6,6 +6,7 @@ members= [
 	'gu-ethkeys',
 	'gu-p2p',
 	'gu-persist',
+	'gu-lan',
 ]
 
 [dependencies]
