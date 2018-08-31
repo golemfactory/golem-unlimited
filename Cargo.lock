@@ -479,12 +479,11 @@ dependencies = [
 [[package]]
 name = "dir"
 version = "0.1.2"
-source = "git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support#2d63f413b7b2ae617e5de9f6b4682d90ae5e927b"
 dependencies = [
  "app_dirs 1.2.1 (git+https://github.com/paritytech/app-dirs-rs)",
  "ethereum-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "home 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "journaldb 0.2.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)",
+ "journaldb 0.2.0",
 ]
 
 [[package]]
@@ -667,7 +666,6 @@ dependencies = [
 [[package]]
 name = "ethkey"
 version = "0.3.0"
-source = "git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support#2d63f413b7b2ae617e5de9f6b4682d90ae5e927b"
 dependencies = [
  "byteorder 1.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "edit-distance 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -675,7 +673,7 @@ dependencies = [
  "ethereum-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mem 0.1.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)",
+ "mem 0.1.0",
  "parity-crypto 0.1.0 (git+https://github.com/paritytech/parity-common)",
  "parity-wordlist 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-error 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -689,11 +687,10 @@ dependencies = [
 [[package]]
 name = "ethstore"
 version = "0.2.0"
-source = "git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support#2d63f413b7b2ae617e5de9f6b4682d90ae5e927b"
 dependencies = [
- "dir 0.1.2 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)",
+ "dir 0.1.2",
  "ethereum-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "ethkey 0.3.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)",
+ "ethkey 0.3.0",
  "itertools 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -734,7 +731,6 @@ dependencies = [
 [[package]]
 name = "fastmap"
 version = "0.1.0"
-source = "git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support#2d63f413b7b2ae617e5de9f6b4682d90ae5e927b"
 dependencies = [
  "ethereum-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "plain_hasher 0.2.0 (git+https://github.com/paritytech/parity-common)",
@@ -830,10 +826,11 @@ version = "0.1.0"
 dependencies = [
  "env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ethkey 0.3.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)",
- "ethstore 0.2.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)",
+ "ethkey 0.3.0",
+ "ethstore 0.2.0",
  "log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-crypto 0.1.0 (git+https://github.com/paritytech/parity-common)",
+ "rustc-hex 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1023,13 +1020,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "journaldb"
 version = "0.2.0"
-source = "git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support#2d63f413b7b2ae617e5de9f6b4682d90ae5e927b"
 dependencies = [
  "ethereum-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "fastmap 0.1.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)",
+ "fastmap 0.1.0",
  "hashdb 0.2.1 (git+https://github.com/paritytech/parity-common)",
  "heapsize 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "keccak-hasher 0.1.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)",
+ "keccak-hasher 0.1.0",
  "kvdb 0.1.0 (git+https://github.com/paritytech/parity-common)",
  "log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "memorydb 0.2.1 (git+https://github.com/paritytech/parity-common)",
@@ -1046,7 +1042,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "keccak-hasher"
 version = "0.1.0"
-source = "git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support#2d63f413b7b2ae617e5de9f6b4682d90ae5e927b"
 dependencies = [
  "ethereum-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashdb 0.2.1 (git+https://github.com/paritytech/parity-common)",
@@ -1170,7 +1165,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "mem"
 version = "0.1.0"
-source = "git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support#2d63f413b7b2ae617e5de9f6b4682d90ae5e927b"
 
 [[package]]
 name = "memchr"
@@ -2502,7 +2496,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum crunchy 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "a2f4a431c5c9f662e1200b7c7f02c34e91361150e382089a8f2dec3ba680cbda"
 "checksum dbghelp-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "97590ba53bcb8ac28279161ca943a924d1fd4a8fb3fa63302591647c4fc5b850"
 "checksum digest 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)" = "5b29c278aa8fd30796bd977169e8004b4aa88cdcd2f32a6eb22bc2d5d38df94a"
-"checksum dir 0.1.2 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)" = "<none>"
 "checksum directories 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b106a38a9bf6c763c6c2e2c3332ab7635da453a68a6babca776386b3b287d338"
 "checksum dtoa 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "6d301140eb411af13d3115f9a562c85cc6b541ade9dfa314132244aaee7489dd"
 "checksum edit-distance 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "3bd26878c3d921f89797a4e1a1711919f999a9f6946bb6f5a4ffda126d297b7e"
@@ -2524,11 +2517,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum ethbloom 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1a93a43ce2e9f09071449da36bfa7a1b20b950ee344b6904ff23de493b03b386"
 "checksum ethereum-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9c48729b8aea8aedb12cf4cb2e5cef439fdfe2dda4a89e47eeebd15778ef53b6"
 "checksum ethereum-types-serialize 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4ac59a21a9ce98e188f3dace9eb67a6c4a3c67ec7fbc7218cb827852679dc002"
-"checksum ethkey 0.3.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)" = "<none>"
-"checksum ethstore 0.2.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)" = "<none>"
 "checksum failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7efb22686e4a466b1ec1a15c2898f91fa9cb340452496dca654032de20ff95b9"
 "checksum failure_derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "946d0e98a50d9831f5d589038d2ca7f8f455b1c21028c0db0e84116a12696426"
-"checksum fastmap 0.1.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)" = "<none>"
 "checksum fixed-hash 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "0d5ec8112f00ea8a483e04748a85522184418fd1cf02890b626d8fc28683f7de"
 "checksum flate2 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "37847f133aae7acf82bb9577ccd8bda241df836787642654286e79679826a54b"
 "checksum fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "2fad85553e09a6f881f739c29f0b00b0f01357c743266d478b68951ce23285f3"
@@ -2556,9 +2546,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum ipconfig 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "fccb81dd962b29a25de46c4f46e497b75117aa816468b6fff7a63a598a192394"
 "checksum itertools 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)" = "4833d6978da405305126af4ac88569b5d71ff758581ce5a987dbfa3755f694fc"
 "checksum itoa 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "5adb58558dcd1d786b5f0bd15f3226ee23486e24b7b58304b60f64dc68e62606"
-"checksum journaldb 0.2.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)" = "<none>"
 "checksum keccak 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "67c21572b4949434e4fc1e1978b99c5f77064153c59d998bf13ecd96fb5ecba7"
-"checksum keccak-hasher 0.1.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)" = "<none>"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 "checksum kv 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3b14031185853830557b79ad7df1aa5bfde509320f41888d975fb37cb6eb36de"
 "checksum kvdb 0.1.0 (git+https://github.com/paritytech/parity-common)" = "<none>"
@@ -2574,7 +2562,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "cba860f648db8e6f269df990180c2217f333472b4a6e901e97446858487971e2"
 "checksum lru-cache 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4d06ff7ff06f729ce5f4e227876cb88d10bc59cd4ae1e09fbb2bde15c850dc21"
 "checksum matches 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
-"checksum mem 0.1.0 (git+https://github.com/tworec/parity-ethereum?branch=pyethereum-keystore-support)" = "<none>"
 "checksum memchr 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a3b4142ab8738a78c51896f704f83c11df047ff1bda9a92a661aa6361552d93d"
 "checksum memoffset 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0f9dc261e2b62d7a622bf416ea3c5245cdd5d9a7fcc428c0d06804dfce1775b3"
 "checksum memorydb 0.2.1 (git+https://github.com/paritytech/parity-common)" = "<none>"

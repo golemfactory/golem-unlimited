@@ -6,6 +6,7 @@ authors = ["Golem Unlimited Team, Piotr Chromiec <tworec@golem.network>"]
 [dependencies]
 log = "0.4"
 env_logger = "0.5"
+rustc-hex = "1.0"
 error-chain = "0.12"
 ethkey = { git = "https://github.com/tworec/parity-ethereum", branch = "pyethereum-keystore-support"}
 ethstore = { git = "https://github.com/tworec/parity-ethereum", branch = "pyethereum-keystore-support"}

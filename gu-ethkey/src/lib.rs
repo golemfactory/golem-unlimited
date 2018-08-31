@@ -1,51 +1,34 @@
-extern crate ethkey;
-extern crate ethstore;
-extern crate parity_crypto;
 #[macro_use]
 extern crate log;
+extern crate rustc_hex;
 #[macro_use]
 extern crate error_chain;
 
-use std::path::Path;
-use std::io;
-use std::fs;
+extern crate ethkey;
+extern crate ethstore;
+extern crate parity_crypto;
 
-pub use ethkey::KeyPair;
-use ethkey::{Random, Generator, Secret, Public, Address, Password, Message, sign, verify_public, Signature};
+use std::fmt;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use rustc_hex::ToHex;
+
+use ethkey::{KeyPair, Random, Generator, Public, Address, Password, Message, sign, verify_public, Signature};
 use ethkey::crypto::ecies::{encrypt, decrypt};
 use ethstore::SafeAccount;
 use ethstore::accounts_dir::{RootDiskDirectory, KeyFileManager, DiskKeyFileManager};
 
 pub const KEY_ITERATIONS: u32 = 10240;
 
-error_chain!{
-    foreign_links {
-        GenerationError(io::Error);
-        KeyError(ethkey::Error);
-        CryptoError(ethkey::crypto::Error);
-        StoreCryptoError(parity_crypto::Error);
-    }
-    errors {
-        StoreError(e: ethstore::Error) {
-            display("Store error '{}'", e)
-        }
-        InvalidPath {}
-    }
+/// An Ethereum `KeyPair` wrapper with Store.
+pub struct SafeEthKey{
+    key_pair: KeyPair,
+    file_path: PathBuf
 }
 
-impl From<ethstore::Error> for Error {
-    fn from(e: ethstore::Error) -> Self {
-        ErrorKind::StoreError(e).into()
-    }
-}
-
+/// Provides basic EC operations on curve Secp256k1.
 pub trait EthKey {
-    /// generates random keys: secret + public
-    fn generate() -> Result<Box<Self>>;
-
-    /// get private key
-    fn private(&self) -> &Secret;
-
     /// get public key
     fn public(&self) -> &Public;
 
@@ -65,70 +48,119 @@ pub trait EthKey {
     fn decrypt(&self, encrypted: &[u8]) -> Result<Vec<u8>>;
 }
 
+/// Provides basic serde for Ethereum `KeyPair`.
 pub trait EthKeyStore {
-    /// stores keys on disk with pass
-    fn save_to_file<P>(&self, file_path: P, pwd: &Password) -> Result<()> where P: AsRef<Path>;
-    /// reads keys from disk; pass needed
-    fn load_from_file<P>(file_path: P, pwd: &Password) -> Result<KeyPair> where P: AsRef<Path>;
+    /// reads keys from disk or generates new ones and stores to disk; pass needed
+    fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>>
+        where P: Into<PathBuf>;
+    /// stores keys on disk with changed password
+    fn change_password(&self, new_pwd: &Password) -> Result<()>;
 }
 
-impl EthKey for KeyPair {
-    fn generate() -> Result<Box<Self>> {
-        Random.generate().map(Box::new).map_err(Error::from)
-    }
-
-    fn private(&self) -> &Secret {
-        self.secret()
-    }
-
+impl EthKey for SafeEthKey {
     fn public(&self) -> &Public {
-        self.public()
+        self.key_pair.public()
     }
 
     fn address(&self) -> Address {
-        self.address()
+        self.key_pair.address()
     }
 
     fn sign(&self, msg: &Message) -> Result<Signature> {
-        sign(self.secret(), msg).map_err(Error::from)
+        sign(self.key_pair.secret(), msg).map_err(Error::from)
     }
 
     fn verify(&self, sig: &Signature, msg: &Message) -> Result<bool> {
-        verify_public(self.public(), sig, msg).map_err(Error::from)
+        verify_public(self.key_pair.public(), sig, msg).map_err(Error::from)
     }
 
     fn encrypt(&self, plain: &[u8]) -> Result<Vec<u8>> {
-        encrypt(self.public(), &[0u8; 0], plain).map_err(Error::from)
+        encrypt(self.key_pair.public(), &[0u8; 0], plain).map_err(Error::from)
     }
 
     fn decrypt(&self, encrypted: &[u8]) -> Result<Vec<u8>> {
-        decrypt(self.private(), &[0u8; 0], encrypted).map_err(Error::from)
+        decrypt(self.key_pair.secret(), &[0u8; 0], encrypted).map_err(Error::from)
     }
 }
 
-impl EthKeyStore for KeyPair {
+fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
+    SafeAccount::create(
+        key_pair, [0u8; 16], pwd,
+        KEY_ITERATIONS, "".to_owned(), "{}".to_owned()
+    ).map_err(Error::from)
+}
 
-    fn save_to_file<P>(&self, file_path: P, pwd: &Password) -> Result<()> where P: AsRef<Path> {
-        let file_path = file_path.as_ref();
-        let dir_path = file_path.parent().ok_or(ErrorKind::InvalidPath)?;
-        let file_name = file_path.file_name().and_then(|n| n.to_str())
-            .map(|f| f.to_owned()).ok_or(ErrorKind::InvalidPath)?;
-        let dir = RootDiskDirectory::create(dir_path)?;
-        let account = SafeAccount::create(
-            &self, [0u8; 16], pwd,
-            KEY_ITERATIONS, "".to_owned(), "{}".to_owned())?;
-        let account = dir.insert_with_filename(account, file_name, false);
-        info!("account 0x{:x} stored into {}", account?.address, file_path.display());
-        Ok(())
+fn save_key_pair<P>(key_pair: &KeyPair, pwd: &Password, file_path: &P) -> Result<SafeAccount>
+        where P: AsRef<Path> {
+    let file_path = file_path.as_ref();
+    let dir_path = file_path.parent().ok_or(ErrorKind::InvalidPath)?;
+    let file_name = file_path.file_name().and_then(|n| n.to_str())
+        .map(|f| f.to_owned()).ok_or(ErrorKind::InvalidPath)?;
+
+    let dir = RootDiskDirectory::create(dir_path)?;
+
+    dir.insert_with_filename(to_safe_account(key_pair, pwd)?, file_name, false).map_err(Error::from)
+}
+
+
+impl EthKeyStore for SafeEthKey {
+    fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>> where P: Into<PathBuf> {
+        let file_path = file_path.into();
+        fs::File::open(&file_path).map_err(Error::from)
+            .and_then(|file| DiskKeyFileManager.read(None, file).map_err(Error::from))
+            .and_then( |safe_account| {
+                // TODO: fixme: generates new acc when pass do not match
+                match KeyPair::from_secret(safe_account.crypto.secret(pwd)?) {
+                    Ok(key_pair) => {
+                        info!("account 0x{:x} loaded from {}", key_pair.address(), file_path.display());
+                        Ok(key_pair)
+                    }
+                    Err(e) => Err(Error::from(e))
+                }
+            })
+            .or_else(|_| {
+                match Random.generate() {
+                    Ok(key_pair) => {
+                        let _ = save_key_pair(&key_pair, pwd, &file_path)?;
+                        info!("new account 0x{:x} generated and stored into {}", key_pair.address(), file_path.display());
+                        Ok(key_pair)
+                    }
+                    Err(e) => Err(Error::from(e))
+                }
+            })
+            .map(|key_pair| Box::new(SafeEthKey {key_pair, file_path}))
     }
 
-    fn load_from_file<P>(file_path: P, pwd: &Password) -> Result<KeyPair> where P: AsRef<Path> {
-        let account = fs::File::open(&file_path)
-            .map_err(Into::into)
-            .and_then(|file| DiskKeyFileManager.read(None, file))?;
+    fn change_password(&self, new_pwd: &Password) -> Result<()> {
+        save_key_pair(&self.key_pair, new_pwd, &self.file_path)?;
+        info!("password for account 0x{:x} changed. Stored into {}", self.key_pair.address(), self.file_path.display());
+        Ok(())
+    }
+}
 
-        let secret = account.crypto.secret(pwd)?;
-        info!("account 0x{:x} read from {}", account.address, file_path.as_ref().display());
-        KeyPair::from_secret(secret).map_err(Error::from)
+impl fmt::Display for SafeEthKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
+        write!(f, "SafeEthKey:\n\tpublic:  0x{}\n\taddress: 0x{}", self.public().to_hex(), self.address().to_hex())
+    }
+}
+
+error_chain!{
+    foreign_links {
+        GenerationError(io::Error);
+        KeyError(ethkey::Error);
+        CryptoError(ethkey::crypto::Error);
+        StoreCryptoError(parity_crypto::Error);
+    }
+    errors {
+        StoreError(e: ethstore::Error) {
+            display("Store error '{}'", e)
+        }
+        InvalidPath {}
+    }
+}
+
+impl From<ethstore::Error> for Error {
+    fn from(e: ethstore::Error) -> Self {
+        ErrorKind::StoreError(e).into()
     }
 }
