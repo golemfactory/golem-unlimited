@@ -48,4 +48,4 @@ trait Connection: AsyncRead + AsyncWrite {
 }
 
 mod proto;
-mod rpc;
+pub mod rpc;
