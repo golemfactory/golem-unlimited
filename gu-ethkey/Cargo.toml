@@ -11,3 +11,4 @@ error-chain = "0.12"
 ethkey = { git = "https://github.com/tworec/parity-ethereum", branch = "pyethereum-keystore-support"}
 ethstore = { git = "https://github.com/tworec/parity-ethereum", branch = "pyethereum-keystore-support"}
 parity-crypto = { git = "https://github.com/paritytech/parity-common" }
+tempfile = "3.0"
