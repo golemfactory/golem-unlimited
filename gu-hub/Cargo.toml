@@ -20,5 +20,5 @@ tokio="0.1"
 directories="1.0"
 
 actix = "0.7"
-actix-web = {version= "0.6", features=["tls"]}
+actix-web = {version= "0.7", features=["tls"]}
 
