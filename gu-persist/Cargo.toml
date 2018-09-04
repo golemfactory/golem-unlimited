@@ -13,7 +13,7 @@ directories="1.0"
 
 actix = "0.7"
 actix_derive = "0.3"
-actix-web = "0.6"
+actix-web = "0.7"
 
 kv="0.6"
 tokio-fs="0.1"
