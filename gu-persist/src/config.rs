@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use gu_actix::*;
 use std::any::Any;
 use std::collections::HashMap;
 

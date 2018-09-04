@@ -11,6 +11,12 @@ pub struct MessageRouter {
     remotes: HashMap<NodeId, Recipient<EmitMessage<String>>>,
 }
 
+impl Drop for MessageRouter {
+    fn drop(&mut self) {
+        println!("router stoped");
+    }
+}
+
 #[derive(Message)]
 pub struct AddEndpoint {
     pub node_id: NodeId,
@@ -63,10 +69,12 @@ impl Handler<RouteMessage<String>> for MessageRouter {
 
     fn handle(&mut self, msg: RouteMessage<String>, ctx: &mut Self::Context) -> Self::Result {
         //let destination = msg.destination.clone();
+        debug!("handling dest: {:?}", msg.destination);
         if let Some(v) = self.destinations.get_mut(&msg.destination) {
             v.handle(msg, ctx);
         } else if let Some(r) = EmitMessage::reply(&msg, TransportResult::NoDestination) {
-            ctx.notify(r)
+            debug!("no dest: {:?}", msg.destination);
+            ctx.notify(r);
         }
     }
 }
@@ -81,6 +89,7 @@ impl Handler<EmitMessage<String>> for MessageRouter {
                 Ok(v) => v,
             })
         } else {
+            error!("endpoint not connected: {:?}", msg.dest_node);
             return ActorResponse::reply(Err(error::ErrorKind::NotConnected.into()));
         };
 
@@ -92,8 +101,19 @@ impl Handler<BindDestination> for MessageRouter {
     type Result = ();
 
     fn handle(&mut self, msg: BindDestination, ctx: &mut Self::Context) -> Self::Result {
-        println!("registed: {:?}", &msg.destination_id);
+        debug!("registed: {:?}", &msg.destination_id);
         self.destinations.insert(msg.destination_id, msg.endpoint);
+    }
+}
 
+impl Handler<AddEndpoint> for MessageRouter {
+    type Result = ();
+
+    fn handle(
+        &mut self,
+        msg: AddEndpoint,
+        ctx: &mut Self::Context,
+    ) -> <Self as Handler<AddEndpoint>>::Result {
+        self.remotes.insert(msg.node_id, msg.recipient);
     }
 }

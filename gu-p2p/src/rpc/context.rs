@@ -1,14 +1,15 @@
+use super::error::{Error, ErrorKind};
 use super::message::{self, public_destination, DestinationId};
 use super::router::{self, MessageRouter};
 use actix::dev::*;
 use actix::prelude::*;
-use futures::{prelude::*, future};
 use futures::sync::oneshot::Sender;
+use futures::{future, prelude::*};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json;
 use std::any;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use serde_json;
 
 pub struct RemotingContext<A>
 where
@@ -73,8 +74,8 @@ where
 }
 
 impl<A> AsyncContextParts<A> for RemotingContext<A>
-    where
-        A: Actor<Context = Self>,
+where
+    A: Actor<Context = Self>,
 {
     fn parts(&mut self) -> &mut ContextParts<A> {
         &mut self.inner
@@ -82,17 +83,15 @@ impl<A> AsyncContextParts<A> for RemotingContext<A>
 }
 
 impl<A, M> ToEnvelope<A, M> for RemotingContext<A>
-    where
-        A: Actor<Context = RemotingContext<A>> + Handler<M>,
-        M: Message + Send + 'static,
-        M::Result: Send,
+where
+    A: Actor<Context = RemotingContext<A>> + Handler<M>,
+    M: Message + Send + 'static,
+    M::Result: Send,
 {
     fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Envelope<A> {
         Envelope::new(msg, tx)
     }
 }
-
-
 
 impl<A> RemotingContext<A>
 where
@@ -121,13 +120,12 @@ where
         ContextFut::new(self, act, mb)
     }
 
-
     pub fn bind<T: any::Any + Send>(&mut self, destination_id: u32)
     where
         A: Handler<T>,
         T: Message + DeserializeOwned,
         T::Result: Serialize + Send,
-        A::Context : ToEnvelope<A ,T>
+        A::Context: ToEnvelope<A, T>,
     {
         let type_id = any::TypeId::of::<T>();
         let addr = self.address();
@@ -139,6 +137,23 @@ where
             destination_id: public_destination(destination_id),
             endpoint,
         })
+    }
+
+    pub fn register<T: any::Any + Send>(
+        &mut self,
+    ) -> impl Future<Item = DestinationId, Error = Error>
+    where
+        A: Handler<T>,
+        T: Message + DeserializeOwned,
+        T::Result: Serialize + Send,
+        A::Context: ToEnvelope<A, T>,
+    {
+        let addr = self.address();
+        let endpoint = Box::new(AddrWrapper {
+            addr,
+            message: PhantomData,
+        });
+        future::ok(public_destination(1))
     }
 }
 
@@ -152,18 +167,19 @@ where
     message: PhantomData<T>,
 }
 
-unsafe impl<A, T> Send for AddrWrapper<A, T> where
+unsafe impl<A, T> Send for AddrWrapper<A, T>
+where
     A: Actor + Handler<T>,
     T: Message + DeserializeOwned,
-    T::Result: Serialize
+    T::Result: Serialize,
 {}
 
 impl<A, T> router::LocalEndpoint for AddrWrapper<A, T>
 where
     A: Actor + Handler<T>,
-    T: Message + DeserializeOwned + Send,
+    T: Message + DeserializeOwned + Send + 'static,
     T::Result: Serialize + Send,
-    A::Context : ToEnvelope<A ,T>
+    A::Context: ToEnvelope<A, T>,
 {
     fn handle(
         &mut self,
@@ -173,35 +189,38 @@ where
         let m = message.clone();
 
         match message.from_json() {
-            Err(err) => if let Some(msg) = message::EmitMessage::reply(
-                &m,
-                message::TransportResult::bad_request(format!("{}", err)),
-            ) {
-                ctx.notify(msg)
-            },
+            Err(err) => {
+                error!("bad format!");
+                if let Some(msg) = message::EmitMessage::reply(
+                    &m,
+                    message::TransportResult::bad_request(format!("{}", err)),
+                ) {
+                    ctx.notify(msg)
+                }
+            }
             Ok(message) => {
                 let m = message.unit();
-
-                let f = self
-                    .addr
-                    .send(message.body)
-                    .then(|r| match r {
-                        Ok(b) => serde_json::to_string(&b).map_err(|_|()),
-                        Err(e) => Err(())
+                debug!("message parsed!");
+                let f = actix::fut::wrap_future(self.addr.send(message.body))
+                    .then(move |r, act, ctx| match r {
+                        Ok(b) => fut::ok(serde_json::to_string(&b).unwrap()),
+                        Err(e) => fut::err(()),
                     })
-                    .and_then(|r| {
+                    .and_then(move |r, act, ctx: &mut <MessageRouter as Actor>::Context| {
                         m.do_reply(r, |reply| ctx.notify(reply));
-                        future::ok(())
-                    });
+                        fut::ok(())
+                    })
+                    .map_err(|e, act, ctx| println!("error: {:?}", e));
+                ctx.spawn(f);
+                //ctx.spawn(f.into_actor(self));
             }
         }
     }
 }
 
-
-pub fn start_actor<A : Actor>(actor : A) -> Addr<A>
-    where
-        A: Actor<Context = RemotingContext<A>>,
+pub fn start_actor<A: Actor>(actor: A) -> Addr<A>
+where
+    A: Actor<Context = RemotingContext<A>>,
 {
     RemotingContext::new().run(actor)
 }

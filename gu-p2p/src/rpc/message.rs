@@ -3,10 +3,12 @@ use actix::prelude::*;
 use futures::prelude::*;
 
 use super::util::*;
+use rand::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
 use smallvec::*;
 use std::any::Any;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self, Write};
 
@@ -14,6 +16,39 @@ pub type NodeId = [u8; 32];
 pub type MessageId = SmallVec<[u8; 8]>;
 pub type DestinationId = SmallVec<[u8; 8]>;
 pub type MessageTypeId = SmallVec<[u8; 4]>;
+
+pub struct IdGenerator<R: Rng> {
+    rng: R,
+    state: [u64; 1],
+}
+
+impl<R: Rng> IdGenerator<R> {
+    fn new(mut r: R) -> IdGenerator<R> {
+        let mut s = IdGenerator {
+            state: r.gen(),
+            rng: r,
+        };
+
+        s
+    }
+
+    fn next_dest(&mut self) -> DestinationId {
+        use std::mem;
+
+        self.state[0] = self.state[0].wrapping_add(1);
+
+        let bytes: [u8; 8] = unsafe { mem::transmute::<[u64; 1], [u8; 8]>(self.state) };
+        SmallVec::from_slice(&bytes[..])
+    }
+}
+
+thread_local! {
+    static ID_GEN : RefCell<IdGenerator<ThreadRng>> = RefCell::new(IdGenerator::new(thread_rng()));
+}
+
+pub fn gen_destination_id() -> DestinationId {
+    ID_GEN.with(|gen| gen.borrow_mut().next_dest())
+}
 
 pub fn public_destination(destination_id: u32) -> DestinationId {
     use byteorder::{BigEndian, WriteBytesExt};
@@ -25,12 +60,22 @@ pub fn public_destination(destination_id: u32) -> DestinationId {
     v
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TransportError {
     NoDestination,
     BadFormat(String),
 }
 
+impl Into<error::Error> for TransportError {
+    fn into(self) -> error::Error {
+        match self {
+            TransportError::NoDestination => error::ErrorKind::NoDestination.into(),
+            TransportError::BadFormat(s) => error::ErrorKind::BadFormat(s).into()
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum TransportResult<B> {
     Ok(B),
     Err(TransportError),
@@ -41,6 +86,16 @@ impl<B> TransportResult<B> {
 
     pub fn bad_request<T: Into<String>>(msg: T) -> Self {
         TransportResult::Err(TransportError::BadFormat(msg.into()))
+    }
+}
+
+impl<T> Into<Result<T, error::Error>> for TransportResult<T> {
+
+    fn into(self) -> Result<T, error::Error> {
+        match self {
+            TransportResult::Ok(t) => Ok(t),
+            TransportResult::Err(e) => Err(e.into())
+        }
     }
 }
 
@@ -78,7 +133,7 @@ impl<B> RouteMessage<B> {
             correlation_id: self.correlation_id.clone(),
             ts: self.ts,
             expires: self.expires,
-            body: ()
+            body: (),
         }
     }
 }
