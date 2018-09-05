@@ -1,6 +1,7 @@
 mod connection;
 mod context;
 mod message;
+pub mod mock;
 mod reply;
 pub mod router;
 mod util;

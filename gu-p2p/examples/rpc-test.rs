@@ -34,7 +34,8 @@ impl Actor for Test {
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
         info!("started!");
-        ctx.bind::<Init>(1)
+        ctx.bind::<Init>(1);
+        ctx.bind::<Echo>(2);
     }
 }
 
@@ -55,102 +56,19 @@ impl Handler<Init> for Test {
     }
 }
 
-struct Callback {
-    reply: HashMap<MessageId, oneshot::Sender<String>>,
-    fake_node_id: NodeId,
-    tx_map: HashMap<DestinationId, oneshot::Sender<Result<String, RpcError>>>,
+#[derive(Serialize, Deserialize)]
+struct Echo(serde_json::Value);
+
+impl Message for Echo {
+    type Result = Result<serde_json::Value, ()>;
 }
 
-impl Actor for Callback {
-    type Context = Context<Self>;
+impl Handler<Echo> for Test {
+    type Result = Result<serde_json::Value, ()>;
 
-    fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        info!("Callback actor started")
+    fn handle(&mut self, msg: Echo, ctx: &mut Self::Context) -> <Self as Handler<Echo>>::Result {
+        Ok(msg.0)
     }
-}
-
-impl ArbiterService for Callback {
-    fn service_started(&mut self, ctx: &mut Context<Self>) {
-        use gu_p2p::rpc::router::*;
-        info!("Callback service started");
-        MessageRouter::from_registry().do_send(AddEndpoint {
-            node_id: self.fake_node_id.clone(),
-            recipient: ctx.address().recipient(),
-        })
-    }
-}
-
-impl Handler<EmitMessage<String>> for Callback {
-    type Result = Result<MessageId, RpcError>;
-
-    fn handle(
-        &mut self,
-        msg: EmitMessage<String>,
-        ctx: &mut Self::Context,
-    ) -> <Self as Handler<EmitMessage<String>>>::Result {
-        info!("emit={:?}", &msg.body);
-        if let Some(tx) = self.tx_map.remove(&msg.destination) {
-            tx.send(msg.body.into()).unwrap();
-        }
-
-        Ok(gen_destination_id())
-    }
-}
-
-impl Supervised for Callback {}
-
-impl Default for Callback {
-    fn default() -> Self {
-        use rand::prelude::*;
-        let mut rng = thread_rng();
-
-        Callback {
-            reply: HashMap::new(),
-            fake_node_id: rng.gen(),
-            tx_map: HashMap::new(),
-        }
-    }
-}
-
-struct Forward(RouteMessage<String>);
-
-impl Message for Forward {
-    type Result = Result<String, RpcError>;
-}
-
-impl Handler<Forward> for Callback {
-    type Result = ActorResponse<Callback, String, RpcError>;
-
-    fn handle(
-        &mut self,
-        mut msg: Forward,
-        ctx: &mut Self::Context,
-    ) -> <Self as Handler<Forward>>::Result {
-        msg.0.sender = self.fake_node_id;
-        msg.0.reply_to = Some(gen_destination_id());
-        let (tx, rx) = oneshot::channel();
-        self.tx_map.insert(msg.0.reply_to.clone().unwrap(), tx);
-        MessageRouter::from_registry().do_send(msg.0);
-        ActorResponse::async(rx.flatten_fut().into_actor(self))
-    }
-}
-
-fn do_test<S>(r: HttpRequest<S>) -> impl Responder {
-    Callback::from_registry()
-        .send(Forward(RouteMessage {
-            msg_id: gen_destination_id(),
-            sender: [0; 32],
-            destination: public_destination(1),
-            reply_to: None,
-            correlation_id: None,
-            ts: 0,
-            expires: None,
-            body: String::from("null"),
-        }))
-        .flatten_fut()
-        .and_then(|r| future::ok(r))
-        .map_err(|e| actix_web::error::ErrorInternalServerError(format!("{}", e)))
-        .responder()
 }
 
 fn main() {
@@ -169,7 +87,7 @@ fn main() {
     info!("test={:?}", gen_destination_id());
     info!("test={:?}", gen_destination_id());
 
-    server::new(move || App::new().route("/test", http::Method::GET, do_test))
+    server::new(move || App::new().scope("/m", mock::scope))
         .bind("127.0.0.1:6767")
         .unwrap()
         .start();

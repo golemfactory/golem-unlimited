@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1>Mock base</h1>
+    <div class="row">
+        <div class="col-md-6">
+            <form class="form-horizontal">
+                <div class="form-group">
+                    <label for="destinationId">Destination Id</label>
+                    <input class="form-control" type="text" name="destinationId" id="destinationId" placeholder="1">
+                </div>
+                <div class="form-group">
+                    <label for="body">Request Body</label>
+                    <textarea class="form-control" name="body" rows="10" id="body" placeholder="null"></textarea>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary" id="btnSend">Send</button>
+                </div>
+            </form>
+        </div>
+        <div class="col-md-6">
+            <div class="panel panel-default">
+                <div class="panel-heading"><b>Response</b></div>
+                <div class="panel-body" bind-text="response">
+                    none
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    $(function() {
+        $('#btnSend').click(e => {
+            e.preventDefault();
+            let destinationId = $('#destinationId').val();
+            let body = $('#body').val();
+            console.log('e', 'dst', destinationId, 'body', body);
+            fetch('http://127.0.0.1:6767/m/' + destinationId, {
+                method: 'post',
+                headers: {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Content-Type': 'application/json'
+                },
+                body: body
+            }).then(response => {
+                window.last_resp = response;
+                response.text().then(v => $('[bind-text=response]').text(v))
+            })
+        });
+
+    });
+</script>
+</body>

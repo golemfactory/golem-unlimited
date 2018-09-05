@@ -70,7 +70,7 @@ impl Into<error::Error> for TransportError {
     fn into(self) -> error::Error {
         match self {
             TransportError::NoDestination => error::ErrorKind::NoDestination.into(),
-            TransportError::BadFormat(s) => error::ErrorKind::BadFormat(s).into()
+            TransportError::BadFormat(s) => error::ErrorKind::BadFormat(s).into(),
         }
     }
 }
@@ -90,11 +90,10 @@ impl<B> TransportResult<B> {
 }
 
 impl<T> Into<Result<T, error::Error>> for TransportResult<T> {
-
     fn into(self) -> Result<T, error::Error> {
         match self {
             TransportResult::Ok(t) => Ok(t),
-            TransportResult::Err(e) => Err(e.into())
+            TransportResult::Err(e) => Err(e.into()),
         }
     }
 }
