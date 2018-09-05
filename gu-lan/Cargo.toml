@@ -15,3 +15,4 @@ log = "0.4"
 socket2 = { version = "0.3", features = ["reuseport"] }
 tokio = "0.1"
 tokio-codec = "0.1"
+gu-actix= { path="../gu-actix" }

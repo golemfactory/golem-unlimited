@@ -1,7 +1,8 @@
 use std::borrow::Cow;
 use actix::Message;
-use dns_parser::Header;
 use errors::Result;
+use std::net::SocketAddr;
+use std::collections::HashSet;
 
 /// Struct describing single service in .local domain's network
 ///
@@ -27,17 +28,40 @@ impl Service {
     }
 
     pub(crate) fn to_string(&self) -> String {
-        format!("{}.local", self.service)
+        format!("{}.{}.local", self.instance, self.service)
     }
 }
 
 impl Message for Service {
-    type Result = Result<ServicesList>;
+    type Result = Result<HashSet<ServiceInstance>>;
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct ServiceInstance {
+    pub addr: SocketAddr,
 }
 
 #[derive(Debug)]
-pub struct ServiceInstance {
-    pub data: Header,
+pub(crate) struct Services {
+    name: String,
+    set: HashSet<ServiceInstance>,
 }
 
-pub type ServicesList = Vec<ServiceInstance>;
+impl Services {
+    pub(crate) fn new(name: String) -> Self {
+        Services {
+            name,
+            set: HashSet::new(),
+        }
+    }
+
+    pub(crate) fn add_instance(&mut self, name: String, instance: ServiceInstance) {
+        if name == self.name {
+            self.set.insert(instance);
+        }
+    }
+
+    pub(crate) fn set(self) -> HashSet<ServiceInstance> {
+        self.set
+    }
+}
