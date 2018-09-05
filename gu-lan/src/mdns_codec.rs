@@ -26,6 +26,7 @@ impl Decoder for MdnsCodec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ServiceAnswers>> {
+        info!("Received packet: {:?}", src);
         let packet = Packet::parse(src.as_ref())?;
         info!("Received packet: {:?}", packet);
 
@@ -62,5 +63,49 @@ impl Encoder for MdnsCodec {
 
         dst.extend_from_slice(packet.as_ref());
         Ok(())
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use mdns_codec::MdnsCodec;
+    use tokio_codec::{Decoder, Encoder};
+    use bytes::BytesMut;
+    use service::Service;
+
+    #[test]
+    fn decode_packet() {
+        let a = b"\0\0\x80\0\0\0\0\x03\0\0\0\0\x0bgu-provider\x05_http\x04_tcp\x05local\0\0!\0\x01\0\0\0<\0\x18\0\0\0\0\0P\nimapp-1023\x05local\0\nimapp-1023\x05local\0\0\x01\0\x01\0\0\0<\0\x04\n\x1e\x08\xce\nimapp-1023\x05local\0\0\x01\0\x01\0\0\0<\0\x04\xac\x11\0\x01";
+
+        let mut bytes = BytesMut::new();
+        bytes.extend_from_slice(a);
+
+        let packet = MdnsCodec{}.decode(&mut bytes);
+
+        assert!(packet.is_ok());
+        let packet = packet.unwrap();
+
+        assert!(packet.is_some());
+        let packet = packet.unwrap();
+
+        assert_eq!(packet.id, 0);
+        assert!(packet.list.get(0).is_some());
+        assert_eq!(packet.list.get(0).unwrap().name, "gu-provider._http._tcp.local");
+    }
+
+    #[test]
+    fn encode_packet() {
+        let service = Service::new("gu-provider", "_http._tcp");
+        let mut bytes = BytesMut::new();
+        let packet = MdnsCodec{}.encode((service, 124), &mut bytes);
+
+        let a = b"\0|\0\0\0\x01\0\0\0\0\0\0\x0bgu-provider\x05_http\x04_tcp\x05local\0\0!\x80\x01";
+        let mut bytes2 = BytesMut::new();
+        bytes2.extend_from_slice(a);
+
+        assert!(packet.is_ok());
+        assert_eq!(bytes,  bytes2);
     }
 }

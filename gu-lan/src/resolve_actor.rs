@@ -151,3 +151,15 @@ impl Handler<Service> for ResolveActor {
         self.build_response(future, ctx, id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use resolve_actor::ResolveActor;
+
+    #[test]
+    fn create_mdns_socket() {
+        let socket = ResolveActor::create_mdns_socket();
+
+        assert!(socket.is_ok());
+    }
+}
