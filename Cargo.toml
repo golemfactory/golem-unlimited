@@ -3,10 +3,19 @@
 members= [
 	'gu-provider',
 	'gu-hub',
-	'gu-keystore',
+	'gu-ethkey',
 	'gu-p2p',
 	'gu-persist',
+	'gu-lan',
 ]
 
 [dependencies]
 log="0.4"
+
+#[patch.'https://github.com/tworec/parity-ethereum']
+#ethkey = { path = '../parity-ethereum/ethkey'}
+#ethstore = { path = '../parity-ethereum/ethstore'}
+
+[patch.'https://github.com/paritytech/parity-common']
+parity-crypto = { git = 'https://github.com/tworec/parity-common', branch='ring-v-upgrade'}
+#parity-crypto = { path = '../parity-common/parity-crypto'}
