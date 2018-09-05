@@ -19,6 +19,8 @@ kv="0.6"
 tokio-fs="0.1"
 tokio-io="0.1"
 
+gu-actix= { path="../gu-actix" }
+
 [dev-dependencies]
 clap = "2.32"
 env_logger = "0.5"

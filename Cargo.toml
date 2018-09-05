@@ -1,6 +1,7 @@
 [workspace]
 
 members= [
+    'gu-actix',
 	'gu-provider',
 	'gu-hub',
 	'gu-ethkey',

@@ -26,7 +26,7 @@ mod lan;
 mod server;
 
 fn main() {
-    let matches = App::new("Golem Unlimited HUB")
+    let matches = App::new("Golem Unlimited Provider")
         .version(VERSION)
         .arg(
             Arg::with_name("v")
@@ -41,11 +41,8 @@ fn main() {
                 .value_name("PATH")
                 .help("config dir path"),
         )
-        .subcommand(server::clap_declare())
-        .subcommand(lan::clap_declare())
         .subcommand(SubCommand::with_name("status"))
         .get_matches();
 
-    server::clap_match(&matches);
-    lan::clap_match(&matches);
+
 }
