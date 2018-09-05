@@ -13,27 +13,36 @@ use clap::{self, ArgMatches, SubCommand};
 use std::borrow::Cow;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
-use tokio_uds::UnixListener;
 
-#[derive(Serialize, Deserialize, Default)]
+use gu_p2p::rpc;
+
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ServerConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    p2p_port: Option<u16>,
+    p2p_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
 }
 
 const DEFAULT_P2P_PORT: u16 = 61622;
 
+impl Default for ServerConfig {
+    fn default() -> Self {
+        ServerConfig {
+            p2p_port: DEFAULT_P2P_PORT,
+            control_socket: None
+        }
+    }
+}
+
 impl ServerConfig {
     fn p2p_addr(&self) -> impl ToSocketAddrs {
-        ("0.0.0.0", self.p2p_port.unwrap_or(DEFAULT_P2P_PORT))
+        ("0.0.0.0", self.p2p_port)
     }
 }
 
 impl config::HasSectionId for ServerConfig {
-    const SECTION_ID: &'static str = "server-cfg";
+    const SECTION_ID: &'static str = "provider-server-cfg";
 }
 
 pub fn clap_declare<'a, 'b>() -> clap::App<'a, 'b> {
@@ -54,22 +63,20 @@ pub fn clap_match(m: &ArgMatches) {
 
 fn run_server(config_path: Option<String>) {
     use actix;
+    use env_logger;
 
-    let sys = actix::System::new("gu-hub");
+    let sys = actix::System::new("gu-provider");
+
+    if ::std::env::var("RUST_LOG").is_err() {
+        ::std::env::set_var("RUST_LOG", "info,gu_p2p=debug,gu_provider=debug")
+    }
+    env_logger::init();
+
+    let _ = super::hdman::start();
 
     let config = ServerConfigurer(None, config_path).start();
-    /*
-    let listener = UnixListener::bind("/tmp/gu.socket").expect("bind failed");
-    server::new(|| {
-        App::new()
-            // enable logger
-            .middleware(middleware::Logger::default())
-            .resource("/index.html", |r| r.f(|_| "Hello world!"))
-    }).start_incoming(listener.incoming(), false);
-*/
-    println!("[[sys");
+
     let _ = sys.run();
-    println!("sys]]");
 }
 
 fn p2p_server(r: &HttpRequest) -> &'static str {
@@ -96,11 +103,11 @@ impl Actor for ServerConfigurer {
                 .and_then(|r| r)
                 .map_err(|e| println!("error ! {}", e))
                 .and_then(|c: Arc<ServerConfig>| {
-                    let server = server::new(move || App::new().handler("/p2p", p2p_server));
+                    let server = server::new(
+                        move || App::new().handler("/p2p", p2p_server)
+                            .scope("/m", rpc::mock::scope)
+                    );
                     let s = server.bind(c.p2p_addr()).unwrap().start();
-
-                    //act.0 = Some(s.recipient());
-                    //fut::ok(())
                     Ok(())
                 })
                 .into_actor(self)

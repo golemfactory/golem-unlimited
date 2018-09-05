@@ -1,5 +1,6 @@
 extern crate actix;
 extern crate futures;
+extern crate gu_actix;
 extern crate gu_persist;
 #[macro_use]
 extern crate serde_derive;
@@ -31,6 +32,7 @@ impl Actor for MyActor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        use gu_actix::*;
         use gu_persist::config::*;
         let config_mgr = ConfigManager::from_registry();
 
@@ -50,7 +52,6 @@ impl Actor for MyActor {
 }
 
 fn main() {
-
     env_logger::init();
 
     let sys = actix::System::new("test-config");
