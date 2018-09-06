@@ -24,3 +24,5 @@ directories="1.0"
 actix = "0.7"
 actix-web = {version= "0.7", features=["tls"]}
 
+mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
+

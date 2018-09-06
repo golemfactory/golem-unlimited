@@ -26,7 +26,7 @@ fn parse_answer(answer: ResourceRecord, parse_maps: &mut ParseMaps) {
             parse_maps
                 .srv
                 .entry(key)
-                .or_insert_with(|| Vec::new())
+                .or_default()
                 .push(data.port);
         }
         TXT(data) => {
