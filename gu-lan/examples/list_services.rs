@@ -12,7 +12,7 @@ use futures::Future;
 
 fn main() {
     Builder::from_default_env()
-        .filter_level(LevelFilter::Debug)
+        .filter_level(LevelFilter::Off)
         .init();
 
     let sys = actix::System::new("none_example");
