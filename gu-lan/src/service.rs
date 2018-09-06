@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use actix::Message;
 use errors::Result;
-use std::net::SocketAddr;
 use std::collections::HashSet;
+use std::net::IpAddr;
 
 /// Struct describing single service in .local domain's network
 ///
@@ -38,7 +38,10 @@ impl Message for Service {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ServiceInstance {
-    pub addr: SocketAddr,
+    pub host: String,
+    pub txt: Vec<String>,
+    pub addrs: Vec<IpAddr>,
+    pub ports: Vec<u16>,
 }
 
 #[derive(Debug)]

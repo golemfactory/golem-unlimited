@@ -5,47 +5,74 @@ use service::Service;
 
 use dns_parser::{Builder, Packet, QueryClass, QueryType};
 use dns_parser::rdata::RData::SRV;
+use service::ServiceInstance;
+use std::collections::HashMap;
+use std::net::IpAddr;
+use dns_parser::rdata::RData::TXT;
+use std::str::from_utf8;
+use dns_parser::rdata::RData::A;
+use dns_parser::rdata::a::Record;
 
-#[derive(Debug)]
-pub(crate) struct ServiceAnswer {
-    pub port: u16,
-    pub name: String,
-}
-
-#[derive(Debug)]
-pub(crate) struct ServiceAnswers {
-    pub id: u16,
-    pub list: Vec<ServiceAnswer>,
-}
+pub type ParsedPacket = (u16, Vec<(String, ServiceInstance)>);
 
 #[derive(Debug)]
 pub(crate) struct MdnsCodec;
 
 impl Decoder for MdnsCodec {
-    type Item = ServiceAnswers;
+    type Item = ParsedPacket;
     type Error = Error;
 
-    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ServiceAnswers>> {
-        info!("Received packet: {:?}", src);
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ParsedPacket>> {
         let packet = Packet::parse(src.as_ref())?;
         info!("Received packet: {:?}", packet);
 
         let id = packet.header.id;
-        let mut list = Vec::new();
+        let mut services : Vec<(String, ServiceInstance)> = Vec::new();
+
+        // (service, host) -> ports
+        let mut srv_map : HashMap<(String, String), Vec<u16>> = HashMap::new();
+        // service -> description
+        let mut txt_map : HashMap<String, Vec<String>> = HashMap::new();
+        // host -> IPv4
+        let mut a_map   : HashMap<String, Vec<IpAddr>> = HashMap::new();
+
         for answer in packet.answers {
-            if let SRV(data) = answer.data {
-                list.push(
-                    ServiceAnswer {
-                        port: data.port,
-                        name: answer.name.to_string(),
-                    });
+            match answer.data {
+                SRV(data) => {
+                    let key = (answer.name.to_string(), data.target.clone().to_string());
+                    srv_map
+                        .entry(key)
+                        .or_insert_with(|| Vec::new())
+                        .push(data.port);
+                },
+                TXT(data) => {
+                    txt_map.insert(answer.name.to_string(), data.iter()
+                        .map(|x| from_utf8(x).unwrap_or_default().to_string())
+                        .collect::<Vec<_>>());
+                },
+                A(data) => {
+                    let Record(arr) = data;
+                    a_map.entry(answer.name.to_string())
+                        .or_default()
+                        .push(arr.into());
+                }
+                _ => ()
             }
         }
 
-        Ok(Some(ServiceAnswers {
-            id,
-            list,
-        }))
+        srv_map.into_iter().for_each(|a| {
+            let pair = a.0;
+            let name = pair.0;
+            let host = pair.1;
+            let ports = a.1;
+
+            let addrs = a_map.get(&host).map(|a| a.clone()).unwrap_or(Vec::new());
+            let txt = txt_map.get(&name).map(|a| a.clone()).unwrap_or(Vec::new());
+
+            services.push((name, ServiceInstance { host, txt, addrs, ports }))
+        });
+
+        Ok(Some((id, services)))
     }
 }
 
@@ -56,6 +83,7 @@ impl Encoder for MdnsCodec {
     fn encode(&mut self, item: (Service, u16), dst: &mut BytesMut) -> Result<()> {
         let mut builder = Builder::new_query(item.1, false);
         builder.add_question(item.0.to_string().as_ref(), true, QueryType::SRV, QueryClass::IN);
+        builder.add_question(item.0.to_string().as_ref(), true, QueryType::TXT, QueryClass::IN);
         let packet = builder
             .build()
             .map_err(ErrorKind::DnsPacketBuildError)?;

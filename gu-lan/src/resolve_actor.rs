@@ -18,9 +18,9 @@ use std::time::Duration;
 use actix::AsyncContext;
 use futures::sync::mpsc;
 use futures::sync;
-use mdns_codec::ServiceAnswers;
 use std::collections::HashSet;
 use gu_actix::FlattenFuture;
+use mdns_codec::ParsedPacket;
 
 
 /// Actor resolving mDNS services names into list of IPs
@@ -86,20 +86,15 @@ impl ResolveActor {
     }
 }
 
-impl StreamHandler<(ServiceAnswers, SocketAddr), Error> for ResolveActor {
-    fn handle(&mut self, (packet, addr): (ServiceAnswers, SocketAddr), _ctx: &mut Context<ResolveActor>) {
-        for service in packet.list {
-            let instance = ServiceInstance {
-                addr: SocketAddr::new(addr.ip(), service.port)
-            };
-
-            let mut value = self.map.get_mut(&packet.id);
-            value
-                .and_then(|services| {
-                    services.add_instance(service.name, instance);
-                    Some(())
-                });
+impl StreamHandler<(ParsedPacket, SocketAddr), Error> for ResolveActor {
+    fn handle(&mut self, (packet, _): (ParsedPacket, SocketAddr), _ctx: &mut Context<ResolveActor>) {
+        if let Some(services) = self.map.get_mut(&packet.0) {
+            for service in packet.1 {
+                services.add_instance(service.0, service.1);
+            }
         }
+
+
     }
 }
 
