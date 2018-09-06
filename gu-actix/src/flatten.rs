@@ -46,7 +46,7 @@ where
 impl<T, TE, E, F> FlattenFuture<T, E> for F
 where
     TE: Into<E>,
-    F: future::Future<Item = Result<T, E>, Error = TE>
+    F: future::Future<Item = Result<T, E>, Error = TE>,
 {
     type Future = FlatFut<F>;
 

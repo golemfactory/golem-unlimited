@@ -28,28 +28,5 @@ pub type NodeId = [u8; 32];
 
 type Key = [u8; 20];
 
-type ConnectionRef = Box<Connection>;
-
-pub struct ProtoSpec;
-
-struct Error;
-
-trait Network {
-    type ConnectionFuture: future::Future<Item = ConnectionRef, Error = Error>;
-
-    fn connect(&mut self, peer: NodeId, proto: ProtoSpec) -> Self::ConnectionFuture;
-
-    fn listen(
-        &mut self,
-        proto: ProtoSpec,
-    ) -> Box<stream::Stream<Item = ConnectionRef, Error = Error>>;
-}
-
-trait Discovery {}
-
-trait Connection: AsyncRead + AsyncWrite {
-    fn peer(&self) -> NodeId;
-}
-
 mod proto;
 pub mod rpc;

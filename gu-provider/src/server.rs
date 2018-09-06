@@ -30,7 +30,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         ServerConfig {
             p2p_port: DEFAULT_P2P_PORT,
-            control_socket: None
+            control_socket: None,
         }
     }
 }
@@ -103,10 +103,11 @@ impl Actor for ServerConfigurer {
                 .and_then(|r| r)
                 .map_err(|e| println!("error ! {}", e))
                 .and_then(|c: Arc<ServerConfig>| {
-                    let server = server::new(
-                        move || App::new().handler("/p2p", p2p_server)
+                    let server = server::new(move || {
+                        App::new()
+                            .handler("/p2p", p2p_server)
                             .scope("/m", rpc::mock::scope)
-                    );
+                    });
                     let s = server.bind(c.p2p_addr()).unwrap().start();
                     Ok(())
                 })

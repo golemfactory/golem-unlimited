@@ -1,8 +1,8 @@
-use tokio_codec::{Decoder, Encoder};
-use errors::{Error, ErrorKind, Result};
 use bytes::BytesMut;
-use service::ServiceInstance;
+use errors::{Error, ErrorKind, Result};
 use service::Service;
+use service::ServiceInstance;
+use tokio_codec::{Decoder, Encoder};
 
 use dns_parser::{Builder, Packet, QueryClass, QueryType};
 
@@ -29,10 +29,13 @@ impl Encoder for MdnsCodec {
 
     fn encode(&mut self, item: (Service, u16), dst: &mut BytesMut) -> Result<()> {
         let mut builder = Builder::new_query(item.1, false);
-        builder.add_question(item.0.to_string().as_ref(), true, QueryType::PTR, QueryClass::IN);
-        let packet = builder
-            .build()
-            .map_err(ErrorKind::DnsPacketBuildError)?;
+        builder.add_question(
+            item.0.to_string().as_ref(),
+            true,
+            QueryType::PTR,
+            QueryClass::IN,
+        );
+        let packet = builder.build().map_err(ErrorKind::DnsPacketBuildError)?;
         info!("Encoded packet: {:?}", packet);
         let pack = Packet::parse(packet.as_ref())?;
         info!("Received packet: {:#?}", pack);

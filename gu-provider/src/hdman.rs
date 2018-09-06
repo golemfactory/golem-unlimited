@@ -1,4 +1,3 @@
-
 use actix::prelude::*;
 use gu_p2p::rpc::*;
 
@@ -18,7 +17,7 @@ struct CreateSession {
 }
 
 impl CreateSession {
-    const ID : u32 = 200;
+    const ID: u32 = 200;
 }
 
 impl Message for CreateSession {
@@ -28,7 +27,11 @@ impl Message for CreateSession {
 impl Handler<CreateSession> for HdMan {
     type Result = Result<String, ()>;
 
-    fn handle(&mut self, msg: CreateSession, ctx: &mut Self::Context) -> <Self as Handler<CreateSession>>::Result {
+    fn handle(
+        &mut self,
+        msg: CreateSession,
+        ctx: &mut Self::Context,
+    ) -> <Self as Handler<CreateSession>>::Result {
         println!("hey! got url={}", msg.url);
         Err(())
     }
@@ -37,4 +40,3 @@ impl Handler<CreateSession> for HdMan {
 pub fn start() -> Addr<HdMan> {
     start_actor(HdMan)
 }
-

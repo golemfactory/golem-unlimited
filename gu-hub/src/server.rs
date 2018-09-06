@@ -10,6 +10,7 @@ use actix_web::server::HttpServer;
 use actix_web::server::StopServer;
 use actix_web::*;
 use clap::{self, ArgMatches, SubCommand};
+use gu_actix::*;
 use std::borrow::Cow;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
@@ -92,26 +93,21 @@ impl Actor for ServerConfigurer {
         ctx.spawn(
             config
                 .send(config::GetConfig::new())
-                .map_err(|e| config::Error::from(e))
-                .and_then(|r| r)
+                .flatten_fut()
                 .map_err(|e| println!("error ! {}", e))
                 .and_then(|c: Arc<ServerConfig>| {
                     let server = server::new(move || App::new().handler("/p2p", p2p_server));
-                    let s = server.bind(c.p2p_addr()).unwrap().start();
-
-                    //act.0 = Some(s.recipient());
-                    //fut::ok(())
+                    let _ = server.bind(c.p2p_addr()).unwrap().start();
                     Ok(())
                 })
                 .into_actor(self)
                 .and_then(|_, _, ctx| fut::ok(ctx.stop())),
         );
-        println!("configured");
     }
 }
 
 impl Drop for ServerConfigurer {
     fn drop(&mut self) {
-        println!("drop")
+        info!("server configured")
     }
 }

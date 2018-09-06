@@ -21,15 +21,15 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 
-mod server;
 mod hdman;
+mod server;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use clap::*;
 
 fn main() {
-    let matches = App::new("Golem Unlimited HUB")
+    let matches = App::new("Golem Unlimited")
         .version(VERSION)
         .arg(
             Arg::with_name("v")

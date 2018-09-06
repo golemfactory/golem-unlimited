@@ -1,7 +1,7 @@
 use actix::fut;
 use actix::prelude::*;
 use actix_web::{self, *};
-use futures::{prelude::*, future};
+use futures::{future, prelude::*};
 use gu_actix::*;
 
 use super::super::NodeId;
@@ -53,13 +53,15 @@ fn mock_send<S: 'static>(r: HttpRequest<S>, path: Path<(u32,)>) -> impl Responde
                 .map_err(|e| error::ErrorInternalServerError(format!("{}", e)))
         })
         .and_then(|r| future::ok(r))
-        .or_else(|e: actix_web::Error| -> Result<HttpResponse, actix_web::Error>{
-            debug!("Error {:?}", &e);
+        .or_else(
+            |e: actix_web::Error| -> Result<HttpResponse, actix_web::Error> {
+                debug!("Error {:?}", &e);
 
-            let mut resp = e.as_response_error().error_response();
-            resp.set_body(format!("{}", e));
-            Ok(resp)
-        })
+                let mut resp = e.as_response_error().error_response();
+                resp.set_body(format!("{}", e));
+                Ok(resp)
+            },
+        )
         .responder()
 }
 

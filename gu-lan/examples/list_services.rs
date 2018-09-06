@@ -1,14 +1,14 @@
-extern crate log;
 extern crate actix;
-extern crate gu_lan;
 extern crate env_logger;
 extern crate futures;
+extern crate gu_lan;
+extern crate log;
 
 use actix::prelude::*;
 use env_logger::Builder;
-use log::LevelFilter;
 use futures::future;
 use futures::Future;
+use log::LevelFilter;
 
 fn main() {
     Builder::from_default_env()

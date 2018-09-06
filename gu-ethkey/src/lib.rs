@@ -7,9 +7,9 @@ extern crate log;
 extern crate parity_crypto;
 extern crate rustc_hex;
 
-pub use ethkey::{Public, Address, Message, Signature};
-use ethkey::{Generator, KeyPair, Random, Password, sign, verify_public};
 use ethkey::crypto::ecies::{decrypt, encrypt};
+use ethkey::{sign, verify_public, Generator, KeyPair, Password, Random};
+pub use ethkey::{Address, Message, Public, Signature};
 use ethstore::accounts_dir::{DiskKeyFileManager, KeyFileManager, RootDiskDirectory};
 use ethstore::SafeAccount;
 use rustc_hex::ToHex;
@@ -51,7 +51,8 @@ pub trait EthKey {
 pub trait EthKeyStore {
     /// reads keys from disk or generates new ones and stores to disk; pass needed
     fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>>
-        where P: Into<PathBuf>;
+    where
+        P: Into<PathBuf>;
     /// stores keys on disk with changed password
     fn change_password(&self, new_pwd: &Password) -> Result<()>;
 }
@@ -84,61 +85,98 @@ impl EthKey for SafeEthKey {
 
 fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
     SafeAccount::create(
-        key_pair, [0u8; 16], pwd,
-        KEY_ITERATIONS, "".to_owned(), "{}".to_owned(),
+        key_pair,
+        [0u8; 16],
+        pwd,
+        KEY_ITERATIONS,
+        "".to_owned(),
+        "{}".to_owned(),
     ).map_err(Error::from)
 }
 
 fn save_key_pair<P>(key_pair: &KeyPair, pwd: &Password, file_path: &P) -> Result<()>
-    where P: AsRef<Path> {
+where
+    P: AsRef<Path>,
+{
     let file_path = file_path.as_ref();
     let dir_path = file_path.parent().ok_or(ErrorKind::InvalidPath)?;
-    let file_name = file_path.file_name().and_then(|n| n.to_str())
-        .map(|f| f.to_owned()).ok_or(ErrorKind::InvalidPath)?;
+    let file_name = file_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|f| f.to_owned())
+        .ok_or(ErrorKind::InvalidPath)?;
 
     let dir = RootDiskDirectory::create(dir_path)?;
 
     dir.insert_with_filename(to_safe_account(key_pair, pwd)?, file_name, false)
-        .map(|_| ()).map_err(Error::from)
+        .map(|_| ())
+        .map_err(Error::from)
 }
 
-
 impl EthKeyStore for SafeEthKey {
-    fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>> where P: Into<PathBuf> {
+    fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>>
+    where
+        P: Into<PathBuf>,
+    {
         let file_path = file_path.into();
         match fs::File::open(&file_path).map_err(Error::from) {
             Ok(file) => {
                 let safe_account = DiskKeyFileManager.read(None, file)?;
                 let key_pair = KeyPair::from_secret(safe_account.crypto.secret(pwd)?)?;
-                info!("account 0x{:x} loaded from {}", key_pair.address(), file_path.display());
+                info!(
+                    "account 0x{:x} loaded from {}",
+                    key_pair.address(),
+                    file_path.display()
+                );
                 Ok(key_pair)
             }
             Err(e) => {
-                info!("Will generate new keys: file {} reading error: {}", file_path.display(), e);
+                info!(
+                    "Will generate new keys: file {} reading error: {}",
+                    file_path.display(),
+                    e
+                );
                 match Random.generate() {
                     Ok(key_pair) => {
                         save_key_pair(&key_pair, pwd, &file_path)?;
-                        info!("new account 0x{:x} generated and stored into {}", key_pair.address(), file_path.display());
+                        info!(
+                            "new account 0x{:x} generated and stored into {}",
+                            key_pair.address(),
+                            file_path.display()
+                        );
                         Ok(key_pair)
                     }
-                    Err(e) => Err(Error::from(e))
+                    Err(e) => Err(Error::from(e)),
                 }
             }
-        }
-            .map(|key_pair| Box::new(SafeEthKey { key_pair, file_path }))
+        }.map(|key_pair| {
+            Box::new(SafeEthKey {
+                key_pair,
+                file_path,
+            })
+        })
             .map_err(Error::from)
     }
 
     fn change_password(&self, new_pwd: &Password) -> Result<()> {
         save_key_pair(&self.key_pair, new_pwd, &self.file_path)?;
-        info!("changed password for account 0x{:x} in {}", self.key_pair.address(), self.file_path.display());
+        info!(
+            "changed password for account 0x{:x} in {}",
+            self.key_pair.address(),
+            self.file_path.display()
+        );
         Ok(())
     }
 }
 
 impl fmt::Display for SafeEthKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
-        write!(f, "SafeEthKey:\n\tpublic:  0x{}\n\taddress: 0x{}", self.public().to_hex(), self.address().to_hex())
+        write!(
+            f,
+            "SafeEthKey:\n\tpublic:  0x{}\n\taddress: 0x{}",
+            self.public().to_hex(),
+            self.address().to_hex()
+        )
     }
 }
 
@@ -163,18 +201,17 @@ impl From<ethstore::Error> for Error {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    extern crate log;
     extern crate env_logger;
+    extern crate log;
     extern crate tempfile;
+    use self::tempfile::tempdir;
+    use super::{EthKey, EthKeyStore, Message, SafeEthKey};
+    use std::env;
     use std::fs;
     use std::io::prelude::*;
-    use std::env;
-    use self::tempfile::tempdir;
     use std::path::PathBuf;
-    use super::{SafeEthKey, EthKey, EthKeyStore, Message};
 
     fn temp_keystore_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();
@@ -183,7 +220,7 @@ mod tests {
     }
 
     fn eq(x: &[u8], y: &[u8]) -> bool {
-        x.iter().zip(y.iter()).all(|(a,b)| a == b)
+        x.iter().zip(y.iter()).all(|(a, b)| a == b)
     }
 
     #[test]
@@ -192,7 +229,6 @@ mod tests {
             env::set_var("RUST_LOG", "info")
         }
         env_logger::init();
-
     }
 
     #[test]
@@ -238,7 +274,6 @@ mod tests {
         assert!(key.is_ok());
     }
 
-
     #[test]
     fn test_generate_change_pass_and_reload_with_old_pass_should_fail() {
         // given
@@ -279,9 +314,9 @@ mod tests {
         let path = temp_keystore_path();
         let pwd = "zimko".into();
         let mut v = [0u8; 32];
-        v[0]=39u8;
-        v[1]=50u8;
-        let msg : Message = Message::from(v);
+        v[0] = 39u8;
+        v[1] = 50u8;
+        let msg: Message = Message::from(v);
 
         // when
         let key = SafeEthKey::load_or_generate(&path, &pwd).unwrap();
@@ -298,17 +333,19 @@ mod tests {
         let path = temp_keystore_path();
         let pwd = "zimko".into();
         let mut v = [0u8; 32];
-        v[0]=39u8;
-        v[1]=50u8;
+        v[0] = 39u8;
+        v[1] = 50u8;
 
         // when
         let key = SafeEthKey::load_or_generate(&path, &pwd).unwrap();
         let encv = key.encrypt(&v);
 
-
         // then
         assert!(encv.is_ok());
-        assert!(eq(key.decrypt(&encv.unwrap().as_slice()).unwrap().as_slice(), &v));
+        assert!(eq(
+            key.decrypt(&encv.unwrap().as_slice()).unwrap().as_slice(),
+            &v
+        ));
     }
 
 }

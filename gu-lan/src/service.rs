@@ -1,7 +1,7 @@
-use std::borrow::Cow;
 use actix::Message;
 use dns_parser::Header;
 use errors::Result;
+use std::borrow::Cow;
 
 /// Struct describing single service in .local domain's network
 ///
@@ -16,9 +16,9 @@ pub struct Service {
 
 impl Service {
     pub fn new<A, B>(instance: A, service: B) -> Self
-        where
-            A: Into<Cow<'static, str>>,
-            B: Into<Cow<'static, str>>,
+    where
+        A: Into<Cow<'static, str>>,
+        B: Into<Cow<'static, str>>,
     {
         Service {
             instance: instance.into(),

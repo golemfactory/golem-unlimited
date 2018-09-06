@@ -5,6 +5,7 @@ pub mod mock;
 mod reply;
 pub mod router;
 mod util;
+pub mod ws;
 
 mod error {
     error_chain!{

@@ -4,6 +4,7 @@ extern crate tokio;
 extern crate actix;
 extern crate actix_web;
 extern crate clap;
+extern crate gu_actix;
 extern crate gu_p2p;
 extern crate gu_persist;
 extern crate tokio_uds;
@@ -13,6 +14,9 @@ extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
+
+#[macro_use]
+extern crate log;
 
 #[macro_use]
 extern crate error_chain;
@@ -26,7 +30,7 @@ mod lan;
 mod server;
 
 fn main() {
-    let matches = App::new("Golem Unlimited Provider")
+    let matches = App::new("Golem Unlimited")
         .version(VERSION)
         .arg(
             Arg::with_name("v")
@@ -41,8 +45,9 @@ fn main() {
                 .value_name("PATH")
                 .help("config dir path"),
         )
+        .subcommand(server::clap_declare())
         .subcommand(SubCommand::with_name("status"))
         .get_matches();
 
-
+    server::clap_match(&matches);
 }

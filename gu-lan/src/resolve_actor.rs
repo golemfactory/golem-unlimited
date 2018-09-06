@@ -5,26 +5,25 @@ use tokio::prelude::*;
 use bytes::BytesMut;
 
 use errors::{Error, ErrorKind, Result};
+use futures::sync::oneshot;
 use mdns_codec::MdnsCodec;
 use service::{Service, ServiceInstance, ServicesList};
-use futures::sync::oneshot;
-use socket2::{Domain, Type, Protocol, Socket, SockAddr};
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, IpAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
 
+use actix::AsyncContext;
+use dns_parser::Header;
+use futures::sink::SendAll;
+use futures::sync;
+use futures::sync::mpsc;
+use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::net::{UdpFramed, UdpSocket};
 use tokio::reactor::Handle;
 use tokio_codec::{Decoder, Encoder};
-use dns_parser::Header;
-use std::net::SocketAddr;
-use std::time::Duration;
-use actix::AsyncContext;
-use futures::sync::mpsc;
-use futures::sink::SendAll;
-use futures::sync;
-
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default, Clone)]
@@ -40,11 +39,7 @@ impl ResolveActor {
     }
 
     fn create_mdns_socket() -> Result<UdpSocket> {
-        let socket = Socket::new(
-            Domain::ipv4(),
-            Type::dgram(),
-            Some(Protocol::udp())
-        )?;
+        let socket = Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))?;
 
         let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
         let any_interface = Ipv4Addr::new(0, 0, 0, 0);
@@ -57,34 +52,29 @@ impl ResolveActor {
         socket.join_multicast_v4(&multicast_ip, &any_interface)?;
         socket.bind(&socket_address.into())?;
 
-        UdpSocket::from_std(socket.into_udp_socket(), &Handle::current())
-            .map_err(Error::from)
+        UdpSocket::from_std(socket.into_udp_socket(), &Handle::current()).map_err(Error::from)
     }
 
     fn build_response<F>(&self, fut: F, ctx: &mut Context<Self>) -> Response
-        where
-            F: Future<Item=(), Error=Error> + 'static
+    where
+        F: Future<Item = (), Error = Error> + 'static,
     {
         let (tx, rx) = oneshot::channel();
 
         // Create the job that will be run in the future
         ctx.run_later(Duration::from_secs(1), move |act, ctx| {
-            let job = fut
-                .and_then(|_| {
+            let job =
+                fut.and_then(|_| {
                     tx.send(Ok(Vec::new()));
                     Ok(())
-                })
-                .map_err(|_| ())
-                .into_actor(act);
+                }).map_err(|_| ())
+                    .into_actor(act);
 
             ctx.spawn(job);
         });
 
         // Result that can be resolved in the future
-        ActorResponse::async(rx
-            .and_then(|r| r)
-            .map_err(Error::from)
-            .into_actor(self))
+        ActorResponse::async(rx.and_then(|r| r).map_err(Error::from).into_actor(self))
     }
 }
 
@@ -100,15 +90,15 @@ impl Actor for ResolveActor {
     /// Creates stream handler for incoming mDNS packets
     fn started(&mut self, ctx: &mut Self::Context) {
         let socket = Self::create_mdns_socket().unwrap();
-        let (sink, stream)  = UdpFramed::new(socket, MdnsCodec{}).split();
+        let (sink, stream) = UdpFramed::new(socket, MdnsCodec {}).split();
 
         Self::add_stream(stream, ctx);
 
         let (tx, rx) = mpsc::channel(16);
-        ctx.spawn(sink
-            .send_all(rx.map_err(|_| ErrorKind::UninitializedChannelReceiver))
-            .then(|_| Ok(()))
-            .into_actor(self)
+        ctx.spawn(
+            sink.send_all(rx.map_err(|_| ErrorKind::UninitializedChannelReceiver))
+                .then(|_| Ok(()))
+                .into_actor(self),
         );
 
         self.sender = Some(tx);
@@ -123,7 +113,11 @@ impl Actor for ResolveActor {
 impl Handler<Service> for ResolveActor {
     type Result = ActorResponse<ResolveActor, ServicesList, Error>;
 
-    fn handle(&mut self, msg: Service, ctx: &mut Self::Context) -> <Self as Handler<Service>>::Result {
+    fn handle(
+        &mut self,
+        msg: Service,
+        ctx: &mut Self::Context,
+    ) -> <Self as Handler<Service>>::Result {
         debug!("Handling Service message");
         let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
         let addr = SocketAddrV4::new(multicast_ip, 5353).into();
@@ -132,10 +126,12 @@ impl Handler<Service> for ResolveActor {
         let sender = self.sender.clone();
 
         let future = match sender {
-            Some(a) => future::Either::A(a.send(message)
-                .and_then(|sender| Ok(sender.flush()))
-                .and_then(|a| Ok(debug!("Completed")))
-                .map_err(|_| ErrorKind::FutureSendError.into())),
+            Some(a) => future::Either::A(
+                a.send(message)
+                    .and_then(|sender| Ok(sender.flush()))
+                    .and_then(|a| Ok(debug!("Completed")))
+                    .map_err(|_| ErrorKind::FutureSendError.into()),
+            ),
             None => future::Either::B(future::err(ErrorKind::ActorNotInitialized.into())),
         };
 
