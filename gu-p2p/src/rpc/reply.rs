@@ -8,7 +8,7 @@ use super::gen_destination_id;
 use super::message::{
     DestinationId, EmitMessage, MessageId, RouteMessage, TransportError, TransportResult,
 };
-use super::router::{MessageRouter, BindDestination, LocalEndpoint};
+use super::router::{BindDestination, LocalEndpoint, MessageRouter};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
 
@@ -79,7 +79,11 @@ pub struct ReplyRouter {
 }
 
 impl LocalEndpoint for Addr<ReplyRouter> {
-    fn handle(&mut self, message: RouteMessage<String>, ctx: &mut <MessageRouter as Actor>::Context) {
+    fn handle(
+        &mut self,
+        message: RouteMessage<String>,
+        ctx: &mut <MessageRouter as Actor>::Context,
+    ) {
         self.do_send(message)
     }
 }
@@ -93,7 +97,6 @@ impl Actor for ReplyRouter {
 impl Supervised for ReplyRouter {}
 
 impl ArbiterService for ReplyRouter {
-
     fn service_started(&mut self, ctx: &mut Context<Self>) {
         self.router.do_send(BindDestination {
             destination_id: self.destination_id.clone(),

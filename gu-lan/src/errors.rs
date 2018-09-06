@@ -25,5 +25,10 @@ error_chain! {
             description("error while trying to send message")
             display("error while trying to send message")
         }
+
+        MissingKey {
+            description("there is no such key")
+            display("there is no such key")
+        }
     }
 }

@@ -2,36 +2,35 @@ use actix::prelude::*;
 use futures::prelude::*;
 use tokio::prelude::*;
 
-use bytes::BytesMut;
-
 use errors::{Error, ErrorKind, Result};
 use futures::sync::oneshot;
 use mdns_codec::MdnsCodec;
-use service::{Service, ServiceInstance, ServicesList};
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+use service::{Service, ServiceInstance, Services};
+use socket2::{Domain, Protocol, Socket, Type};
 
-use std::borrow::Cow;
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddrV4};
 
 use actix::AsyncContext;
-use dns_parser::Header;
-use futures::sink::SendAll;
 use futures::sync;
 use futures::sync::mpsc;
+use gu_actix::FlattenFuture;
+use mdns_codec::ParsedPacket;
+use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::{UdpFramed, UdpSocket};
 use tokio::reactor::Handle;
-use tokio_codec::{Decoder, Encoder};
 
 /// Actor resolving mDNS services names into list of IPs
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct ResolveActor {
     sender: Option<sync::mpsc::Sender<((Service, u16), SocketAddr)>>,
+    next_id: u16,
+    map: HashMap<u16, Services>,
 }
 
-pub type Response = ActorResponse<ResolveActor, ServicesList, Error>;
+pub type Response = ActorResponse<ResolveActor, HashSet<ServiceInstance>, Error>;
 
 impl ResolveActor {
     pub fn new() -> Self {
@@ -42,45 +41,53 @@ impl ResolveActor {
         let socket = Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))?;
 
         let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
-        let any_interface = Ipv4Addr::new(0, 0, 0, 0);
+        let any_ip = Ipv4Addr::new(0, 0, 0, 0);
 
-        // TODO: this is not recommended on Windows
-        let socket_address = SocketAddrV4::new(multicast_ip, 0);
+        let socket_address = SocketAddrV4::new(any_ip, 0);
 
         socket.set_reuse_address(true)?;
         socket.set_multicast_loop_v4(true)?;
-        socket.join_multicast_v4(&multicast_ip, &any_interface)?;
+        socket.join_multicast_v4(&multicast_ip, &any_ip)?;
         socket.bind(&socket_address.into())?;
 
         UdpSocket::from_std(socket.into_udp_socket(), &Handle::current()).map_err(Error::from)
     }
 
-    fn build_response<F>(&self, fut: F, ctx: &mut Context<Self>) -> Response
+    fn hashset_of_services(&mut self, id: u16) -> Result<HashSet<ServiceInstance>> {
+        self.map
+            .remove(&id)
+            .ok_or(ErrorKind::MissingKey.into())
+            .map(|services| services.set())
+    }
+
+    fn build_response<F>(&mut self, fut: F, _ctx: &mut Context<Self>, id: u16) -> Response
     where
         F: Future<Item = (), Error = Error> + 'static,
     {
         let (tx, rx) = oneshot::channel();
 
-        // Create the job that will be run in the future
-        ctx.run_later(Duration::from_secs(1), move |act, ctx| {
-            let job =
-                fut.and_then(|_| {
-                    tx.send(Ok(Vec::new()));
-                    Ok(())
-                }).map_err(|_| ())
-                    .into_actor(act);
-
-            ctx.spawn(job);
-        });
-
-        // Result that can be resolved in the future
-        ActorResponse::async(rx.and_then(|r| r).map_err(Error::from).into_actor(self))
+        ActorResponse::async(fut.into_actor(self).and_then(move |_r, act, ctx| {
+            ctx.run_later(Duration::from_secs(1), move |act, _ctx| {
+                let _ = tx
+                    .send(act.hashset_of_services(id))
+                    .map_err(|e| error!("{:?}", e));
+            });
+            rx.flatten_fut().into_actor(act)
+        }))
     }
 }
 
-impl StreamHandler<(ServiceInstance, SocketAddr), Error> for ResolveActor {
-    fn handle(&mut self, item: (ServiceInstance, SocketAddr), ctx: &mut Context<ResolveActor>) {
-        debug!("Handle UDP packet");
+impl StreamHandler<(ParsedPacket, SocketAddr), Error> for ResolveActor {
+    fn handle(
+        &mut self,
+        (packet, _): (ParsedPacket, SocketAddr),
+        _ctx: &mut Context<ResolveActor>,
+    ) {
+        if let Some(services) = self.map.get_mut(&packet.0) {
+            for service in packet.1 {
+                services.add_instance(service.0, service.1);
+            }
+        }
     }
 }
 
@@ -89,7 +96,7 @@ impl Actor for ResolveActor {
 
     /// Creates stream handler for incoming mDNS packets
     fn started(&mut self, ctx: &mut Self::Context) {
-        let socket = Self::create_mdns_socket().unwrap();
+        let socket = Self::create_mdns_socket().expect("Creation of mDNS socket failed");
         let (sink, stream) = UdpFramed::new(socket, MdnsCodec {}).split();
 
         Self::add_stream(stream, ctx);
@@ -102,39 +109,47 @@ impl Actor for ResolveActor {
         );
 
         self.sender = Some(tx);
-        debug!("Resolve actor started");
-    }
-
-    fn stopped(&mut self, _ctx: &mut <Self as Actor>::Context) {
-        debug!("Resolve actor stopped");
     }
 }
 
 impl Handler<Service> for ResolveActor {
-    type Result = ActorResponse<ResolveActor, ServicesList, Error>;
+    type Result = Response;
 
-    fn handle(
-        &mut self,
-        msg: Service,
-        ctx: &mut Self::Context,
-    ) -> <Self as Handler<Service>>::Result {
-        debug!("Handling Service message");
+    fn handle(&mut self, msg: Service, ctx: &mut Self::Context) -> Response {
         let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
         let addr = SocketAddrV4::new(multicast_ip, 5353).into();
 
-        let message = ((msg, 1), addr);
+        let id = self.next_id;
+        self.next_id = id.wrapping_add(1);
+
+        self.map.insert(id, Services::new(msg.to_string()));
+
+        let message = ((msg, id), addr);
+
         let sender = self.sender.clone();
 
         let future = match sender {
             Some(a) => future::Either::A(
                 a.send(message)
                     .and_then(|sender| Ok(sender.flush()))
-                    .and_then(|a| Ok(debug!("Completed")))
+                    .and_then(|_| Ok(()))
                     .map_err(|_| ErrorKind::FutureSendError.into()),
             ),
             None => future::Either::B(future::err(ErrorKind::ActorNotInitialized.into())),
         };
 
-        self.build_response(future, ctx)
+        self.build_response(future, ctx, id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use resolve_actor::ResolveActor;
+
+    #[test]
+    fn create_mdns_socket() {
+        let socket = ResolveActor::create_mdns_socket();
+
+        assert!(socket.is_ok());
     }
 }

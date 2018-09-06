@@ -12,15 +12,25 @@ use log::LevelFilter;
 
 fn main() {
     Builder::from_default_env()
-        .filter_level(LevelFilter::Debug)
+        .filter_level(LevelFilter::Off)
         .init();
 
     let sys = actix::System::new("none_example");
     let actor = gu_lan::resolve_actor::ResolveActor::new();
     let address = actor.start();
-    let res = address.send(gu_lan::service::Service::new("jenkins", "_hudson._tcp"));
+    let res = address.send(gu_lan::service::Service::new("gu-provider", "_http._tcp"));
+    let res1 = address.send(gu_lan::service::Service::new("iMac (ederenn)", "_ssh._tcp"));
 
     Arbiter::spawn(res.then(|res| {
+        match res {
+            Ok(result) => println!("Received result: {:?}", result),
+            _ => println!("Something went wrong"),
+        }
+
+        future::result(Ok(()))
+    }));
+
+    Arbiter::spawn(res1.then(|res| {
         match res {
             Ok(result) => println!("Received result: {:?}", result),
             _ => println!("Something went wrong"),

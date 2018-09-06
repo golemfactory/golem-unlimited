@@ -7,6 +7,7 @@ extern crate actix;
 extern crate bytes;
 extern crate dns_parser;
 extern crate futures;
+extern crate gu_actix;
 extern crate socket2;
 extern crate tokio;
 extern crate tokio_codec;
