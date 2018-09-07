@@ -22,6 +22,8 @@ extern crate log;
 extern crate error_chain;
 extern crate directories;
 
+extern crate mdns;
+
 use clap::{App, Arg, SubCommand};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");

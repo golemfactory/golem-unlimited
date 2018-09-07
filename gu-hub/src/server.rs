@@ -16,20 +16,38 @@ use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tokio_uds::UnixListener;
 
-#[derive(Serialize, Deserialize, Default)]
+use mdns::Responder;
+
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ServerConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    p2p_port: Option<u16>,
+    #[serde(default = "ServerConfig::default_p2p_port")]
+    p2p_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
+    #[serde(default = "ServerConfig::publish_service")]
+    publish_service: bool,
 }
 
-const DEFAULT_P2P_PORT: u16 = 61622;
+impl Default for ServerConfig {
+    fn default() -> Self {
+        ServerConfig {
+            p2p_port: Self::default_p2p_port(),
+            control_socket: None,
+            publish_service: Self::publish_service()
+        }
+    }
+}
+
+
+impl ServerConfig {
+    fn default_p2p_port() -> u16 { 61622 }
+    fn publish_service() -> bool { true }
+}
 
 impl ServerConfig {
     fn p2p_addr(&self) -> impl ToSocketAddrs {
-        ("0.0.0.0", self.p2p_port.unwrap_or(DEFAULT_P2P_PORT))
+        ("0.0.0.0", self.p2p_port)
     }
 }
 
@@ -59,6 +77,7 @@ fn run_server(config_path: Option<String>) {
     let sys = actix::System::new("gu-hub");
 
     let config = ServerConfigurer(None, config_path).start();
+
     /*
     let listener = UnixListener::bind("/tmp/gu.socket").expect("bind failed");
     server::new(|| {
@@ -75,6 +94,20 @@ fn run_server(config_path: Option<String>) {
 
 fn p2p_server(r: &HttpRequest) -> &'static str {
     "ok"
+}
+
+fn run_publisher(run: bool, port: u16) {
+    if run {
+        let responder = Responder::new()
+            .expect("Failed to run publisher");
+
+        let _svc = responder.register(
+            "_unlimited._tcp".to_owned(),
+            "gu-hub".to_owned(),
+            port,
+            &["path=/", ""],
+        );
+    }
 }
 
 struct ServerConfigurer(Option<Recipient<StopServer>>, Option<String>);
@@ -98,6 +131,8 @@ impl Actor for ServerConfigurer {
                 .and_then(|c: Arc<ServerConfig>| {
                     let server = server::new(move || App::new().handler("/p2p", p2p_server));
                     let _ = server.bind(c.p2p_addr()).unwrap().start();
+                    run_publisher(c.publish_service, c.p2p_port);
+
                     Ok(())
                 })
                 .into_actor(self)
