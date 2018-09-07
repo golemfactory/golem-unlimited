@@ -112,6 +112,10 @@ impl Actor for ResolveActor {
     }
 }
 
+impl Supervised for ResolveActor {}
+
+impl ArbiterService for ResolveActor {}
+
 impl Handler<Service> for ResolveActor {
     type Result = Response;
 

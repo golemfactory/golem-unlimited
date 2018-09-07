@@ -7,6 +7,7 @@ extern crate clap;
 extern crate gu_actix;
 extern crate gu_p2p;
 extern crate gu_persist;
+extern crate gu_lan;
 extern crate tokio_uds;
 
 extern crate serde;
@@ -48,8 +49,10 @@ fn main() {
                 .help("config dir path"),
         )
         .subcommand(server::clap_declare())
+        .subcommand(lan::clap_declare())
         .subcommand(SubCommand::with_name("status"))
         .get_matches();
 
     server::clap_match(&matches);
+    lan::clap_match(&matches);
 }

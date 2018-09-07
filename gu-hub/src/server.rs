@@ -1,22 +1,23 @@
 use actix::fut;
 use actix::prelude::*;
-use futures::future;
 use futures::prelude::*;
-use tokio;
 
 use gu_persist::config;
 
-use actix_web::server::HttpServer;
+use actix_web;
 use actix_web::server::StopServer;
-use actix_web::*;
 use clap::{self, ArgMatches, SubCommand};
 use gu_actix::*;
 use std::borrow::Cow;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
-use tokio_uds::UnixListener;
 
 use mdns::Responder;
+use mdns::Service;
+use gu_p2p::rpc::start_actor;
+use gu_lan::rest_server;
+use gu_p2p::rpc::mock;
+use gu_persist::config::ConfigManager;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,7 +39,6 @@ impl Default for ServerConfig {
         }
     }
 }
-
 
 impl ServerConfig {
     fn default_p2p_port() -> u16 { 61622 }
@@ -65,34 +65,13 @@ pub fn clap_match(m: &ArgMatches) {
         None => None,
     };
 
-    if let Some(m) = m.subcommand_matches("server") {
+    if let Some(_m) = m.subcommand_matches("server") {
         println!("server");
         run_server(config_path.to_owned());
     }
 }
 
-fn run_server(config_path: Option<String>) {
-    use actix;
-
-    let sys = actix::System::new("gu-hub");
-
-    let config = ServerConfigurer(None, config_path).start();
-
-    /*
-    let listener = UnixListener::bind("/tmp/gu.socket").expect("bind failed");
-    server::new(|| {
-        App::new()
-            // enable logger
-            .middleware(middleware::Logger::default())
-            .resource("/index.html", |r| r.f(|_| "Hello world!"))
-    }).start_incoming(listener.incoming(), false);
-*/
-    println!("[[sys");
-    let _ = sys.run();
-    println!("sys]]");
-}
-
-fn p2p_server(r: &HttpRequest) -> &'static str {
+fn p2p_server(_r: &actix_web::HttpRequest) -> &'static str {
     "ok"
 }
 
@@ -101,42 +80,68 @@ fn run_publisher(run: bool, port: u16) {
         let responder = Responder::new()
             .expect("Failed to run publisher");
 
-        let _svc = responder.register(
+        let svc = Box::new(responder.register(
             "_unlimited._tcp".to_owned(),
             "gu-hub".to_owned(),
             port,
             &["path=/", ""],
-        );
+        ));
+
+        let _svc : &'static mut Service = Box::leak(svc);
     }
 }
 
-struct ServerConfigurer(Option<Recipient<StopServer>>, Option<String>);
+fn prepare_lan_server(run: bool) {
+    if run {
+        start_actor(rest_server::LanInfo());
+    }
+}
 
+fn hub_configuration(c: Arc<ServerConfig>) -> Result<(),()> {
+    let server = actix_web::server::new(move || {
+        actix_web::App::new()
+            .handler("/p2p", p2p_server)
+            .scope("/m", mock::scope)
+    });
+    let _ = server.bind(c.p2p_addr()).unwrap().start();
+    prepare_lan_server(c.publish_service);
+    run_publisher(c.publish_service, c.p2p_port);
+
+    Ok(())
+}
+
+/// IDEA: Code below should be common wit gu-provider
+struct ServerConfigurer {
+    recipent : Option<Recipient<StopServer>>,
+    path : Option<String>,
+}
+
+impl ServerConfigurer {
+    fn new(recipent : Option<Recipient<StopServer>>, path : Option<String>) -> Self {
+        Self { recipent, path }
+    }
+
+    fn config(&self) -> Addr<ConfigManager> {
+        let config = config::ConfigManager::from_registry();
+        println!("path={:?}", &self.path);
+
+        if let Some(path) = &self.path {
+            config.do_send(config::SetConfigPath::FsPath(Cow::Owned(path.clone())));
+        }
+        config
+    }
+}
 impl Actor for ServerConfigurer {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        let config = config::ConfigManager::from_registry();
-
-        println!("path={:?}", &self.1);
-        if let Some(path) = &self.1 {
-            config.do_send(config::SetConfigPath::FsPath(Cow::Owned(path.clone())));
-        }
-
-        ctx.spawn(
-            config
-                .send(config::GetConfig::new())
-                .flatten_fut()
-                .map_err(|e| println!("error ! {}", e))
-                .and_then(|c: Arc<ServerConfig>| {
-                    let server = server::new(move || App::new().handler("/p2p", p2p_server));
-                    let _ = server.bind(c.p2p_addr()).unwrap().start();
-                    run_publisher(c.publish_service, c.p2p_port);
-
-                    Ok(())
-                })
-                .into_actor(self)
-                .and_then(|_, _, ctx| fut::ok(ctx.stop())),
+        ctx.spawn(self.config()
+            .send(config::GetConfig::new())
+            .flatten_fut()
+            .map_err(|e| println!("error ! {}", e))
+            .and_then(hub_configuration)
+            .into_actor(self)
+            .and_then(|_, _, ctx| fut::ok(ctx.stop())),
         );
     }
 }
@@ -146,3 +151,16 @@ impl Drop for ServerConfigurer {
         info!("server configured")
     }
 }
+
+fn run_server(config_path: Option<String>) {
+    use actix;
+
+    let sys = actix::System::new("gu-hub");
+
+    let _config = ServerConfigurer::new(None, config_path).start();
+
+    println!("[[sys");
+    let _ = sys.run();
+    println!("sys]]");
+}
+

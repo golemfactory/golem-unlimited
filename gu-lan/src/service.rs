@@ -36,7 +36,7 @@ impl Message for Service {
     type Result = Result<HashSet<ServiceInstance>>;
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct ServiceInstance {
     pub host: String,
     pub txt: Vec<String>,

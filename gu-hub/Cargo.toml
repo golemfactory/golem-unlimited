@@ -6,6 +6,7 @@ version = "0.1.0"
 gu-p2p= { path="../gu-p2p" }
 gu-persist = { path = "../gu-persist" }
 gu-actix = { path = "../gu-actix" }
+gu-lan = { path = "../gu-lan" }
 
 clap = "2.32"
 log="0.4"
