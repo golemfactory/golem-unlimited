@@ -24,12 +24,10 @@ struct ServerConfig {
     control_socket: Option<String>,
 }
 
-const DEFAULT_P2P_PORT: u16 = 61622;
-
 impl Default for ServerConfig {
     fn default() -> Self {
         ServerConfig {
-            p2p_port: DEFAULT_P2P_PORT,
+            p2p_port: 61622,
             control_socket: None,
         }
     }

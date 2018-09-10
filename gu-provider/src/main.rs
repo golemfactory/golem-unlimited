@@ -29,7 +29,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 use clap::*;
 
 fn main() {
-    let matches = App::new("Golem Unlimited")
+    let matches = App::new("Golem Unlimited Provider")
         .version(VERSION)
         .arg(
             Arg::with_name("v")

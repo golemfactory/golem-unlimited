@@ -1,7 +1,11 @@
 use actix::prelude::*;
 use gu_p2p::rpc::*;
+use std::collections::HashMap;
+use std::process::Command;
 
-pub struct HdMan;
+pub struct HdMan {
+//    sessions: HashMap<String, HdManSession>,
+}
 
 impl Actor for HdMan {
     type Context = RemotingContext<Self>;
@@ -13,7 +17,7 @@ impl Actor for HdMan {
 
 #[derive(Serialize, Deserialize)]
 struct CreateSession {
-    url: String,
+    executable: String,
 }
 
 impl CreateSession {
@@ -32,11 +36,17 @@ impl Handler<CreateSession> for HdMan {
         msg: CreateSession,
         ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
-        println!("hey! got url={}", msg.url);
+        println!("hey! I'm executing: {}", msg.executable);
+        let output = Command::new(msg.executable).output().unwrap();
+        if output.status.success() {
+            println!("stdout: |{}|\nstderr: |{}|",
+                     String::from_utf8_lossy(&output.stdout),
+                     String::from_utf8_lossy(&output.stderr));
+        }
         Err(())
     }
 }
 
 pub fn start() -> Addr<HdMan> {
-    start_actor(HdMan)
+    start_actor(HdMan {})
 }
