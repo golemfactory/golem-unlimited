@@ -3,16 +3,23 @@ name = "gu-lan"
 version = "0.1.0"
 authors = ["Hubert Banaszewski <hubert.banaszewski@golem.network>"]
 
+
 [dependencies]
-actix = "0.7"
-bytes = "0.4"
-dns-parser = "0.8"
+gu-actix = { path = "../gu-actix" }
+gu-p2p = { path = "../gu-p2p" }
+
+serde = "1.0"
+serde_derive = "1.0"
 env_logger = "0.5"
 error-chain = "0.12"
-futures = "0.1"
 log = "0.4"
-#socket2 = "0.3"
+
+bytes = "0.4"
+dns-parser = "0.8"
 socket2 = { version = "0.3", features = ["reuseport"] }
+
+futures = "0.1"
 tokio = "0.1"
 tokio-codec = "0.1"
-gu-actix= { path="../gu-actix" }
+actix = "0.7"
+actix-web = "0.7"

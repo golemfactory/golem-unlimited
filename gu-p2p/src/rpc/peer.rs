@@ -29,5 +29,5 @@ pub enum UpdatePeer {
 }
 
 pub struct PeerManager {
-    
+
 }

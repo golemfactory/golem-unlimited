@@ -30,5 +30,16 @@ error_chain! {
             description("there is no such key")
             display("there is no such key")
         }
+
+        Mailbox
     }
 }
+
+use actix::MailboxError;
+
+impl From<MailboxError> for Error {
+    fn from(_: MailboxError) -> Self {
+        ErrorKind::Mailbox.into()
+    }
+}
+
