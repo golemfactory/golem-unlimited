@@ -20,6 +20,7 @@ error-chain = "0.12"
 futures = "0.1"
 tokio="0.1"
 directories="1.0"
+rand="0.5"
 
 actix = "0.7"
 actix-web = {version= "0.7", features=["tls"]}

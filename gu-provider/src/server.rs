@@ -9,12 +9,13 @@ use gu_persist::config;
 use actix_web::server::HttpServer;
 use actix_web::server::StopServer;
 use actix_web::*;
-use clap::{self, ArgMatches, SubCommand};
+use clap::{self, ArgMatches, SubCommand, Arg};
 use std::borrow::Cow;
-use std::net::ToSocketAddrs;
+use std::net::{self, ToSocketAddrs};
 use std::sync::Arc;
 
 use gu_p2p::rpc;
+use gu_p2p::NodeId;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +48,10 @@ impl config::HasSectionId for ServerConfig {
 
 pub fn clap_declare<'a, 'b>() -> clap::App<'a, 'b> {
     SubCommand::with_name("server")
+        .subcommand(
+            SubCommand::with_name("connect")
+            .arg(Arg::with_name("peer_addr"))
+        )
 }
 
 pub fn clap_match(m: &ArgMatches) {
@@ -55,24 +60,36 @@ pub fn clap_match(m: &ArgMatches) {
         None => None,
     };
 
+    let mut peer_addr = None;
+
     if let Some(m) = m.subcommand_matches("server") {
         println!("server");
-        run_server(config_path.to_owned());
+        if let Some(mc) = m.subcommand_matches("connect") {
+            let param = mc.value_of("peer_addr");
+            info!("addr={:?}", &param);
+            if let Some(a) = param {
+                peer_addr = Some(a.parse().unwrap())
+            }
+        }
+        run_server(config_path.to_owned(), peer_addr);
     }
 }
 
-fn run_server(config_path: Option<String>) {
+fn run_server(config_path: Option<String>, peer_addr : Option<net::SocketAddr>) {
     use actix;
     use env_logger;
+    use rand::*;
+
+    let node_id : NodeId = thread_rng().gen();
 
     let sys = actix::System::new("gu-provider");
 
-    if ::std::env::var("RUST_LOG").is_err() {
-        ::std::env::set_var("RUST_LOG", "info,gu_p2p=debug,gu_provider=debug")
-    }
-    env_logger::init();
-
     let _ = super::hdman::start();
+
+    let _ = match peer_addr {
+        Some(a) => Some(rpc::ws::start_connection(node_id, a)),
+        None => None
+    };
 
     let config = ServerConfigurer(None, config_path).start();
 

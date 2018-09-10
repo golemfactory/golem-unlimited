@@ -19,6 +19,7 @@ tokio="0.1"
 directories="1.0"
 error-chain = "0.12"
 tokio-uds = "0.2"
+rand = "0.5"
 
 gu-actix = { path = "../gu-actix" }
 gu-p2p = { path = "../gu-p2p" }

@@ -23,11 +23,7 @@ fn parse_answer(answer: ResourceRecord, parse_maps: &mut ParseMaps) {
     match answer.data {
         SRV(data) => {
             let key = (answer.name.to_string(), data.target.clone().to_string());
-            parse_maps
-                .srv
-                .entry(key)
-                .or_default()
-                .push(data.port);
+            parse_maps.srv.entry(key).or_default().push(data.port);
         }
         TXT(data) => {
             parse_maps.txt.insert(

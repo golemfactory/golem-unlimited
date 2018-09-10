@@ -23,6 +23,9 @@ extern crate error_chain;
 extern crate directories;
 
 extern crate mdns;
+extern crate rand;
+
+extern crate env_logger;
 
 use clap::{App, Arg, SubCommand};
 
@@ -50,6 +53,13 @@ fn main() {
         .subcommand(server::clap_declare())
         .subcommand(SubCommand::with_name("status"))
         .get_matches();
+
+    if ::std::env::var("RUST_LOG").is_err() {
+        ::std::env::set_var("RUST_LOG", "*=info,gu_p2p=debug,gu_provider=debug,gu_hub=debug")
+    }
+    env_logger::init();
+    debug!("debug");
+
 
     server::clap_match(&matches);
 }

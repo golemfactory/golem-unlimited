@@ -21,6 +21,8 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 
+extern crate rand;
+
 mod hdman;
 mod server;
 
@@ -47,6 +49,12 @@ fn main() {
         .subcommand(server::clap_declare())
         .subcommand(SubCommand::with_name("status"))
         .get_matches();
+
+    if ::std::env::var("RUST_LOG").is_err() {
+        ::std::env::set_var("RUST_LOG", "info,gu_p2p=debug,gu_provider=debug")
+    }
+    env_logger::init();
+
 
     server::clap_match(&matches);
 }

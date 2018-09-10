@@ -6,8 +6,12 @@ mod reply;
 pub mod router;
 mod util;
 pub mod ws;
+pub mod peer;
 
 mod error {
+
+    use quick_protobuf;
+
     error_chain!{
 
         errors {
@@ -16,6 +20,7 @@ mod error {
             Canceled
             NoDestination
             BadFormat(s : String)
+            Proto(e : quick_protobuf::Error)
         }
 
     }
@@ -33,6 +38,12 @@ mod error {
     impl From<Canceled> for Error {
         fn from(e: Canceled) -> Self {
             ErrorKind::Canceled.into()
+        }
+    }
+
+    impl From<quick_protobuf::Error> for Error {
+        fn from(e: quick_protobuf::Error) -> Self {
+            ErrorKind::Proto(e).into()
         }
     }
 }

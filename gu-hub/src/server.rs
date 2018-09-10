@@ -8,7 +8,7 @@ use gu_persist::config;
 
 use actix_web::server::HttpServer;
 use actix_web::server::StopServer;
-use actix_web::*;
+use actix_web::{self, *};
 use clap::{self, ArgMatches, SubCommand};
 use gu_actix::*;
 use std::borrow::Cow;
@@ -16,7 +16,9 @@ use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tokio_uds::UnixListener;
 
+use gu_p2p::rpc;
 use mdns::Responder;
+use gu_p2p::NodeId;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,15 +36,18 @@ impl Default for ServerConfig {
         ServerConfig {
             p2p_port: Self::default_p2p_port(),
             control_socket: None,
-            publish_service: Self::publish_service()
+            publish_service: Self::publish_service(),
         }
     }
 }
 
-
 impl ServerConfig {
-    fn default_p2p_port() -> u16 { 61622 }
-    fn publish_service() -> bool { true }
+    fn default_p2p_port() -> u16 {
+        61622
+    }
+    fn publish_service() -> bool {
+        true
+    }
 }
 
 impl ServerConfig {
@@ -78,28 +83,17 @@ fn run_server(config_path: Option<String>) {
 
     let config = ServerConfigurer(None, config_path).start();
 
-    /*
-    let listener = UnixListener::bind("/tmp/gu.socket").expect("bind failed");
-    server::new(|| {
-        App::new()
-            // enable logger
-            .middleware(middleware::Logger::default())
-            .resource("/index.html", |r| r.f(|_| "Hello world!"))
-    }).start_incoming(listener.incoming(), false);
-*/
-    println!("[[sys");
     let _ = sys.run();
-    println!("sys]]");
+
 }
 
-fn p2p_server(r: &HttpRequest) -> &'static str {
+fn p2p_server<S>(r: &HttpRequest<S>) -> &'static str {
     "ok"
 }
 
 fn run_publisher(run: bool, port: u16) {
     if run {
-        let responder = Responder::new()
-            .expect("Failed to run publisher");
+        let responder = Responder::new().expect("Failed to run publisher");
 
         let _svc = responder.register(
             "_unlimited._tcp".to_owned(),
@@ -112,6 +106,11 @@ fn run_publisher(run: bool, port: u16) {
 
 struct ServerConfigurer(Option<Recipient<StopServer>>, Option<String>);
 
+fn chat_route(req: &HttpRequest<NodeId>) -> Result<HttpResponse, actix_web::Error> {
+    rpc::ws::route(req, req.state().clone())
+}
+
+
 impl Actor for ServerConfigurer {
     type Context = Context<Self>;
 
@@ -123,13 +122,22 @@ impl Actor for ServerConfigurer {
             config.do_send(config::SetConfigPath::FsPath(Cow::Owned(path.clone())));
         }
 
+        use rand::*;
+
+        let node_id : NodeId = thread_rng().gen();
+
         ctx.spawn(
             config
                 .send(config::GetConfig::new())
                 .flatten_fut()
                 .map_err(|e| println!("error ! {}", e))
-                .and_then(|c: Arc<ServerConfig>| {
-                    let server = server::new(move || App::new().handler("/p2p", p2p_server));
+                .and_then(move |c: Arc<ServerConfig>| {
+                    let server = server::new(
+                        move || App::with_state(node_id.clone())
+                            .handler("/p2p", p2p_server)
+                            .scope("/m", rpc::mock::scope)
+                            .resource("/ws/", |r| r.route().f(chat_route))
+                    );
                     let _ = server.bind(c.p2p_addr()).unwrap().start();
                     run_publisher(c.publish_service, c.p2p_port);
 
