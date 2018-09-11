@@ -19,8 +19,6 @@ extern crate serde_derive;
 #[macro_use]
 extern crate log;
 
-#[macro_use]
-extern crate error_chain;
 extern crate directories;
 
 extern crate mdns;
@@ -29,7 +27,7 @@ extern crate gu_base;
 
 extern crate env_logger;
 
-use clap::{App, Arg, SubCommand};
+use clap::App;
 use gu_base::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");

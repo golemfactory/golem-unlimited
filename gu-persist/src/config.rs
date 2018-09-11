@@ -182,6 +182,22 @@ impl Handler<SetConfigPath> for ConfigManager {
     }
 }
 
+use gu_base::{Module, App, Arg};
+
+pub struct ConfigModule;
+
+impl Module for ConfigModule {
+    fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
+        app.arg(
+            Arg::with_name("config-dir")
+                .short("c")
+                .takes_value(true)
+                .value_name("PATH")
+                .help("config dir path"),
+        )
+    }
+}
+
 #[cfg(test)]
 mod test {
 
@@ -207,20 +223,4 @@ mod test {
         let _b = t.to_json().unwrap();
     }
 
-}
-
-use gu_base::{Module, App, Arg};
-
-pub struct ConfigModule;
-
-impl Module for ConfigModule {
-    fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-        app.arg(
-            Arg::with_name("config-dir")
-                .short("c")
-                .takes_value(true)
-                .value_name("PATH")
-                .help("config dir path"),
-        )
-    }
 }
