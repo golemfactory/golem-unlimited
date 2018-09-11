@@ -8,12 +8,15 @@ extern crate serde_derive;
 extern crate gu_actix;
 extern crate gu_p2p;
 
+
+extern crate serde_json;
+extern crate bytes;
+extern crate socket2;
+
 extern crate actix;
 extern crate actix_web;
-extern crate bytes;
 extern crate dns_parser;
 extern crate futures;
-extern crate socket2;
 extern crate tokio;
 extern crate tokio_codec;
 

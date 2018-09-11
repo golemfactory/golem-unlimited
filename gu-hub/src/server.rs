@@ -6,7 +6,7 @@ use gu_persist::config;
 
 use actix_web;
 use actix_web::server::StopServer;
-use clap::{self, App, ArgMatches, SubCommand};
+use clap::{App, ArgMatches, SubCommand};
 use gu_actix::*;
 use std::borrow::Cow;
 use std::net::ToSocketAddrs;
@@ -24,7 +24,7 @@ use gu_persist::config::ConfigManager;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ServerConfig {
+pub(crate) struct ServerConfig {
     #[serde(default = "ServerConfig::default_p2p_port")]
     p2p_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -50,11 +50,13 @@ impl ServerConfig {
     fn publish_service() -> bool {
         true
     }
-}
 
-impl ServerConfig {
     fn p2p_addr(&self) -> impl ToSocketAddrs {
         ("0.0.0.0", self.p2p_port)
+    }
+
+    pub fn port(&self) -> u16 {
+        self.p2p_port
     }
 }
 

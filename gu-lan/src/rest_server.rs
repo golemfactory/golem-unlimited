@@ -6,7 +6,10 @@ use std::collections::HashSet;
 use resolve_actor::ResolveActor;
 use service::ServiceInstance;
 use service::Service;
+use serde_json;
 
+
+pub const LAN_ENDPOINT : u32 = 576411;
 
 /// Actix-web actor for mDNS service discovery
 pub struct LanInfo();
@@ -21,17 +24,17 @@ impl Actor for LanInfo {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct QueryLan {
+pub struct QueryLan {
     #[serde(default = "QueryLan::instances")]
-    instances : Vec<String>,
+    pub(crate) instances : Vec<String>,
     #[serde(default = "QueryLan::service")]
-    service : String,
+    pub(crate) service : String,
 }
 
 impl QueryLan {
-    const ID : u32 = 576411;
+    const ID : u32 = LAN_ENDPOINT;
     fn instances() -> Vec<String> {
         let mut vec = Vec::new();
         vec.push("gu-hub".to_string());
@@ -40,6 +43,28 @@ impl QueryLan {
     }
     fn service() -> String {
         "_unlimited._tcp".to_string()
+    }
+
+    fn first(&self) -> String {
+        self.instances.first().unwrap_or(&"gu-provider".to_string()).to_owned()
+    }
+
+    pub fn single(s: Option<String>) -> Self {
+        let vec = match s {
+            Some(a) => vec![a],
+            None => Self::instances(),
+        };
+
+        QueryLan {
+            instances : vec,
+            service : Self::service(),
+        }
+    }
+
+    pub fn to_json(&self) -> String {
+        let a = serde_json::to_string(self).expect("Deserialization error");
+        println!("{:?}", a);
+        a
     }
 }
 
@@ -50,14 +75,15 @@ impl Message for QueryLan {
 impl Handler<QueryLan> for LanInfo {
     type Result = ActorResponse<LanInfo, HashSet<ServiceInstance>, ()>;
 
-    fn handle(&mut self, _msg: QueryLan, _ctx: &mut Self::Context)
+    fn handle(&mut self, msg: QueryLan, _ctx: &mut Self::Context)
               -> ActorResponse<LanInfo, HashSet<ServiceInstance>, ()> {
         info!("Handle lan query");
 
-        ActorResponse::async(
-            ResolveActor::from_registry().send(Service::new("gu-hub", "_unlimited._tcp"))
+        ActorResponse::async({
+            ResolveActor::from_registry().send(Service::new(msg.first(), "_unlimited._tcp"))
                 .flatten_fut().map_err(|e| error!("err: {}", e))
-                .into_actor(self))
+                .into_actor(self)
+        })
     }
 }
 
