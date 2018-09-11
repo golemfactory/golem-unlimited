@@ -18,7 +18,7 @@ use mdns::Responder;
 use gu_p2p::NodeId;
 use mdns::Service;
 use gu_p2p::rpc::start_actor;
-use gu_lan::rest_server;
+use gu_lan::server;
 use gu_p2p::rpc::mock;
 use gu_persist::config::ConfigManager;
 
@@ -26,11 +26,11 @@ use gu_persist::config::ConfigManager;
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ServerConfig {
     #[serde(default = "ServerConfig::default_p2p_port")]
-    p2p_port: u16,
+    pub(crate) p2p_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
     #[serde(default = "ServerConfig::publish_service")]
-    publish_service: bool,
+    pub(crate) publish_service: bool,
 }
 
 impl Default for ServerConfig {
@@ -107,7 +107,8 @@ fn run_publisher(run: bool, port: u16) {
 
 fn prepare_lan_server(run: bool) {
     if run {
-        start_actor(rest_server::LanInfo());
+        // TODO: add it to endpoint
+        start_actor(server::LanInfo());
     }
 }
 
@@ -130,7 +131,7 @@ fn hub_configuration(c: Arc<ServerConfig>, node_id : NodeId) -> Result<(),()> {
     Ok(())
 }
 
-/// IDEA: Code below should be common wit gu-provider
+
 pub(crate) struct ServerConfigurer {
     recipent : Option<Recipient<StopServer>>,
     path : Option<String>,
@@ -151,6 +152,7 @@ impl ServerConfigurer {
         config
     }
 }
+
 impl Actor for ServerConfigurer {
     type Context = Context<Self>;
 
@@ -167,12 +169,6 @@ impl Actor for ServerConfigurer {
             .into_actor(self)
             .and_then(|_, _, ctx| fut::ok(ctx.stop())),
         );
-    }
-}
-
-impl Drop for ServerConfigurer {
-    fn drop(&mut self) {
-        info!("server configured")
     }
 }
 

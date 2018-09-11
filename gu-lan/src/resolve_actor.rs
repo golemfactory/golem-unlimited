@@ -5,7 +5,7 @@ use tokio::prelude::*;
 use errors::{Error, ErrorKind, Result};
 use futures::sync::oneshot;
 use mdns_codec::MdnsCodec;
-use service::{Service, ServiceInstance, Services};
+use service::{ServicesDescription, ServiceInstance};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use std::collections::HashMap;
@@ -21,12 +21,16 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::{UdpFramed, UdpSocket};
 use tokio::reactor::Handle;
+use service::Services;
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]
 pub struct ResolveActor {
-    sender: Option<sync::mpsc::Sender<((Service, u16), SocketAddr)>>,
+    /// Interior, indirect responder sink
+    sender: Option<sync::mpsc::Sender<((ServicesDescription, u16), SocketAddr)>>,
+    /// Next id for mDNS query
     next_id: u16,
+    /// Services for given id
     map: HashMap<u16, Services>,
 }
 
@@ -53,11 +57,11 @@ impl ResolveActor {
         UdpSocket::from_std(socket.into_udp_socket(), &Handle::current()).map_err(Error::from)
     }
 
-    fn hashset_of_services(&mut self, id: u16) -> Result<HashSet<ServiceInstance>> {
+    fn retrieve_services(&mut self, id: u16) -> Result<HashSet<ServiceInstance>> {
         self.map
             .remove(&id)
             .ok_or(ErrorKind::MissingKey.into())
-            .map(|services| services.set())
+            .and_then(|a| Ok(a.collect()))
     }
 
     fn build_response<F>(&mut self, fut: F, _ctx: &mut Context<Self>, id: u16) -> Response
@@ -69,7 +73,8 @@ impl ResolveActor {
         ActorResponse::async(fut.into_actor(self).and_then(move |_r, act, ctx| {
             ctx.run_later(Duration::from_secs(1), move |act, _ctx| {
                 let _ = tx
-                    .send(act.hashset_of_services(id))
+                    .send(act.retrieve_services(id))
+                    .and_then(|_a| Ok(()))
                     .map_err(|e| error!("{:?}", e));
             });
             rx.flatten_fut().into_actor(act)
@@ -85,7 +90,7 @@ impl StreamHandler<(ParsedPacket, SocketAddr), Error> for ResolveActor {
     ) {
         if let Some(services) = self.map.get_mut(&packet.0) {
             for service in packet.1 {
-                services.add_instance(service.0, service.1);
+                services.add_instance(&service.0, service.1);
             }
         }
     }
@@ -116,17 +121,17 @@ impl Supervised for ResolveActor {}
 
 impl ArbiterService for ResolveActor {}
 
-impl Handler<Service> for ResolveActor {
+impl Handler<ServicesDescription> for ResolveActor {
     type Result = Response;
 
-    fn handle(&mut self, msg: Service, ctx: &mut Self::Context) -> Response {
+    fn handle(&mut self, msg: ServicesDescription, ctx: &mut Self::Context) -> Response {
         let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
         let addr = SocketAddrV4::new(multicast_ip, 5353).into();
 
         let id = self.next_id;
         self.next_id = id.wrapping_add(1);
 
-        self.map.insert(id, Services::new(msg.to_string()));
+        self.map.insert(id, msg.to_services());
 
         let message = ((msg, id), addr);
 

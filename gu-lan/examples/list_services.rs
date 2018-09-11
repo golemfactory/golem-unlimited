@@ -9,6 +9,7 @@ use env_logger::Builder;
 use futures::future;
 use futures::Future;
 use log::LevelFilter;
+use gu_lan::service::ServicesDescription;
 
 fn main() {
     Builder::from_default_env()
@@ -18,7 +19,7 @@ fn main() {
     let sys = actix::System::new("none_example");
     let actor = gu_lan::resolve_actor::ResolveActor::new();
     let address = actor.start();
-    let res = address.send(gu_lan::service::Service::new("gu-hub", "_unlimited._tcp"));
+    let res = address.send(gu_lan::service::ServicesDescription::single("gu-hub", "_unlimited._tcp"));
 
     Arbiter::spawn(res.then(|res| {
         match res {

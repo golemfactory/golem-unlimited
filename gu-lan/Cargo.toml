@@ -7,6 +7,7 @@ authors = ["Hubert Banaszewski <hubert.banaszewski@golem.network>"]
 [dependencies]
 gu-actix = { path = "../gu-actix" }
 gu-p2p = { path = "../gu-p2p" }
+gu-base = { path = "../gu-base" }
 
 serde = "1.0"
 serde_derive = "1.0"
@@ -15,6 +16,7 @@ env_logger = "0.5"
 error-chain = "0.12"
 log = "0.4"
 
+clap = "2.32"
 bytes = "0.4"
 dns-parser = "0.8"
 socket2 = { version = "0.3", features = ["reuseport"] }

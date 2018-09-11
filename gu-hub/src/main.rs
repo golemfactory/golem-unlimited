@@ -32,7 +32,6 @@ use gu_base::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-mod lan;
 mod server;
 
 fn main() {
@@ -41,7 +40,7 @@ fn main() {
         .version(VERSION))
         .run( LogModule
             .chain(gu_persist::config::ConfigModule)
-            .chain(lan::LanModule)
+            .chain(gu_lan::rest_client::LanModule)
             .chain(server::ServerModule)
             .chain(CompleteModule::new()));
 

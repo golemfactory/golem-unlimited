@@ -1,6 +1,5 @@
 use bytes::BytesMut;
 use errors::{Error, ErrorKind, Result};
-use service::Service;
 use tokio_codec::{Decoder, Encoder};
 
 use dns_parser::rdata::a::Record;
@@ -13,6 +12,7 @@ use service::ServiceInstance;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::from_utf8;
+use service::ServicesDescription;
 
 pub type ParsedPacket = (u16, Vec<(String, ServiceInstance)>);
 
@@ -106,23 +106,25 @@ impl Decoder for MdnsCodec {
 }
 
 impl Encoder for MdnsCodec {
-    type Item = (Service, u16);
+    type Item = (ServicesDescription, u16);
     type Error = Error;
 
-    fn encode(&mut self, item: (Service, u16), dst: &mut BytesMut) -> Result<()> {
+    fn encode(&mut self, item: (ServicesDescription, u16), dst: &mut BytesMut) -> Result<()> {
         let mut builder = Builder::new_query(item.1, false);
-        builder.add_question(
-            item.0.to_string().as_ref(),
-            true,
-            QueryType::SRV,
-            QueryClass::IN,
-        );
-        builder.add_question(
-            item.0.to_string().as_ref(),
-            true,
-            QueryType::TXT,
-            QueryClass::IN,
-        );
+        for service in item.0.services().iter() {
+            builder.add_question(
+                service.to_string().as_ref(),
+                true,
+                QueryType::SRV,
+                QueryClass::IN,
+            );
+            builder.add_question(
+                service.to_string().as_ref(),
+                true,
+                QueryType::TXT,
+                QueryClass::IN,
+            );
+        }
         let packet = builder.build().map_err(ErrorKind::DnsPacketBuildError)?;
         info!("Encoded packet to send: {:?}", packet);
 
