@@ -131,17 +131,17 @@ fn hub_configuration(c: Arc<ServerConfig>, node_id : NodeId) -> Result<(),()> {
 }
 
 /// IDEA: Code below should be common wit gu-provider
-struct ServerConfigurer {
+pub(crate) struct ServerConfigurer {
     recipent : Option<Recipient<StopServer>>,
     path : Option<String>,
 }
 
 impl ServerConfigurer {
-    fn new(recipent : Option<Recipient<StopServer>>, path : Option<String>) -> Self {
+    pub fn new(recipent : Option<Recipient<StopServer>>, path : Option<String>) -> Self {
         Self { recipent, path }
     }
 
-    fn config(&self) -> Addr<ConfigManager> {
+    pub fn config(&self) -> Addr<ConfigManager> {
         let config = config::ConfigManager::from_registry();
         println!("path={:?}", &self.path);
 

@@ -15,6 +15,7 @@ use gu_base::Arg;
 use std::borrow::Cow;
 use actix::SystemService;
 use gu_lan::rest_server::{QueryLan, LAN_ENDPOINT};
+use ::server::ServerConfigurer;
 
 fn clap_match_lan(m: &ArgMatches) {
     if let Some(m) = m.subcommand_matches("list") {
@@ -22,34 +23,6 @@ fn clap_match_lan(m: &ArgMatches) {
         run_client(m);
     } else {
         println!("{}", m.usage())
-    }
-}
-
-struct ServerConfigurer {
-    recipent : Option<Recipient<StopServer>>,
-    path : Option<String>,
-}
-
-impl ServerConfigurer {
-    fn new(recipent : Option<Recipient<StopServer>>, path : Option<String>) -> Self {
-        Self { recipent, path }
-    }
-
-    fn config(&self) -> Addr<ConfigManager> {
-        let config = config::ConfigManager::from_registry();
-        println!("path={:?}", &self.path);
-
-        if let Some(path) = &self.path {
-            config.do_send(config::SetConfigPath::FsPath(Cow::Owned(path.clone())));
-        }
-        config
-    }
-}
-
-
-impl Drop for ServerConfigurer {
-    fn drop(&mut self) {
-        info!("server configured")
     }
 }
 
@@ -99,7 +72,7 @@ impl Module for LanModule {
         let instance = Arg::with_name("instance")
             .short("I")
             .help("queries mDNS server about some instance")
-            .default_value("gu-provider");
+            .default_value("gu-hub");
 
         app.subcommand(
             SubCommand::with_name("lan")
