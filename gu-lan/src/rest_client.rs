@@ -1,12 +1,12 @@
-use clap::{App, ArgMatches, SubCommand};
+use actix::Arbiter;
+use actix::System;
 use clap::Arg;
+use clap::{App, ArgMatches, SubCommand};
+use futures::Future;
 use gu_base::Module;
 use gu_p2p::rpc::start_actor;
 use server;
 use server::QueryLan;
-use actix::Arbiter;
-use futures::Future;
-use actix::System;
 
 fn run_client(m: &ArgMatches) {
     use actix;
@@ -17,12 +17,11 @@ fn run_client(m: &ArgMatches) {
     let query = QueryLan::single(instance.to_string());
     let addr = start_actor(server::LanInfo());
 
-    Arbiter::spawn(addr.send(query)
-        .and_then(|r|{
-            Ok(println!("{:#?}", r))
-        })
-        .map_err(|e| error!("error! {}", e))
-        .and_then(|_| Ok(System::current().stop()))
+    Arbiter::spawn(
+        addr.send(query)
+            .and_then(|r| Ok(println!("{:#?}", r)))
+            .map_err(|e| error!("error! {}", e))
+            .and_then(|_| Ok(System::current().stop())),
     );
 
     let _ = sys.run();
@@ -38,8 +37,7 @@ impl Module for LanModule {
             .default_value("gu-hub");
 
         app.subcommand(
-            SubCommand::with_name("lan")
-                .subcommand(SubCommand::with_name("list").arg(instance))
+            SubCommand::with_name("lan").subcommand(SubCommand::with_name("list").arg(instance)),
         )
     }
 

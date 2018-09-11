@@ -15,8 +15,7 @@ impl Module for LogModule {
         )
     }
 
-    fn args_consume(&mut self, matches: &ArgMatches) -> bool
-    {
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         if env::var("RUST_LOG").is_err() {
             env::set_var(
                 "RUST_LOG",
@@ -52,8 +51,10 @@ impl Module for CompleteModule {
         )
     }
 
-    fn args_complete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool where
-        F: Fn() -> App<'static, 'static>, {
+    fn args_complete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
+    where
+        F: Fn() -> App<'static, 'static>,
+    {
         use std::io;
 
         if let Some(sub_matches) = matches.subcommand_matches("completions") {

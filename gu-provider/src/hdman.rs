@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::process::Command;
 
 pub struct HdMan {
-//    sessions: HashMap<String, HdManSession>,
+    //    sessions: HashMap<String, HdManSession>,
 }
 
 impl Actor for HdMan {
@@ -39,9 +39,11 @@ impl Handler<CreateSession> for HdMan {
         println!("hey! I'm executing: {}", msg.executable);
         let output = Command::new(msg.executable).output().unwrap();
         if output.status.success() {
-            println!("stdout: |{}|\nstderr: |{}|",
-                     String::from_utf8_lossy(&output.stdout),
-                     String::from_utf8_lossy(&output.stderr));
+            println!(
+                "stdout: |{}|\nstderr: |{}|",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
         Err(())
     }

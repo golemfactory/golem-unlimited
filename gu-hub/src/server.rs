@@ -12,15 +12,15 @@ use std::borrow::Cow;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 
-use gu_base::{Module, Decorator};
-use gu_p2p::rpc;
-use mdns::Responder;
-use gu_p2p::NodeId;
-use mdns::Service;
-use gu_p2p::rpc::start_actor;
+use gu_base::{Decorator, Module};
 use gu_lan::server;
+use gu_p2p::rpc;
 use gu_p2p::rpc::mock;
+use gu_p2p::rpc::start_actor;
+use gu_p2p::NodeId;
 use gu_persist::config::ConfigManager;
+use mdns::Responder;
+use mdns::Service;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,7 +65,7 @@ impl config::HasSectionId for ServerConfig {
 }
 
 pub struct ServerModule {
-    active : bool,
+    active: bool,
     config_path: Option<String>,
 }
 
@@ -73,15 +73,14 @@ impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
             config_path: None,
-            active: false
+            active: false,
         }
     }
 }
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-        app.subcommand(SubCommand::with_name("server")
-            .about("hub server managment"))
+        app.subcommand(SubCommand::with_name("server").about("hub server managment"))
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
@@ -108,7 +107,6 @@ impl Module for ServerModule {
         let _config = ServerConfigurer::new(decorator, self.config_path.clone()).start();
 
         let _ = sys.run();
-
     }
 }
 
@@ -127,7 +125,7 @@ fn run_publisher(run: bool, port: u16) {
             &["path=/", ""],
         ));
 
-        let _svc : &'static mut Service = Box::leak(svc);
+        let _svc: &'static mut Service = Box::leak(svc);
     }
 }
 
@@ -138,17 +136,19 @@ fn prepare_lan_server(run: bool) {
     }
 }
 
-fn chat_route(req: &actix_web::HttpRequest<NodeId>) -> Result<actix_web::HttpResponse, actix_web::Error> {
+fn chat_route(
+    req: &actix_web::HttpRequest<NodeId>,
+) -> Result<actix_web::HttpResponse, actix_web::Error> {
     rpc::ws::route(req, req.state().clone())
 }
 
-pub(crate) struct ServerConfigurer<D : Decorator> {
-    decorator : D,
-    path : Option<String>,
+pub(crate) struct ServerConfigurer<D: Decorator> {
+    decorator: D,
+    path: Option<String>,
 }
 
-impl<D : Decorator + 'static + Sync + Send> ServerConfigurer<D> {
-    fn new(decorator : D, path : Option<String>) -> Self {
+impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
+    fn new(decorator: D, path: Option<String>) -> Self {
         Self { decorator, path }
     }
 
@@ -162,14 +162,15 @@ impl<D : Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         config
     }
 
-    fn hub_configuration(&mut self, c: Arc<ServerConfig>, node_id : NodeId) -> Result<(),()> {
+    fn hub_configuration(&mut self, c: Arc<ServerConfig>, node_id: NodeId) -> Result<(), ()> {
         let decorator = self.decorator.clone();
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(
-            actix_web::App::with_state(node_id.clone())
-                .handler("/p2p", p2p_server)
-                .scope("/m", mock::scope)
-                .resource("/ws/", |r| r.route().f(chat_route)))
+                actix_web::App::with_state(node_id.clone())
+                    .handler("/p2p", p2p_server)
+                    .scope("/m", mock::scope)
+                    .resource("/ws/", |r| r.route().f(chat_route)),
+            )
         });
         let _ = server.bind(c.p2p_addr()).unwrap().start();
         prepare_lan_server(c.publish_service);
@@ -179,30 +180,30 @@ impl<D : Decorator + 'static + Sync + Send> ServerConfigurer<D> {
     }
 }
 
-impl<D : Decorator + 'static> Actor for ServerConfigurer<D> {
+impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
         use rand::*;
 
-        let node_id : NodeId = thread_rng().gen();
+        let node_id: NodeId = thread_rng().gen();
 
-        ctx.spawn(self.config()
-            .send(config::GetConfig::new())
-            .flatten_fut()
-            .map_err(|e| println!("error ! {}", e))
-            .into_actor(self)
-            .and_then(move |config, act, ctx| {
-                act.hub_configuration(config, node_id);
-                fut::ok(ctx.stop())
-            }),
+        ctx.spawn(
+            self.config()
+                .send(config::GetConfig::new())
+                .flatten_fut()
+                .map_err(|e| println!("error ! {}", e))
+                .into_actor(self)
+                .and_then(move |config, act, ctx| {
+                    act.hub_configuration(config, node_id);
+                    fut::ok(ctx.stop())
+                }),
         );
     }
 }
 
-impl<D : Decorator> Drop for ServerConfigurer<D> {
+impl<D: Decorator> Drop for ServerConfigurer<D> {
     fn drop(&mut self) {
         info!("server configured")
     }
 }
-

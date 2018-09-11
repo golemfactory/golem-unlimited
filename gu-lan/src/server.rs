@@ -1,13 +1,13 @@
 use actix::prelude::*;
-use gu_p2p::rpc::*;
 use futures::Future;
 use gu_actix::flatten::FlattenFuture;
-use std::collections::HashSet;
+use gu_p2p::rpc::*;
 use resolve_actor::ResolveActor;
-use service::ServiceInstance;
-use service::ServiceDescription;
-use service::ServicesDescription;
 use serde_json;
+use service::ServiceDescription;
+use service::ServiceInstance;
+use service::ServicesDescription;
+use std::collections::HashSet;
 
 /// Actix-web actor for mDNS service discovery
 pub struct LanInfo();
@@ -28,7 +28,7 @@ pub struct QueryLan {
     pub(crate) instances: Vec<String>,
     /// Eg. '_unlimited._tcp'
     #[serde(default = "QueryLan::service")]
-    pub(crate) service : String,
+    pub(crate) service: String,
 }
 
 impl QueryLan {
@@ -45,15 +45,15 @@ impl QueryLan {
 
     pub fn single(s: String) -> Self {
         QueryLan {
-            instances : vec![s],
-            service : Self::service(),
+            instances: vec![s],
+            service: Self::service(),
         }
     }
 
     pub fn new(vec: Vec<String>) -> Self {
         QueryLan {
-            instances : vec,
-            service : Self::service(),
+            instances: vec,
+            service: Self::service(),
         }
     }
 
@@ -69,8 +69,11 @@ impl Message for QueryLan {
 impl Handler<QueryLan> for LanInfo {
     type Result = ActorResponse<LanInfo, HashSet<ServiceInstance>, ()>;
 
-    fn handle(&mut self, msg: QueryLan, _ctx: &mut Self::Context)
-              -> ActorResponse<LanInfo, HashSet<ServiceInstance>, ()> {
+    fn handle(
+        &mut self,
+        msg: QueryLan,
+        _ctx: &mut Self::Context,
+    ) -> ActorResponse<LanInfo, HashSet<ServiceInstance>, ()> {
         info!("Handle lan query");
         let mut vec = Vec::new();
         for instance in msg.instances {
@@ -79,8 +82,10 @@ impl Handler<QueryLan> for LanInfo {
         let services_desc = ServicesDescription::new(vec);
 
         ActorResponse::async({
-            ResolveActor::from_registry().send(services_desc)
-                .flatten_fut().map_err(|e| error!("err: {}", e))
+            ResolveActor::from_registry()
+                .send(services_desc)
+                .flatten_fut()
+                .map_err(|e| error!("err: {}", e))
                 .into_actor(self)
         })
     }

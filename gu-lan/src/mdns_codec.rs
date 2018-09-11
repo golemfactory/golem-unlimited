@@ -9,10 +9,10 @@ use dns_parser::rdata::RData::TXT;
 use dns_parser::ResourceRecord;
 use dns_parser::{Builder, Packet, QueryClass, QueryType};
 use service::ServiceInstance;
+use service::ServicesDescription;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::from_utf8;
-use service::ServicesDescription;
 
 pub type ParsedPacket = (u16, Vec<(String, ServiceInstance)>);
 

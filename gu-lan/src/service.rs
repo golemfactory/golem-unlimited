@@ -1,9 +1,9 @@
 use actix::Message;
 use errors::Result;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::net::IpAddr;
-use std::collections::HashMap;
 
 /// Struct describing single service in .local domain's network
 ///
@@ -44,15 +44,13 @@ pub struct ServicesDescription {
 
 impl ServicesDescription {
     pub fn new(services: Vec<ServiceDescription>) -> Self {
-        ServicesDescription {
-            services,
-        }
+        ServicesDescription { services }
     }
 
     pub fn single<A, B>(instance: A, service: B) -> Self
-        where
-            A: Into<Cow<'static, str>>,
-            B: Into<Cow<'static, str>>,
+    where
+        A: Into<Cow<'static, str>>,
+        B: Into<Cow<'static, str>>,
     {
         Self::new(vec![ServiceDescription::new(instance, service)])
     }
@@ -98,14 +96,13 @@ impl Services {
     }
 
     pub(crate) fn add_instance(&mut self, name: &str, instance: ServiceInstance) {
-        self.map.get_mut(name)
-            .and_then(|map| {
-                Some(map.insert(instance))
-            });
+        self.map
+            .get_mut(name)
+            .and_then(|map| Some(map.insert(instance)));
     }
 
     pub(crate) fn collect(self) -> HashSet<ServiceInstance> {
-        let mut set : HashSet<ServiceInstance> = HashSet::new();
+        let mut set: HashSet<ServiceInstance> = HashSet::new();
         for i in self.map {
             set.extend(i.1)
         }

@@ -182,7 +182,7 @@ impl Handler<SetConfigPath> for ConfigManager {
     }
 }
 
-use gu_base::{Module, App, Arg};
+use gu_base::{App, Arg, Module};
 
 pub struct ConfigModule;
 

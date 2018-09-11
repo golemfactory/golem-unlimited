@@ -5,7 +5,7 @@ use tokio::prelude::*;
 use errors::{Error, ErrorKind, Result};
 use futures::sync::oneshot;
 use mdns_codec::MdnsCodec;
-use service::{ServicesDescription, ServiceInstance};
+use service::{ServiceInstance, ServicesDescription};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use std::collections::HashMap;
@@ -16,12 +16,12 @@ use futures::sync;
 use futures::sync::mpsc;
 use gu_actix::FlattenFuture;
 use mdns_codec::ParsedPacket;
+use service::Services;
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::{UdpFramed, UdpSocket};
 use tokio::reactor::Handle;
-use service::Services;
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]

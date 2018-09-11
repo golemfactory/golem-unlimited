@@ -9,7 +9,7 @@ use gu_persist::config;
 use actix_web::server::HttpServer;
 use actix_web::server::StopServer;
 use actix_web::*;
-use clap::{self, ArgMatches, SubCommand, Arg};
+use clap::{self, Arg, ArgMatches, SubCommand};
 use std::borrow::Cow;
 use std::net::{self, ToSocketAddrs};
 use std::sync::Arc;
@@ -46,10 +46,7 @@ impl config::HasSectionId for ServerConfig {
 
 pub fn clap_declare<'a, 'b>() -> clap::App<'a, 'b> {
     SubCommand::with_name("server")
-        .subcommand(
-            SubCommand::with_name("connect")
-            .arg(Arg::with_name("peer_addr"))
-        )
+        .subcommand(SubCommand::with_name("connect").arg(Arg::with_name("peer_addr")))
 }
 
 pub fn clap_match(m: &ArgMatches) {
@@ -73,12 +70,12 @@ pub fn clap_match(m: &ArgMatches) {
     }
 }
 
-fn run_server(config_path: Option<String>, peer_addr : Option<net::SocketAddr>) {
+fn run_server(config_path: Option<String>, peer_addr: Option<net::SocketAddr>) {
     use actix;
     use env_logger;
     use rand::*;
 
-    let node_id : NodeId = thread_rng().gen();
+    let node_id: NodeId = thread_rng().gen();
 
     let sys = actix::System::new("gu-provider");
 
@@ -86,7 +83,7 @@ fn run_server(config_path: Option<String>, peer_addr : Option<net::SocketAddr>) 
 
     let _ = match peer_addr {
         Some(a) => Some(rpc::ws::start_connection(node_id, a)),
-        None => None
+        None => None,
     };
 
     let config = ServerConfigurer(None, config_path).start();

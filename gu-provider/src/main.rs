@@ -55,6 +55,5 @@ fn main() {
     }
     env_logger::init();
 
-
     server::clap_match(&matches);
 }

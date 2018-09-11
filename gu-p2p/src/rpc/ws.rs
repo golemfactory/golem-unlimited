@@ -8,9 +8,9 @@ use super::message::{
     EmitMessage, MessageId, NodeId, RouteMessage, TransportError, TransportResult,
 };
 use super::router::{AddEndpoint, DelEndpoint, MessageRouter};
-use futures::prelude::*;
 use actix::prelude::*;
 use actix_web::{self, ws, HttpRequest, HttpResponse};
+use futures::prelude::*;
 use quick_protobuf::serialize_into_vec;
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -91,7 +91,7 @@ impl<S> Actor for Worker<S> {
 
 impl<S> StreamHandler<ws::Message, ws::ProtocolError> for Worker<S> {
     fn handle(&mut self, item: ws::Message, ctx: &mut Self::Context) {
-        use quick_protobuf::{BytesReader, MessageRead, deserialize_from_slice};
+        use quick_protobuf::{deserialize_from_slice, BytesReader, MessageRead};
 
         match item {
             ws::Message::Binary(b) => if self.peer_node_id.is_none() {
@@ -217,10 +217,7 @@ impl Client {
         })
     }
 
-    fn connect(
-        uri: &str,
-        node_id: NodeId,
-    ) -> impl Future<Item=Addr<Client>, Error=()> {
+    fn connect(uri: &str, node_id: NodeId) -> impl Future<Item = Addr<Client>, Error = ()> {
         info!("start connect");
         ws::Client::new(uri)
             .connect()
@@ -268,10 +265,9 @@ impl Actor for Client {
     }
 }
 
-
 impl StreamHandler<ws::Message, ws::ProtocolError> for Client {
     fn handle(&mut self, item: ws::Message, ctx: &mut Self::Context) {
-        use quick_protobuf::{BytesReader, MessageRead, deserialize_from_slice};
+        use quick_protobuf::{deserialize_from_slice, BytesReader, MessageRead};
 
         match item {
             ws::Message::Binary(b) => if self.peer_node_id.is_none() {
@@ -364,7 +360,10 @@ pub struct ConnectionSupervisor {
     connection: Option<Addr<Client>>,
 }
 
-pub fn start_connection(node_id: NodeId, peer_address: net::SocketAddr) -> Addr<ConnectionSupervisor> {
+pub fn start_connection(
+    node_id: NodeId,
+    peer_address: net::SocketAddr,
+) -> Addr<ConnectionSupervisor> {
     ConnectionSupervisor {
         node_id,
         peer_address,
@@ -408,11 +407,9 @@ impl Actor for ConnectionSupervisor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        let _ = ctx.run_interval(time::Duration::from_secs(10),
-                                 |act, ctx| act.check(ctx));
+        let _ = ctx.run_interval(time::Duration::from_secs(10), |act, ctx| act.check(ctx));
     }
 }
-
 
 pub fn route<T: 'static>(
     req: &HttpRequest<T>,

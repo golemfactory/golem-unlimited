@@ -42,4 +42,3 @@ impl From<MailboxError> for Error {
         ErrorKind::Mailbox.into()
     }
 }
-
