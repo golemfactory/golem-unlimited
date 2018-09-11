@@ -7,9 +7,15 @@ extern crate futures;
 extern crate log;
 extern crate env_logger;
 
-pub use clap::{App, Arg, ArgMatches};
+pub use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::future;
 use futures::prelude::*;
+use std::sync::Arc;
+
+pub trait Decorator : Clone + Sync + Send {
+
+    fn decorate_webapp<S : 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S>;
+}
 
 pub trait Module {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
@@ -30,6 +36,19 @@ pub trait Module {
         Box::new(future::ok(()))
     }
 
+    fn run<D : Decorator + Clone + 'static>(&self, decorator : D) {
+
+    }
+
+    fn decorate_webapp<S : 'static>(&self, app : actix_web::App<S>) ->  actix_web::App<S> {
+        app
+    }
+}
+
+impl<M : Module + Sync + Send> Decorator for Arc<M> {
+    fn decorate_webapp<S : 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
+        (**self).decorate_webapp(app)
+    }
 }
 
 pub trait ModuleChain<M>
@@ -93,23 +112,39 @@ where
     fn prepare(&mut self) -> Box<Future<Item = (), Error = ()>> {
         Box::new(self.m1.prepare().join(self.m2.prepare()).map(|(_, _)| ()))
     }
+
+    fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
+        self.m1.run(decorator.clone());
+        self.m2.run(decorator);
+    }
+
+    #[inline]
+    fn decorate_webapp<S : 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
+        let app = self.m1.decorate_webapp(app);
+        self.m2.decorate_webapp(app)
+    }
 }
 
 mod output;
 
 pub use output::{LogModule, CompleteModule};
+use std::any::Any;
 
 pub struct GuApp<F>(pub F) where F : Fn() -> App<'static, 'static>;
 
 impl<F> GuApp<F> where F : Fn() -> App<'static, 'static> {
 
-    pub fn run<M : Module>(&mut self, mut module : M)
+    pub fn run<M : Module + 'static + Sync + Send>(&mut self, mut module : M)
     {
         let matches = module.args_declare(self.0()).get_matches();
 
         if ! (module.args_complete(&matches, &|| module.args_declare(self.0())) ||
             module.args_consume(&matches)) {
             eprintln!("{}", matches.usage());
+        }
+        else {
+            let rcmod = Arc::new(module);
+            rcmod.run(rcmod.clone())
         }
     }
 

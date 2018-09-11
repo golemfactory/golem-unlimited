@@ -70,11 +70,9 @@ impl Drop for ServerConfigurer {
 }
 
 fn get_config(config_path: Option<String>) -> impl Future<Item=Arc<ServerConfig>, Error=()> {
-    ServerConfigurer::new(None, config_path)
-        .config()
-        .send(config::GetConfig::new())
-        .flatten_fut()
-        .map_err(|e| error!("error ! {}", e))
+    use futures::future;
+
+    future::ok(unimplemented!())
 }
 
 fn run_client(config_path: Option<String>) {

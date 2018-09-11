@@ -33,6 +33,7 @@ use gu_base::*;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod server;
+mod peer;
 
 fn main() {
 
@@ -41,30 +42,8 @@ fn main() {
         .run( LogModule
             .chain(gu_persist::config::ConfigModule)
             .chain(gu_lan::rest_client::LanModule)
-            .chain(server::ServerModule)
+            .chain(server::ServerModule::new())
+            .chain(peer::PeerModule)
             .chain(CompleteModule::new()));
 
-    /*
-        .arg(
-            Arg::with_name("v")
-                .short("v")
-                .multiple(true)
-                .help("Sets the level of verbosity"),
-        )
-
-        .subcommand(server::clap_declare())
-        .subcommand(lan::clap_declare())
-        .subcommand(SubCommand::with_name("status"))
-        .
-
-    if ::std::env::var("RUST_LOG").is_err() {
-        ::std::env::set_var("RUST_LOG", "*=info,gu_p2p=debug,gu_provider=debug,gu_hub=debug")
-    }
-    env_logger::init();
-    */
-    debug!("debug");
-
-
-    //server::clap_match(&matches);
-    //lan::clap_match(&matches);
 }
