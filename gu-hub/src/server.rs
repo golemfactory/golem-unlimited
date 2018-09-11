@@ -131,8 +131,7 @@ fn hub_configuration(c: Arc<ServerConfig>, node_id : NodeId) -> Result<(),()> {
     Ok(())
 }
 
-
-pub(crate) struct ServerConfigurer {
+struct ServerConfigurer {
     recipent : Option<Recipient<StopServer>>,
     path : Option<String>,
 }
