@@ -132,9 +132,7 @@ impl Handler<ServicesDescription> for ResolveActor {
         self.next_id = id.wrapping_add(1);
 
         self.map.insert(id, msg.to_services());
-
         let message = ((msg, id), addr);
-
         let sender = self.sender.clone();
 
         let future = match sender {
