@@ -20,6 +20,7 @@ tokio-fs="0.1"
 tokio-io="0.1"
 
 gu-actix= { path="../gu-actix" }
+gu-base= { path="../gu-base" }
 
 [dev-dependencies]
 clap = "2.32"

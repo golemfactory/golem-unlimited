@@ -25,10 +25,12 @@ extern crate directories;
 
 extern crate mdns;
 extern crate rand;
+extern crate gu_base;
 
 extern crate env_logger;
 
 use clap::{App, Arg, SubCommand};
+use gu_base::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -36,33 +38,36 @@ mod lan;
 mod server;
 
 fn main() {
-    let matches = App::new("Golem Unlimited")
-        .version(VERSION)
+
+    GuApp(||App::new("Golem Unlimited")
+        .version(VERSION))
+        .run( LogModule
+            .chain(gu_persist::config::ConfigModule)
+            .chain(lan::LanModule)
+            .chain(server::ServerModule)
+            .chain(CompleteModule::new()));
+
+    /*
         .arg(
             Arg::with_name("v")
                 .short("v")
                 .multiple(true)
                 .help("Sets the level of verbosity"),
         )
-        .arg(
-            Arg::with_name("config-dir")
-                .short("c")
-                .takes_value(true)
-                .value_name("PATH")
-                .help("config dir path"),
-        )
+
         .subcommand(server::clap_declare())
         .subcommand(lan::clap_declare())
         .subcommand(SubCommand::with_name("status"))
-        .get_matches();
+        .
 
     if ::std::env::var("RUST_LOG").is_err() {
         ::std::env::set_var("RUST_LOG", "*=info,gu_p2p=debug,gu_provider=debug,gu_hub=debug")
     }
     env_logger::init();
+    */
     debug!("debug");
 
 
-    server::clap_match(&matches);
-    lan::clap_match(&matches);
+    //server::clap_match(&matches);
+    //lan::clap_match(&matches);
 }

@@ -18,6 +18,7 @@ extern crate directories;
 
 extern crate futures;
 extern crate gu_actix;
+extern crate gu_base;
 extern crate tokio_fs;
 extern crate tokio_io;
 

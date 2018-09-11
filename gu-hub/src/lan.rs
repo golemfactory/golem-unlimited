@@ -4,6 +4,7 @@ use futures::future::Future;
 use actix_web::HttpMessage;
 use futures::future;
 
+
 pub fn clap_declare<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("lan").subcommand(SubCommand::with_name("list"))
 }
@@ -44,4 +45,25 @@ fn lan_query() {
 
     actix_web::actix::spawn(fut);
     let _ = sys.run();
+}
+
+use gu_base::Module;
+
+pub struct LanModule;
+
+impl Module for LanModule {
+    fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
+        app.subcommand(
+            SubCommand::with_name("lan")
+                .subcommand(SubCommand::with_name("list"))
+        )
+    }
+
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        if let Some(m) = matches.subcommand_matches("lan") {
+            clap_match_lan(m);
+            return true;
+        }
+        false
+    }
 }

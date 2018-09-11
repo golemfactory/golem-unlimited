@@ -6,12 +6,13 @@ use gu_persist::config;
 
 use actix_web;
 use actix_web::server::StopServer;
-use clap::{self, ArgMatches, SubCommand};
+use clap::{self, App, ArgMatches, SubCommand};
 use gu_actix::*;
 use std::borrow::Cow;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 
+use gu_base::Module;
 use gu_p2p::rpc;
 use mdns::Responder;
 use gu_p2p::NodeId;
@@ -61,19 +62,25 @@ impl config::HasSectionId for ServerConfig {
     const SECTION_ID: &'static str = "server-cfg";
 }
 
-pub fn clap_declare<'a, 'b>() -> clap::App<'a, 'b> {
-    SubCommand::with_name("server")
-}
+pub struct ServerModule;
 
-pub fn clap_match(m: &ArgMatches) {
-    let config_path = match m.value_of("config-dir") {
-        Some(v) => Some(v.to_string()),
-        None => None,
-    };
+impl Module for ServerModule {
+    fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
+        app.subcommand(SubCommand::with_name("server")
+            .about("hub server managment"))
+    }
 
-    if let Some(_m) = m.subcommand_matches("server") {
-        println!("server");
-        run_server(config_path.to_owned());
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        let config_path = match matches.value_of("config-dir") {
+            Some(v) => Some(v.to_string()),
+            None => None,
+        };
+
+        if let Some(_m) = matches.subcommand_matches("server") {
+            run_server(config_path.to_owned());
+            return true;
+        }
+        false
     }
 }
 
@@ -174,8 +181,6 @@ fn run_server(config_path: Option<String>) {
 
     let _config = ServerConfigurer::new(None, config_path).start();
 
-    println!("[[sys");
     let _ = sys.run();
-    println!("sys]]");
 }
 

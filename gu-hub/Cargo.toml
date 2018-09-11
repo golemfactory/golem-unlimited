@@ -3,6 +3,7 @@ name = "gu-hub"
 version = "0.1.0"
 
 [dependencies]
+gu-base= { path="../gu-base" }
 gu-p2p= { path="../gu-p2p" }
 gu-persist = { path = "../gu-persist" }
 gu-actix = { path = "../gu-actix" }

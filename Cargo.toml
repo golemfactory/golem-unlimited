@@ -2,6 +2,7 @@
 
 members= [
     'gu-actix',
+    'gu-base',
 	'gu-provider',
 	'gu-hub',
 	'gu-ethkey',
