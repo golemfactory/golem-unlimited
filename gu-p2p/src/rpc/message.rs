@@ -275,12 +275,12 @@ impl<B> Message for EmitMessage<B> {
 // 1. Wiadomość przychodzi z Endpointu
 // 2. Wyszukiwany jest odbiorca, gdy brak NoDestinationFound
 // 3. Deserializujemy komunikat, gdy bład WireFormatError
-// 4. Przekazujemy do odbiorcy i na odpowiedzi serializujemy i phamy do endponitu na pole
+// 4. Przekazujemy do odbiorcy i na odpowiedzi serializujemy i pchamy do endponitu na pole
 //    destination = msg.reply_to
 //    correlation_id = msg.msg_id
 
-// Shemat nadawania
+// Schemat nadawania
 // 1. Tworzymy nowy komunikat dostajemy msg_id
-// 2. rejestrujemy odbiorce w reply_handler (ustawiamy timeout)
+// 2. rejestrujemy odbiorcę w reply_handler (ustawiamy timeout)
 // 3. serializujemy i nadajemy.
 //

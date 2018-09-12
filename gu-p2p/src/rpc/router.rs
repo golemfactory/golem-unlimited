@@ -13,7 +13,7 @@ pub struct MessageRouter {
 
 impl Drop for MessageRouter {
     fn drop(&mut self) {
-        println!("router stoped");
+        println!("router stopped");
     }
 }
 
@@ -101,7 +101,7 @@ impl Handler<BindDestination> for MessageRouter {
     type Result = ();
 
     fn handle(&mut self, msg: BindDestination, ctx: &mut Self::Context) -> Self::Result {
-        debug!("registed: {:?}", &msg.destination_id);
+        debug!("registered: {:?}", &msg.destination_id);
         self.destinations.insert(msg.destination_id, msg.endpoint);
     }
 }
