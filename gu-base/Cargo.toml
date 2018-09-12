@@ -10,4 +10,5 @@ actix-web = {version= "0.7", features=["tls"]}
 clap = "2.32"
 log="0.4"
 env_logger = "0.5"
-
+indicatif = "0.9"
+console = "0.6"

@@ -3,7 +3,7 @@ mod context;
 mod message;
 pub mod mock;
 pub mod peer;
-mod reply;
+pub mod reply;
 pub mod router;
 mod util;
 pub mod ws;

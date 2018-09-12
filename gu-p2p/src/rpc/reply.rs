@@ -19,19 +19,19 @@ use std::{fmt, io};
 
 #[derive(Debug)]
 pub enum SendError {
-    GenBody(Box<Error>),
-    ParseBody(Box<Error>, String),
+    GenBody(Box<Error + Send>),
+    ParseBody(Box<Error + Send>, String),
     MailBox(MailboxError),
     Canceled,
 }
 
 impl SendError {
     #[inline]
-    fn body<E: Error + 'static>(e: E) -> Self {
+    fn body<E: Error + Send + 'static>(e: E) -> Self {
         SendError::GenBody(Box::new(e))
     }
 
-    fn parse_body<E: Error + 'static>(e: E, body: String) -> Self {
+    fn parse_body<E: Error + Send + 'static>(e: E, body: String) -> Self {
         SendError::ParseBody(Box::new(e), body)
     }
 }
@@ -137,6 +137,7 @@ where
     type Result = Result<T::Result, SendError>;
 }
 
+
 impl<T> Handler<CallRemote<T>> for ReplyRouter
 where
     T: Serialize + Message,
@@ -185,3 +186,56 @@ where
         )
     }
 }
+
+pub struct CallRemoteUntyped(pub NodeId, pub DestinationId, pub serde_json::Value);
+
+impl Message for CallRemoteUntyped {
+    type Result = Result<serde_json::Value, SendError>;
+}
+
+impl Handler<CallRemoteUntyped> for ReplyRouter
+{
+    type Result = ActorResponse<ReplyRouter, serde_json::Value, SendError>;
+
+    fn handle(
+        &mut self,
+        msg: CallRemoteUntyped,
+        ctx: &mut Self::Context,
+    ) -> Self::Result {
+        let body = match serde_json::to_string(&msg.2) {
+            Ok(b) => b,
+            Err(e) => return ActorResponse::reply(Err(SendError::body(e))),
+        };
+
+        ActorResponse::async(
+            MessageRouter::from_registry()
+                .send(EmitMessage {
+                    dest_node: msg.0,
+                    destination: msg.1,
+                    correlation_id: None,
+                    ts: 0,
+                    expires: None,
+                    body: TransportResult::Ok(body),
+                })
+                .flatten_fut()
+                .map_err(|e| SendError::body(e))
+                .into_actor(self)
+                .and_then(|msg_id, act, ctx| {
+                    use futures::unsync::oneshot;
+                    let (tx, rx) = oneshot::channel();
+                    act.reply_map.insert(msg_id, tx);
+
+                    rx.map_err(|_| SendError::Canceled)
+                        .and_then(|route_msg: RouteMessage<String>| {
+                            Ok(match serde_json::from_str(route_msg.body.as_ref()) {
+                                Ok(t) => Ok(t),
+                                Err(e) => Err(SendError::parse_body(e, route_msg.body)),
+                            })
+                        })
+                        .flatten_fut()
+                        .into_actor(act)
+                }),
+        )
+    }
+}
+

@@ -2,25 +2,39 @@ extern crate actix;
 extern crate actix_web;
 extern crate clap;
 extern crate futures;
+extern crate indicatif;
+extern crate console;
 
 #[macro_use]
 extern crate log;
 extern crate env_logger;
 
+pub mod cli;
+mod output;
+
 pub use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::future;
 use futures::prelude::*;
 use std::sync::Arc;
+use std::any::Any;
+
+
+pub use output::{CompleteModule, LogModule};
+
 
 pub trait Decorator: Clone + Sync + Send {
+
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S>;
+
+    fn extract<T : Module + Any>(&self) -> Option<&T> where Self : Sized;
 }
 
-pub trait Module {
+pub trait Module : Any {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         app
     }
 
+    #[inline]
     fn args_complete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
     where
         F: Fn() -> App<'static, 'static>,
@@ -41,11 +55,19 @@ pub trait Module {
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
         app
     }
+
+    fn extract<T : Module + Any>(&self) -> Option<&T> where Self : Sized{
+        Any::downcast_ref::<T>(self)
+    }
 }
 
 impl<M: Module + Sync + Send> Decorator for Arc<M> {
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
         (**self).decorate_webapp(app)
+    }
+
+    fn extract<T: Module + Any>(&self) -> Option<&T> where Self: Sized {
+        (**self).extract()
     }
 }
 
@@ -80,11 +102,13 @@ where
     M1: Module,
     M2: Module,
 {
+    #[inline]
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         let app = self.m1.args_declare(app);
         self.m2.args_declare(app)
     }
 
+    #[inline]
     fn args_complete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
     where
         F: Fn() -> App<'static, 'static>,
@@ -119,12 +143,17 @@ where
         let app = self.m1.decorate_webapp(app);
         self.m2.decorate_webapp(app)
     }
+
+    fn extract<T: Module + Any>(&self) -> Option<&T> where Self: Sized {
+        if let Some(v) = self.m1.extract() {
+            return Some(v)
+        }
+        if let Some(v) = self.m2.extract() {
+            return Some(v)
+        }
+        None
+    }
 }
-
-mod output;
-
-pub use output::{CompleteModule, LogModule};
-use std::any::Any;
 
 pub struct GuApp<F>(pub F)
 where

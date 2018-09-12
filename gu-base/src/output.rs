@@ -5,6 +5,14 @@ use std::env;
 
 pub struct LogModule;
 
+impl LogModule {
+
+    pub fn verbosity(&self) -> isize {
+        0
+    }
+
+}
+
 impl Module for LogModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         app.arg(
@@ -19,7 +27,7 @@ impl Module for LogModule {
         if env::var("RUST_LOG").is_err() {
             env::set_var(
                 "RUST_LOG",
-                "*=info,gu_p2p=debug,gu_provider=debug,gu_hub=debug",
+                "info,gu_p2p=debug,gu_provider=debug,gu_hub=debug",
             )
         }
         env_logger::init();

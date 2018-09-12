@@ -15,19 +15,25 @@ use quick_protobuf::serialize_into_vec;
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::{net, time};
+use super::peer::{self, PeerManager};
+use std::ops::Add;
 
 struct Worker<S: 'static> {
     state: PhantomData<S>,
     node_id: NodeId,
     peer_node_id: Option<NodeId>,
+    peer_addr : Option<net::SocketAddr>,
+    pong_ts : Option<time::Instant>,
 }
 
 impl<S> Worker<S> {
-    fn new(node_id: NodeId) -> Self {
+    fn new(node_id: NodeId, peer_addr : Option<net::SocketAddr>) -> Self {
         Worker {
             state: PhantomData,
             node_id,
             peer_node_id: None,
+            peer_addr,
+            pong_ts: None,
         }
     }
 
@@ -76,17 +82,44 @@ impl<S> Worker<S> {
     }
 
     fn add_endpoint(&mut self, ctx: &mut <Self as Actor>::Context) {
+
         MessageRouter::from_registry().do_send(AddEndpoint {
             node_id: self.peer_node_id.unwrap(),
             recipient: ctx.address().recipient(),
         });
+        PeerManager::from_registry().do_send(peer::UpdatePeer::Update(peer::PeerInfo {
+            node_name: String::new(),
+            peer_addr: self.peer_addr.map(|addr| format!("{}", addr)),
+            node_id: self.peer_node_id.unwrap(),
+            sessions: Vec::new(),
+            tags: Vec::new(),
+        }))
     }
 }
 
 impl<S> Actor for Worker<S> {
     type Context = ws::WebsocketContext<Self, S>;
 
-    fn started(&mut self, ctx: &mut <Self as Actor>::Context) {}
+    fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
+        ctx.run_interval(time::Duration::from_secs(2), |act, ctx| {
+            if let Some(ts) = act.pong_ts {
+                if ts < time::Instant::now() {
+                    ctx.stop();
+                }
+            }
+            else {
+                act.pong_ts = Some(time::Instant::now().add(time::Duration::from_secs(5)));
+                ctx.ping("t")
+            }
+        });
+    }
+
+    fn stopped(&mut self, ctx: &'_ mut <Self as Actor>::Context) {
+        info!("worker done");
+        if let Some(peer_id) = self.peer_node_id.take() {
+            PeerManager::from_registry().do_send(peer::UpdatePeer::Delete(peer_id))
+        }
+    }
 }
 
 impl<S> StreamHandler<ws::Message, ws::ProtocolError> for Worker<S> {
@@ -125,8 +158,16 @@ impl<S> StreamHandler<ws::Message, ws::ProtocolError> for Worker<S> {
                     }
                 }
             },
+            ws::Message::Pong(_) => {
+                self.pong_ts = None;
+            }
             p => warn!("unknown package: {:?}", p),
         }
+    }
+
+    fn error(&mut self, err: ws::ProtocolError, ctx: &mut Self::Context) -> Running {
+        error!("ws error: {}", err);
+        Running::Stop
     }
 }
 
@@ -300,6 +341,9 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Client {
                     }
                 }
             },
+            ws::Message::Ping(m) => {
+                self.writer.pong(m.as_ref());
+            }
             ws::Message::Close(r) => {
                 warn!("closed: {:?}", r);
                 ctx.stop()
@@ -415,6 +459,6 @@ pub fn route<T: 'static>(
     req: &HttpRequest<T>,
     node_id: NodeId,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let actor = Worker::new(node_id);
+    let actor = Worker::new(node_id, req.peer_addr());
     ws::start(&req, actor)
 }
