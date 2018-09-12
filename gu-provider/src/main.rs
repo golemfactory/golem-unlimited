@@ -42,5 +42,5 @@ fn main() {
             .chain(gu_persist::config::ConfigModule::new())
 //            .chain(lan::LanModule)
             .chain(server::ServerModule::new())
-            .chain(CompleteModule::new()));
+            .chain(AutocompleteModule::new()));
 }
