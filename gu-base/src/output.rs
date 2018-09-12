@@ -40,8 +40,8 @@ pub struct CompleteModule(String);
 
 impl CompleteModule {
     pub fn new() -> CompleteModule {
-        let a: String = env::args().take(1).into_iter().next().unwrap().into();
-        CompleteModule(a)
+        let shell: String = env::args().take(1).into_iter().next().unwrap().into();
+        CompleteModule(shell)
     }
 }
 

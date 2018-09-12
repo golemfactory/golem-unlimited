@@ -1,17 +1,19 @@
-pub use super::error::*;
-use super::storage::{Fetch, Put};
 use actix::{fut, prelude::*};
-use serde::{Deserialize, Serialize};
-use serde_json::{self, Value as JsonValue};
-use std::borrow::Cow;
-use std::marker::PhantomData;
-use std::path::PathBuf;
-use std::sync::Arc;
-
 use gu_actix::*;
 use gu_base::*;
+use gu_base::{App, Arg, Module};
+use serde::{Deserialize, Serialize};
+use serde_json::{self, Value as JsonValue};
 use std::any::Any;
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::marker::PhantomData;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
+pub use super::error::*;
+use super::storage::{Fetch, Put};
+use directories::ProjectDirs;
 
 type Storage = super::file_storage::FileStorage;
 
@@ -182,9 +184,30 @@ impl Handler<SetConfigPath> for ConfigManager {
     }
 }
 
-use gu_base::{App, Arg, Module};
+pub struct ConfigModule(ProjectDirs);
 
-pub struct ConfigModule;
+impl ConfigModule {
+
+    pub fn new() -> Self {
+        ConfigModule(ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap())
+    }
+
+    /// TODO: for extracted sessions
+    pub fn work_dir(&self) -> &Path {
+        self.0.data_local_dir()
+    }
+
+    /// TODO: for downloaded images
+    pub fn cache_dir(&self) -> &Path {
+        self.0.cache_dir()
+    }
+
+    /// TODO: for configs and ethkeys
+    pub fn config_dir(&self) -> &Path {
+        self.0.config_dir()
+    }
+
+}
 
 impl Module for ConfigModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
@@ -200,7 +223,6 @@ impl Module for ConfigModule {
 
 #[cfg(test)]
 mod test {
-
     use super::{ConfigSection, HasSectionId};
 
     #[derive(Deserialize, Serialize, Default)]

@@ -39,7 +39,7 @@ fn main() {
     GuApp(|| App::new("Golem Unlimited").version(VERSION)).run(
         LogModule
             .chain(CompleteModule::new())
-            .chain(gu_persist::config::ConfigModule)
+            .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::rest_client::LanModule)
             .chain(peer::PeerModule)
             .chain(server::ServerModule::new())
