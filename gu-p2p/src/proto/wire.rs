@@ -52,23 +52,27 @@ impl<'a> From<&'a str> for Role {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RpcStatus {
-    Success = 0,
-    NoDestination = 1,
-    BadFormat = 2,
+    Request = 0,
+    Reply = 1,
+    Event = 2,
+    NoDestination = 100,
+    BadFormat = 101,
 }
 
 impl Default for RpcStatus {
     fn default() -> Self {
-        RpcStatus::Success
+        RpcStatus::Request
     }
 }
 
 impl From<i32> for RpcStatus {
     fn from(i: i32) -> Self {
         match i {
-            0 => RpcStatus::Success,
-            1 => RpcStatus::NoDestination,
-            2 => RpcStatus::BadFormat,
+            0 => RpcStatus::Request,
+            1 => RpcStatus::Reply,
+            2 => RpcStatus::Event,
+            100 => RpcStatus::NoDestination,
+            101 => RpcStatus::BadFormat,
             _ => Self::default(),
         }
     }
@@ -77,7 +81,9 @@ impl From<i32> for RpcStatus {
 impl<'a> From<&'a str> for RpcStatus {
     fn from(s: &'a str) -> Self {
         match s {
-            "Success" => RpcStatus::Success,
+            "Request" => RpcStatus::Request,
+            "Reply" => RpcStatus::Reply,
+            "Event" => RpcStatus::Event,
             "NoDestination" => RpcStatus::NoDestination,
             "BadFormat" => RpcStatus::BadFormat,
             _ => Self::default(),
@@ -199,11 +205,12 @@ impl<'a> MessageWrite for HelloReply<'a> {
 pub struct RpcMessage<'a> {
     pub message_id: Cow<'a, [u8]>,
     pub destination_id: Cow<'a, [u8]>,
+    pub reply_to: Option<Cow<'a, [u8]>>,
     pub correlation_id: Option<Cow<'a, [u8]>>,
     pub ts: Option<u64>,
     pub expires: Option<u64>,
     pub status: RpcStatus,
-    pub payload: mod_RpcMessage::OneOfpayload<'a>,
+    pub payload: Option<Cow<'a, str>>,
 }
 
 impl<'a> MessageRead<'a> for RpcMessage<'a> {
@@ -213,12 +220,12 @@ impl<'a> MessageRead<'a> for RpcMessage<'a> {
             match r.next_tag(bytes) {
                 Ok(10) => msg.message_id = r.read_bytes(bytes).map(Cow::Borrowed)?,
                 Ok(18) => msg.destination_id = r.read_bytes(bytes).map(Cow::Borrowed)?,
+                Ok(42) => msg.reply_to = Some(r.read_bytes(bytes).map(Cow::Borrowed)?),
                 Ok(26) => msg.correlation_id = Some(r.read_bytes(bytes).map(Cow::Borrowed)?),
                 Ok(80) => msg.ts = Some(r.read_uint64(bytes)?),
                 Ok(88) => msg.expires = Some(r.read_uint64(bytes)?),
                 Ok(32) => msg.status = r.read_enum(bytes)?,
-                Ok(162) => msg.payload = mod_RpcMessage::OneOfpayload::json(r.read_string(bytes).map(Cow::Borrowed)?),
-                Ok(170) => msg.payload = mod_RpcMessage::OneOfpayload::error_msg(r.read_string(bytes).map(Cow::Borrowed)?),
+                Ok(162) => msg.payload = Some(r.read_string(bytes).map(Cow::Borrowed)?),
                 Ok(t) => { r.read_unknown(bytes, t)?; }
                 Err(e) => return Err(e),
             }
@@ -232,46 +239,24 @@ impl<'a> MessageWrite for RpcMessage<'a> {
         0
         + 1 + sizeof_len((&self.message_id).len())
         + 1 + sizeof_len((&self.destination_id).len())
+        + self.reply_to.as_ref().map_or(0, |m| 1 + sizeof_len((m).len()))
         + self.correlation_id.as_ref().map_or(0, |m| 1 + sizeof_len((m).len()))
         + self.ts.as_ref().map_or(0, |m| 1 + sizeof_varint(*(m) as u64))
         + self.expires.as_ref().map_or(0, |m| 1 + sizeof_varint(*(m) as u64))
         + 1 + sizeof_varint(*(&self.status) as u64)
-        + match self.payload {
-            mod_RpcMessage::OneOfpayload::json(ref m) => 2 + sizeof_len((m).len()),
-            mod_RpcMessage::OneOfpayload::error_msg(ref m) => 2 + sizeof_len((m).len()),
-            mod_RpcMessage::OneOfpayload::None => 0,
-    }    }
+        + self.payload.as_ref().map_or(0, |m| 2 + sizeof_len((m).len()))
+    }
 
     fn write_message<W: Write>(&self, w: &mut Writer<W>) -> Result<()> {
         w.write_with_tag(10, |w| w.write_bytes(&**&self.message_id))?;
         w.write_with_tag(18, |w| w.write_bytes(&**&self.destination_id))?;
+        if let Some(ref s) = self.reply_to { w.write_with_tag(42, |w| w.write_bytes(&**s))?; }
         if let Some(ref s) = self.correlation_id { w.write_with_tag(26, |w| w.write_bytes(&**s))?; }
         if let Some(ref s) = self.ts { w.write_with_tag(80, |w| w.write_uint64(*s))?; }
         if let Some(ref s) = self.expires { w.write_with_tag(88, |w| w.write_uint64(*s))?; }
         w.write_with_tag(32, |w| w.write_enum(*&self.status as i32))?;
-        match self.payload {            mod_RpcMessage::OneOfpayload::json(ref m) => { w.write_with_tag(162, |w| w.write_string(&**m))? },
-            mod_RpcMessage::OneOfpayload::error_msg(ref m) => { w.write_with_tag(170, |w| w.write_string(&**m))? },
-            mod_RpcMessage::OneOfpayload::None => {},
-    }        Ok(())
+        if let Some(ref s) = self.payload { w.write_with_tag(162, |w| w.write_string(&**s))?; }
+        Ok(())
     }
-}
-
-pub mod mod_RpcMessage {
-
-use super::*;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum OneOfpayload<'a> {
-    json(Cow<'a, str>),
-    error_msg(Cow<'a, str>),
-    None,
-}
-
-impl<'a> Default for OneOfpayload<'a> {
-    fn default() -> Self {
-        OneOfpayload::None
-    }
-}
-
 }
 

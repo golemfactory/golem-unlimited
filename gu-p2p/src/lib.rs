@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 extern crate actix;
 extern crate actix_web;
 extern crate futures;
@@ -24,9 +26,10 @@ use tokio_io::{AsyncRead, AsyncWrite, IoStream};
 
 const PROTO_RPC: &[u8] = &[0x8Cu8, 0xC3, 0x34, 0xBE];
 
-pub type NodeId = [u8; 32];
+pub type NodeId = types::NodeId;
 
 type Key = [u8; 20];
 
 mod proto;
 pub mod rpc;
+pub mod types;

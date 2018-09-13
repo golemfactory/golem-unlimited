@@ -40,7 +40,7 @@ fn mock_send<S: 'static>(r: HttpRequest<S>, path: Path<(u32,)>) -> impl Responde
             Callback::from_registry()
                 .send(Forward(RouteMessage {
                     msg_id: gen_destination_id(),
-                    sender: [0; 32],
+                    sender: NodeId::default(),
                     destination: public_destination(path.0),
                     reply_to: None,
                     correlation_id: None,

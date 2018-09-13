@@ -8,6 +8,7 @@ use std::io::{self, Write};
 
 pub struct MessageRouter {
     destinations: HashMap<DestinationId, Box<LocalEndpoint + 'static>>,
+    reply_destinations: HashMap<DestinationId, Box<LocalReplyEndpoint + 'static>>,
     remotes: HashMap<NodeId, Recipient<EmitMessage<String>>>,
 }
 
@@ -28,13 +29,16 @@ pub struct DelEndpoint {
     pub node_id: NodeId,
 }
 
+#[derive(Message)]
 pub struct BindDestination {
     pub destination_id: DestinationId,
     pub endpoint: Box<LocalEndpoint + 'static + Send>,
 }
 
-impl Message for BindDestination {
-    type Result = ();
+#[derive(Message)]
+pub struct BindReplyDestination {
+    pub destination_id: DestinationId,
+    pub endpoint: Box<LocalReplyEndpoint + 'static + Send>,
 }
 
 impl MessageRouter {}
@@ -47,6 +51,7 @@ impl Default for MessageRouter {
     fn default() -> Self {
         MessageRouter {
             destinations: HashMap::new(),
+            reply_destinations: HashMap::with_capacity(32),
             remotes: HashMap::new(),
         }
     }
@@ -64,6 +69,14 @@ pub trait LocalEndpoint {
     );
 }
 
+pub trait LocalReplyEndpoint {
+    fn handle(
+        &mut self,
+        message: RouteMessage<Result<String, TransportError>>,
+        ctx: &mut <MessageRouter as Actor>::Context,
+    );
+}
+
 impl Handler<RouteMessage<String>> for MessageRouter {
     type Result = ();
 
@@ -73,8 +86,10 @@ impl Handler<RouteMessage<String>> for MessageRouter {
         if let Some(v) = self.destinations.get_mut(&msg.destination) {
             v.handle(msg, ctx);
         } else if let Some(r) = EmitMessage::reply(&msg, TransportResult::NoDestination) {
-            debug!("no dest: {:?}", msg.destination);
+            error!("no dest: {:?}", msg.destination);
             ctx.notify(r);
+        } else {
+            error!("no dest: {:?} and no reply", msg.destination);
         }
     }
 }
@@ -85,7 +100,10 @@ impl Handler<EmitMessage<String>> for MessageRouter {
     fn handle(&mut self, msg: EmitMessage<String>, ctx: &mut Self::Context) -> Self::Result {
         let f = if let Some(v) = self.remotes.get_mut(&msg.dest_node) {
             v.send(msg).then(|r| match r {
-                Err(e) => Err(e.into()),
+                Err(e) => {
+                    error!("emit err: {}", e);
+                    Err(e.into())
+                }
                 Ok(v) => v,
             })
         } else {
@@ -97,12 +115,34 @@ impl Handler<EmitMessage<String>> for MessageRouter {
     }
 }
 
+impl Handler<RouteMessage<Result<String, TransportError>>> for MessageRouter {
+    type Result = ();
+
+    fn handle(&mut self, msg: RouteMessage<Result<String, TransportError>>, ctx: &mut Self::Context) -> Self::Result {
+        debug!("handling dest: {:?}", msg.destination);
+        if let Some(v) = self.reply_destinations.get_mut(&msg.destination) {
+            v.handle(msg, ctx);
+        } else {
+            error!("no dest: {:?} and no reply", msg.destination);
+        }
+    }
+}
+
+
 impl Handler<BindDestination> for MessageRouter {
     type Result = ();
 
     fn handle(&mut self, msg: BindDestination, ctx: &mut Self::Context) -> Self::Result {
         debug!("registed: {:?}", &msg.destination_id);
         self.destinations.insert(msg.destination_id, msg.endpoint);
+    }
+}
+
+impl Handler<BindReplyDestination> for MessageRouter {
+    type Result = ();
+
+    fn handle(&mut self, msg: BindReplyDestination, ctx: &mut Self::Context) -> <Self as Handler<BindReplyDestination>>::Result {
+        self.reply_destinations.insert(msg.destination_id, msg.endpoint);
     }
 }
 
@@ -117,3 +157,4 @@ impl Handler<AddEndpoint> for MessageRouter {
         self.remotes.insert(msg.node_id, msg.recipient);
     }
 }
+

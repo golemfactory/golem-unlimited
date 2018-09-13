@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self, Write};
 
-pub type NodeId = [u8; 32];
+pub type NodeId = super::super::NodeId;
 pub type MessageId = SmallVec<[u8; 8]>;
 pub type DestinationId = SmallVec<[u8; 8]>;
 pub type MessageTypeId = SmallVec<[u8; 4]>;
@@ -77,7 +77,8 @@ impl Into<error::Error> for TransportError {
 
 #[derive(Clone, Debug)]
 pub enum TransportResult<B> {
-    Ok(B),
+    Request(B),
+    Reply(B),
     Err(TransportError),
 }
 
@@ -92,7 +93,8 @@ impl<B> TransportResult<B> {
 impl<T> Into<Result<T, error::Error>> for TransportResult<T> {
     fn into(self) -> Result<T, error::Error> {
         match self {
-            TransportResult::Ok(t) => Ok(t),
+            TransportResult::Reply(t) => Ok(t),
+            TransportResult::Request(t) => Ok(t),
             TransportResult::Err(e) => Err(e.into()),
         }
     }
@@ -100,11 +102,11 @@ impl<T> Into<Result<T, error::Error>> for TransportResult<T> {
 
 impl<B: Default> Default for TransportResult<B> {
     fn default() -> Self {
-        TransportResult::Ok(B::default())
+        TransportResult::Request(B::default())
     }
 }
 
-#[derive(Message, Clone)]
+#[derive(Message, Clone, Debug)]
 pub struct RouteMessage<B> {
     pub msg_id: MessageId,
     pub sender: NodeId,
@@ -118,7 +120,7 @@ pub struct RouteMessage<B> {
 
 impl<B> RouteMessage<B> {
     pub fn do_reply<T, F: FnOnce(EmitMessage<T>)>(&self, arg: T, f: F) {
-        if let Some(msg) = EmitMessage::reply(self, TransportResult::Ok(arg)) {
+        if let Some(msg) = EmitMessage::reply(self, TransportResult::Reply(arg)) {
             f(msg)
         }
     }
@@ -159,11 +161,12 @@ impl<B: Serialize> RouteMessage<B> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct EmitMessage<B> {
     pub dest_node: NodeId,
     pub destination: DestinationId,
     pub correlation_id: Option<MessageId>,
+    pub reply_to: Option<DestinationId>,
     pub ts: u64,
     pub expires: Option<u64>,
     pub body: TransportResult<B>,
@@ -174,7 +177,11 @@ impl<B: BinPack> BinPack for TransportResult<B> {
         use byteorder::WriteBytesExt;
 
         match self {
-            TransportResult::Ok(b) => {
+            TransportResult::Reply(b) => {
+                w.write_u8(1)?;
+                b.pack_to_stream(w)
+            }
+            TransportResult::Request(b) => {
                 w.write_u8(0)?;
                 b.pack_to_stream(w)
             }
@@ -195,6 +202,7 @@ impl<B: BinPack> BinPack for TransportResult<B> {
 
 impl<B> EmitMessage<B> {
     pub fn reply<BX>(msg: &RouteMessage<BX>, body: TransportResult<B>) -> Option<Self> {
+        debug!("build reply for {:?}", msg.unit());
         match msg.reply_to.clone() {
             Some(reply_to) => Some(EmitMessage {
                 dest_node: msg.sender.clone(),
@@ -205,6 +213,7 @@ impl<B> EmitMessage<B> {
                         .unwrap_or_else(|| msg.msg_id.clone()),
                 ),
                 ts: 0,
+                reply_to: None,
                 expires: msg.expires.clone(),
                 body,
             }),
@@ -216,7 +225,8 @@ impl<B> EmitMessage<B> {
 impl<B: Serialize> EmitMessage<B> {
     fn json(self) -> serde_json::Result<EmitMessage<String>> {
         let body = match self.body {
-            TransportResult::Ok(ref b) => TransportResult::Ok(serde_json::to_string(b)?),
+            TransportResult::Request(ref b) => TransportResult::Request(serde_json::to_string(b)?),
+            TransportResult::Reply(ref b) => TransportResult::Reply(serde_json::to_string(b)?),
             TransportResult::Err(e) => TransportResult::Err(e),
         };
 
@@ -224,6 +234,7 @@ impl<B: Serialize> EmitMessage<B> {
             dest_node: self.dest_node,
             destination: self.destination,
             correlation_id: self.correlation_id,
+            reply_to: self.reply_to,
             ts: self.ts,
             expires: self.expires,
             body,
@@ -253,14 +264,17 @@ impl EmitMessage<String> {
         let mut msg: EmitMessage<String> = EmitMessage::default();
 
         let mut msg_id = MessageId::default();
+        let mut dest_node = [0u8; 32];
 
         c.unpack(&mut msg_id)?;
-        c.unpack(msg.dest_node.as_mut())?;
+        c.unpack(&mut dest_node[..])?;
         c.unpack(&mut msg.destination)?;
         c.unpack(&mut msg.correlation_id)?;
         c.unpack(&mut msg.ts)?;
         c.unpack(&mut msg.expires)?;
         c.unpack(&mut msg.body)?;
+
+        msg.dest_node = dest_node.into();
 
         Ok((msg_id, msg))
     }

@@ -18,6 +18,44 @@ use std::{net, time};
 use super::peer::{self, PeerManager};
 use std::ops::Add;
 
+fn rpc_to_route<T>(peer_node_id : NodeId, rpc: wire::RpcMessage, body : T) -> RouteMessage<T> {
+    RouteMessage {
+        msg_id: rpc.message_id.as_ref().into(),
+        sender: peer_node_id,
+        destination: rpc.destination_id.as_ref().into(),
+        reply_to: rpc.reply_to.map(|v| v.as_ref().into()),
+        correlation_id: rpc.correlation_id.map(|v| v.as_ref().into()),
+        ts: rpc.ts.unwrap_or(0),
+        expires: rpc.expires,
+        body,
+    }
+}
+
+fn route_rpc_message(peer_node_id : NodeId, mut rpc: wire::RpcMessage) {
+    let (status, payload) = (rpc.status, rpc.payload.take());
+
+    match (status, payload) {
+        (wire::RpcStatus::Request, Some(json)) => {
+            let body : String = json.into();
+            MessageRouter::from_registry().do_send(rpc_to_route(peer_node_id, rpc, body))
+        }
+        (wire::RpcStatus::Reply, Some(json)) => {
+            let body : Result<String, TransportError> = Ok(json.into());
+            MessageRouter::from_registry().do_send(rpc_to_route(peer_node_id, rpc, body))
+        }
+        (wire::RpcStatus::NoDestination, _) => {
+            let body : Result<String, TransportError> = Err(TransportError::NoDestination);
+            MessageRouter::from_registry().do_send(rpc_to_route(peer_node_id, rpc, body))
+        }
+        (wire::RpcStatus::BadFormat, Some(msg)) => {
+            let body : Result<String, TransportError> = Err(TransportError::BadFormat(msg.into()));
+            MessageRouter::from_registry().do_send(rpc_to_route(peer_node_id, rpc, body))
+        }
+        _ => return ()
+    }
+}
+
+
 struct Worker<S: 'static> {
     state: PhantomData<S>,
     node_id: NodeId,
@@ -35,34 +73,6 @@ impl<S> Worker<S> {
             peer_addr,
             pong_ts: None,
         }
-    }
-
-    fn route(&mut self, rpc: wire::RpcMessage) {
-        let body: String = match (rpc.status, rpc.payload) {
-            (wire::RpcStatus::Success, wire::mod_RpcMessage::OneOfpayload::json(json)) => {
-                json.into()
-            }
-            (wire::RpcStatus::NoDestination, _) => {
-                //TransportResult::Err(TransportError::NoDestination)
-                return ();
-            }
-            (wire::RpcStatus::BadFormat, wire::mod_RpcMessage::OneOfpayload::error_msg(msg)) => {
-                //TransportResult::Err(TransportError::BadFormat(msg.into()))
-                return ();
-            }
-            _ => return (),
-        };
-
-        MessageRouter::from_registry().do_send(RouteMessage {
-            msg_id: rpc.message_id.as_ref().into(),
-            sender: self.peer_node_id.clone().unwrap(),
-            destination: rpc.destination_id.as_ref().into(),
-            reply_to: None,
-            correlation_id: None,
-            ts: rpc.ts.unwrap_or(0),
-            expires: rpc.expires,
-            body,
-        })
     }
 
     fn reply_init(&mut self, ctx: &mut <Self as Actor>::Context) {
@@ -133,8 +143,7 @@ impl<S> StreamHandler<ws::Message, ws::ProtocolError> for Worker<S> {
                     //wire::Hello::from_reader(&mut reader, b.as_ref()) {
                     Ok(hello) => {
                         info!("handshake for: {:?}", hello);
-                        let mut peer_node_id: NodeId = NodeId::default();
-                        peer_node_id[..].copy_from_slice(hello.node_id.as_ref());
+                        let mut peer_node_id: NodeId = hello.node_id.into();
                         self.peer_node_id = Some(peer_node_id);
                         self.reply_init(ctx);
                         self.add_endpoint(ctx);
@@ -147,9 +156,9 @@ impl<S> StreamHandler<ws::Message, ws::ProtocolError> for Worker<S> {
                     }
                 }
             } else {
-                let mut reader = BytesReader::from_bytes(b.as_ref());
-                match wire::RpcMessage::from_reader(&mut reader, b.as_ref()) {
-                    Ok(rpc) => self.route(rpc),
+                debug!("got slice: {:?}", b);
+                match deserialize_from_slice(b.as_ref()) {
+                    Ok(rpc) => route_rpc_message(self.peer_node_id.clone().unwrap(), rpc),
                     Err(e) => {
                         ctx.close(Some(ws::CloseReason {
                             code: ws::CloseCode::Protocol,
@@ -183,17 +192,21 @@ impl<S> Handler<EmitMessage<String>> for Worker<S> {
         use smallvec;
         let m: [u8; 8] = thread_rng().gen();
         let (status, payload) = match msg.body {
-            TransportResult::Ok(ref b) => (
-                wire::RpcStatus::Success,
-                wire::mod_RpcMessage::OneOfpayload::json(Cow::Borrowed(b)),
+            TransportResult::Request(ref b) => (
+                wire::RpcStatus::Request,
+                Some(Cow::Borrowed(b.as_ref())),
+            ),
+            TransportResult::Reply(ref b) => (
+                wire::RpcStatus::Reply,
+                Some(Cow::Borrowed(b.as_ref())),
             ),
             TransportResult::Err(TransportError::NoDestination) => (
                 wire::RpcStatus::NoDestination,
-                wire::mod_RpcMessage::OneOfpayload::None,
+                None,
             ),
             TransportResult::Err(TransportError::BadFormat(ref err_msg)) => (
                 wire::RpcStatus::BadFormat,
-                wire::mod_RpcMessage::OneOfpayload::error_msg(Cow::Borrowed(err_msg)),
+                Some(Cow::Borrowed(err_msg.as_ref())),
             ),
         };
 
@@ -204,6 +217,7 @@ impl<S> Handler<EmitMessage<String>> for Worker<S> {
                 Some(ref v) => Some(Cow::Borrowed(v.as_ref())),
                 None => None,
             },
+            reply_to: msg.reply_to.as_ref().map(|v| Cow::Borrowed(v.as_ref())),
             ts: (if msg.ts == 0 { None } else { Some(msg.ts) }),
             expires: msg.expires,
             status,
@@ -228,34 +242,6 @@ impl Client {
             node_id: self.peer_node_id.unwrap(),
             recipient: ctx.address().recipient(),
         });
-    }
-
-    fn route(&mut self, rpc: wire::RpcMessage) {
-        let body: String = match (rpc.status, rpc.payload) {
-            (wire::RpcStatus::Success, wire::mod_RpcMessage::OneOfpayload::json(json)) => {
-                json.into()
-            }
-            (wire::RpcStatus::NoDestination, _) => {
-                //TransportResult::Err(TransportError::NoDestination)
-                return ();
-            }
-            (wire::RpcStatus::BadFormat, wire::mod_RpcMessage::OneOfpayload::error_msg(msg)) => {
-                //TransportResult::Err(TransportError::BadFormat(msg.into()))
-                return ();
-            }
-            _ => return (),
-        };
-
-        MessageRouter::from_registry().do_send(RouteMessage {
-            msg_id: rpc.message_id.as_ref().into(),
-            sender: self.peer_node_id.clone().unwrap(),
-            destination: rpc.destination_id.as_ref().into(),
-            reply_to: None,
-            correlation_id: None,
-            ts: rpc.ts.unwrap_or(0),
-            expires: rpc.expires,
-            body,
-        })
     }
 
     fn connect(uri: &str, node_id: NodeId) -> impl Future<Item = Addr<Client>, Error = ()> {
@@ -315,9 +301,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Client {
                 match deserialize_from_slice::<wire::HelloReply>(b.as_ref()) {
                     Ok(hello) => {
                         info!("handshake for: {:?}", hello);
-                        let mut peer_node_id: NodeId = NodeId::default();
-                        peer_node_id[..].copy_from_slice(hello.node_id.as_ref());
-                        self.peer_node_id = Some(peer_node_id);
+                        self.peer_node_id = Some(hello.node_id.into());
                         self.add_endpoint(ctx);
                     }
                     Err(e) => {
@@ -329,10 +313,10 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Client {
                     }
                 }
             } else {
-                let mut reader = BytesReader::from_bytes(b.as_ref());
-                match wire::RpcMessage::from_reader(&mut reader, b.as_ref()) {
-                    Ok(rpc) => self.route(rpc),
+                match deserialize_from_slice::<wire::RpcMessage>(b.as_ref()) {
+                    Ok(rpc) => route_rpc_message(self.peer_node_id.clone().unwrap(), rpc),
                     Err(e) => {
+                        error!("rpc format error: {}", e);
                         self.writer.close(Some(ws::CloseReason {
                             code: ws::CloseCode::Protocol,
                             description: Some(format!("{}", e)),
@@ -361,27 +345,40 @@ impl Handler<EmitMessage<String>> for Client {
         msg: EmitMessage<String>,
         ctx: &mut Self::Context,
     ) -> <Self as Handler<EmitMessage<String>>>::Result {
+
+        debug!("emit message: {:?}", msg);
+
         use rand::*;
         use smallvec;
         let m: [u8; 8] = thread_rng().gen();
-        let (status, payload) = match msg.body {
-            TransportResult::Ok(ref b) => (
-                wire::RpcStatus::Success,
-                wire::mod_RpcMessage::OneOfpayload::json(Cow::Borrowed(b)),
+        let (status, payload ) : (_, Option<Cow<str>>) = match msg.body {
+            TransportResult::Request(ref b) => (
+                wire::RpcStatus::Request,
+                Some(Cow::Borrowed(b)),
+            ),
+            TransportResult::Reply(ref b) => (
+                wire::RpcStatus::Reply,
+                Some(Cow::Borrowed(b)),
             ),
             TransportResult::Err(TransportError::NoDestination) => (
                 wire::RpcStatus::NoDestination,
-                wire::mod_RpcMessage::OneOfpayload::None,
+                None,
             ),
             TransportResult::Err(TransportError::BadFormat(ref err_msg)) => (
                 wire::RpcStatus::BadFormat,
-                wire::mod_RpcMessage::OneOfpayload::error_msg(Cow::Borrowed(err_msg)),
+                Some(Cow::Borrowed(err_msg)),
             ),
         };
+
+
 
         let msg = wire::RpcMessage {
             message_id: Cow::Borrowed(m.as_ref()),
             destination_id: Cow::Borrowed(msg.destination.as_ref()),
+            reply_to:  match msg.reply_to {
+                Some(ref v) => Some(Cow::Borrowed(v.as_ref())),
+                None => None,
+            },
             correlation_id: match msg.correlation_id {
                 Some(ref v) => Some(Cow::Borrowed(v.as_ref())),
                 None => None,
@@ -461,4 +458,35 @@ pub fn route<T: 'static>(
 ) -> Result<HttpResponse, actix_web::Error> {
     let actor = Worker::new(node_id, req.peer_addr());
     ws::start(&req, actor)
+}
+
+
+#[cfg(test)]
+mod test {
+    use quick_protobuf::*;
+    use std::borrow::Cow;
+    use super::wire::*;
+
+    #[test]
+    fn test_rpc_message() {
+        let message_id  = [0u8; 32];
+        let destination_id = [0u8;4];
+        let msg = "ala ma kota";
+
+        let rpc: RpcMessage = RpcMessage {
+            message_id: Cow::Borrowed(&message_id),
+            destination_id: Cow::Borrowed(&destination_id),
+            correlation_id: None,
+            reply_to: None,
+            ts: Some(0),
+            expires: None,
+            status: RpcStatus::Request,
+            payload: Some(Cow::Borrowed(&msg)),
+        };
+
+        let buf = serialize_into_vec(&rpc).unwrap();
+
+        assert!(deserialize_from_slice::<RpcMessage>(&buf).unwrap() == rpc)
+    }
+
 }
