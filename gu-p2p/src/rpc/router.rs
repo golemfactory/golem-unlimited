@@ -118,7 +118,11 @@ impl Handler<EmitMessage<String>> for MessageRouter {
 impl Handler<RouteMessage<Result<String, TransportError>>> for MessageRouter {
     type Result = ();
 
-    fn handle(&mut self, msg: RouteMessage<Result<String, TransportError>>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(
+        &mut self,
+        msg: RouteMessage<Result<String, TransportError>>,
+        ctx: &mut Self::Context,
+    ) -> Self::Result {
         debug!("handling dest: {:?}", msg.destination);
         if let Some(v) = self.reply_destinations.get_mut(&msg.destination) {
             v.handle(msg, ctx);
@@ -127,7 +131,6 @@ impl Handler<RouteMessage<Result<String, TransportError>>> for MessageRouter {
         }
     }
 }
-
 
 impl Handler<BindDestination> for MessageRouter {
     type Result = ();
@@ -141,8 +144,13 @@ impl Handler<BindDestination> for MessageRouter {
 impl Handler<BindReplyDestination> for MessageRouter {
     type Result = ();
 
-    fn handle(&mut self, msg: BindReplyDestination, ctx: &mut Self::Context) -> <Self as Handler<BindReplyDestination>>::Result {
-        self.reply_destinations.insert(msg.destination_id, msg.endpoint);
+    fn handle(
+        &mut self,
+        msg: BindReplyDestination,
+        ctx: &mut Self::Context,
+    ) -> <Self as Handler<BindReplyDestination>>::Result {
+        self.reply_destinations
+            .insert(msg.destination_id, msg.endpoint);
     }
 }
 
@@ -157,4 +165,3 @@ impl Handler<AddEndpoint> for MessageRouter {
         self.remotes.insert(msg.node_id, msg.recipient);
     }
 }
-

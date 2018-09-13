@@ -1,4 +1,7 @@
+pub use super::error::*;
+use super::storage::{Fetch, Put};
 use actix::{fut, prelude::*};
+use directories::ProjectDirs;
 use gu_actix::*;
 use gu_base::*;
 use gu_base::{App, Arg, Module};
@@ -11,9 +14,6 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
-pub use super::error::*;
-use super::storage::{Fetch, Put};
-use directories::ProjectDirs;
 
 type Storage = super::file_storage::FileStorage;
 
@@ -187,7 +187,6 @@ impl Handler<SetConfigPath> for ConfigManager {
 pub struct ConfigModule(ProjectDirs);
 
 impl ConfigModule {
-
     pub fn new() -> Self {
         ConfigModule(ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap())
     }
@@ -206,7 +205,6 @@ impl ConfigModule {
     pub fn config_dir(&self) -> &Path {
         self.0.config_dir()
     }
-
 }
 
 impl Module for ConfigModule {

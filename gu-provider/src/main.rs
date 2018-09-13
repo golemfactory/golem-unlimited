@@ -4,8 +4,8 @@ extern crate tokio;
 extern crate actix;
 extern crate actix_web;
 extern crate clap;
-extern crate gu_base;
 extern crate gu_actix;
+extern crate gu_base;
 extern crate gu_p2p;
 extern crate gu_persist;
 //extern crate gu_lan;
@@ -36,11 +36,11 @@ use clap::App;
 use gu_base::*;
 
 fn main() {
-    GuApp(||App::new("Golem Unlimited Provider")
-        .version(VERSION))
-        .run( LogModule
+    GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
+        LogModule
             .chain(gu_persist::config::ConfigModule::new())
 //            .chain(lan::LanModule)
             .chain(server::ServerModule::new())
-            .chain(AutocompleteModule::new()));
+            .chain(AutocompleteModule::new()),
+    );
 }

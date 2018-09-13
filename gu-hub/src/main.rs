@@ -21,11 +21,15 @@ extern crate log;
 
 extern crate directories;
 
+#[macro_use]
+extern crate failure;
+
 extern crate gu_base;
 extern crate mdns;
 extern crate rand;
 
-extern crate env_logger;
+#[macro_use]
+extern crate prettytable;
 
 use clap::App;
 use gu_base::*;
@@ -41,7 +45,7 @@ fn main() {
             .chain(AutocompleteModule::new())
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::rest_client::LanModule)
-            .chain(peer::PeerModule)
-            .chain(server::ServerModule::new())
+            .chain(peer::PeerModule::new())
+            .chain(server::ServerModule::new()),
     );
 }

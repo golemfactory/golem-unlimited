@@ -14,10 +14,10 @@ use std::borrow::Cow;
 use std::net::{self, ToSocketAddrs};
 use std::sync::Arc;
 
+use gu_base::Decorator;
 use gu_base::Module;
 use gu_p2p::rpc;
 use gu_p2p::NodeId;
-use gu_base::Decorator;
 use gu_persist::config::ConfigModule;
 
 #[derive(Serialize, Deserialize)]
@@ -63,12 +63,11 @@ impl ServerModule {
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
-        app.subcommand(SubCommand::with_name("server")
-            .about("provider server management")
-            .subcommand(
-                SubCommand::with_name("connect")
-                    .arg(Arg::with_name("peer_addr"))
-            ))
+        app.subcommand(
+            SubCommand::with_name("server")
+                .about("provider server management")
+                .subcommand(SubCommand::with_name("connect").arg(Arg::with_name("peer_addr"))),
+        )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
@@ -96,14 +95,13 @@ impl Module for ServerModule {
         let config = ServerConfigurer(None, self.config_path.clone()).start();
         let sys = actix::System::new("gu-provider");
 
-        let configModule : &ConfigModule =  decorator.extract().unwrap();
+        let configModule: &ConfigModule = decorator.extract().unwrap();
         let _ = super::hdman::start(configModule);
         let node_id: NodeId = thread_rng().gen(); // TODO: use gu-ethkey with empty passwd
 
         if let Some(a) = self.peer_addr {
             let _ = rpc::ws::start_connection(node_id, a);
         }
-
 
         let _ = sys.run();
     }

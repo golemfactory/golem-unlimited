@@ -6,11 +6,9 @@ use std::env;
 pub struct LogModule;
 
 impl LogModule {
-
     pub fn verbosity(&self) -> isize {
         0
     }
-
 }
 
 impl Module for LogModule {

@@ -124,13 +124,19 @@ impl Default for ReplyRouter {
 impl Handler<RouteMessage<Result<String, TransportError>>> for ReplyRouter {
     type Result = ();
 
-    fn handle(&mut self, msg: RouteMessage<Result<String, TransportError>>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(
+        &mut self,
+        msg: RouteMessage<Result<String, TransportError>>,
+        ctx: &mut Self::Context,
+    ) -> Self::Result {
         debug!("got message to route: {:?}", msg);
         let msg_id = msg.msg_id.clone();
-        if let Some(tx) = self.reply_map.remove(&msg.correlation_id.clone().unwrap_or_else(|| msg_id)) {
+        if let Some(tx) = self
+            .reply_map
+            .remove(&msg.correlation_id.clone().unwrap_or_else(|| msg_id))
+        {
             tx.send(msg);
-        }
-        else {
+        } else {
             warn!("unhandled message");
             debug!("keys: {:?}", self.reply_map);
         }
@@ -148,11 +154,13 @@ where
     type Result = Result<T::Result, SendError>;
 }
 
-fn parse_body<T : DeserializeOwned>(msg_body : Result<String, TransportError>) -> Result<Result<T, SendError>, SendError> {
-    let body =  match msg_body {
+fn parse_body<T: DeserializeOwned>(
+    msg_body: Result<String, TransportError>,
+) -> Result<Result<T, SendError>, SendError> {
+    let body = match msg_body {
         Ok(msg) => msg,
         Err(TransportError::NoDestination) => return Err(SendError::NoDestination),
-        Err(TransportError::BadFormat(msg)) => return Err(SendError::ParseBody(None, msg))
+        Err(TransportError::BadFormat(msg)) => return Err(SendError::ParseBody(None, msg)),
     };
 
     Ok(match serde_json::from_str(body.as_ref()) {
@@ -214,22 +222,17 @@ impl Message for CallRemoteUntyped {
     type Result = Result<serde_json::Value, SendError>;
 }
 
-impl Handler<CallRemoteUntyped> for ReplyRouter
-{
+impl Handler<CallRemoteUntyped> for ReplyRouter {
     type Result = ActorResponse<ReplyRouter, serde_json::Value, SendError>;
 
-    fn handle(
-        &mut self,
-        msg: CallRemoteUntyped,
-        ctx: &mut Self::Context,
-    ) -> Self::Result {
+    fn handle(&mut self, msg: CallRemoteUntyped, ctx: &mut Self::Context) -> Self::Result {
         let body = match serde_json::to_string(&msg.2) {
             Ok(b) => b,
             Err(e) => return ActorResponse::reply(Err(SendError::body(e))),
         };
         use rand::*;
         use smallvec::SmallVec;
-        let cid : [u8; 8] = thread_rng().gen();
+        let cid: [u8; 8] = thread_rng().gen();
 
         use futures::unsync::oneshot;
 
@@ -252,13 +255,10 @@ impl Handler<CallRemoteUntyped> for ReplyRouter
                 .into_actor(self)
                 .and_then(move |msg_id, act, ctx| {
                     rx.map_err(|_| SendError::Canceled)
-                        .and_then(|route_msg| {
-                            parse_body(route_msg.body)
-                        })
+                        .and_then(|route_msg| parse_body(route_msg.body))
                         .flatten_fut()
                         .into_actor(act)
                 }),
         )
     }
 }
-

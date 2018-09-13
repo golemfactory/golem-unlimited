@@ -1,9 +1,13 @@
 extern crate actix;
 extern crate actix_web;
 extern crate clap;
+extern crate console;
 extern crate futures;
 extern crate indicatif;
-extern crate console;
+extern crate prettytable;
+
+#[macro_use]
+extern crate lazy_static;
 
 #[macro_use]
 extern crate log;
@@ -15,21 +19,20 @@ mod output;
 pub use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::future;
 use futures::prelude::*;
-use std::sync::Arc;
 use std::any::Any;
-
+use std::sync::Arc;
 
 pub use output::{AutocompleteModule, LogModule};
 
-
 pub trait Decorator: Clone + Sync + Send {
-
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S>;
 
-    fn extract<T : Module + Any>(&self) -> Option<&T> where Self : Sized;
+    fn extract<T: Module + Any>(&self) -> Option<&T>
+    where
+        Self: Sized;
 }
 
-pub trait Module : Any {
+pub trait Module: Any {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         app
     }
@@ -56,7 +59,10 @@ pub trait Module : Any {
         app
     }
 
-    fn extract<T : Module + Any>(&self) -> Option<&T> where Self : Sized{
+    fn extract<T: Module + Any>(&self) -> Option<&T>
+    where
+        Self: Sized,
+    {
         Any::downcast_ref::<T>(self)
     }
 }
@@ -66,7 +72,10 @@ impl<M: Module + Sync + Send> Decorator for Arc<M> {
         (**self).decorate_webapp(app)
     }
 
-    fn extract<T: Module + Any>(&self) -> Option<&T> where Self: Sized {
+    fn extract<T: Module + Any>(&self) -> Option<&T>
+    where
+        Self: Sized,
+    {
         (**self).extract()
     }
 }
@@ -144,12 +153,15 @@ where
         self.m2.decorate_webapp(app)
     }
 
-    fn extract<T: Module + Any>(&self) -> Option<&T> where Self: Sized {
+    fn extract<T: Module + Any>(&self) -> Option<&T>
+    where
+        Self: Sized,
+    {
         if let Some(v) = self.m1.extract() {
-            return Some(v)
+            return Some(v);
         }
         if let Some(v) = self.m2.extract() {
-            return Some(v)
+            return Some(v);
         }
         None
     }

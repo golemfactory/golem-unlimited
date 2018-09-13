@@ -1,19 +1,17 @@
-
-use actix::prelude::*;
 use super::super::NodeId;
+use actix::prelude::*;
 use std::collections::HashMap;
 
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PeerInfo {
     pub node_name: String,
-    pub peer_addr : Option<String>,
+    pub peer_addr: Option<String>,
     pub node_id: NodeId,
     pub sessions: Vec<PeerSessionInfo>,
     pub tags: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum PeerSessionStatus {
     PENDING,
     CREATED,
@@ -22,7 +20,7 @@ pub enum PeerSessionStatus {
     DESTROYING,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PeerSessionInfo {
     pub id: String,
     pub name: String,
@@ -42,18 +40,17 @@ impl Message for UpdatePeer {
 }
 
 pub struct PeerManager {
-    peers : HashMap<NodeId, PeerInfo>
+    peers: HashMap<NodeId, PeerInfo>,
 }
 
 impl Actor for PeerManager {
     type Context = Context<Self>;
-
 }
 
 impl Default for PeerManager {
     fn default() -> Self {
         PeerManager {
-            peers: HashMap::new()
+            peers: HashMap::new(),
         }
     }
 }
@@ -65,10 +62,14 @@ impl SystemService for PeerManager {}
 impl Handler<UpdatePeer> for PeerManager {
     type Result = ();
 
-    fn handle(&mut self, msg: UpdatePeer, ctx: &mut Self::Context)  {
+    fn handle(&mut self, msg: UpdatePeer, ctx: &mut Self::Context) {
         match msg {
-            UpdatePeer::Update(info) => {let _ = self.peers.insert(info.node_id, info); },
-            UpdatePeer::Delete(node_id) => { let _ = self.peers.remove(&node_id); }
+            UpdatePeer::Update(info) => {
+                let _ = self.peers.insert(info.node_id, info);
+            }
+            UpdatePeer::Delete(node_id) => {
+                let _ = self.peers.remove(&node_id);
+            }
         }
     }
 }
@@ -82,8 +83,11 @@ impl Message for ListPeers {
 impl Handler<ListPeers> for PeerManager {
     type Result = MessageResult<ListPeers>;
 
-    fn handle(&mut self, msg: ListPeers, ctx: &mut Self::Context) -> <Self as Handler<ListPeers>>::Result {
+    fn handle(
+        &mut self,
+        msg: ListPeers,
+        ctx: &mut Self::Context,
+    ) -> <Self as Handler<ListPeers>>::Result {
         MessageResult(self.peers.values().cloned().collect())
-
     }
 }
