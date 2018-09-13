@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::any::Any;
 
 
-pub use output::{CompleteModule, LogModule};
+pub use output::{AutocompleteModule, LogModule};
 
 
 pub trait Decorator: Clone + Sync + Send {
@@ -35,7 +35,7 @@ pub trait Module : Any {
     }
 
     #[inline]
-    fn args_complete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
+    fn args_autocomplete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
     where
         F: Fn() -> App<'static, 'static>,
     {
@@ -109,13 +109,13 @@ where
     }
 
     #[inline]
-    fn args_complete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
+    fn args_autocomplete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
     where
         F: Fn() -> App<'static, 'static>,
     {
-        if self.m1.args_complete(matches, app_gen) {
+        if self.m1.args_autocomplete(matches, app_gen) {
             true
-        } else if self.m2.args_complete(matches, app_gen) {
+        } else if self.m2.args_autocomplete(matches, app_gen) {
             true
         } else {
             false
@@ -166,7 +166,7 @@ where
     pub fn run<M: Module + 'static + Sync + Send>(&mut self, mut module: M) {
         let matches = module.args_declare(self.0()).get_matches();
 
-        if !(module.args_complete(&matches, &|| module.args_declare(self.0()))
+        if !(module.args_autocomplete(&matches, &|| module.args_declare(self.0()))
             || module.args_consume(&matches))
         {
             eprintln!("{}", matches.usage());

@@ -20,8 +20,11 @@ directories="1.0"
 error-chain = "0.12"
 tokio-uds = "0.2"
 rand = "0.5"
+uuid = "0.7"
 
+gu-base= { path="../gu-base" }
 gu-actix = { path = "../gu-actix" }
 gu-p2p = { path = "../gu-p2p" }
 gu-persist = { path = "../gu-persist" }
+#gu-lan = { path = "../gu-lan"}
 

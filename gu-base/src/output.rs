@@ -36,16 +36,16 @@ impl Module for LogModule {
     }
 }
 
-pub struct CompleteModule(String);
+pub struct AutocompleteModule(String);
 
-impl CompleteModule {
-    pub fn new() -> CompleteModule {
-        let a: String = env::args().take(1).into_iter().next().unwrap().into();
-        CompleteModule(a)
+impl AutocompleteModule {
+    pub fn new() -> AutocompleteModule {
+        let shell: String = env::args().take(1).into_iter().next().unwrap().into();
+        AutocompleteModule(shell)
     }
 }
 
-impl Module for CompleteModule {
+impl Module for AutocompleteModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         app.subcommand(
             SubCommand::with_name("completions")
@@ -59,7 +59,7 @@ impl Module for CompleteModule {
         )
     }
 
-    fn args_complete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
+    fn args_autocomplete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
     where
         F: Fn() -> App<'static, 'static>,
     {
