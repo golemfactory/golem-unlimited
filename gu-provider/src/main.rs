@@ -26,9 +26,13 @@ extern crate log;
 
 extern crate rand;
 extern crate uuid;
+extern crate bytes;
+extern crate flate2;
+extern crate tar;
 
 mod hdman;
 mod server;
+mod write_to;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
