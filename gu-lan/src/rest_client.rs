@@ -3,17 +3,28 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Module};
 use gu_p2p::rpc::start_actor;
-use server::{self, QueryLan};
 use prettytable::Table;
-use std::collections::HashSet;
+use server::{self, QueryLan};
 use service::ServiceInstance;
+use std::collections::HashSet;
 
 fn print_instances_table(instances: &HashSet<ServiceInstance>) {
     let mut table = Table::new();
-    table.set_titles(row!["Service type", "Host name", "Addresses", "Ports", "Description"]);
+    table.set_titles(row![
+        "Service type",
+        "Host name",
+        "Addresses",
+        "Ports",
+        "Description"
+    ]);
     for instance in instances {
-        table.add_row(row![instance.name, instance.host, format!("{:?}", instance.addrs),
-        format!("{:?}", instance.ports), instance.txt.join(", "),]);
+        table.add_row(row![
+            instance.name,
+            instance.host,
+            format!("{:?}", instance.addrs),
+            format!("{:?}", instance.ports),
+            instance.txt.join(", "),
+        ]);
     }
 
     table.set_format(*cli::FORMAT_BASIC);

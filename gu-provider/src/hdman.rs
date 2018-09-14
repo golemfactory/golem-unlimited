@@ -4,10 +4,10 @@ use futures::future::Future;
 use gu_actix::prelude::*;
 use gu_p2p::rpc::*;
 use gu_persist::config::ConfigModule;
-use std::{io, process, time};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::{io, process, time};
 use uuid::Uuid;
 
 pub struct SessionInfo {
@@ -25,7 +25,7 @@ pub enum State {
     PENDING, // during session creation
     CREATED, // after session creation, czysta
     RUNNING, // with at least one active child
-    DIRTY, // when no child is running, but some commands were already executed
+    DIRTY,   // when no child is running, but some commands were already executed
     DESTROYING,
 }
 
@@ -77,7 +77,7 @@ impl Message for CreateSession {
     type Result = Result<String, ()>; // sess_id --> uuid
 }
 
-pub fn download(url: &str, output_path: String) -> Box<Future<Item=(), Error=()>> {
+pub fn download(url: &str, output_path: String) -> Box<Future<Item = (), Error = ()>> {
     use actix_web::client;
     use write_to::to_file;
 
@@ -89,7 +89,8 @@ pub fn download(url: &str, output_path: String) -> Box<Future<Item=(), Error=()>
             .timeout(time::Duration::from_secs(300))
             .map_err(|e| error!("send download request: {}", e))
             .and_then(|resp| {
-                to_file(resp.payload(), output_path).map_err(|e| error!("write to file error: {}", e))
+                to_file(resp.payload(), output_path)
+                    .map_err(|e| error!("write to file error: {}", e))
             }),
     )
 }
@@ -117,21 +118,23 @@ impl Handler<CreateSession> for HdMan {
             sess_id = Uuid::new_v4().to_string();
         }
         println!("newly created session_id={}", sess_id);
-        self.sessions.insert(sess_id.clone(), SessionInfo {
-            id: sess_id.clone(),
-            image: msg.image.clone(),
-            name: msg.name,
-            status: State::PENDING,
-            dirty: false,
-            tags: msg.tags,
-            note: msg.note,
-            children: HashMap::new()
-        });
+        self.sessions.insert(
+            sess_id.clone(),
+            SessionInfo {
+                id: sess_id.clone(),
+                image: msg.image.clone(),
+                name: msg.name,
+                status: State::PENDING,
+                dirty: false,
+                tags: msg.tags,
+                note: msg.note,
+                children: HashMap::new(),
+            },
+        );
 
         println!("hey! I'm downloading from: {:?}", msg.image);
         // TODO: download
         // TODO: untgz
-
 
         Ok(sess_id)
     }
@@ -145,17 +148,19 @@ struct Update {
 
 #[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Debug)]
 enum Command {
-    Start { // return cmd output
+    Start {
+        // return cmd output
         executable: String,
         args: Vec<String>,
     },
-    StartAsync { // return child process id
+    StartAsync {
+        // return child process id
         executable: String,
         args: Vec<String>,
         // TODO: consider adding tags here
     },
     Stop {
-        child_id: String
+        child_id: String,
     },
     AddTags(Vec<String>),
     DelTags(Vec<String>),
@@ -177,10 +182,14 @@ impl Message for Update {
 impl Handler<Update> for HdMan {
     type Result = Result<HashMap<String, String>, String>;
 
-    fn handle(&mut self, msg: Update, ctx: &mut Self::Context) -> <Self as Handler<Update>>::Result {
+    fn handle(
+        &mut self,
+        msg: Update,
+        ctx: &mut Self::Context,
+    ) -> <Self as Handler<Update>>::Result {
         let session = match self.sessions.get_mut(&msg.session_id) {
             Some(session) => session,
-            None => return Err(format!("session_id {} not found", &msg.session_id))
+            None => return Err(format!("session_id {} not found", &msg.session_id)),
         };
         let mut cmd_outputs = HashMap::new();
         for cmd in msg.commands {
@@ -195,11 +204,13 @@ impl Handler<Update> for HdMan {
                                     String::from_utf8_lossy(&output.stdout),
                                     String::from_utf8_lossy(&output.stderr)
                                 );
-                                cmd_outputs.insert(format!("Start({}, {:?})", executable, args),
-                                                   String::from_utf8(output.stdout).unwrap_or("".into()));
+                                cmd_outputs.insert(
+                                    format!("Start({}, {:?})", executable, args),
+                                    String::from_utf8(output.stdout).unwrap_or("".into()),
+                                );
                             }
                         }
-                        Err(e) => return Err(format!("{:?}", e))
+                        Err(e) => return Err(format!("{:?}", e)),
                     }
                     session.dirty = true;
                 }
@@ -211,9 +222,10 @@ impl Handler<Update> for HdMan {
                             session.children.insert(child_id.clone(), child);
                             session.dirty = true;
                             session.status = State::RUNNING;
-                            cmd_outputs.insert(format!("Start({}, {:?})", executable, args), child_id);
+                            cmd_outputs
+                                .insert(format!("Start({}, {:?})", executable, args), child_id);
                         }
-                        Err(e) => return Err(format!("{:?}", e))
+                        Err(e) => return Err(format!("{:?}", e)),
                     };
                 }
                 _ => {
@@ -261,4 +273,3 @@ struct Destroy {
 //{"Start":{ "executable": "/bin/ls", "args": ["-o"] } },
 //{"Start":{ "executable": "/bin/date", "args": [] } }
 //] }
-

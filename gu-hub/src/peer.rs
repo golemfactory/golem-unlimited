@@ -2,15 +2,15 @@ use actix::prelude::*;
 use actix_web::{self, http, AsyncResponder, HttpRequest, HttpResponse, Responder, Scope};
 use futures::prelude::*;
 use gu_actix::prelude::*;
+use gu_base::cli;
 use gu_base::{App, ArgMatches, Decorator, LogModule, Module, SubCommand};
+use gu_p2p::rpc::peer::PeerInfo;
 use gu_p2p::NodeId;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use gu_p2p::rpc::peer::PeerInfo;
-use gu_base::cli;
 use std::any::*;
 
-use prettytable::{self, Table, row::Row, cell::Cell};
+use prettytable::{self, cell::Cell, row::Row, Table};
 
 pub struct PeerModule {
     inner: State,
@@ -51,9 +51,9 @@ impl Module for PeerModule {
                 System::run(|| {
                     Arbiter::spawn(
                         ServerClient::get("/peer".into())
-                            .and_then(|r : Vec<PeerInfo>| Ok(format_peer_table(r)))
+                            .and_then(|r: Vec<PeerInfo>| Ok(format_peer_table(r)))
                             .map_err(|e| error!("{}", e))
-                            .then(|r| Ok(System::current().stop()))
+                            .then(|r| Ok(System::current().stop())),
                     )
                 });
             }
@@ -107,15 +107,18 @@ fn peer_send(r: actix_web::Json<SendMessage>) -> impl Responder {
         .responder()
 }
 
-fn format_peer_table(peers : Vec<PeerInfo>) {
+fn format_peer_table(peers: Vec<PeerInfo>) {
     let mut table = Table::new();
     table.set_titles(row!["Node id", "Name", "Connection", "Sessions"]);
     for peer in peers {
-        table.add_row(row![peer.node_id, peer.node_name,
-        peer.peer_addr.unwrap_or_else(|| String::default()), peer.sessions.len()]);
+        table.add_row(row![
+            peer.node_id,
+            peer.node_name,
+            peer.peer_addr.unwrap_or_else(|| String::default()),
+            peer.sessions.len()
+        ]);
     }
 
     table.set_format(*cli::FORMAT_BASIC);
     table.printstd()
-
 }

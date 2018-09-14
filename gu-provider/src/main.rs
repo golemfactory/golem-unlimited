@@ -24,11 +24,11 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 
-extern crate rand;
-extern crate uuid;
 extern crate bytes;
 extern crate flate2;
+extern crate rand;
 extern crate tar;
+extern crate uuid;
 
 mod hdman;
 mod server;
