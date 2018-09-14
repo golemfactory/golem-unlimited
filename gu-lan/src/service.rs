@@ -75,6 +75,7 @@ impl Message for ServicesDescription {
 /// Contains information about single service in a network
 #[derive(Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct ServiceInstance {
+    pub name: String,
     pub host: String,
     pub txt: Vec<String>,
     pub addrs: Vec<IpAddr>,

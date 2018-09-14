@@ -10,10 +10,10 @@ use service::ServiceInstance;
 
 fn print_instances_table(instances: &HashSet<ServiceInstance>) {
     let mut table = Table::new();
-    table.set_titles(row!["Host name", "Description", "Addresses", "Ports"]);
+    table.set_titles(row!["Service type", "Host name", "Addresses", "Ports", "Description"]);
     for instance in instances {
-        table.add_row(row![instance.host, instance.txt.join(", "),
-            format!("{:?}", instance.addrs), format!("{:?}", instance.ports)]);
+        table.add_row(row![instance.name, instance.host, format!("{:?}", instance.addrs),
+        format!("{:?}", instance.ports), instance.txt.join(", "),]);
     }
 
     table.set_format(*cli::FORMAT_BASIC);

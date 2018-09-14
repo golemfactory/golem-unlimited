@@ -59,8 +59,9 @@ fn build_response(parse_maps: ParseMaps, services: &mut Vec<(String, ServiceInst
         let txt = txt.get(&name).map(|a| a.clone()).unwrap_or(Vec::new());
 
         services.push((
-            name,
+            name.clone(),
             ServiceInstance {
+                name,
                 host,
                 txt,
                 addrs,
