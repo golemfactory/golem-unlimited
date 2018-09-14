@@ -194,6 +194,7 @@ impl Handler<SessionUpdate> for HdMan {
         let mut cmd_outputs = HashMap::new();
         for cmd in msg.commands {
             match cmd {
+                // TODO: sync actor https://actix.rs/actix/actix/sync/index.html
                 Command::Start { executable, args } => {
                     info!("executing: {} {:?}", executable, args);
                     match process::Command::new(&executable).args(&args).output() {
