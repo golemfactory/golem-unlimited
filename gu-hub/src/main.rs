@@ -31,6 +31,8 @@ extern crate rand;
 #[macro_use]
 extern crate prettytable;
 
+extern crate flate2;
+
 use clap::App;
 use gu_base::*;
 

@@ -170,7 +170,7 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(
                 actix_web::App::with_state(node_id.clone())
-                    .handler("/p2p", p2p_server)
+                    .handler("/app", actix_web::fs::StaticFiles::new("webapp").unwrap())
                     .scope("/m", mock::scope)
                     .resource("/ws/", |r| r.route().f(chat_route)),
             )

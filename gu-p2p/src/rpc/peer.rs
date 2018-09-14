@@ -3,6 +3,7 @@ use actix::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct PeerInfo {
     pub node_name: String,
     pub peer_addr: Option<String>,
@@ -21,6 +22,7 @@ pub enum PeerSessionStatus {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct PeerSessionInfo {
     pub id: String,
     pub name: String,
