@@ -1,12 +1,24 @@
-use actix::Arbiter;
-use actix::System;
-use clap::Arg;
-use clap::{App, ArgMatches, SubCommand};
+use actix::{Arbiter, System};
+use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
-use gu_base::Module;
+use gu_base::{cli, Module};
 use gu_p2p::rpc::start_actor;
-use server;
-use server::QueryLan;
+use server::{self, QueryLan};
+use prettytable::Table;
+use std::collections::HashSet;
+use service::ServiceInstance;
+
+fn print_instances_table(instances: &HashSet<ServiceInstance>) {
+    let mut table = Table::new();
+    table.set_titles(row!["Host name", "Description", "Addresses", "Ports"]);
+    for instance in instances {
+        table.add_row(row![instance.host, instance.txt.join(", "),
+            format!("{:?}", instance.addrs), format!("{:?}", instance.ports)]);
+    }
+
+    table.set_format(*cli::FORMAT_BASIC);
+    table.printstd()
+}
 
 fn run_client(m: &ArgMatches) {
     use actix;
@@ -19,9 +31,11 @@ fn run_client(m: &ArgMatches) {
 
     Arbiter::spawn(
         addr.send(query)
-            .and_then(|r| Ok(println!("{:#?}", r)))
             .map_err(|e| error!("error! {}", e))
-            .and_then(|_| Ok(System::current().stop())),
+            .and_then(|r| r)
+            .and_then(|r| Ok(print_instances_table(&r)))
+            .map_err(|e| error!("error! {:?}", e))
+            .then(|_| Ok(System::current().stop())),
     );
 
     let _ = sys.run();

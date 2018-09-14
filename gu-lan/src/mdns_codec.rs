@@ -86,7 +86,7 @@ impl Decoder for MdnsCodec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ParsedPacket>> {
         let packet = Packet::parse(src.as_ref())?;
-        info!("Received packet: {:#?}", packet);
+        info!("Received packet: {:?}", packet);
 
         let id = packet.header.id;
         let mut parse_maps = ParseMaps::default();

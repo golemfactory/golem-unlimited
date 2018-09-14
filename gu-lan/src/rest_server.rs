@@ -4,10 +4,7 @@ use futures::Future;
 use gu_actix::flatten::FlattenFuture;
 use std::collections::HashSet;
 use resolve_actor::ResolveActor;
-use service::ServiceInstance;
-use service::ServiceDescription;
-use service::ServicesDescription;
-
+use service::{ServiceInstance, ServiceDescription, ServicesDescription};
 
 /// Actix-web actor for mDNS service discovery
 pub struct LanInfo();
@@ -68,7 +65,7 @@ impl Handler<QueryLan> for LanInfo {
                 .flatten_fut()
                 .map_err(|e| println!("err: {}", e))
                 .and_then(|a| {
-                    println!("{:?}", a);
+                    info!("{:?}", a);
                     Ok(a)
                 })
                 .into_actor(self)
