@@ -18,7 +18,7 @@ pub struct SessionInfo {
     dirty: bool,
     tags: Vec<String>,
     note: Option<String>,
-    children: HashMap<String, process::Child>
+    children: HashMap<String, process::Child>,
 }
 
 pub enum State {
@@ -64,7 +64,7 @@ struct CreateSession {
     note: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 enum Image {
     Url(String),
 }
@@ -112,20 +112,28 @@ impl Handler<CreateSession> for HdMan {
         msg: CreateSession,
         ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
-        println!("hey! I'm downloading from: {:?}", msg.image);
-        //        client::get("http://www.rust-lang.org").finish().unwrap() //TODO: use `?`
-        //            .send()
-        //            .map_err(|_| ())
-        //            .and_then(|response| {                // <- server http response
-        //                println!("Response: {:?}", response);
-        //                Ok(())
-        //            });
+        let mut sess_id = Uuid::new_v4().to_string();
+        while self.sessions.contains_key(&sess_id) {
+            sess_id = Uuid::new_v4().to_string();
+        }
+        println!("newly created session_id={}", sess_id);
+        self.sessions.insert(sess_id.clone(), SessionInfo {
+            id: sess_id.clone(),
+            image: msg.image.clone(),
+            name: msg.name,
+            status: State::PENDING,
+            dirty: false,
+            tags: msg.tags,
+            note: msg.note,
+            children: HashMap::new()
+        });
 
-        //        let sess_id = Uuid::new_v4();
-        //        println!("{}", sess_id);
-        //
-        //        Ok(sess_id)
-        Err(())
+        println!("hey! I'm downloading from: {:?}", msg.image);
+        // TODO: download
+        // TODO: untgz
+
+
+        Ok(sess_id)
     }
 }
 
@@ -177,7 +185,7 @@ impl Handler<Update> for HdMan {
         let mut cmd_outputs = HashMap::new();
         for cmd in msg.commands {
             match cmd {
-                Command::Start{executable, args} => {
+                Command::Start { executable, args } => {
                     info!("executing: {} {:?}", executable, args);
                     match process::Command::new(&executable).args(&args).output() {
                         Ok(output) => {
@@ -190,24 +198,24 @@ impl Handler<Update> for HdMan {
                                 cmd_outputs.insert(format!("Start({}, {:?})", executable, args),
                                                    String::from_utf8(output.stdout).unwrap_or("".into()));
                             }
-                        },
+                        }
                         Err(e) => return Err(format!("{:?}", e))
                     }
                     session.dirty = true;
-                },
-                Command::StartAsync{executable, args} => {
+                }
+                Command::StartAsync { executable, args } => {
                     info!("executing async: {} {:?}", executable, args);
-                    let child_id = Uuid::new_v4();
+                    let child_id = Uuid::new_v4().to_string();
                     match process::Command::new(&executable).args(&args).spawn() {
                         Ok(child) => {
-                            session.children.insert(child_id.to_string(), child);
+                            session.children.insert(child_id.clone(), child);
                             session.dirty = true;
                             session.status = State::RUNNING;
-                            cmd_outputs.insert(format!("Start({}, {:?})", executable, args), child_id.to_string());
+                            cmd_outputs.insert(format!("Start({}, {:?})", executable, args), child_id);
                         }
                         Err(e) => return Err(format!("{:?}", e))
                     };
-                },
+                }
                 _ => {
                     cmd_outputs.insert(format!("{:?}", cmd), "unsupported".into());
                     ()
@@ -225,8 +233,7 @@ struct SessionStatus {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Status {
-}
+struct Status {}
 
 impl Status {
     const ID: u32 = 38;
@@ -241,9 +248,17 @@ struct Destroy {
     session_id: String, // uuid
 }
 
-//{"session_id": "s",
-// "executable":"/Users/tworec/git/xmr-stak/bin/xmr-stak",
-// "args": ["--noAMD", "--poolconf", "/Users/tworec/git/xmr-stak/pools.txt", "--httpd", "0"],
 //{"image": {"Url": "https://github.com/tworec/xmr-stak/releases/download/2.4.7-binaries/xmr-stak-MacOS.tgz"},
 //"name": "monero mining",
-//"tags": []}
+//"tags": [],
+//"note": "None"}
+
+// "executable":"/Users/tworec/git/xmr-stak/bin/xmr-stak",
+// "args": ["--noAMD", "--poolconf", "/Users/tworec/git/xmr-stak/pools.txt", "--httpd", "0"],
+
+//{"session_id" : "214", "commands": [
+//{"Start":{ "executable": "/bin/pwd", "args": [] } },
+//{"Start":{ "executable": "/bin/ls", "args": ["-o"] } },
+//{"Start":{ "executable": "/bin/date", "args": [] } }
+//] }
+
