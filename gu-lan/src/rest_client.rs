@@ -3,17 +3,44 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Module};
 use gu_p2p::rpc::start_actor;
-use server::{self, QueryLan};
 use prettytable::Table;
-use std::collections::HashSet;
+use server::{self, QueryLan};
 use service::ServiceInstance;
+use std::collections::HashSet;
+use std::net::Ipv4Addr;
+
+fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
+    let mut res = String::new();
+    let addr = addrs_v4
+        .first()
+        .map(|ip| format!("{:?}", ip))
+        .unwrap_or("<missing ip>".to_string());
+
+    for port in ports {
+        res.push_str(addr.as_ref());
+        res.push(':');
+        res.push_str(&format!("{}", &port));
+        res.push('\n');
+    }
+
+    res
+}
 
 fn print_instances_table(instances: &HashSet<ServiceInstance>) {
     let mut table = Table::new();
-    table.set_titles(row!["Service type", "Host name", "Addresses", "Ports", "Description"]);
+    table.set_titles(row![
+        "Service type",
+        "Host name",
+        "Addresses",
+        "Description"
+    ]);
     for instance in instances {
-        table.add_row(row![instance.name, instance.host, format!("{:?}", instance.addrs),
-        format!("{:?}", instance.ports), instance.txt.join(", "),]);
+        table.add_row(row![
+            instance.name,
+            instance.host,
+            format_addresses(&instance.addrs_v4, &instance.ports),
+            instance.txt.join(", "),
+        ]);
     }
 
     table.set_format(*cli::FORMAT_BASIC);

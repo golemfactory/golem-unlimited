@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::net::IpAddr;
+use std::net::Ipv4Addr;
 
 /// Struct describing single service in .local domain's network
 ///
@@ -78,7 +79,7 @@ pub struct ServiceInstance {
     pub name: String,
     pub host: String,
     pub txt: Vec<String>,
-    pub addrs: Vec<IpAddr>,
+    pub addrs_v4: Vec<Ipv4Addr>,
     pub ports: Vec<u16>,
 }
 
@@ -96,9 +97,9 @@ impl Services {
         self.map.insert(s, HashSet::new());
     }
 
-    pub(crate) fn add_instance(&mut self, name: &str, instance: ServiceInstance) {
+    pub(crate) fn add_instance(&mut self, instance: ServiceInstance) {
         self.map
-            .get_mut(name)
+            .get_mut::<str>(instance.name.as_ref())
             .and_then(|map| Some(map.insert(instance)));
     }
 

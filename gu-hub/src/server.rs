@@ -232,7 +232,7 @@ impl From<actix_web::Error> for ClientError {
 }
 
 impl From<MailboxError> for ClientError {
-    fn from(e : MailboxError) -> Self {
+    fn from(e: MailboxError) -> Self {
         ClientError::Mailbox(e)
     }
 }
@@ -247,8 +247,11 @@ impl ServerClient {
         ServerClient { inner: () }
     }
 
-    pub fn get<T: de::DeserializeOwned + Send + 'static>(path: String) -> impl Future<Item= T, Error=ClientError> {
-        ServerClient::from_registry().send(ResourceGet(path, PhantomData))
+    pub fn get<T: de::DeserializeOwned + Send + 'static>(
+        path: String,
+    ) -> impl Future<Item = T, Error = ClientError> {
+        ServerClient::from_registry()
+            .send(ResourceGet(path, PhantomData))
             .flatten_fut()
     }
 }
@@ -282,7 +285,8 @@ impl<T: de::DeserializeOwned + 'static> Handler<ResourceGet<T>> for ServerClient
                     let url = format!("http://127.0.0.1:{}{}", config.port(), msg.0);
                     let client = match client::ClientRequest::get(url)
                         .header("Accept", "application/json")
-                        .finish() {
+                        .finish()
+                    {
                         Ok(cli) => cli,
                         Err(err) => return future::Either::B(future::err(err.into())),
                     };

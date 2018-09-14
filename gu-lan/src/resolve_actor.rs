@@ -18,7 +18,7 @@ use gu_actix::FlattenFuture;
 use mdns_codec::ParsedPacket;
 use service::Services;
 use std::collections::HashSet;
-use std::net::SocketAddr;
+use std::net::SocketAddr::{self, V4};
 use std::time::Duration;
 use tokio::net::{UdpFramed, UdpSocket};
 use tokio::reactor::Handle;
@@ -82,15 +82,54 @@ impl ResolveActor {
     }
 }
 
+fn zeros(s1: &Ipv4Addr, s2: &Ipv4Addr) -> u8 {
+    let oct1 = s1.octets();
+    let oct2 = s2.octets();
+    let mut zeros = 0;
+
+    for pos in 0..3 {
+        let add = (oct1[pos] ^ oct2[pos]).leading_zeros() as u8;
+        zeros += add;
+
+        if add != 8 {
+            break;
+        }
+    }
+
+    zeros
+}
+
+fn biggest_mask_ipv4(vec: &Vec<Ipv4Addr>, src: &Ipv4Addr) -> Vec<Ipv4Addr> {
+    let mut best_instance = None;
+    let mut best_score = 33;
+
+    for ip in vec.iter() {
+        if best_instance == None {
+            let zeros = zeros(src, ip);
+            if zeros < best_score {
+                best_instance = Some(ip);
+                best_score = zeros;
+            }
+        }
+    }
+
+    vec![*best_instance.unwrap_or(src)]
+}
+
 impl StreamHandler<(ParsedPacket, SocketAddr), Error> for ResolveActor {
     fn handle(
         &mut self,
-        (packet, _): (ParsedPacket, SocketAddr),
+        (packet, src): (ParsedPacket, SocketAddr),
         _ctx: &mut Context<ResolveActor>,
     ) {
-        if let Some(services) = self.map.get_mut(&packet.0) {
-            for service in packet.1 {
-                services.add_instance(&service.0, service.1);
+        if let Some(services) = self.map.get_mut(&packet.id) {
+            for mut service in packet.instances {
+                match src {
+                    V4(sock) => service.addrs_v4 = biggest_mask_ipv4(&service.addrs_v4, sock.ip()),
+                    _ => (),
+                }
+
+                services.add_instance(service);
             }
         }
     }

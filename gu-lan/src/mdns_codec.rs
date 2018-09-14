@@ -3,18 +3,18 @@ use errors::{Error, ErrorKind, Result};
 use tokio_codec::{Decoder, Encoder};
 
 use dns_parser::rdata::a::Record;
-use dns_parser::rdata::RData::A;
-use dns_parser::rdata::RData::SRV;
-use dns_parser::rdata::RData::TXT;
-use dns_parser::ResourceRecord;
-use dns_parser::{Builder, Packet, QueryClass, QueryType};
-use service::ServiceInstance;
-use service::ServicesDescription;
+use dns_parser::rdata::RData::{A, SRV, TXT};
+use dns_parser::{Builder, Packet, QueryClass, QueryType, ResourceRecord};
+use service::{ServiceInstance, ServicesDescription};
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::net::Ipv4Addr;
 use std::str::from_utf8;
 
-pub type ParsedPacket = (u16, Vec<(String, ServiceInstance)>);
+pub(crate) struct ParsedPacket {
+    pub id: u16,
+    pub instances: Vec<ServiceInstance>,
+}
 
 #[derive(Debug)]
 pub(crate) struct MdnsCodec;
@@ -45,7 +45,7 @@ fn parse_answer(answer: ResourceRecord, parse_maps: &mut ParseMaps) {
     }
 }
 
-fn build_response(parse_maps: ParseMaps, services: &mut Vec<(String, ServiceInstance)>) {
+fn build_response(parse_maps: ParseMaps, services: &mut Vec<ServiceInstance>) {
     let srv = parse_maps.srv;
     let a = parse_maps.a;
     let txt = parse_maps.txt;
@@ -55,19 +55,16 @@ fn build_response(parse_maps: ParseMaps, services: &mut Vec<(String, ServiceInst
         let host = pair.1;
         let ports = e.1;
 
-        let addrs = a.get(&host).map(|a| a.clone()).unwrap_or(Vec::new());
+        let addrs_v4 = a.get(&host).map(|a| a.clone()).unwrap_or(Vec::new());
         let txt = txt.get(&name).map(|a| a.clone()).unwrap_or(Vec::new());
 
-        services.push((
-            name.clone(),
-            ServiceInstance {
-                name,
-                host,
-                txt,
-                addrs,
-                ports,
-            },
-        ))
+        services.push(ServiceInstance {
+            name,
+            host,
+            txt,
+            addrs_v4,
+            ports,
+        })
     });
 }
 
@@ -78,7 +75,7 @@ struct ParseMaps {
     // service -> description
     pub txt: HashMap<String, Vec<String>>,
     // host -> IPv4
-    pub a: HashMap<String, Vec<IpAddr>>,
+    pub a: HashMap<String, Vec<Ipv4Addr>>,
 }
 
 impl Decoder for MdnsCodec {
@@ -88,8 +85,8 @@ impl Decoder for MdnsCodec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ParsedPacket>> {
         let packet = Packet::parse(src.as_ref())?;
         info!("Received packet: {:?}", packet);
-
         let id = packet.header.id;
+
         let mut parse_maps = ParseMaps::default();
 
         for answer in packet.answers {
@@ -100,9 +97,12 @@ impl Decoder for MdnsCodec {
             parse_answer(answer, &mut parse_maps);
         }
 
-        let mut services: Vec<(String, ServiceInstance)> = Vec::new();
+        let mut services: Vec<ServiceInstance> = Vec::new();
         build_response(parse_maps, &mut services);
-        Ok(Some((id, services)))
+        Ok(Some(ParsedPacket {
+            id,
+            instances: services,
+        }))
     }
 }
 
