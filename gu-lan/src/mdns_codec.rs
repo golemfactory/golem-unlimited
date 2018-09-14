@@ -59,8 +59,9 @@ fn build_response(parse_maps: ParseMaps, services: &mut Vec<(String, ServiceInst
         let txt = txt.get(&name).map(|a| a.clone()).unwrap_or(Vec::new());
 
         services.push((
-            name,
+            name.clone(),
             ServiceInstance {
+                name,
                 host,
                 txt,
                 addrs,
@@ -86,7 +87,7 @@ impl Decoder for MdnsCodec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ParsedPacket>> {
         let packet = Packet::parse(src.as_ref())?;
-        info!("Received packet: {:#?}", packet);
+        info!("Received packet: {:?}", packet);
 
         let id = packet.header.id;
         let mut parse_maps = ParseMaps::default();
