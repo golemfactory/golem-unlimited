@@ -1,0 +1,28 @@
+<div class="col-md-12" ng-controller="ProvidersController">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            Providers
+        </div>
+        <div class="panel-body">
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Node Id</th>
+                    <th>Connection</th>
+                    <th>Sessions</th>
+                    <th>Name</th>
+                </tr>
+                </thead>
+                <tbody>
+                    <tr ng-repeat="peer in peers">
+                        <td>{{peer.nodeId}}</td>
+                        <td>{{peer.peerAddr}}</td>
+                        <td>{{peer.sessions.length || 0}}</td>
+                        <td>{{peer.nodeName}}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+        </div>
+    </div>
+</div>
