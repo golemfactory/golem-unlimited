@@ -51,7 +51,7 @@ impl Actor for HdMan {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.bind::<CreateSession>(CreateSession::ID);
-        ctx.bind::<Update>(Update::ID);
+        ctx.bind::<SessionUpdate>(SessionUpdate::ID);
     }
 }
 
@@ -141,7 +141,7 @@ impl Handler<CreateSession> for HdMan {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Update {
+struct SessionUpdate {
     session_id: String,
     commands: Vec<Command>,
 }
@@ -170,23 +170,23 @@ enum Command {
     },
 }
 
-impl Update {
+impl SessionUpdate {
     const ID: u32 = 38;
 }
 
-impl Message for Update {
+impl Message for SessionUpdate {
     // TODO: use error_chain
     type Result = Result<HashMap<String, String>, String>;
 }
 
-impl Handler<Update> for HdMan {
+impl Handler<SessionUpdate> for HdMan {
     type Result = Result<HashMap<String, String>, String>;
 
     fn handle(
         &mut self,
-        msg: Update,
+        msg: SessionUpdate,
         ctx: &mut Self::Context,
-    ) -> <Self as Handler<Update>>::Result {
+    ) -> <Self as Handler<SessionUpdate>>::Result {
         let session = match self.sessions.get_mut(&msg.session_id) {
             Some(session) => session,
             None => return Err(format!("session_id {} not found", &msg.session_id)),
@@ -256,10 +256,12 @@ impl Message for Status {
 }
 
 #[derive(Serialize, Deserialize)]
-struct Destroy {
+struct SessionDestroy {
     session_id: String, // uuid
 }
 
+// CreateSession - 37
+//
 //{"image": {"Url": "https://github.com/tworec/xmr-stak/releases/download/2.4.7-binaries/xmr-stak-MacOS.tgz"},
 //"name": "monero mining",
 //"tags": [],
@@ -268,6 +270,7 @@ struct Destroy {
 // "executable":"/Users/tworec/git/xmr-stak/bin/xmr-stak",
 // "args": ["--noAMD", "--poolconf", "/Users/tworec/git/xmr-stak/pools.txt", "--httpd", "0"],
 
+// SessionUpdate - 38
 //{"session_id" : "214", "commands": [
 //{"Start":{ "executable": "/bin/pwd", "args": [] } },
 //{"Start":{ "executable": "/bin/ls", "args": ["-o"] } },
