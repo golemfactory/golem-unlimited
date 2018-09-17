@@ -1,0 +1,10 @@
+[package]
+name = "gu-hardware"
+version = "0.1.0"
+
+[dependencies]
+sysinfo = "0.5"
+log = "0.4"
+actix = "0.7"
+error-chain = "0.12"
+futures = "0.1"

@@ -9,6 +9,7 @@ members= [
 	'gu-p2p',
 	'gu-persist',
 	'gu-lan',
+	'gu-hardware',
 ]
 
 [dependencies]
