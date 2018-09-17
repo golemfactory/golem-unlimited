@@ -18,7 +18,7 @@ pub struct SessionInfo {
     dirty: bool,
     tags: Vec<String>,
     note: Option<String>,
-    children: HashMap<String, process::Child>,
+    processess: HashMap<String, process::Child>,
 }
 
 pub enum State {
@@ -37,6 +37,26 @@ pub struct HdMan {
     work_dir: PathBuf,
 }
 
+impl HdMan {
+
+    fn scan_for_processess(&mut self) {
+        for (sess_id, sess_info) in self.sessions.iter_mut() {
+            let finished : Vec<String> = sess_info.processess.iter_mut().filter_map(|p| {
+                match p.1.try_wait() {
+                    Ok(Some(ex_st)) => Some(p.0.clone()),
+                    _ => None,
+                }
+            }
+            ).collect();
+            for f in finished {
+                sess_info.processess.remove(&f);
+                println!("finished {:?}; removing", f)
+            }
+        }
+    }
+
+}
+
 pub fn start(config: &ConfigModule) -> Addr<HdMan> {
     start_actor(HdMan {
         sessions: HashMap::new(),
@@ -52,6 +72,7 @@ impl Actor for HdMan {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.bind::<CreateSession>(CreateSession::ID);
         ctx.bind::<SessionUpdate>(SessionUpdate::ID);
+        ctx.run_interval(time::Duration::from_secs(10), |act, _| act.scan_for_processess());
     }
 }
 
@@ -128,7 +149,7 @@ impl Handler<CreateSession> for HdMan {
                 dirty: false,
                 tags: msg.tags,
                 note: msg.note,
-                children: HashMap::new(),
+                processess: HashMap::new(),
             },
         );
 
@@ -210,7 +231,7 @@ impl Handler<SessionUpdate> for HdMan {
                                     String::from_utf8(output.stdout).unwrap_or("".into()),
                                 );
                             }
-                        }
+                        },
                         Err(e) => return Err(format!("{:?}", e)),
                     }
                     session.dirty = true;
@@ -220,14 +241,29 @@ impl Handler<SessionUpdate> for HdMan {
                     let child_id = Uuid::new_v4().to_string();
                     match process::Command::new(&executable).args(&args).spawn() {
                         Ok(child) => {
-                            session.children.insert(child_id.clone(), child);
+                            session.processess.insert(child_id.clone(), child);
                             session.dirty = true;
                             session.status = State::RUNNING;
                             cmd_outputs
-                                .insert(format!("Start({}, {:?})", executable, args), child_id);
-                        }
+                                .insert(format!("StartAsync({}, {:?})", executable, args), child_id);
+                        },
                         Err(e) => return Err(format!("{:?}", e)),
                     };
+                }
+                Command::Stop { child_id } => {
+                    match session.processess.get_mut(&child_id) {
+                        Some(child) => {
+                            match child.kill() {
+                                Ok(_) => {
+                                    cmd_outputs.insert(format!("Stop({})", child_id), "Killed".into())
+                                },
+                                Err(e) => return Err(format!("{:?}", e)),
+                            };
+
+                        },
+                        None => return Err(format!("child {:?} not found", child_id))
+                    };
+                    ()
                 }
                 _ => {
                     cmd_outputs.insert(format!("{:?}", cmd), "unsupported".into());
@@ -235,7 +271,7 @@ impl Handler<SessionUpdate> for HdMan {
                 }
             }
         }
-        println!("{:?}", cmd_outputs);
+        debug!("{:?}", cmd_outputs);
         Ok(cmd_outputs)
     }
 }
