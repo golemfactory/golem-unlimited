@@ -187,6 +187,8 @@ impl Handler<SetConfigPath> for ConfigManager {
 pub struct ConfigModule(ProjectDirs);
 
 impl ConfigModule {
+    const KEYSTORE_FILE : &'static str = "keystore.json";
+
     pub fn new() -> Self {
         ConfigModule(ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap())
     }
@@ -204,6 +206,10 @@ impl ConfigModule {
     /// TODO: for configs and ethkeys
     pub fn config_dir(&self) -> &Path {
         self.0.config_dir()
+    }
+
+    pub fn keystore_path(&self) -> PathBuf {
+        self.config_dir().to_path_buf().join(ConfigModule::KEYSTORE_FILE)
     }
 }
 

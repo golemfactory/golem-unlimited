@@ -19,7 +19,9 @@ use gu_base::Module;
 use gu_p2p::rpc;
 use gu_p2p::NodeId;
 use gu_persist::config::ConfigModule;
+use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
 use mdns::{Responder, Service};
+use std::path::PathBuf;
 
 
 #[derive(Serialize, Deserialize)]
@@ -65,6 +67,15 @@ impl ServerModule {
     }
 }
 
+fn get_node_id<P: Into<PathBuf>>(keystore_path: P) -> NodeId {
+    let keys = SafeEthKey::load_or_generate(keystore_path, &"".into()).unwrap();
+    let mut public_key_bytes: &[u8] = keys.public().as_ref();
+    // TODO: NodeId 32 --> 64 ?
+    let node_id = NodeId::from(&public_key_bytes[0..32]);
+    info!("node_id={:?}", node_id);
+    node_id
+}
+
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
         app.subcommand(
@@ -106,10 +117,11 @@ impl Module for ServerModule {
 
         let configModule: &ConfigModule = decorator.extract().unwrap();
         let _ = super::hdman::start(configModule);
-        let node_id: NodeId = thread_rng().gen(); // TODO: use gu-ethkey with empty passwd
+
+
 
         if let Some(a) = self.peer_addr {
-            let _ = rpc::ws::start_connection(node_id, a);
+            let _ = rpc::ws::start_connection(get_node_id(configModule.keystore_path()), a);
         }
 
         let _ = sys.run();

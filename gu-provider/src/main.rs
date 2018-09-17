@@ -9,6 +9,7 @@ extern crate gu_base;
 extern crate gu_p2p;
 extern crate gu_persist;
 extern crate gu_lan;
+extern crate gu_ethkey;
 
 extern crate serde;
 extern crate serde_json;

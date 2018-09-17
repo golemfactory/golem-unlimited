@@ -86,7 +86,7 @@ impl EthKey for SafeEthKey {
 fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
     SafeAccount::create(
         key_pair,
-        [0u8; 16],
+        [0u8; 16], // TODO: use uuid4 or random
         pwd,
         KEY_ITERATIONS,
         "".to_owned(),

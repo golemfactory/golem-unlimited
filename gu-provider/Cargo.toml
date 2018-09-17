@@ -32,4 +32,5 @@ gu-actix = { path = "../gu-actix" }
 gu-p2p = { path = "../gu-p2p" }
 gu-persist = { path = "../gu-persist" }
 gu-lan = { path = "../gu-lan"}
+gu-ethkey = { path = "../gu-ethkey"}
 
