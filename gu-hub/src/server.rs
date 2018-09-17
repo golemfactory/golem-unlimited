@@ -75,8 +75,8 @@ pub struct ServerModule {
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
-            config_path: None,
             active: false,
+            config_path: None,
         }
     }
 }

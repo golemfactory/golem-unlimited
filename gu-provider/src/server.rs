@@ -50,6 +50,7 @@ impl config::HasSectionId for ServerConfig {
 }
 
 pub struct ServerModule {
+    active: bool,
     config_path: Option<String>,
     peer_addr: Option<net::SocketAddr>,
 }
@@ -57,6 +58,7 @@ pub struct ServerModule {
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
+            active: false,
             config_path: None,
             peer_addr: None,
         }
@@ -77,6 +79,7 @@ impl Module for ServerModule {
 
         if let Some(m) = matches.subcommand_matches("server") {
             println!("server");
+            self.active = true;
             if let Some(mc) = m.subcommand_matches("connect") {
                 let param = mc.value_of("peer_addr");
                 info!("peer addr={:?}", &param);
@@ -93,6 +96,10 @@ impl Module for ServerModule {
         use actix;
         //    use env_logger;
         use rand::*;
+
+        if !self.active {
+            return;
+        }
 
         let config = ServerConfigurer(None, self.config_path.clone()).start();
         let sys = actix::System::new("gu-provider");
