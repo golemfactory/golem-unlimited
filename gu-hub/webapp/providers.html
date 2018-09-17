@@ -15,7 +15,7 @@
                 </thead>
                 <tbody>
                     <tr ng-repeat="peer in peers">
-                        <td>{{peer.nodeId}}</td>
+                        <td><code><a href="#">{{peer.nodeId}}</a></code></td>
                         <td>{{peer.peerAddr}}</td>
                         <td>{{peer.sessions.length || 0}}</td>
                         <td>{{peer.nodeName}}</td>

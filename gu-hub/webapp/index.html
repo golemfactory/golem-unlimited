@@ -11,28 +11,19 @@
         body {
             padding: 6px;
         }
+        .text-monospace {
+            font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+        }
     </style>
 </head>
 <body>
 <div class="container-fluid" ng-controller="AppController">
     <div class="row">
         <div class="col-md-2">
-            <!--div class="row">
-                <div style="padding: 8px">
-                    <svg class="logo--small" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 23.808 48"
-         style="width: 40px; enable-background:new 0 0 23.808 48;" xml:space="preserve">
-<path fill="#000" d="M21.365,0L16.37,4.995c-1.695-1.208-3.766-1.922-6.002-1.922C4.651,3.073,0,7.724,0,13.44
-	c0,5.128,3.743,9.396,8.64,10.221v3.749C3.743,28.236,0,32.504,0,37.632C0,43.349,4.651,48,10.368,48s10.368-4.651,10.368-10.368
-	c0-5.128-3.743-9.396-8.64-10.221v-3.749c4.897-0.825,8.64-5.093,8.64-10.221c0-2.236-0.714-4.307-1.922-6.002l4.995-4.995L21.365,0
-	z M17.28,37.632c0,3.811-3.101,6.912-6.912,6.912s-6.912-3.101-6.912-6.912s3.101-6.912,6.912-6.912S17.28,33.821,17.28,37.632z
-	 M10.368,20.352c-3.811,0-6.912-3.101-6.912-6.912s3.101-6.912,6.912-6.912s6.912,3.101,6.912,6.912S14.179,20.352,10.368,20.352z"></path>
-</svg>
-                </div>
-            </div-->
             <div class="row">
                 <div class="panel panel-default">
                     <div class="panel-heading">
-                        Panels +
+                        Panels
                     </div>
                     <div class="panel-body">
 
@@ -42,6 +33,19 @@
                     </div>
                 </div>
             </div>
+            <div class="row">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        Plugins
+                    </div>
+                    <div class="panel-body">
+                        <ul class="nav nav-pills nav-stacked">
+                            <li ng-repeat="tab in pluginTabs" ng-class="{active: tab == activeTab}"><a href="#" ng-click="openTab(tab)">{{tab.name}}</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
         </div>
         <div class="col-md-10">
             <div class="row" ng-include="activeTab.page">
@@ -53,4 +57,6 @@
 </div>
 <script src="ui-bootstrap-tpls-2.5.0.min.js"></script>
 <script src="app.js"></script>
+<script src="plug/Mining/app.js"></script>
+<script>angular.bootstrap(document, ['gu']);</script>
 </body>
