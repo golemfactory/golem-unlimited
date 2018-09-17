@@ -6,10 +6,10 @@ extern crate actix_web;
 extern crate clap;
 extern crate gu_actix;
 extern crate gu_base;
+extern crate gu_ethkey;
+extern crate gu_lan;
 extern crate gu_p2p;
 extern crate gu_persist;
-extern crate gu_lan;
-extern crate gu_ethkey;
 
 extern crate serde;
 extern crate serde_json;
@@ -27,10 +27,10 @@ extern crate log;
 
 extern crate bytes;
 extern crate flate2;
+extern crate mdns;
 extern crate rand;
 extern crate tar;
 extern crate uuid;
-extern crate mdns;
 
 mod hdman;
 mod server;
