@@ -72,7 +72,7 @@ impl<T: HasSectionId + Serialize + for<'de> Deserialize<'de> + Default> ConfigSe
 pub struct GetConfig<T: ConfigSection>(PhantomData<T>);
 
 impl<T: ConfigSection> GetConfig<T> {
-    pub fn new() -> GetConfig<T> {
+    pub fn new() -> Self {
         GetConfig(PhantomData)
     }
 }
@@ -84,6 +84,12 @@ impl<T: ConfigSection + 'static> Message for GetConfig<T> {
 #[derive(Message)]
 #[rtype(result = "Result<()>")]
 pub struct SetConfig<T: ConfigSection>(Arc<T>);
+
+impl<T: ConfigSection> SetConfig<T> {
+    pub fn new(inner: T) -> Self {
+        SetConfig(Arc::new(inner))
+    }
+}
 
 #[derive(Message)]
 #[rtype(result = "Result<()>")]
