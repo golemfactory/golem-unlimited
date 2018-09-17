@@ -19,6 +19,8 @@ use gu_base::Module;
 use gu_p2p::rpc;
 use gu_p2p::NodeId;
 use gu_persist::config::ConfigModule;
+use mdns::{Responder, Service};
+
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,7 +33,7 @@ struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         ServerConfig {
-            p2p_port: 61622,
+            p2p_port: 61621,
             control_socket: None,
         }
     }
@@ -111,6 +113,22 @@ fn p2p_server(r: &HttpRequest) -> &'static str {
     "ok"
 }
 
+fn run_mdns_publisher(run: bool, port: u16) {
+    if run {
+        let responder = Responder::new().expect("Failed to run mDNS publisher");
+
+        let svc = Box::new(responder.register(
+            "_unlimited._tcp".to_owned(),
+            "gu-provider".to_owned(),
+            port,
+            &["path=/", ""],
+        ));
+
+        let _svc: &'static mut Service = Box::leak(svc);
+    }
+}
+
+
 struct ServerConfigurer(Option<Recipient<StopServer>>, Option<String>);
 
 impl Actor for ServerConfigurer {
@@ -137,6 +155,7 @@ impl Actor for ServerConfigurer {
                             .scope("/m", rpc::mock::scope)
                     });
                     let s = server.bind(c.p2p_addr()).unwrap().start();
+                    run_mdns_publisher(true, c.p2p_port);
                     Ok(())
                 })
                 .into_actor(self)
@@ -148,6 +167,6 @@ impl Actor for ServerConfigurer {
 
 impl Drop for ServerConfigurer {
     fn drop(&mut self) {
-        println!("server configurer droped")
+        println!("provider server configured")
     }
 }

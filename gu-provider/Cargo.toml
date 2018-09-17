@@ -25,9 +25,11 @@ bytes = "0.4"
 flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
 tar = "0.4"
 
+mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
+
 gu-base= { path="../gu-base" }
 gu-actix = { path = "../gu-actix" }
 gu-p2p = { path = "../gu-p2p" }
 gu-persist = { path = "../gu-persist" }
-#gu-lan = { path = "../gu-lan"}
+gu-lan = { path = "../gu-lan"}
 

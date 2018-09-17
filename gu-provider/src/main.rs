@@ -8,7 +8,7 @@ extern crate gu_actix;
 extern crate gu_base;
 extern crate gu_p2p;
 extern crate gu_persist;
-//extern crate gu_lan;
+extern crate gu_lan;
 
 extern crate serde;
 extern crate serde_json;
@@ -29,6 +29,7 @@ extern crate flate2;
 extern crate rand;
 extern crate tar;
 extern crate uuid;
+extern crate mdns;
 
 mod hdman;
 mod server;
@@ -42,9 +43,9 @@ use gu_base::*;
 fn main() {
     GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
         LogModule
+            .chain(AutocompleteModule::new())
             .chain(gu_persist::config::ConfigModule::new())
-//            .chain(lan::LanModule)
-            .chain(server::ServerModule::new())
-            .chain(AutocompleteModule::new()),
+            .chain(gu_lan::rest_client::LanModule)
+            .chain(server::ServerModule::new()),
     );
 }

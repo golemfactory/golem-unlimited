@@ -117,9 +117,9 @@ fn p2p_server<S>(_r: &actix_web::HttpRequest<S>) -> &'static str {
     "ok"
 }
 
-fn run_publisher(run: bool, port: u16) {
+fn run_mdns_publisher(run: bool, port: u16) {
     if run {
-        let responder = Responder::new().expect("Failed to run publisher");
+        let responder = Responder::new().expect("Failed to run mDNS publisher");
 
         let svc = Box::new(responder.register(
             "_unlimited._tcp".to_owned(),
@@ -177,7 +177,7 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         });
         let _ = server.bind(c.p2p_addr()).unwrap().start();
         prepare_lan_server(c.publish_service);
-        run_publisher(c.publish_service, c.p2p_port);
+        run_mdns_publisher(c.publish_service, c.p2p_port);
 
         Ok(())
     }
@@ -189,6 +189,7 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
         use rand::*;
 
+        // TODO: use gu-ethkey
         let node_id: NodeId = thread_rng().gen();
 
         ctx.spawn(
@@ -207,7 +208,7 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
 
 impl<D: Decorator> Drop for ServerConfigurer<D> {
     fn drop(&mut self) {
-        info!("server configured")
+        info!("hub server configured")
     }
 }
 
