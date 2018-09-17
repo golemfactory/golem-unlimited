@@ -132,19 +132,17 @@ fn p2p_server(r: &HttpRequest) -> &'static str {
     "ok"
 }
 
-fn run_mdns_publisher(run: bool, port: u16) {
-    if run {
-        let responder = Responder::new().expect("Failed to run mDNS publisher");
+fn run_mdns_publisher(port: u16) {
+    let responder = Responder::new().expect("Failed to run mDNS publisher");
 
-        let svc = Box::new(responder.register(
-            "_unlimited._tcp".to_owned(),
-            "gu-provider".to_owned(),
-            port,
-            &["path=/", ""],
-        ));
+    let svc = Box::new(responder.register(
+        "_unlimited._tcp".to_owned(),
+        "gu-provider".to_owned(),
+        port,
+        &["path=/", ""],
+    ));
 
-        let _svc: &'static mut Service = Box::leak(svc);
-    }
+    let _ = Box::leak(svc);
 }
 
 
@@ -174,7 +172,7 @@ impl Actor for ServerConfigurer {
                             .scope("/m", rpc::mock::scope)
                     });
                     let s = server.bind(c.p2p_addr()).unwrap().start();
-                    run_mdns_publisher(true, c.p2p_port);
+                    run_mdns_publisher(c.p2p_port);
                     Ok(())
                 })
                 .into_actor(self)
