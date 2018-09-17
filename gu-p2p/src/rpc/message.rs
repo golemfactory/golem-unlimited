@@ -264,7 +264,7 @@ impl EmitMessage<String> {
         let mut msg: EmitMessage<String> = EmitMessage::default();
 
         let mut msg_id = MessageId::default();
-        let mut dest_node = [0u8; 32];
+        let mut dest_node = [0u8; 20];
 
         c.unpack(&mut msg_id)?;
         c.unpack(&mut dest_node[..])?;

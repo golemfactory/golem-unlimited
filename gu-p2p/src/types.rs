@@ -9,7 +9,7 @@ use std::mem::uninitialized;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct NodeId {
-    inner: [u8; 32],
+    inner: [u8; 20],
 }
 
 impl NodeId {
@@ -18,7 +18,7 @@ impl NodeId {
     where
         F: FnOnce(&str) -> R,
     {
-        let mut hex_str: [u8; 66] = unsafe { uninitialized() };
+        let mut hex_str: [u8; 42] = unsafe { uninitialized() };
 
         hex_str[0] = '0' as u8;
         hex_str[1] = 'x' as u8;
@@ -40,7 +40,7 @@ impl NodeId {
 
 impl Default for NodeId {
     fn default() -> Self {
-        NodeId { inner: [0; 32] }
+        NodeId { inner: [0; 20] }
     }
 }
 
@@ -56,15 +56,15 @@ impl Distribution<NodeId> for Standard {
     }
 }
 
-impl From<[u8; 32]> for NodeId {
-    fn from(inner: [u8; 32]) -> Self {
+impl From<[u8; 20]> for NodeId {
+    fn from(inner: [u8; 20]) -> Self {
         NodeId { inner }
     }
 }
 
 impl<'a> From<&'a [u8]> for NodeId {
     fn from(it: &'a [u8]) -> Self {
-        let mut inner = [0; 32];
+        let mut inner = [0; 20];
         inner.copy_from_slice(it);
 
         NodeId { inner }
@@ -107,7 +107,7 @@ impl str::FromStr for NodeId {
             return Err(());
         }
 
-        let mut inner = [0u8; 32];
+        let mut inner = [0u8; 20];
         let mut p = 0;
 
         for b in bytes[2..].chunks(2) {
@@ -115,7 +115,7 @@ impl str::FromStr for NodeId {
             inner[p] = (hi << 4) | lo;
             p += 1;
         }
-        assert_eq!(p, 32);
+        assert_eq!(p, 20);
 
         Ok(NodeId { inner })
     }
@@ -165,8 +165,8 @@ impl<'de> de::Visitor<'de> for NodeIdVisit {
     where
         E: de::Error,
     {
-        if v.len() == 32 {
-            let mut inner: [u8; 32] = unsafe { uninitialized() };
+        if v.len() == 20 {
+            let mut inner: [u8; 20] = unsafe { uninitialized() };
             inner.copy_from_slice(v);
             Ok(NodeId { inner })
         } else {
