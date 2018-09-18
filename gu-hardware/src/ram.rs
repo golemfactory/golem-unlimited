@@ -1,4 +1,4 @@
-use sysinfo::{self, SystemExt};
+use sysinfo::SystemExt;
 use actix::Message;
 use error::Result;
 
@@ -23,13 +23,11 @@ impl RamInfo {
     }
 }
 
-pub(crate) fn ram_info() -> RamInfo {
-    let system = sysinfo::System::new();
-
+pub(crate) fn ram_info(sys: &impl SystemExt) -> RamInfo {
     RamInfo {
-        free: system.get_free_memory(),
-        used: system.get_used_memory(),
-        total: system.get_total_memory(),
+        free: sys.get_free_memory(),
+        used: sys.get_used_memory(),
+        total: sys.get_total_memory(),
     }
 }
 
