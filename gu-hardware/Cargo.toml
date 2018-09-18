@@ -8,3 +8,23 @@ log = "0.4"
 actix = "0.7"
 error-chain = "0.12"
 futures = "0.1"
+smallvec = "0.6"
+
+[features]
+default=[]
+clinfo=[]
+
+[dependencies.cl-sys]
+version="0.4"
+
+[dev-dependencies]
+gu-actix = { path = "../gu-actix" }
+
+[[example]]
+name="clinfo"
+path="optional-example/clinfo.rs"
+required-features=["clinfo"]
+
+[[example]]
+name="discovery"
+path="optional-example/discovery.rs"
