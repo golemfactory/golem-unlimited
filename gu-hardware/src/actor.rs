@@ -1,41 +1,48 @@
-use actix::{Actor, Context, ArbiterService, Supervised, Handler, ActorResponse};
-use ram::{RamInfo, RamQuery, ram_info};
-use gpu::{GpuCount, GpuQuery, discover_gpu_vendors};
-//use disk;
+use actix::MessageResult;
+use actix::{Actor, ArbiterService, Context, Handler, Supervised};
+use sysinfo::{self, SystemExt};
 
-use error::Error;
+use disk::{disk_info, DiskQuery};
+#[cfg(target_os = "linux")]
+use gpu::{discover_gpu_vendors, GpuQuery};
+use ram::{ram_info, RamQuery};
 
 #[derive(Default)]
-pub struct HardwareActor {}
-
-impl HardwareActor {
-    pub fn new() -> Self {
-         Self::default()
-    }
+pub struct HardwareActor {
+    sys: sysinfo::System,
 }
 
 impl Actor for HardwareActor {
     type Context = Context<Self>;
+
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        self.sys = sysinfo::System::new();
+    }
 }
 
 impl Supervised for HardwareActor {}
 impl ArbiterService for HardwareActor {}
 
 impl Handler<RamQuery> for HardwareActor {
-    type Result = ActorResponse<HardwareActor, RamInfo, Error>;
+    type Result = MessageResult<RamQuery>;
 
-    fn handle(&mut self, _msg: RamQuery, _ctx: &mut Context<Self>) -> <Self as Handler<RamQuery>>::Result {
-        ActorResponse::reply(Ok(ram_info()))
+    fn handle(
+        &mut self,
+        _msg: RamQuery,
+        _ctx: &mut Context<Self>,
+    ) -> <Self as Handler<RamQuery>>::Result {
+        MessageResult(Ok(ram_info(&self.sys)))
     }
 }
 
-impl Handler<GpuQuery> for HardwareActor {
-    type Result = ActorResponse<HardwareActor, GpuCount, Error>;
+impl Handler<DiskQuery> for HardwareActor {
+    type Result = MessageResult<DiskQuery>;
 
-    fn handle(&mut self, _msg: GpuQuery, _ctx: &mut Context<Self>) -> <Self as Handler<GpuQuery>>::Result {
-        ActorResponse::reply(discover_gpu_vendors())
+    fn handle(
+        &mut self,
+        msg: DiskQuery,
+        _ctx: &mut Context<Self>,
+    ) -> <Self as Handler<DiskQuery>>::Result {
+        MessageResult(disk_info(&self.sys, msg.path()))
     }
 }
-
-
-

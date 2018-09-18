@@ -20,7 +20,7 @@ pub struct SessionInfo {
     dirty: bool,
     tags: Vec<String>,
     note: Option<String>,
-    processess: HashMap<String, process::Child>,
+    processes: HashMap<String, process::Child>,
 }
 
 pub enum State {
@@ -44,10 +44,10 @@ pub struct HdMan {
 }
 
 impl HdMan {
-    fn scan_for_processess(&mut self) {
+    fn scan_for_processes(&mut self) {
         for sess_info in self.sessions.values_mut().into_iter() {
             let finished: Vec<String> = sess_info
-                .processess
+                .processes
                 .iter_mut()
                 .filter_map(|p| match p.1.try_wait() {
                     Ok(Some(_exit_st)) => Some(p.0.clone()),
@@ -55,7 +55,7 @@ impl HdMan {
                 })
                 .collect();
             for f in finished {
-                sess_info.processess.remove(&f);
+                sess_info.processes.remove(&f);
                 info!("finished {:?}; removing", f)
             }
         }
@@ -85,7 +85,7 @@ impl Actor for HdMan {
         ctx.bind::<CreateSession>(CreateSession::ID);
         ctx.bind::<SessionUpdate>(SessionUpdate::ID);
         ctx.run_interval(time::Duration::from_secs(10), |act, _| {
-            act.scan_for_processess()
+            act.scan_for_processes()
         });
     }
 }
@@ -162,7 +162,7 @@ impl Handler<CreateSession> for HdMan {
                 dirty: false,
                 tags: msg.tags,
                 note: msg.note,
-                processess: HashMap::new(),
+                processes: HashMap::new(),
             },
         );
 
@@ -256,7 +256,7 @@ impl Handler<SessionUpdate> for HdMan {
                             Ok(child) => {
                                 let session = act.get_session_mut(&session_id).unwrap(); // TODO
                                 let child_id = Uuid::new_v4().to_string();
-                                session.processess.insert(child_id.clone(), child);
+                                session.processes.insert(child_id.clone(), child);
                                 session.dirty = true;
                                 session.status = State::RUNNING;
                                 v.push(child_id);
@@ -270,7 +270,7 @@ impl Handler<SessionUpdate> for HdMan {
                     info!("killing: {:?}", &child_id);
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
                         let session = act.get_session_mut(&session_id).unwrap(); // TODO
-                        match session.processess.get_mut(&child_id) {
+                        match session.processes.get_mut(&child_id) {
                             Some(child) => match child.kill() {
                                 Ok(_) => {
                                     v.push("Killed".into());

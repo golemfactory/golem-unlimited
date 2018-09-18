@@ -17,7 +17,7 @@ fn main() {
         .init();
 
     let sys = actix::System::new("none_example");
-    let actor = gu_lan::resolve_actor::ResolveActor::new();
+    let actor = gu_lan::actor::ResolveActor::new();
     let address = actor.start();
     let res = address.send(gu_lan::service::ServicesDescription::single(
         "gu-hub",
