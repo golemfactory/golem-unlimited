@@ -18,7 +18,7 @@ pub struct SessionInfo {
     dirty: bool,
     tags: Vec<String>,
     note: Option<String>,
-    processess: HashMap<String, process::Child>,
+    processes: HashMap<String, process::Child>,
 }
 
 pub enum State {
@@ -38,23 +38,22 @@ pub struct HdMan {
 }
 
 impl HdMan {
-
-    fn scan_for_processess(&mut self) {
+    fn scan_for_processes(&mut self) {
         for (sess_id, sess_info) in self.sessions.iter_mut() {
-            let finished : Vec<String> = sess_info.processess.iter_mut().filter_map(|p| {
-                match p.1.try_wait() {
+            let finished: Vec<String> = sess_info
+                .processes
+                .iter_mut()
+                .filter_map(|p| match p.1.try_wait() {
                     Ok(Some(ex_st)) => Some(p.0.clone()),
                     _ => None,
-                }
-            }
-            ).collect();
+                })
+                .collect();
             for f in finished {
-                sess_info.processess.remove(&f);
+                sess_info.processes.remove(&f);
                 println!("finished {:?}; removing", f)
             }
         }
     }
-
 }
 
 pub fn start(config: &ConfigModule) -> Addr<HdMan> {
@@ -72,7 +71,9 @@ impl Actor for HdMan {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.bind::<CreateSession>(CreateSession::ID);
         ctx.bind::<SessionUpdate>(SessionUpdate::ID);
-        ctx.run_interval(time::Duration::from_secs(10), |act, _| act.scan_for_processess());
+        ctx.run_interval(time::Duration::from_secs(10), |act, _| {
+            act.scan_for_processes()
+        });
     }
 }
 
@@ -149,7 +150,7 @@ impl Handler<CreateSession> for HdMan {
                 dirty: false,
                 tags: msg.tags,
                 note: msg.note,
-                processess: HashMap::new(),
+                processes: HashMap::new(),
             },
         );
 
@@ -231,7 +232,7 @@ impl Handler<SessionUpdate> for HdMan {
                                     String::from_utf8(output.stdout).unwrap_or("".into()),
                                 );
                             }
-                        },
+                        }
                         Err(e) => return Err(format!("{:?}", e)),
                     }
                     session.dirty = true;
@@ -241,27 +242,27 @@ impl Handler<SessionUpdate> for HdMan {
                     let child_id = Uuid::new_v4().to_string();
                     match process::Command::new(&executable).args(&args).spawn() {
                         Ok(child) => {
-                            session.processess.insert(child_id.clone(), child);
+                            session.processes.insert(child_id.clone(), child);
                             session.dirty = true;
                             session.status = State::RUNNING;
-                            cmd_outputs
-                                .insert(format!("StartAsync({}, {:?})", executable, args), child_id);
-                        },
+                            cmd_outputs.insert(
+                                format!("StartAsync({}, {:?})", executable, args),
+                                child_id,
+                            );
+                        }
                         Err(e) => return Err(format!("{:?}", e)),
                     };
                 }
                 Command::Stop { child_id } => {
-                    match session.processess.get_mut(&child_id) {
+                    match session.processes.get_mut(&child_id) {
                         Some(child) => {
                             match child.kill() {
-                                Ok(_) => {
-                                    cmd_outputs.insert(format!("Stop({})", child_id), "Killed".into())
-                                },
+                                Ok(_) => cmd_outputs
+                                    .insert(format!("Stop({})", child_id), "Killed".into()),
                                 Err(e) => return Err(format!("{:?}", e)),
                             };
-
-                        },
-                        None => return Err(format!("child {:?} not found", child_id))
+                        }
+                        None => return Err(format!("child {:?} not found", child_id)),
                     };
                     ()
                 }

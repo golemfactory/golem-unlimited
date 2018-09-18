@@ -23,9 +23,9 @@ extern crate futures;
 extern crate tokio;
 extern crate tokio_codec;
 
+pub mod actor;
+mod codec;
 mod errors;
-mod mdns_codec;
-pub mod resolve_actor;
 pub mod rest_client;
 pub mod server;
 pub mod service;

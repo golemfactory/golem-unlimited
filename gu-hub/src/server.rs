@@ -117,7 +117,7 @@ fn p2p_server<S>(_r: &actix_web::HttpRequest<S>) -> &'static str {
     "ok"
 }
 
-fn run_mdns_publisher(run: bool, port: u16) {
+fn mdns_publisher(run: bool, port: u16) {
     if run {
         let responder = Responder::new().expect("Failed to run mDNS publisher");
 
@@ -132,7 +132,7 @@ fn run_mdns_publisher(run: bool, port: u16) {
     }
 }
 
-fn prepare_lan_server(run: bool) {
+fn mdns_querier(run: bool) {
     if run {
         // TODO: add it to endpoint
         start_actor(server::LanInfo());
@@ -176,8 +176,8 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
             )
         });
         let _ = server.bind(c.p2p_addr()).unwrap().start();
-        prepare_lan_server(c.publish_service);
-        run_mdns_publisher(c.publish_service, c.p2p_port);
+        mdns_querier(c.publish_service);
+        mdns_publisher(c.publish_service, c.p2p_port);
 
         Ok(())
     }

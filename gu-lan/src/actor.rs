@@ -2,9 +2,9 @@ use actix::prelude::*;
 use futures::prelude::*;
 use tokio::prelude::*;
 
+use codec::MdnsCodec;
 use errors::{Error, ErrorKind, Result};
 use futures::sync::oneshot;
-use mdns_codec::MdnsCodec;
 use service::{ServiceInstance, ServicesDescription};
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -12,10 +12,10 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
 use actix::AsyncContext;
+use codec::ParsedPacket;
 use futures::sync;
 use futures::sync::mpsc;
 use gu_actix::FlattenFuture;
-use mdns_codec::ParsedPacket;
 use service::Services;
 use std::collections::HashSet;
 use std::net::SocketAddr::{self, V4};
@@ -190,7 +190,7 @@ impl Handler<ServicesDescription> for ResolveActor {
 
 #[cfg(test)]
 mod tests {
-    use resolve_actor::ResolveActor;
+    use actor::ResolveActor;
 
     #[test]
     fn create_mdns_socket() {

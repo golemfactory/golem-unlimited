@@ -1,8 +1,8 @@
 use actix::prelude::*;
+use actor::ResolveActor;
 use futures::Future;
 use gu_actix::flatten::FlattenFuture;
 use gu_p2p::rpc::*;
-use resolve_actor::ResolveActor;
 use serde_json;
 use service::ServiceDescription;
 use service::ServiceInstance;
