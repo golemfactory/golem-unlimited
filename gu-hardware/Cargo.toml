@@ -3,12 +3,21 @@ name = "gu-hardware"
 version = "0.1.0"
 
 [dependencies]
+gu-actix= { path="../gu-actix" }
+gu-base= { path="../gu-base" }
+gu-p2p= { path="../gu-p2p" }
+
 sysinfo = "0.5"
 log = "0.4"
 actix = "0.7"
 error-chain = "0.12"
 futures = "0.1"
 smallvec = "0.6"
+clap = "2.32"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+actix-web = "0.7"
 
 [features]
 default=[]
@@ -28,3 +37,4 @@ required-features=["clinfo"]
 [[example]]
 name="discovery"
 path="optional-example/discovery.rs"
+

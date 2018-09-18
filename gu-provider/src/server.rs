@@ -11,14 +11,14 @@ use gu_base::Decorator;
 use gu_base::Module;
 use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
 use gu_p2p::rpc;
-use gu_p2p::rpc::ws::ConnectionSupervisor;
+//use gu_p2p::rpc::ws::ConnectionSupervisor;
 use gu_p2p::NodeId;
 use gu_persist::config::{
     ConfigManager, ConfigModule, Error as ConfigError, GetConfig, HasSectionId, SetConfig,
     SetConfigPath,
 };
 use mdns::Responder;
-use std::path::PathBuf;
+//use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -123,7 +123,7 @@ impl Module for ServerModule {
     }
 }
 
-fn p2p_server(r: &HttpRequest) -> &'static str {
+fn p2p_server(_r: &HttpRequest) -> &'static str {
     "ok"
 }
 
@@ -172,7 +172,7 @@ impl Actor for ServerConfigurer {
                             .handler("/p2p", p2p_server)
                             .scope("/m", rpc::mock::scope)
                     });
-                    let s = server.bind(c.p2p_addr()).unwrap().start();
+                    let _ = server.bind(c.p2p_addr()).unwrap().start();
                     run_mdns_publisher(c.p2p_port);
 
                     if let Some(hub_addr) = hub_addr {

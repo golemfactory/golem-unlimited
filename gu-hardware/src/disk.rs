@@ -1,7 +1,12 @@
-use sysinfo::{SystemExt, DiskExt, DiskType};
+use actix::Actor;
+use actix::ActorResponse;
+use actix::Handler;
 use actix::Message;
-use error::{Result, ErrorKind};
+use error::Error;
+use error::{ErrorKind, Result};
+use gu_p2p::rpc::RemotingContext;
 use std::path::PathBuf;
+use sysinfo::{DiskExt, DiskType, SystemExt};
 
 #[derive(Debug)]
 pub struct DiskInfo {
@@ -36,8 +41,7 @@ fn disk_for_path(disks: &[impl DiskExt], path: PathBuf) -> Result<&impl DiskExt>
     best_match.ok_or_else(|| ErrorKind::PathMountpointNotFound(path).into())
 }
 
-pub(crate) fn disk_info(sys: &impl SystemExt, path: PathBuf) -> Result<DiskInfo>
-{
+pub(crate) fn disk_info(sys: &impl SystemExt, path: PathBuf) -> Result<DiskInfo> {
     let disk = disk_for_path(sys.get_disks(), path)?;
     Ok(DiskInfo {
         available: disk.get_available_space(),
@@ -53,9 +57,7 @@ pub struct DiskQuery {
 
 impl DiskQuery {
     pub fn new(path: PathBuf) -> Self {
-        Self {
-            path
-        }
+        Self { path }
     }
 
     pub fn path(self) -> PathBuf {
@@ -65,4 +67,32 @@ impl DiskQuery {
 
 impl Message for DiskQuery {
     type Result = Result<DiskInfo>;
+}
+
+#[derive(Default)]
+pub struct DiskActor;
+
+impl Actor for DiskActor {
+    type Context = RemotingContext<Self>;
+}
+
+impl Handler<DiskQuery> for DiskActor {
+    type Result = ActorResponse<Self, DiskInfo, Error>;
+
+    fn handle(
+        &mut self,
+        msg: DiskQuery,
+        _ctx: &mut Self::Context,
+    ) -> <Self as Handler<DiskQuery>>::Result {
+        use actix::{ArbiterService, WrapFuture};
+        use actor::HardwareActor;
+        use gu_actix::FlattenFuture;
+
+        ActorResponse::async(
+            HardwareActor::from_registry()
+                .send(msg)
+                .flatten_fut()
+                .into_actor(self),
+        )
+    }
 }
