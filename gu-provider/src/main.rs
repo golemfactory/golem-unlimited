@@ -17,8 +17,8 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
-//#[macro_use]
-//extern crate error_chain;
+#[macro_use]
+extern crate error_chain;
 extern crate directories;
 
 extern crate env_logger;
@@ -34,6 +34,7 @@ extern crate uuid;
 
 mod hdman;
 mod server;
+mod sync_exec;
 mod write_to;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");

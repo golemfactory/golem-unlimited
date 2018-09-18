@@ -1,17 +1,19 @@
+use actix::fut;
 use actix::prelude::*;
 use actix_web::HttpMessage;
-use futures::future::Future;
+//use futures::future;
+use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_p2p::rpc::*;
 use gu_persist::config::ConfigModule;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+//use std::sync::Arc;
+use super::sync_exec::{Exec, SyncExecManager};
 use std::{io, process, time};
 use uuid::Uuid;
 
 pub struct SessionInfo {
-    id: String,
     image: Image,
     name: String,
     status: State,
@@ -22,10 +24,14 @@ pub struct SessionInfo {
 }
 
 pub enum State {
-    PENDING, // during session creation
-    CREATED, // after session creation, czysta
-    RUNNING, // with at least one active child
-    DIRTY,   // when no child is running, but some commands were already executed
+    PENDING,
+    // during session creation
+    CREATED,
+    // after session creation, czysta
+    RUNNING,
+    // with at least one active child
+    DIRTY,
+    // when no child is running, but some commands were already executed
     DESTROYING,
 }
 
@@ -38,23 +44,29 @@ pub struct HdMan {
 }
 
 impl HdMan {
-
     fn scan_for_processess(&mut self) {
-        for (sess_id, sess_info) in self.sessions.iter_mut() {
-            let finished : Vec<String> = sess_info.processess.iter_mut().filter_map(|p| {
-                match p.1.try_wait() {
-                    Ok(Some(ex_st)) => Some(p.0.clone()),
+        for sess_info in self.sessions.values_mut().into_iter() {
+            let finished: Vec<String> = sess_info
+                .processess
+                .iter_mut()
+                .filter_map(|p| match p.1.try_wait() {
+                    Ok(Some(_exit_st)) => Some(p.0.clone()),
                     _ => None,
-                }
-            }
-            ).collect();
+                })
+                .collect();
             for f in finished {
                 sess_info.processess.remove(&f);
-                println!("finished {:?}; removing", f)
+                info!("finished {:?}; removing", f)
             }
         }
     }
 
+    fn get_session_mut(&mut self, session_id: &String) -> Result<&mut SessionInfo, String> {
+        match self.sessions.get_mut(session_id) {
+            Some(session) => Ok(session),
+            None => return Err(format!("session_id {} not found", &session_id)),
+        }
+    }
 }
 
 pub fn start(config: &ConfigModule) -> Addr<HdMan> {
@@ -72,7 +84,9 @@ impl Actor for HdMan {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.bind::<CreateSession>(CreateSession::ID);
         ctx.bind::<SessionUpdate>(SessionUpdate::ID);
-        ctx.run_interval(time::Duration::from_secs(10), |act, _| act.scan_for_processess());
+        ctx.run_interval(time::Duration::from_secs(10), |act, _| {
+            act.scan_for_processess()
+        });
     }
 }
 
@@ -132,17 +146,16 @@ impl Handler<CreateSession> for HdMan {
     fn handle(
         &mut self,
         msg: CreateSession,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
         let mut sess_id = Uuid::new_v4().to_string();
         while self.sessions.contains_key(&sess_id) {
             sess_id = Uuid::new_v4().to_string();
         }
-        println!("newly created session_id={}", sess_id);
+        debug!("newly created session_id={}", sess_id);
         self.sessions.insert(
             sess_id.clone(),
             SessionInfo {
-                id: sess_id.clone(),
                 image: msg.image.clone(),
                 name: msg.name,
                 status: State::PENDING,
@@ -153,7 +166,7 @@ impl Handler<CreateSession> for HdMan {
             },
         );
 
-        println!("hey! I'm downloading from: {:?}", msg.image);
+        debug!("hey! I'm downloading from: {:?}", msg.image);
         // TODO: download
         // TODO: untgz
 
@@ -197,82 +210,84 @@ impl SessionUpdate {
 
 impl Message for SessionUpdate {
     // TODO: use error_chain
-    type Result = Result<HashMap<String, String>, String>;
+    type Result = Result<Vec<String>, String>;
 }
 
 impl Handler<SessionUpdate> for HdMan {
-    type Result = Result<HashMap<String, String>, String>;
+    type Result = ActorResponse<HdMan, Vec<String>, String>; // TODO: Err -> (succeded cmds, first failed err msg)
 
     fn handle(
         &mut self,
         msg: SessionUpdate,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<SessionUpdate>>::Result {
-        let session = match self.sessions.get_mut(&msg.session_id) {
-            Some(session) => session,
-            None => return Err(format!("session_id {} not found", &msg.session_id)),
-        };
-        let mut cmd_outputs = HashMap::new();
+        let mut future_chain: Box<
+            ActorFuture<Item = Vec<String>, Error = String, Actor = Self>,
+        > = Box::new(fut::ok(Vec::new()));
+
         for cmd in msg.commands {
+            let session_id = msg.session_id.clone();
+
             match cmd {
-                // TODO: sync actor https://actix.rs/actix/actix/sync/index.html
                 Command::Start { executable, args } => {
-                    info!("executing: {} {:?}", executable, args);
-                    match process::Command::new(&executable).args(&args).output() {
-                        Ok(output) => {
-                            if output.status.success() {
-                                println!(
-                                    "stdout: |{}|\nstderr: |{}|",
-                                    String::from_utf8_lossy(&output.stdout),
-                                    String::from_utf8_lossy(&output.stderr)
-                                );
-                                cmd_outputs.insert(
-                                    format!("Start({}, {:?})", executable, args),
-                                    String::from_utf8(output.stdout).unwrap_or("".into()),
-                                );
-                            }
-                        },
-                        Err(e) => return Err(format!("{:?}", e)),
-                    }
-                    session.dirty = true;
+                    future_chain = Box::new(future_chain.and_then(|mut v, act, _ctx| {
+                        SyncExecManager::from_registry()
+                            .send(Exec { executable, args })
+                            .flatten_fut()
+                            .map_err(|e| format!("{}", e)) // TODO: chain err
+                            .into_actor(act)
+                            .and_then(move |output, act, _ctx| {
+                                info!("sync cmd output: {:?}", output);
+                                if output.status.success() {
+                                    v.push(String::from_utf8(output.stdout).unwrap_or("".into()));
+                                    let session = act.get_session_mut(&session_id).unwrap(); // TODO
+                                    session.dirty = true;
+                                    fut::ok(v)
+                                } else {
+                                    fut::err(format!("cmd failed: {:?}", output))
+                                }
+                            })
+                    }));
                 }
                 Command::StartAsync { executable, args } => {
-                    info!("executing async: {} {:?}", executable, args);
-                    let child_id = Uuid::new_v4().to_string();
-                    match process::Command::new(&executable).args(&args).spawn() {
-                        Ok(child) => {
-                            session.processess.insert(child_id.clone(), child);
-                            session.dirty = true;
-                            session.status = State::RUNNING;
-                            cmd_outputs
-                                .insert(format!("StartAsync({}, {:?})", executable, args), child_id);
-                        },
-                        Err(e) => return Err(format!("{:?}", e)),
-                    };
+                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                        info!("executing async: {} {:?}", executable, args);
+                        match process::Command::new(&executable).args(&args).spawn() {
+                            Ok(child) => {
+                                let session = act.get_session_mut(&session_id).unwrap(); // TODO
+                                let child_id = Uuid::new_v4().to_string();
+                                session.processess.insert(child_id.clone(), child);
+                                session.dirty = true;
+                                session.status = State::RUNNING;
+                                v.push(child_id);
+                                fut::ok(v)
+                            }
+                            Err(e) => fut::err(format!("{:?}", e)),
+                        }
+                    }));
                 }
                 Command::Stop { child_id } => {
-                    match session.processess.get_mut(&child_id) {
-                        Some(child) => {
-                            match child.kill() {
+                    info!("killing: {:?}", &child_id);
+                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                        let session = act.get_session_mut(&session_id).unwrap(); // TODO
+                        match session.processess.get_mut(&child_id) {
+                            Some(child) => match child.kill() {
                                 Ok(_) => {
-                                    cmd_outputs.insert(format!("Stop({})", child_id), "Killed".into())
-                                },
-                                Err(e) => return Err(format!("{:?}", e)),
-                            };
-
-                        },
-                        None => return Err(format!("child {:?} not found", child_id))
-                    };
-                    ()
+                                    v.push("Killed".into());
+                                    fut::ok(v)
+                                }
+                                Err(e) => fut::err(format!("{:?}", e)),
+                            },
+                            None => fut::err(format!("child {:?} not found", child_id)),
+                        }
+                    }));
                 }
-                _ => {
-                    cmd_outputs.insert(format!("{:?}", cmd), "unsupported".into());
-                    ()
+                cmd => {
+                    future_chain = Box::new(fut::err(format!("{:?} unsupported", cmd)));
                 }
             }
         }
-        debug!("{:?}", cmd_outputs);
-        Ok(cmd_outputs)
+        ActorResponse::async(future_chain)
     }
 }
 
