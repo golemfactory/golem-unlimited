@@ -99,7 +99,7 @@ impl str::FromStr for NodeId {
     fn from_str(s: &str) -> Result<Self, ()> {
         let bytes = s.as_bytes();
 
-        if bytes.len() != 66 {
+        if bytes.len() != 42 {
             return Err(());
         }
 
