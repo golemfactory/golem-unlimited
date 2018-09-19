@@ -17,9 +17,9 @@ extern crate serde;
 extern crate serde_json;
 extern crate sysinfo;
 
-#[cfg(feature="clinfo")]
+#[cfg(feature = "clinfo")]
 extern crate cl_sys;
-#[cfg(feature="clinfo")]
+#[cfg(feature = "clinfo")]
 extern crate smallvec;
 
 use gu_base::Module;
@@ -28,11 +28,12 @@ use futures::future;
 use gu_p2p::rpc::start_actor;
 
 pub mod actor;
-pub mod disk;
-pub mod gpu;
-pub mod ram;
+mod disk;
+mod gpu;
+mod inner_actor;
+mod ram;
 
-#[cfg(feature="clinfo")]
+#[cfg(feature = "clinfo")]
 pub mod clinfo;
 
 pub mod error {

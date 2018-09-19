@@ -10,9 +10,9 @@ use std::sync::Arc;
 use gu_base::Decorator;
 use gu_base::Module;
 use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
-use gu_p2p::rpc;
+use gu_p2p::{rpc, NodeId};
 //use gu_p2p::rpc::ws::ConnectionSupervisor;
-use gu_p2p::NodeId;
+use gu_hardware;
 use gu_persist::config::{
     ConfigManager, ConfigModule, Error as ConfigError, GetConfig, HasSectionId, SetConfig,
     SetConfigPath,
@@ -140,6 +140,14 @@ fn run_mdns_publisher(port: u16) {
     let _ = Box::leak(svc);
 }
 
+fn run_hardware_publisher() {
+    let hardware = Box::new(rpc::start_actor(
+        gu_hardware::actor::HardwareActor::default(),
+    ));
+
+    let _ = Box::leak(hardware);
+}
+
 struct ServerConfigurer {
     config_path: Option<String>,
     node_id: NodeId,
@@ -173,7 +181,9 @@ impl Actor for ServerConfigurer {
                             .scope("/m", rpc::mock::scope)
                     });
                     let _ = server.bind(c.p2p_addr()).unwrap().start();
+
                     run_mdns_publisher(c.p2p_port);
+                    run_hardware_publisher();
 
                     if let Some(hub_addr) = hub_addr {
                         config.do_send(SetConfig::new(ServerConfig {
