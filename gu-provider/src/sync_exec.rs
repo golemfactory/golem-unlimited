@@ -128,16 +128,14 @@ mod test {
                     .send(Exec {
                         executable: "/bin/echo".into(),
                         args: vec!["zima".into()],
-                    })
-                    .flatten_fut()
+                    }).flatten_fut()
                     .and_then(|o| {
                         assert!(o.status.success());
                         assert_eq!(o.status.code(), Some(0));
                         assert_eq!(String::from_utf8_lossy(&o.stdout), "zima\n");
                         assert_eq!(String::from_utf8_lossy(&o.stderr), "");
                         Ok(())
-                    })
-                    .map_err(|e| panic!("error: {}", e))
+                    }).map_err(|e| panic!("error: {}", e))
                     .then(|_| Ok(System::current().stop())),
             )
         });

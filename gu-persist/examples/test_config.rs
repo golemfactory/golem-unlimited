@@ -34,23 +34,21 @@ impl Actor for MyActor {
                         println!("stop app");
                         System::current().stop();
                         Ok(())
-                    })
-                    .map_err(|_| ()),
+                    }).map_err(|_| ()),
             ),
             Cmd::Put(key, v) => Box::new(
                 fs.send(gu_persist::storage::Put(
                     Cow::Owned(key.clone()),
                     v.bytes().collect(),
                 )).and_then(|v| {
-                        match v {
-                            Ok(b) => println!("ok"),
-                            Err(e) => println!("err {:?}", e),
-                        }
-                        println!("stop app");
-                        System::current().stop();
-                        Ok(())
-                    })
-                    .map_err(|_| ()),
+                    match v {
+                        Ok(b) => println!("ok"),
+                        Err(e) => println!("err {:?}", e),
+                    }
+                    println!("stop app");
+                    System::current().stop();
+                    Ok(())
+                }).map_err(|_| ()),
             ),
         };
 

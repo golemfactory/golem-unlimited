@@ -41,8 +41,7 @@ impl HdMan {
                 .filter_map(|p| match p.1.try_wait() {
                     Ok(Some(_exit_st)) => Some(p.0.clone()),
                     _ => None,
-                })
-                .collect();
+                }).collect();
             for f in finished {
                 sess_info.processes.remove(&f);
                 info!("finished {:?}; removing", f)
@@ -310,8 +309,7 @@ impl Handler<GetSessions> for HdMan {
                 status: session.status.clone(),
                 tags: session.tags.clone(),
                 note: session.note.clone(),
-            })
-            .collect())
+            }).collect())
     }
 }
 

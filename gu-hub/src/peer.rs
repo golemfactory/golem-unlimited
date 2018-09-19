@@ -80,8 +80,7 @@ fn list_peers<S>(r: HttpRequest<S>) -> impl Responder {
         .and_then(|res| {
             //debug!("res={:?}", res);
             Ok(HttpResponse::Ok().json(res))
-        })
-        .responder()
+        }).responder()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -100,8 +99,7 @@ fn peer_send(r: actix_web::Json<SendMessage>) -> impl Responder {
             r.node_id,
             public_destination(r.destination_id),
             r.body.clone(),
-        ))
-        .flatten_fut()
+        )).flatten_fut()
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| Ok(HttpResponse::Ok().json(res)))
         .responder()

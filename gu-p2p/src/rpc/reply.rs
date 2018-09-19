@@ -196,8 +196,7 @@ where
                     reply_to: Some(self.destination_id.clone()),
                     expires: None,
                     body: TransportResult::Request(body),
-                })
-                .flatten_fut()
+                }).flatten_fut()
                 .map_err(|e| SendError::body(e))
                 .into_actor(self)
                 .and_then(|msg_id, act, ctx| {
@@ -208,8 +207,7 @@ where
                     rx.map_err(|_| SendError::Canceled)
                         .and_then(|route_msg: RouteMessage<Result<String, TransportError>>| {
                             parse_body(route_msg.body)
-                        })
-                        .flatten_fut()
+                        }).flatten_fut()
                         .into_actor(act)
                 }),
         )
@@ -249,8 +247,7 @@ impl Handler<CallRemoteUntyped> for ReplyRouter {
                     ts: 0,
                     expires: None,
                     body: TransportResult::Request(body),
-                })
-                .flatten_fut()
+                }).flatten_fut()
                 .map_err(|e| SendError::body(e))
                 .into_actor(self)
                 .and_then(move |msg_id, act, ctx| {

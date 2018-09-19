@@ -1,8 +1,8 @@
 use actix::Message;
 use error::{ErrorKind, Result};
+use gu_persist::config::default_runtime_dir;
 use std::path::PathBuf;
 use sysinfo::{DiskExt, DiskType, SystemExt};
-use gu_persist::config::default_runtime_dir;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiskInfo {
@@ -74,7 +74,7 @@ pub struct DiskQuery {
 impl DiskQuery {
     pub fn new() -> Self {
         Self {
-            path: default_runtime_dir()
+            path: default_runtime_dir(),
         }
     }
 

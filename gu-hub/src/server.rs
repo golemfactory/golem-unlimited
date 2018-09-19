@@ -297,8 +297,7 @@ impl<T: de::DeserializeOwned + 'static> Handler<ResourceGet<T>> for ServerClient
                             .map_err(|e| ClientError::SendRequestError(e))
                             .and_then(|r| r.json::<T>().map_err(|e| ClientError::Json(e))),
                     )
-                })
-                .into_actor(self),
+                }).into_actor(self),
         )
     }
 }
