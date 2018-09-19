@@ -8,6 +8,7 @@ extern crate serde_derive;
 extern crate gu_actix;
 extern crate gu_base;
 extern crate gu_p2p;
+extern crate gu_persist;
 
 extern crate actix;
 extern crate actix_web;
@@ -17,18 +18,23 @@ extern crate serde;
 extern crate serde_json;
 extern crate sysinfo;
 
-#[cfg(feature="clinfo")]
+#[cfg(feature = "clinfo")]
 extern crate cl_sys;
-#[cfg(feature="clinfo")]
+#[cfg(feature = "clinfo")]
 extern crate smallvec;
 
+use futures::future;
+use futures::prelude::*;
+use gu_base::Module;
+use gu_p2p::rpc::start_actor;
 
 pub mod actor;
-pub mod disk;
-pub mod gpu;
-pub mod ram;
+mod disk;
+mod gpu;
+mod inner_actor;
+mod ram;
 
-#[cfg(feature="clinfo")]
+#[cfg(feature = "clinfo")]
 pub mod clinfo;
 
 pub mod error {
@@ -57,5 +63,23 @@ pub mod error {
         fn from(e: MailboxError) -> Self {
             ErrorKind::MailboxError(e).into()
         }
+    }
+}
+
+pub struct HardwareModule {
+    _inner: (),
+}
+
+pub fn module() -> HardwareModule {
+    HardwareModule { _inner: () }
+}
+
+impl Module for HardwareModule {
+    fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
+        gu_base::run_once(|| {
+            println!("start hwinfo");
+            let _ = start_actor(ram::RamActor);
+            let _ = start_actor(gpu::GpuActor);
+        })
     }
 }

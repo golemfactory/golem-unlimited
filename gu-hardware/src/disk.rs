@@ -1,23 +1,39 @@
-use actix::Actor;
-use actix::ActorResponse;
-use actix::Handler;
 use actix::Message;
-use error::Error;
 use error::{ErrorKind, Result};
-use gu_p2p::rpc::RemotingContext;
 use std::path::PathBuf;
 use sysinfo::{DiskExt, DiskType, SystemExt};
+use gu_persist::config::default_runtime_dir;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DiskInfo {
     available: u64,
     total: u64,
+    #[serde(with = "DiskTypeDef")]
     disk_type: DiskType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(remote = "DiskType")]
+enum DiskTypeDef {
+    /// HDD type.
+    HDD,
+    /// SSD type.
+    SSD,
+    /// Unknown type.
+    Unknown(isize),
 }
 
 impl DiskInfo {
     pub fn available(&self) -> u64 {
         self.available
+    }
+
+    pub fn total(&self) -> u64 {
+        self.total
+    }
+
+    pub fn disk_type(&self) -> DiskType {
+        self.disk_type
     }
 }
 
@@ -50,14 +66,16 @@ pub(crate) fn disk_info(sys: &impl SystemExt, path: PathBuf) -> Result<DiskInfo>
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DiskQuery {
     path: PathBuf,
 }
 
 impl DiskQuery {
-    pub fn new(path: PathBuf) -> Self {
-        Self { path }
+    pub fn new() -> Self {
+        Self {
+            path: default_runtime_dir()
+        }
     }
 
     pub fn path(self) -> PathBuf {
@@ -67,32 +85,4 @@ impl DiskQuery {
 
 impl Message for DiskQuery {
     type Result = Result<DiskInfo>;
-}
-
-#[derive(Default)]
-pub struct DiskActor;
-
-impl Actor for DiskActor {
-    type Context = RemotingContext<Self>;
-}
-
-impl Handler<DiskQuery> for DiskActor {
-    type Result = ActorResponse<Self, DiskInfo, Error>;
-
-    fn handle(
-        &mut self,
-        msg: DiskQuery,
-        _ctx: &mut Self::Context,
-    ) -> <Self as Handler<DiskQuery>>::Result {
-        use actix::{ArbiterService, WrapFuture};
-        use actor::HardwareActor;
-        use gu_actix::FlattenFuture;
-
-        ActorResponse::async(
-            HardwareActor::from_registry()
-                .send(msg)
-                .flatten_fut()
-                .into_actor(self),
-        )
-    }
 }

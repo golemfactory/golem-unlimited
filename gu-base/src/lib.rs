@@ -15,6 +15,7 @@ extern crate env_logger;
 
 pub mod cli;
 mod output;
+mod run_once;
 
 pub use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::future;
@@ -188,3 +189,5 @@ where
         }
     }
 }
+
+pub use run_once::run_once;
