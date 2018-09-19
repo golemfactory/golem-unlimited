@@ -31,7 +31,7 @@ pub struct Hardware {
 }
 
 impl Message for HardwareQuery {
-    type Result = Result<Hardware, ()>;
+    type Result = Result<Hardware, String>;
 }
 
 #[derive(Debug, Default)]
@@ -54,34 +54,34 @@ impl Actor for HardwareActor {
 fn gpu(
     query: GpuQuery,
     inner: &Addr<InnerActor>,
-) -> impl Future<Item = Option<GpuCount>, Error = ()> {
-    inner.send(query).flatten_fut().map_err(|_| ())
+) -> impl Future<Item = Option<GpuCount>, Error = String> {
+    inner.send(query).flatten_fut().map_err(|e| format!("{}", e))
 }
 
 fn ram(
     query: RamQuery,
     inner: &Addr<InnerActor>,
-) -> impl Future<Item = Option<RamInfo>, Error = ()> {
+) -> impl Future<Item = Option<RamInfo>, Error = String> {
     inner
         .send(query)
         .flatten_fut()
-        .map_err(|_| ())
+        .map_err(|e| format!("{}", e))
         .and_then(|r| Ok(Some(r)))
 }
 
 fn disk(
     query: DiskQuery,
     inner: &Addr<InnerActor>,
-) -> impl Future<Item = Option<DiskInfo>, Error = ()> {
+) -> impl Future<Item = Option<DiskInfo>, Error = String> {
     inner
         .send(query)
         .flatten_fut()
-        .map_err(|_| ())
-        .and_then(|r| Ok(Some(r)))
+        .map_err(|e| format!("{}", e))
+        .then(|r| Ok(r.ok()))
 }
 
 impl Handler<HardwareQuery> for HardwareActor {
-    type Result = ActorResponse<Self, Hardware, ()>;
+    type Result = ActorResponse<Self, Hardware, String>;
 
     fn handle(
         &mut self,
@@ -96,7 +96,7 @@ impl Handler<HardwareQuery> for HardwareActor {
                     ram(RamQuery::default(), &inner),
                     disk(DiskQuery::new(), &inner),
                 ).and_then(|(gpu, ram, disk)| {
-                    Ok(Hardware { gpu, ram, disk }).map_err(|_: ((), (), ())| ())
+                    Ok(Hardware { gpu, ram, disk })
                 }).into_actor(self),
         )
     }

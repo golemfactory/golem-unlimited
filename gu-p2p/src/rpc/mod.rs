@@ -7,6 +7,7 @@ pub mod reply;
 pub mod router;
 mod util;
 pub mod ws;
+mod monitor;
 
 mod error {
 

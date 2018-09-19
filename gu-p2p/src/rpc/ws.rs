@@ -17,6 +17,7 @@ use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::Add;
 use std::{net, time};
+use super::monitor;
 
 fn rpc_to_route<T>(peer_node_id: NodeId, rpc: wire::RpcMessage, body: T) -> RouteMessage<T> {
     RouteMessage {
@@ -228,6 +229,7 @@ struct Client {
     node_id: NodeId,
     peer_node_id: Option<NodeId>,
     writer: ws::ClientWriter,
+    monitor : monitor::Monitor
 }
 
 impl Client {
@@ -242,6 +244,7 @@ impl Client {
         info!("start connect");
         ws::Client::new(uri)
             .connect()
+            .conn_timeout(time::Duration::from_secs(15))
             .map_err(|e| {
                 error!("connect: {}", e);
                 ()
@@ -253,6 +256,7 @@ impl Client {
                         writer,
                         node_id,
                         peer_node_id: None,
+                        monitor: monitor::MonitorConfig::default().monitor()
                     }
                 });
 
@@ -281,7 +285,13 @@ impl Actor for Client {
             max_storage: None,
             exec_envs: Vec::new(),
         };
-        self.writer.binary(serialize_into_vec(&hello).unwrap())
+        self.writer.binary(serialize_into_vec(&hello).unwrap());
+
+        ctx.run_interval(time::Duration::from_secs(5), |act, ctx| match act.monitor.next_action() {
+            monitor::MonitorAction::SendPing(m) => act.writer.ping(&m),
+            monitor::MonitorAction::Stop => ctx.stop(),
+            monitor::MonitorAction::Continue => ()
+        });
     }
 }
 
@@ -291,6 +301,8 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Client {
 
         match item {
             ws::Message::Binary(b) => if self.peer_node_id.is_none() {
+                self.monitor.interaction();
+
                 match deserialize_from_slice::<wire::HelloReply>(b.as_ref()) {
                     Ok(hello) => {
                         info!("handshake for: {:?}", hello);
@@ -319,7 +331,11 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Client {
                 }
             },
             ws::Message::Ping(m) => {
+                self.monitor.interaction();
                 self.writer.pong(m.as_ref());
+            }
+            ws::Message::Pong(m) => {
+                self.monitor.pong(&m)
             }
             ws::Message::Close(r) => {
                 warn!("closed: {:?}", r);
@@ -396,7 +412,7 @@ pub fn start_connection(
 
 impl ConnectionSupervisor {
     fn check(&mut self, ctx: &mut <Self as Actor>::Context) {
-        debug!("check: {:?}", self.connection.is_some());
+
         self.connection = match self.connection.take() {
             Some(addr) => if addr.connected() {
                 Some(addr)
@@ -408,7 +424,6 @@ impl ConnectionSupervisor {
         };
 
         if self.connection.is_some() {
-            debug!("check ok");
             return;
         }
 
@@ -429,7 +444,7 @@ impl Actor for ConnectionSupervisor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        let _ = ctx.run_interval(time::Duration::from_secs(10), |act, ctx| act.check(ctx));
+        let _ = ctx.run_interval(time::Duration::from_secs(1), |act, ctx| act.check(ctx));
     }
 }
 

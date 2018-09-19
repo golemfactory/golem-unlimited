@@ -22,7 +22,7 @@ fn main() {
         Arbiter::spawn(
             actor
                 .send(query)
-                .map_err(|_| ())
+                .map_err(|e| format!("{}", e))
                 .and_then(|a| a)
                 .and_then(|res| Ok(println!("{:?}", res)))
                 .then(|_| Ok(System::current().stop())),
