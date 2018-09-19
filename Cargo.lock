@@ -898,6 +898,7 @@ dependencies = [
  "gu-actix 0.1.0",
  "gu-base 0.1.0",
  "gu-p2p 0.1.0",
+ "gu-persist 0.1.0",
  "log 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.78 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.78 (registry+https://github.com/rust-lang/crates.io-index)",
