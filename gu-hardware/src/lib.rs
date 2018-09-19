@@ -22,6 +22,10 @@ extern crate cl_sys;
 #[cfg(feature="clinfo")]
 extern crate smallvec;
 
+use gu_base::Module;
+use futures::prelude::*;
+use futures::future;
+use gu_p2p::rpc::start_actor;
 
 pub mod actor;
 pub mod disk;
@@ -57,5 +61,26 @@ pub mod error {
         fn from(e: MailboxError) -> Self {
             ErrorKind::MailboxError(e).into()
         }
+    }
+}
+
+pub struct HardwareModule {
+    _inner: ()
+}
+
+pub fn module() -> HardwareModule {
+    HardwareModule { _inner: ()}
+}
+
+impl Module for HardwareModule {
+
+
+
+    fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
+        gu_base::run_once(|| {
+            println!("start hwinfo");
+            let _ = start_actor(ram::RamActor);
+            let _ = start_actor(gpu::GpuActor);
+        })
     }
 }

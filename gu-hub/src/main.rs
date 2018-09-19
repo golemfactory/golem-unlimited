@@ -33,6 +33,8 @@ extern crate prettytable;
 
 extern crate flate2;
 
+extern crate gu_hardware;
+
 use clap::App;
 use gu_base::*;
 
@@ -48,6 +50,7 @@ fn main() {
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::rest_client::LanModule)
             .chain(peer::PeerModule::new())
+            .chain(gu_hardware::module())
             .chain(server::ServerModule::new()),
     );
 }
