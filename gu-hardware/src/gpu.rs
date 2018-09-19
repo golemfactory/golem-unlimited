@@ -1,12 +1,7 @@
 #![cfg(target_os = "linux")]
 
-use actix::Actor;
-use actix::ActorResponse;
-use actix::Handler;
 use actix::Message;
-use error::Error;
 use error::Result;
-use gu_p2p::rpc::RemotingContext;
 use std::fs::{read_dir, File, ReadDir};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
@@ -152,27 +147,4 @@ pub struct GpuQuery;
 
 impl Message for GpuQuery {
     type Result = Result<GpuCount>;
-}
-
-#[derive(Default)]
-pub struct GpuActor;
-
-impl Actor for GpuActor {
-    type Context = RemotingContext<Self>;
-}
-
-impl Handler<GpuQuery> for GpuActor {
-    type Result = ActorResponse<Self, GpuCount, Error>;
-
-    fn handle(
-        &mut self,
-        msg: GpuQuery,
-        _ctx: &mut Self::Context,
-    ) -> <Self as Handler<GpuQuery>>::Result {
-        use actix::{ArbiterService, WrapFuture};
-        use actor::HardwareActor;
-        use gu_actix::FlattenFuture;
-
-        ActorResponse::reply(discover_gpu_vendors())
-    }
 }
