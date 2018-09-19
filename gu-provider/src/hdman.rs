@@ -263,7 +263,8 @@ impl Handler<SessionUpdate> for HdMan {
                         info!("killing: {:?}", &child_id);
                         match act.get_session_mut(&session_id) {
                             Ok(session) => match session.processes.remove(&child_id) {
-                                Some(child) => fut::Either::A(fut::wrap_future(SyncExecManager::from_registry()
+                                Some(child) => fut::Either::A(
+                                    fut::wrap_future(SyncExecManager::from_registry()
                                         .send(Exec::Kill { child }))
                                         .map_err(|e, _act, _ctx| format!("{}", e)) // TODO: chain err
                                         .and_then(move |r, _act, _ctx| {
@@ -274,8 +275,12 @@ impl Handler<SessionUpdate> for HdMan {
                                                 }
                                                 Err(e) => fut::err(format!("{:?}", e))
                                             }
-                                        })),
-                                None => fut::Either::B(fut::err(format!("child {:?} not found", child_id))),
+                                        }),
+                                ),
+                                None => fut::Either::B(fut::err(format!(
+                                    "child {:?} not found",
+                                    child_id
+                                ))),
                             },
                             Err(e) => fut::Either::B(fut::err(format!("{:?}", e))),
                         }
