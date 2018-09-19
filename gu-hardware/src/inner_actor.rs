@@ -57,6 +57,6 @@ impl Handler<GpuQuery> for InnerActor {
         #[cfg(target_os = "linux")]
         return MessageResult(discover_gpu_vendors().map(|a| Some(a)));
         #[cfg(not(target_os = "linux"))]
-        return None;
+        return MessageResult(Ok(None));
     }
 }
