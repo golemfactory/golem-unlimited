@@ -155,8 +155,6 @@ where
         });
         future::ok(public_destination(1))
     }
-
-
 }
 
 struct AddrWrapper<A, T>

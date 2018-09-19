@@ -22,9 +22,9 @@ extern crate cl_sys;
 #[cfg(feature = "clinfo")]
 extern crate smallvec;
 
-use gu_base::Module;
-use futures::prelude::*;
 use futures::future;
+use futures::prelude::*;
+use gu_base::Module;
 use gu_p2p::rpc::start_actor;
 
 pub mod actor;
@@ -66,17 +66,14 @@ pub mod error {
 }
 
 pub struct HardwareModule {
-    _inner: ()
+    _inner: (),
 }
 
 pub fn module() -> HardwareModule {
-    HardwareModule { _inner: ()}
+    HardwareModule { _inner: () }
 }
 
 impl Module for HardwareModule {
-
-
-
     fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
         gu_base::run_once(|| {
             println!("start hwinfo");
