@@ -10,29 +10,18 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 //use std::sync::Arc;
 use super::sync_exec::{Exec, SyncExecManager};
+use gu_p2p::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
 use std::{io, process, time};
 use uuid::Uuid;
 
 pub struct SessionInfo {
     image: Image,
     name: String,
-    status: State,
+    status: PeerSessionStatus,
     dirty: bool,
     tags: Vec<String>,
     note: Option<String>,
     processes: HashMap<String, process::Child>,
-}
-
-pub enum State {
-    PENDING,
-    // during session creation
-    CREATED,
-    // after session creation, czysta
-    RUNNING,
-    // with at least one active child
-    DIRTY,
-    // when no child is running, but some commands were already executed
-    DESTROYING,
 }
 
 /// Host direct manager
@@ -64,7 +53,7 @@ impl HdMan {
     fn get_session_mut(&mut self, session_id: &String) -> Result<&mut SessionInfo, String> {
         match self.sessions.get_mut(session_id) {
             Some(session) => Ok(session),
-            None => return Err(format!("session_id {} not found", &session_id)),
+            None => Err(format!("session_id {} not found", &session_id)),
         }
     }
 }
@@ -84,6 +73,7 @@ impl Actor for HdMan {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.bind::<CreateSession>(CreateSession::ID);
         ctx.bind::<SessionUpdate>(SessionUpdate::ID);
+        ctx.bind::<GetSessions>(GetSessions::ID);
         ctx.run_interval(time::Duration::from_secs(10), |act, _| {
             act.scan_for_processes()
         });
@@ -158,7 +148,7 @@ impl Handler<CreateSession> for HdMan {
             SessionInfo {
                 image: msg.image.clone(),
                 name: msg.name,
-                status: State::PENDING,
+                status: PeerSessionStatus::PENDING,
                 dirty: false,
                 tags: msg.tags,
                 note: msg.note,
@@ -258,7 +248,7 @@ impl Handler<SessionUpdate> for HdMan {
                                 let child_id = Uuid::new_v4().to_string();
                                 session.processes.insert(child_id.clone(), child);
                                 session.dirty = true;
-                                session.status = State::RUNNING;
+                                session.status = PeerSessionStatus::RUNNING;
                                 v.push(child_id);
                                 fut::ok(v)
                             }
@@ -297,14 +287,32 @@ struct SessionStatus {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Status {}
+struct GetSessions {}
 
-impl Status {
-    const ID: u32 = 38;
+impl GetSessions {
+    const ID: u32 = 39;
 }
 
-impl Message for Status {
-    type Result = Result<HashMap<String, String>, String>;
+impl Message for GetSessions {
+    type Result = Result<Vec<PeerSessionInfo>, ()>; // TODO: error chain
+}
+
+impl Handler<GetSessions> for HdMan {
+    type Result = Result<Vec<PeerSessionInfo>, ()>;
+
+    fn handle(&mut self, _msg: GetSessions, _ctx: &mut Self::Context) -> Self::Result {
+        Ok(self
+            .sessions
+            .iter()
+            .map(|(id, session)| PeerSessionInfo {
+                id: id.clone(),
+                name: session.name.clone(),
+                status: session.status.clone(),
+                tags: session.tags.clone(),
+                note: session.note.clone(),
+            })
+            .collect())
+    }
 }
 
 #[derive(Serialize, Deserialize)]

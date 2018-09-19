@@ -12,12 +12,29 @@ pub struct PeerInfo {
     pub tags: Vec<String>,
 }
 
+pub enum State {
+    PENDING,
+
+    CREATED,
+
+    RUNNING,
+
+    DIRTY,
+
+    DESTROYING,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum PeerSessionStatus {
+    /// during session creation
     PENDING,
+    /// after session creation, czysta
     CREATED,
+    /// with at least one active child
     RUNNING,
+    /// DIRTY: when no child is running, but some commands were already executed
     CONFIGURED,
+    /// during session removal
     DESTROYING,
 }
 

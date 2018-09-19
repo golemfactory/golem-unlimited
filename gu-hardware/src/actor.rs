@@ -25,7 +25,6 @@ impl HardwareQuery {
 impl Default for HardwareQuery {
     fn default() -> Self {
         Self {
-
         }
     }
 }
