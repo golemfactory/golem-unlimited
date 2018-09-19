@@ -27,6 +27,7 @@ extern crate failure;
 extern crate gu_base;
 extern crate mdns;
 extern crate rand;
+extern crate semver;
 
 #[macro_use]
 extern crate prettytable;
@@ -41,6 +42,7 @@ use gu_base::*;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod peer;
+mod plugin;
 mod server;
 
 fn main() {
