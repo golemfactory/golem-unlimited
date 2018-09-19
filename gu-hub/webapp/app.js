@@ -19,14 +19,39 @@ var app = angular.module('gu', ['ui.bootstrap'])
         $scope.activeTab = tab;
       }
   })
-  .controller('ProvidersController', function($scope, $http) {
+  .controller('ProvidersController', function($scope, $http, hubApi) {
      $http.get('/peer').then(r => {
         $scope.peers = r.data;
+        angular.forEach(r.data, peer => $scope.updatePeer(peer));
 
-     })
+     });
+
+     $scope.updatePeer = function(peer) {
+        hubApi.callRemote(peer.nodeId, 19354, null)
+        .then(data=> {
+            if (data.Ok) {
+                peer.ram = data.Ok.ram;
+                peer.gpu = data.Ok.gpu;
+            }
+        });
+        hubApi.callRemote(peer.nodeId, 39, {})
+        //$http.post('/peer/send-to', {nodeId: peer.nodeId, destinationId: 39, body: {}})
+                .then(data=> {
+                    console.log('d', data)
+                });
+
+
+     };
 
      $scope.peers = [];
 
+  })
+  .service('hubApi', function($http) {
+        function callRemote(nodeId, destinationId, body) {
+            return $http.post('/peer/send-to/' + nodeId + '/' + destinationId, {b: body}).then(r => r.data);
+        }
+
+        return { callRemote: callRemote};
   })
   .service('pluginManager', function() {
         var plugins = [];
@@ -64,6 +89,12 @@ var app = angular.module('gu', ['ui.bootstrap'])
             save();
         }
 
+        function send(node_id) {
+            return function(destination, body) {
+                return $http.post('/peer/send-to', [node_id, destination, body]).then(r => r.data);
+            }
+        }
+
         function peers(session) {
             return $http.get('/peer').then(r => r.data);
         }
@@ -73,7 +104,9 @@ var app = angular.module('gu', ['ui.bootstrap'])
 
             angular.forEach(sessions, session => {
                 if (sessionType === session.type) {
-                    s.push(angular.copy(session));
+                    var sessionDto = angular.copy(session);
+                    sessionDto.send = send(session.nodeId);
+                    s.push(sessionDto);
                 }
             });
             return s;

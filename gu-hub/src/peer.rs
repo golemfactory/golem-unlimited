@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use actix_web::{self, http, AsyncResponder, HttpRequest, HttpResponse, Responder, Scope};
+use actix_web::{self, http,FromRequest, AsyncResponder, HttpRequest, HttpResponse, Responder, Scope, Path, Json};
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::cli;
@@ -69,6 +69,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .route("", http::Method::GET, list_peers)
         .route("/send-to", http::Method::POST, peer_send)
+        .route("/send-to/{nodeId}/{destinationId}", http::Method::POST, peer_send_path)
 }
 
 fn list_peers<S>(r: HttpRequest<S>) -> impl Responder {
@@ -85,27 +86,54 @@ fn list_peers<S>(r: HttpRequest<S>) -> impl Responder {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SendMessage {
     node_id: NodeId,
     destination_id: u32,
     body: JsonValue,
 }
 
-fn peer_send(r: actix_web::Json<SendMessage>) -> impl Responder {
+fn call_remote_ep(node_id : NodeId, destination_id : u32, arg : JsonValue) -> impl Future<Item=HttpResponse, Error=actix_web::Error> {
     use gu_p2p::rpc::public_destination;
     use gu_p2p::rpc::reply::*;
 
     ReplyRouter::from_registry()
         .send(CallRemoteUntyped(
-            r.node_id,
-            public_destination(r.destination_id),
-            r.body.clone(),
+            node_id,
+            public_destination(destination_id),
+            arg,
         ))
         .flatten_fut()
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| Ok(HttpResponse::Ok().json(res)))
+}
+
+fn peer_send(r: actix_web::Json<SendMessage>) -> impl Responder {
+    call_remote_ep(r.node_id, r.destination_id, r.into_inner().body)
         .responder()
 }
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EndpointAddr {
+    node_id: NodeId,
+    destination_id: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Envelope {
+    b: JsonValue
+}
+
+fn peer_send_path<S : 'static>(r : HttpRequest<S>) -> impl Responder {
+    let addr = Path::<EndpointAddr>::extract(&r).unwrap();
+    let body = Json::<Envelope>::extract(&r);
+
+    body.and_then(move |b | call_remote_ep(addr.node_id, addr.destination_id, b.into_inner().b))
+        .responder()
+}
+
 
 fn format_peer_table(peers: Vec<PeerInfo>) {
     let mut table = Table::new();

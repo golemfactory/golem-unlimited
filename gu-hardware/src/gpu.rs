@@ -148,4 +148,3 @@ pub struct GpuQuery;
 impl Message for GpuQuery {
     type Result = Result<GpuCount>;
 }
-

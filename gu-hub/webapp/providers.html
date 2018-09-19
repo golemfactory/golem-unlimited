@@ -9,15 +9,24 @@
                 <tr>
                     <th>Node Id</th>
                     <th>Connection</th>
+                    <th>RAM</th>
+                    <th>GPU</th>
                     <th>Sessions</th>
                     <th>Name</th>
                 </tr>
                 </thead>
                 <tbody>
                     <tr ng-repeat="peer in peers">
-                        <td><code><a href="#">{{peer.nodeId}}</a></code></td>
+                        <td><code><a href="#" ng-click="updatePeer(peer)">{{peer.nodeId}}</a></code></td>
                         <td>{{peer.peerAddr}}</td>
-                        <td>{{peer.sessions.length || 0}}</td>
+                        <td><span ng-if="peer.ram">
+                            <uib-progressbar type="success" value="peer.ram.used" max="peer.ram.total"></uib-progressbar>
+                            <span class="progress-label">
+                            {{peer.ram.free/1000/1000 | number: 1}} / {{peer.ram.total/1024/1000 | number: 1}} GB
+                            </span>
+                        </span></td>
+                        <td><span ng-if="!!peer.gpu">{{peer.gpu | json }}</span></td>
+                        <td>{{(peer.sessions.length || 0)}}</td>
                         <td>{{peer.nodeName}}</td>
                     </tr>
                 </tbody>
