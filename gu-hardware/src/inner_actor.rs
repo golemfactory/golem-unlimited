@@ -3,7 +3,7 @@ use actix::{Actor, ArbiterService, Context, Handler, Supervised};
 use sysinfo::{self, SystemExt};
 
 use disk::{disk_info, DiskQuery};
-#[cfg(target_os = "linux")]
+//#[cfg(target_os = "linux")]
 use gpu::{discover_gpu_vendors, GpuQuery};
 use ram::{ram_info, RamQuery};
 
@@ -47,7 +47,7 @@ impl Handler<DiskQuery> for InnerActor {
     }
 }
 
-#[cfg(target_os = "linux")]
+//#[cfg(target_os = "linux")]
 impl Handler<GpuQuery> for InnerActor {
     type Result = MessageResult<GpuQuery>;
 
