@@ -154,8 +154,7 @@ impl EthKeyStore for SafeEthKey {
                 key_pair,
                 file_path,
             })
-        })
-            .map_err(Error::from)
+        }).map_err(Error::from)
     }
 
     fn change_password(&self, new_pwd: &Password) -> Result<()> {

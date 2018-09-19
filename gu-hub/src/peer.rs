@@ -81,8 +81,7 @@ fn list_peers<S>(r: HttpRequest<S>) -> impl Responder {
         .and_then(|res| {
             //debug!("res={:?}", res);
             Ok(HttpResponse::Ok().json(res))
-        })
-        .responder()
+        }).responder()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -102,8 +101,7 @@ fn call_remote_ep(node_id : NodeId, destination_id : u32, arg : JsonValue) -> im
             node_id,
             public_destination(destination_id),
             arg,
-        ))
-        .flatten_fut()
+        )).flatten_fut()
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| Ok(HttpResponse::Ok().json(res)))
 }

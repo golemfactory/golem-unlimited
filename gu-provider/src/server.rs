@@ -196,8 +196,7 @@ impl Actor for ServerConfigurer {
                     }
 
                     Ok(())
-                })
-                .into_actor(self)
+                }).into_actor(self)
                 .and_then(|_, _, ctx| fut::ok(ctx.stop())),
         );
 

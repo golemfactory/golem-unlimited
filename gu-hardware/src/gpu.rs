@@ -1,5 +1,3 @@
-#![cfg(target_os = "linux")]
-
 use actix::Message;
 use error::Result;
 use std::fs::{read_dir, File, ReadDir};
@@ -118,8 +116,7 @@ fn raw_gpu_list(dir: ReadDir) -> Result<Vec<RawGpuInfo>> {
                 warn!("Error during PCI device check: {:?}", e);
                 None
             })
-        })
-        .collect())
+        }).collect())
 }
 
 fn decode_gpu_list(raw_gpus: &Vec<RawGpuInfo>) -> GpuCount {
@@ -146,5 +143,5 @@ pub fn discover_gpu_vendors() -> Result<GpuCount> {
 pub struct GpuQuery;
 
 impl Message for GpuQuery {
-    type Result = Result<GpuCount>;
+    type Result = Result<Option<GpuCount>>;
 }
