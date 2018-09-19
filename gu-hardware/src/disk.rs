@@ -65,7 +65,7 @@ pub(crate) fn disk_info(sys: &impl SystemExt, path: PathBuf) -> Result<DiskInfo>
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DiskQuery {
     path: PathBuf,
 }

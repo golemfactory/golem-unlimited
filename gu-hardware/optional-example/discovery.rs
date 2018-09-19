@@ -3,6 +3,7 @@ extern crate futures;
 extern crate gu_actix;
 extern crate gu_hardware;
 extern crate gu_p2p;
+extern crate serde_json;
 extern crate sysinfo;
 
 use actix::prelude::*;
@@ -21,7 +22,8 @@ fn main() {
         Arbiter::spawn(
             actor
                 .send(query)
-                .flatten_fut()
+                .map_err(|_| ())
+                .and_then(|a| a)
                 .and_then(|res| Ok(println!("{:?}", res)))
                 .then(|_| Ok(System::current().stop())),
         );

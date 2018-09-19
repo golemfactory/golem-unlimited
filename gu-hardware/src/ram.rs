@@ -31,7 +31,7 @@ pub(crate) fn ram_info(sys: &impl SystemExt) -> RamInfo {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct RamQuery;
 
 impl Message for RamQuery {

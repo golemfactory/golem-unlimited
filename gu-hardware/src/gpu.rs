@@ -142,7 +142,7 @@ pub fn discover_gpu_vendors() -> Result<GpuCount> {
     Ok(decode_gpu_list(&list))
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct GpuQuery;
 
 impl Message for GpuQuery {
