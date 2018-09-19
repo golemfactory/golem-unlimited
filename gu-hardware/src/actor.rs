@@ -16,12 +16,7 @@ use inner_actor::InnerActor;
 use ram::{RamInfo, RamQuery};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HardwareQuery {
-    #[cfg(target_os = "linux")]
-    gpu: Option<GpuQuery>,
-    ram: Option<RamQuery>,
-    disk: Option<DiskQuery>,
-}
+pub struct HardwareQuery;
 
 impl HardwareQuery {
     const ID: u32 = 19354;
@@ -30,10 +25,7 @@ impl HardwareQuery {
 impl Default for HardwareQuery {
     fn default() -> Self {
         Self {
-            #[cfg(target_os = "linux")]
-            gpu: Some(GpuQuery),
-            ram: Some(RamQuery),
-            disk: Some(DiskQuery::new("/".into())),
+
         }
     }
 }
@@ -46,9 +38,11 @@ enum Info {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Hardware {
-    #[cfg(target_os = "linux")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     gpu: Option<GpuCount>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     ram: Option<RamInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     disk: Option<DiskInfo>,
 }
 
@@ -73,24 +67,19 @@ impl Actor for HardwareActor {
     }
 }
 
-fn gpu(query: GpuQuery, inner: &Addr<InnerActor>) -> Box<Future<Item = Info, Error = ()>> {
-    Box::new(
+fn gpu(query: GpuQuery, inner: &Addr<InnerActor>) -> impl Future<Item = GpuCount, Error = ()> {
         inner
             .send(query)
             .flatten_fut()
-            .and_then(|res| Ok(Info::Gpu(res)))
-            .map_err(|_| ()),
+            .map_err(|_| ()
     )
 }
 
-fn ram(query: RamQuery, inner: &Addr<InnerActor>) -> Box<Future<Item = Info, Error = ()>> {
-    Box::new(
+fn ram(query: RamQuery, inner: &Addr<InnerActor>) -> impl Future<Item = RamInfo, Error = ()> {
         inner
             .send(query)
             .flatten_fut()
-            .and_then(|res| Ok(Info::Ram(res)))
-            .map_err(|_| ()),
-    )
+            .map_err(|_| ())
 }
 
 fn disk(query: DiskQuery, inner: &Addr<InnerActor>) -> Box<Future<Item = Info, Error = ()>> {
@@ -112,32 +101,18 @@ impl Handler<HardwareQuery> for HardwareActor {
         _ctx: &mut RemotingContext<Self>,
     ) -> <Self as Handler<HardwareQuery>>::Result {
         let inner = InnerActor::from_registry();
-        let mut vec = Vec::new();
-
-        if let Some(v) = msg.gpu {
-            vec.push(gpu(v, &inner))
-        }
-        if let Some(v) = msg.ram {
-            vec.push(ram(v, &inner))
-        }
-        if let Some(v) = msg.disk {
-            vec.push(disk(v, &inner))
-        }
 
         ActorResponse::async(
-            future::join_all(vec)
-                .and_then(|vec| {
-                    let mut result = Hardware::default();
-                    for elt in vec {
-                        match elt {
-                            Info::Gpu(r) => result.gpu = Some(r),
-                            Info::Ram(r) => result.ram = Some(r),
-                            Info::Disk(r) => result.disk = Some(r),
-                        }
-                    }
-                    Ok(result)
+            gpu(GpuQuery::default(), &inner).join(ram(RamQuery::default(), &inner))
+                .and_then(|(gpu, ram)| Ok(Hardware {
+                    gpu: Some(gpu), ram: Some(ram),
+                    disk: None,
                 })
-                .into_actor(self),
+                    .map_err(|_ : ((),())| ()))
+                .into_actor(self)
+
         )
     }
 }
+
+

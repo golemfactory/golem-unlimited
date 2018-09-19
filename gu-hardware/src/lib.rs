@@ -77,8 +77,7 @@ impl Module for HardwareModule {
     fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
         gu_base::run_once(|| {
             println!("start hwinfo");
-            let _ = start_actor(ram::RamActor);
-            let _ = start_actor(gpu::GpuActor);
+            let _ = start_actor(self::actor::HardwareActor::default());
         })
     }
 }

@@ -28,6 +28,7 @@ version="0.4"
 
 [dev-dependencies]
 gu-actix = { path = "../gu-actix" }
+serde_json = "1.0"
 
 [[example]]
 name="clinfo"
