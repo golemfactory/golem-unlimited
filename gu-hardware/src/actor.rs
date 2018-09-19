@@ -1,38 +1,23 @@
-use actix::{Actor, ArbiterService, Handler, Message};
+use actix::{
+    Actor, ActorFuture, ActorResponse, Addr, ArbiterService, Handler, Message, WrapFuture,
+};
+use actix_web::Error;
+use futures::future;
 use futures::Future;
-use gu_p2p::rpc::RemotingContext;
 use sysinfo::SystemExt;
 
-use actix::ActorFuture;
-use actix::ActorResponse;
-use actix::Addr;
-use actix::WrapFuture;
-use actix_web::Error;
 use disk::{DiskInfo, DiskQuery};
-use futures::future;
 use gpu::{GpuCount, GpuQuery};
 use gu_actix::flatten::FlattenFuture;
+use gu_p2p::rpc::RemotingContext;
 use inner_actor::InnerActor;
 use ram::{RamInfo, RamQuery};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HardwareQuery;
 
 impl HardwareQuery {
     const ID: u32 = 19354;
-}
-
-impl Default for HardwareQuery {
-    fn default() -> Self {
-        Self {
-        }
-    }
-}
-
-enum Info {
-    Gpu(GpuCount),
-    Ram(RamInfo),
-    Disk(DiskInfo),
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -66,29 +51,33 @@ impl Actor for HardwareActor {
     }
 }
 
-fn gpu(query: GpuQuery, inner: &Addr<InnerActor>) -> impl Future<Item = GpuCount, Error = ()> {
-        inner
-            .send(query)
-            .flatten_fut()
-            .map_err(|_| ()
-    )
+fn gpu(
+    query: GpuQuery,
+    inner: &Addr<InnerActor>,
+) -> impl Future<Item = Option<GpuCount>, Error = ()> {
+    inner.send(query).flatten_fut().map_err(|_| ())
 }
 
-fn ram(query: RamQuery, inner: &Addr<InnerActor>) -> impl Future<Item = RamInfo, Error = ()> {
-        inner
-            .send(query)
-            .flatten_fut()
-            .map_err(|_| ())
+fn ram(
+    query: RamQuery,
+    inner: &Addr<InnerActor>,
+) -> impl Future<Item = Option<RamInfo>, Error = ()> {
+    inner
+        .send(query)
+        .flatten_fut()
+        .map_err(|_| ())
+        .and_then(|r| Ok(Some(r)))
 }
 
-fn disk(query: DiskQuery, inner: &Addr<InnerActor>) -> Box<Future<Item = Info, Error = ()>> {
-    Box::new(
-        inner
-            .send(query)
-            .flatten_fut()
-            .and_then(|res| Ok(Info::Disk(res)))
-            .map_err(|_| ()),
-    )
+fn disk(
+    query: DiskQuery,
+    inner: &Addr<InnerActor>,
+) -> impl Future<Item = Option<DiskInfo>, Error = ()> {
+    inner
+        .send(query)
+        .flatten_fut()
+        .map_err(|_| ())
+        .and_then(|r| Ok(Some(r)))
 }
 
 impl Handler<HardwareQuery> for HardwareActor {
@@ -102,16 +91,13 @@ impl Handler<HardwareQuery> for HardwareActor {
         let inner = InnerActor::from_registry();
 
         ActorResponse::async(
-            gpu(GpuQuery::default(), &inner).join(ram(RamQuery::default(), &inner))
-                .and_then(|(gpu, ram)| Ok(Hardware {
-                    gpu: Some(gpu), ram: Some(ram),
-                    disk: None,
-                })
-                    .map_err(|_ : ((),())| ()))
-                .into_actor(self)
-
+            gpu(GpuQuery::default(), &inner)
+                .join3(
+                    ram(RamQuery::default(), &inner),
+                    disk(DiskQuery::new(), &inner),
+                ).and_then(|(gpu, ram, disk)| {
+                    Ok(Hardware { gpu, ram, disk }).map_err(|_: ((), (), ())| ())
+                }).into_actor(self),
         )
     }
 }
-
-

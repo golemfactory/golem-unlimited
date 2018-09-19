@@ -205,12 +205,10 @@ where
                     .then(move |r, act, ctx| match r {
                         Ok(b) => fut::ok(serde_json::to_string(&b).unwrap()),
                         Err(e) => fut::err(()),
-                    })
-                    .and_then(move |r, act, ctx: &mut <MessageRouter as Actor>::Context| {
+                    }).and_then(move |r, act, ctx: &mut <MessageRouter as Actor>::Context| {
                         m.do_reply(r, |reply| ctx.notify(reply));
                         fut::ok(())
-                    })
-                    .map_err(|e, act, ctx| println!("error: {:?}", e));
+                    }).map_err(|e, act, ctx| println!("error: {:?}", e));
                 ctx.spawn(f);
                 //ctx.spawn(f.into_actor(self));
             }
