@@ -8,6 +8,7 @@ extern crate serde_derive;
 extern crate gu_actix;
 extern crate gu_base;
 extern crate gu_p2p;
+extern crate gu_persist;
 
 extern crate actix;
 extern crate actix_web;

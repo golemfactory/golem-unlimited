@@ -46,6 +46,14 @@ fn default_config_dir() -> PathBuf {
     p.config_dir().into()
 }
 
+pub fn default_runtime_dir() -> PathBuf {
+    use directories::ProjectDirs;
+
+    let p = ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap();
+
+    p.runtime_dir().unwrap_or(p.cache_dir()).into()
+}
+
 impl Supervised for ConfigManager {}
 impl SystemService for ConfigManager {}
 

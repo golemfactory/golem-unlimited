@@ -33,7 +33,7 @@ impl Default for HardwareQuery {
             #[cfg(target_os = "linux")]
             gpu: Some(GpuQuery),
             ram: Some(RamQuery),
-            disk: Some(DiskQuery::new("/".into())),
+            disk: Some(DiskQuery::new()),
         }
     }
 }
