@@ -64,7 +64,7 @@ pub fn gpu_count() -> error::Result<GpuCount> {
                 gpu.intel += 1;
             } else if vendor == "AMD" {
                 gpu.amd += 1;
-            } else if (vendor == "NVIDIA Corporation") {
+            } else if vendor == "NVIDIA Corporation" {
                 gpu.nvidia += 1;
             } else {
                 eprintln!("vendor={}", vendor);
@@ -74,7 +74,7 @@ pub fn gpu_count() -> error::Result<GpuCount> {
         }))
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(not(target_os = "linux"))]
 #[cfg(not(feature = "clinfo"))]
 pub fn gpu_count() -> error::Result<GpuCount> {
     bail!("gpu detection unspuported on windows")

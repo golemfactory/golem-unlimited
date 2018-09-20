@@ -2,6 +2,10 @@
 name = "gu-provider"
 version = "0.1.1"
 
+[features]
+default=[]
+clinfo=["gu-hardware/clinfo"]
+
 [dependencies]
 futures="0.1"
 tokio-io="0.1"
@@ -33,9 +37,6 @@ gu-p2p = { path = "../gu-p2p" }
 gu-persist = { path = "../gu-persist" }
 gu-lan = { path = "../gu-lan"}
 gu-ethkey = { path = "../gu-ethkey"}
-
-[target.'cfg(target_os = "linux")'.dependencies]
 gu-hardware = { path = "../gu-hardware"}
 
-[target.'cfg(target_os = "macos")'.dependencies]
-gu-hardware = { path = "../gu-hardware", features=["clinfo"]}
+

@@ -1,6 +1,8 @@
+extern crate flate2;
+
 use std::io::prelude::*;
 use std::{env, fs, path};
-//use flate2;
+
 
 fn main() {
     let mut outf = fs::OpenOptions::new()

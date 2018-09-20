@@ -31,12 +31,12 @@
                         </span></td>
                         <td>
                             <span ng-if="!!peer.gpu">
-                                <span class="label label-default" ng-if="peer.gpu.amd">AMD</span>
-                                <span class="label label-default" ng-if="peer.gpu.nvidia">NVIDIA</span>
+                                <span class="label label-success" ng-if="peer.gpu.amd">AMD</span>
+                                <span class="label label-success" ng-if="peer.gpu.nvidia">NVIDIA</span>
                             </span>
                         </td>
                         <td>{{(peer.sessions.length || 0)}}</td>
-                        <td>{{peer.nodeName}}</td>
+                        <td>{{peer.nodeName || peer.hostname}}</td>
                     </tr>
                 </tbody>
             </table>

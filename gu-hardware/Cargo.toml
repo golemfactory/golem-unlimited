@@ -13,7 +13,6 @@ log = "0.4"
 actix = "0.7"
 error-chain = "0.12"
 futures = "0.1"
-smallvec = "0.6"
 clap = "2.32"
 serde = "1.0"
 serde_json = "1.0"
@@ -21,12 +20,17 @@ serde_derive = "1.0"
 actix-web = "0.7"
 hostname = "^0.1"
 
-[features]
-default=[]
-clinfo=[]
-
 [dependencies.cl-sys]
 version="0.4"
+optional=true
+
+[dependencies.smallvec]
+version="0.6"
+optional=true
+
+[features]
+default=[]
+clinfo=['cl-sys','smallvec']
 
 [dev-dependencies]
 gu-actix = { path = "../gu-actix" }

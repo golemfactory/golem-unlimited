@@ -35,10 +35,14 @@ var app = angular.module('gu', ['ui.bootstrap'])
      $scope.updatePeer = function(peer) {
         hubApi.callRemote(peer.nodeId, 19354, null)
         .then(data=> {
-            if (data.Ok) {
-                peer.ram = data.Ok.ram;
-                peer.gpu = data.Ok.gpu;
-                peer.os = data.Ok.os || peer.os;
+            var ok = data.Ok;
+            if (ok) {
+
+                peer.ram = ok.ram;
+                peer.gpu = ok.gpu;
+                peer.os = ok.os || peer.os;
+                peer.hostname = ok.hostname;
+
             }
         });
         hubApi.callRemote(peer.nodeId, 39, {})

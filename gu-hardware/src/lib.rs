@@ -19,9 +19,9 @@ extern crate serde;
 extern crate serde_json;
 extern crate sysinfo;
 
-#[cfg(feature = "clinfo")]
+#[cfg(feature="clinfo")]
 extern crate cl_sys;
-#[cfg(feature = "clinfo")]
+#[cfg(feature="clinfo")]
 extern crate smallvec;
 
 use futures::future;
@@ -76,6 +76,7 @@ pub fn module() -> HardwareModule {
 
 impl Module for HardwareModule {
     fn run<D: gu_base::Decorator + Clone + 'static>(&self, _decorator: D) {
+        info!("clinfo {}", cfg!(feature="clinfo"));
         gu_base::run_once(|| {
             let _ = start_actor(self::actor::HardwareActor::default());
         })

@@ -40,5 +40,5 @@ mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
 
 prettytable-rs="0.7"
 
-[dev-dependencies]
+[build-dependencies]
 flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
