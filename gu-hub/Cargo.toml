@@ -34,7 +34,7 @@ semver = { version = "0.9", features = ["serde"] }
 zip = "0.4"
 
 actix = "0.7"
-actix-web = {version= "0.7", features=["tls"]}
+actix-web = {version= "0.7"}
 
 mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
 
