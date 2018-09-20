@@ -1,9 +1,14 @@
-use actix::{Arbiter, System};
 use actix_web::{self, http, HttpRequest, Responder, Scope};
-use gu_base::{App, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_persist::config::ConfigModule;
 use semver::Version;
+use serde_json;
 use std::collections::HashMap;
+use std::fs;
+use std::fs::File;
+use std::path::Path;
 use std::path::PathBuf;
+use zip::ZipArchive;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -19,18 +24,20 @@ pub struct PluginManager {
 
 impl Default for PluginManager {
     fn default() -> Self {
+        let gu_version = Version::parse(env!("CARGO_PKG_VERSION"))
+            .expect("Failed to run UI Plugin Manager:\nCouldn't parse crate version");
+
         Self {
-            gu_version: Version::parse(env!("CARGO_PKG_VERSION"))
-                .expect("Failed to run UI Plugin Manager:\nCouldn't parse crate version"),
+            gu_version,
             plugins: HashMap::new(),
             command: Command::None,
-            // TODO: how to get information about the path?
-            directory: "/home/hubert/IdeaProjects/golem-unlimited/gu-hub/webapp/plug".into(),
+            directory: ConfigModule::new().work_dir().join("plugins"),
         }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct PluginMetadata {
     /// plugin name
     name: String,
@@ -102,26 +109,40 @@ enum PluginStatus {
 enum Command {
     None,
     List,
-    Install,
+    Install(PathBuf),
     Uninstall,
 }
 
 impl Module for PluginManager {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         app.subcommand(SubCommand::with_name("plugin").subcommands(vec![
-            SubCommand::with_name("install"),
+            SubCommand::with_name("install").arg(
+                Arg::with_name("archive")
+                    .takes_value(true)
+                    .short("a")
+                    .help("specifies path to archive")
+                    .required(true)
+            ),
+
             SubCommand::with_name("list"),
+
             SubCommand::with_name("uninstall"),
         ]))
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         if let Some(m) = matches.subcommand_matches("plugin") {
-            self.command = match m.subcommand_name() {
-                Some("list") => Command::List,
-                Some("install") => Command::Install,
-                Some("uninstall") => Command::Uninstall,
-                None => Command::None,
+            self.command = match m.subcommand() {
+                ("list", Some(_)) => Command::List,
+                ("install", Some(m)) => {
+                    let tar_path = PathBuf::from(
+                        m.value_of("archive")
+                            .expect("Lack of required `archive` argument"),
+                    );
+                    Command::Install(tar_path)
+                }
+                ("uninstall", Some(_)) => Command::Uninstall,
+                ("", None) => Command::None,
                 _ => return false,
             };
             true
@@ -130,13 +151,15 @@ impl Module for PluginManager {
         }
     }
 
-    fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
+    fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
         match self.command {
             Command::None => (),
             Command::List => {
                 println!("{:?}", self.plugins_list());
             }
-            Command::Install => (),
+            Command::Install(ref path) => {
+                println!("{:?}", self.install_plugin(path));
+            }
             Command::Uninstall => (),
         }
     }
@@ -154,16 +177,6 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     )
 }
 
-impl PluginManager {
-    fn plugins_list(&self) -> Vec<PluginInfo> {
-        let mut vec = Vec::new();
-        for plugin in self.plugins.values() {
-            vec.push(plugin.info())
-        }
-        vec
-    }
-}
-
 fn list_scope<S>(r: HttpRequest<S>) -> impl Responder {
     unimplemented!();
     ""
@@ -173,3 +186,89 @@ fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
     unimplemented!();
     ""
 }
+
+impl PluginManager {
+    fn plugins_list(&self) -> Vec<PluginInfo> {
+        let mut vec = Vec::new();
+        for plugin in self.plugins.values() {
+            vec.push(plugin.info())
+        }
+        vec
+    }
+
+    fn install_plugin(&self, path: &Path) -> Result<(), String> {
+        let zip_name = path
+            .file_name()
+            .ok_or_else(|| format!("Cannot get zip archive name"))?;
+        let metadata = extract_metadata(path)?;
+        if metadata.version > self.gu_version {
+            return Err(format!(
+                "Too low gu-app version ({}). Required {}",
+                self.gu_version, metadata.version
+            ));
+        }
+        contains_app_js(&path, &metadata.name)?;
+
+        fs::copy(&path, self.directory.join(zip_name))
+            .and_then(|_| Ok(()))
+            .map_err(|e| format!("Cannot copy zip archive: {:?}", e))
+    }
+}
+
+fn open_archive(path: &Path) -> Result<ZipArchive<File>, String> {
+    let file = File::open(path).map_err(|e| format!("Cannot open archive: {:?}", e))?;
+    ZipArchive::new(file).map_err(|e| format!("Cannot unzip file: {:?}", e))
+}
+
+fn extract_metadata(path: &Path) -> Result<PluginMetadata, String> {
+    let mut archive = open_archive(path)?;
+
+    let metadata_file = archive
+        .by_name("gu-plugin.json")
+        .map_err(|e| format!("Cannot read gu-plugin.json file: {:?}", e))?;
+
+    serde_json::from_reader(metadata_file)
+        .map_err(|e| format!("Cannot parse gu-plugin.json file: {:?}", e))
+}
+
+fn contains_app_js(path: &Path, name: &String) -> Result<(), String> {
+    let mut archive = open_archive(path)?;
+    let mut app_name = name.clone();
+    app_name.push_str("/app.js");
+
+    archive
+        .by_name(app_name.as_ref())
+        .map_err(|e| format!("Cannot read {} file: {:?}", app_name, e))?;
+
+    Ok(())
+}
+
+/*
+fn extract_files(path: &Path, name: &String, target: &PathBuf) -> Result<(), String> {
+    println!("in {:?}", target);
+    let mut archive = open_archive(path)?;
+    let app_dir = target.join(name);
+
+    fs::create_dir_all(app_dir)
+        .map_err(|e| format!("Couldn't create plugin directory {:?}", e))?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)
+            .map_err(|e| warn!("Error during unzip: {:?}", e));
+
+        if file.is_err() {
+            continue
+        }
+        let mut file = file.unwrap();
+        let out_path = file.sanitized_name();
+
+        if out_path.parent().is_some() && out_path.parent().unwrap().to_path_buf() == PathBuf::from(name) {
+            let mut outfile = fs::File::create(target.join(out_path))
+                .map_err(|e| format!("Couldn't create plugin file {:?}", e))?;
+            io::copy(&mut file, &mut outfile)
+                .map_err(|e| format!("Couldn't write plugin file {:?}", e))?;
+        }
+    }
+
+    Ok(())
+}*/

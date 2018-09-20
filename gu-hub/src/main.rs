@@ -28,6 +28,7 @@ extern crate gu_base;
 extern crate mdns;
 extern crate rand;
 extern crate semver;
+extern crate zip;
 
 #[macro_use]
 extern crate prettytable;
