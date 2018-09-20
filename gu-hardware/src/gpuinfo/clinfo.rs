@@ -1,9 +1,21 @@
 use cl_sys::*;
 use smallvec::{Array, SmallVec};
-use std::ptr;
+use std::{error, fmt, ptr};
 
 #[derive(Debug)]
 pub struct Error(cl_int);
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        "openCL error"
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "opencl err_code={}", self.0)
+    }
+}
 
 type PlatformsInner = SmallVec<[cl_platform_id; 2]>;
 pub struct Platforms(<PlatformsInner as IntoIterator>::IntoIter);

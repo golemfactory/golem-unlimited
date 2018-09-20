@@ -10,7 +10,10 @@ function guid() {
 
 var app = angular.module('gu', ['ui.bootstrap'])
   .controller('AppController', function($scope, pluginManager) {
-      $scope.tabs = [{name: 'Status', page: 'status.html'}, {name: 'Providers', page: 'providers.html'}];
+      $scope.tabs = [
+        {icon: 'glyphicon glyphicon-home', name: 'Status', page: 'status.html'},
+        {icon: 'glyphicon glyphicon-th', name: 'Providers', page: 'providers.html'}
+      ];
       $scope.pluginTabs = pluginManager.getTabs();
 
       $scope.activeTab =  $scope.tabs[0];
@@ -20,11 +23,14 @@ var app = angular.module('gu', ['ui.bootstrap'])
       }
   })
   .controller('ProvidersController', function($scope, $http, hubApi) {
-     $http.get('/peer').then(r => {
-        $scope.peers = r.data;
-        angular.forEach(r.data, peer => $scope.updatePeer(peer));
+     function refresh() {
+        $http.get('/peer').then(r => {
+            $scope.peers = r.data;
+            angular.forEach(r.data, peer => $scope.updatePeer(peer));
+        });
+     }
 
-     });
+     $scope.refresh = refresh;
 
      $scope.updatePeer = function(peer) {
         hubApi.callRemote(peer.nodeId, 19354, null)
@@ -32,18 +38,17 @@ var app = angular.module('gu', ['ui.bootstrap'])
             if (data.Ok) {
                 peer.ram = data.Ok.ram;
                 peer.gpu = data.Ok.gpu;
+                peer.os = data.Ok.os || peer.os;
             }
         });
         hubApi.callRemote(peer.nodeId, 39, {})
-        //$http.post('/peer/send-to', {nodeId: peer.nodeId, destinationId: 39, body: {}})
                 .then(data=> {
                     console.log('d', data)
                 });
-
-
      };
 
      $scope.peers = [];
+     refresh();
 
   })
   .service('hubApi', function($http) {
@@ -78,6 +83,31 @@ var app = angular.module('gu', ['ui.bootstrap'])
             window.localStorage.setItem('gu:sessions', JSON.stringify(sessions));
         }
 
+        function cleanPeer(peer) {
+            return {nodeId: peer.nodeId};
+        }
+
+        function cleanPeers(inPeers) {
+            var peers = [];
+            angular.forEach(inPeers, peer => peers.push(cleanPeer(peer)));
+
+            return peers;
+        }
+
+        function updateSession(moduleSession, newStatus, updates) {
+            console.log('updateSession', moduleSession, newStatus, updates);
+            angular.forEach(sessions, session => {
+                if (session.id === moduleSession.id) {
+                    if (updates.peers) {
+                        session.peers = cleanPeers(updates.peers);
+                    }
+                    session.status = newStatus;
+                    angular.copy(session, moduleSession);
+                }
+            });
+            save();
+        }
+
         function create(sessionType, env) {
             var session = {
                 id: guid(),
@@ -95,9 +125,27 @@ var app = angular.module('gu', ['ui.bootstrap'])
             }
         }
 
-        function peers(session) {
+        function peers(session, needDetails) {
             return $http.get('/peer').then(r => r.data);
+            if (needDetails) {
+                angular.forEach(r.data, peer => peerDetails(peer));
+            }
         }
+
+        function peerDetails(peer) {
+                hubApi.callRemote(peer.nodeId, 19354, null)
+                .then(data=> {
+                    if (data.Ok) {
+                        peer.ram = data.Ok.ram;
+                        peer.gpu = data.Ok.gpu;
+                    }
+                });
+                hubApi.callRemote(peer.nodeId, 39, {})
+                        .then(data=> {
+                            console.log('d', data)
+                        });
+        };
+
 
         function listSessions(sessionType) {
             var s = [];
@@ -112,5 +160,11 @@ var app = angular.module('gu', ['ui.bootstrap'])
             return s;
         }
 
-        return { create: create, peers: peers, sessions: listSessions }
+        return {
+            create: create,
+            peers: peers,
+            sessions: listSessions,
+            peerDetails: peerDetails,
+            updateSession: updateSession
+         }
   });

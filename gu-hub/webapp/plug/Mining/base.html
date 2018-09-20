@@ -30,7 +30,7 @@
                     <div ng-include="'plug/Mining/session.html'"></div>
                 </uib-tab>
                 <uib-tab ng-show="!!session" heading="{{session.id}}">
-                    {{session|json}}
+                    <div ng-include="sessionPage(session)"/>
                 </uib-tab>
 
             </uib-tabset>

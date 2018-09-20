@@ -7,6 +7,7 @@ use super::error;
 use super::message::{
     EmitMessage, MessageId, NodeId, RouteMessage, TransportError, TransportResult,
 };
+use super::monitor;
 use super::peer::{self, PeerManager};
 use super::router::{AddEndpoint, DelEndpoint, MessageRouter};
 use actix::prelude::*;
@@ -17,7 +18,6 @@ use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::Add;
 use std::{net, time};
-use super::monitor;
 
 fn rpc_to_route<T>(peer_node_id: NodeId, rpc: wire::RpcMessage, body: T) -> RouteMessage<T> {
     RouteMessage {
@@ -229,7 +229,7 @@ struct Client {
     node_id: NodeId,
     peer_node_id: Option<NodeId>,
     writer: ws::ClientWriter,
-    monitor : monitor::Monitor
+    monitor: monitor::Monitor,
 }
 
 impl Client {
@@ -256,7 +256,7 @@ impl Client {
                         writer,
                         node_id,
                         peer_node_id: None,
-                        monitor: monitor::MonitorConfig::default().monitor()
+                        monitor: monitor::MonitorConfig::default().monitor(),
                     }
                 });
 
@@ -287,10 +287,12 @@ impl Actor for Client {
         };
         self.writer.binary(serialize_into_vec(&hello).unwrap());
 
-        ctx.run_interval(time::Duration::from_secs(5), |act, ctx| match act.monitor.next_action() {
-            monitor::MonitorAction::SendPing(m) => act.writer.ping(&m),
-            monitor::MonitorAction::Stop => ctx.stop(),
-            monitor::MonitorAction::Continue => ()
+        ctx.run_interval(time::Duration::from_secs(5), |act, ctx| {
+            match act.monitor.next_action() {
+                monitor::MonitorAction::SendPing(m) => act.writer.ping(&m),
+                monitor::MonitorAction::Stop => ctx.stop(),
+                monitor::MonitorAction::Continue => (),
+            }
         });
     }
 }
@@ -334,9 +336,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Client {
                 self.monitor.interaction();
                 self.writer.pong(m.as_ref());
             }
-            ws::Message::Pong(m) => {
-                self.monitor.pong(&m)
-            }
+            ws::Message::Pong(m) => self.monitor.pong(&m),
             ws::Message::Close(r) => {
                 warn!("closed: {:?}", r);
                 ctx.stop()
@@ -412,7 +412,6 @@ pub fn start_connection(
 
 impl ConnectionSupervisor {
     fn check(&mut self, ctx: &mut <Self as Actor>::Context) {
-
         self.connection = match self.connection.take() {
             Some(addr) => if addr.connected() {
                 Some(addr)

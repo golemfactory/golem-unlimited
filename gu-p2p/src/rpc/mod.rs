@@ -2,12 +2,12 @@ mod connection;
 mod context;
 mod message;
 pub mod mock;
+mod monitor;
 pub mod peer;
 pub mod reply;
 pub mod router;
 mod util;
 pub mod ws;
-mod monitor;
 
 mod error {
 

@@ -48,7 +48,7 @@ pub enum Exec {
 #[derive(Debug)]
 pub enum ExecResult {
     Run(process::Output),
-    Kill(String)
+    Kill(String),
 }
 
 impl Message for Exec {
@@ -93,7 +93,7 @@ impl Handler<Exec> for SyncExec {
                     Err(e) => Err(e.into()),
                 }
             }
-            Exec::Kill ( mut child ) => child
+            Exec::Kill(mut child) => child
                 .kill()
                 .and_then(|_| child.wait().map_err(From::from))
                 .and_then(|_| Ok(ExecResult::Kill("Killed".into())))
@@ -123,7 +123,7 @@ impl From<MailboxError> for Error {
 
 #[cfg(test)]
 mod test {
-    use super::{SyncExecManager, Exec, ExecResult};
+    use super::{Exec, ExecResult, SyncExecManager};
     use actix::prelude::*;
     use futures::Future;
     use gu_actix::flatten::FlattenFuture;
@@ -137,28 +137,26 @@ mod test {
                         executable: "/bin/echo".into(),
                         args: vec!["zima".into()],
                     }).flatten_fut()
-                    .and_then(|o : ExecResult| {
-                        match o {
-                            ExecResult::Run(o) => {
-                                assert!(o.status.success());
-                                assert_eq!(o.status.code(), Some(0));
-                                assert_eq!(String::from_utf8_lossy(&o.stdout), "zima\n");
-                                assert_eq!(String::from_utf8_lossy(&o.stderr), "");
-                                Ok(())
-                            }
-                            r => panic!("wrong result: {:?}", r)
+                    .and_then(|o: ExecResult| match o {
+                        ExecResult::Run(o) => {
+                            assert!(o.status.success());
+                            assert_eq!(o.status.code(), Some(0));
+                            assert_eq!(String::from_utf8_lossy(&o.stdout), "zima\n");
+                            assert_eq!(String::from_utf8_lossy(&o.stderr), "");
+                            Ok(())
                         }
+                        r => panic!("wrong result: {:?}", r),
                     }).map_err(|e| panic!("error: {}", e))
                     .then(|_| Ok(System::current().stop())),
             )
         });
     }
 
-//    #[test]
-//    fn test_map_and_map_err() {
-//        let mut v = Vec::new();
-//        Ok("foo".to_string())
-//            .map(|i| {v.push(i); v})
-//            .map_err(|e : String| {v.push(e); v});
-//    }
+    //    #[test]
+    //    fn test_map_and_map_err() {
+    //        let mut v = Vec::new();
+    //        Ok("foo".to_string())
+    //            .map(|i| {v.push(i); v})
+    //            .map_err(|e : String| {v.push(e); v});
+    //    }
 }

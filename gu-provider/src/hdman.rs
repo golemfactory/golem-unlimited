@@ -9,7 +9,7 @@ use gu_persist::config::ConfigModule;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 //use std::sync::Arc;
-use super::sync_exec::{SyncExecManager, Exec, ExecResult};
+use super::sync_exec::{Exec, ExecResult, SyncExecManager};
 use gu_p2p::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
 use std::{io, process, time};
 use uuid::Uuid;
@@ -219,9 +219,11 @@ impl Handler<SessionUpdate> for HdMan {
     type Result = ActorResponse<HdMan, Vec<String>, Vec<String>>;
 
     fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
-
         if !self.sessions.contains_key(&msg.session_id) {
-            return ActorResponse::reply(Err(vec!(format!("session_id {} not found", &msg.session_id))));
+            return ActorResponse::reply(Err(vec![format!(
+                "session_id {} not found",
+                &msg.session_id
+            )]));
         }
 
         let mut future_chain: Box<
@@ -239,8 +241,10 @@ impl Handler<SessionUpdate> for HdMan {
                         SyncExecManager::from_registry()
                             .send(Exec::Run { executable, args })
                             .flatten_fut()
-                            .map_err(|e| {vc.push(format!("{}", e)); vc})
-                            .into_actor(act)
+                            .map_err(|e| {
+                                vc.push(format!("{}", e));
+                                vc
+                            }).into_actor(act)
                             .and_then(move |result, act, _ctx| {
                                 info!("sync cmd result: {:?}", result);
                                 if let ExecResult::Run(output) = result {
@@ -293,44 +297,52 @@ impl Handler<SessionUpdate> for HdMan {
                         match act.get_session_mut(&session_id) {
                             Ok(session) => match session.processes.remove(&child_id) {
                                 Some(child) => fut::Either::A(
-                                    fut::wrap_future(SyncExecManager::from_registry()
-                                        .send(Exec::Kill(child)))
-                                        .map_err(|e, _act : &mut Self, _ctx| { vc.push(format!("{}", e)); vc})
-                                        .and_then(move |result, act, _ctx| {
-                                                    if let Ok(ExecResult::Kill(output)) = result {
-                                                        match act.get_session_mut(&session_id) {
-                                                            Ok(mut session) => {
-                                                                if session.processes.is_empty() {
-                                                                    session.status = PeerSessionStatus::CONFIGURED;
-                                                                };
-                                                                v.push(output);
-                                                                fut::ok(v)
-                                                            }
-                                                            Err(e) => {
-                                                                v.push(format!("{:?}", e));
-                                                                fut::err(v)
-                                                            }
-                                                        }
-                                                    } else {
-                                                        v.push(format!("wrong result {:?}", result));
+                                    fut::wrap_future(
+                                        SyncExecManager::from_registry().send(Exec::Kill(child)),
+                                    ).map_err(|e, _act: &mut Self, _ctx| {
+                                        vc.push(format!("{}", e));
+                                        vc
+                                    }).and_then(
+                                        move |result, act, _ctx| {
+                                            if let Ok(ExecResult::Kill(output)) = result {
+                                                match act.get_session_mut(&session_id) {
+                                                    Ok(mut session) => {
+                                                        if session.processes.is_empty() {
+                                                            session.status =
+                                                                PeerSessionStatus::CONFIGURED;
+                                                        };
+                                                        v.push(output);
+                                                        fut::ok(v)
+                                                    }
+                                                    Err(e) => {
+                                                        v.push(format!("{:?}", e));
                                                         fut::err(v)
                                                     }
-                                        }),
+                                                }
+                                            } else {
+                                                v.push(format!("wrong result {:?}", result));
+                                                fut::err(v)
+                                            }
+                                        },
+                                    ),
                                 ),
                                 None => {
-                                    v.push(format!("child {:?} not found",child_id));
+                                    v.push(format!("child {:?} not found", child_id));
                                     fut::Either::B(fut::err(v))
-                                },
+                                }
                             },
                             Err(e) => {
                                 v.push(format!("{:?}", e));
                                 fut::Either::B(fut::err(v))
-                            },
+                            }
                         }
                     }));
                 }
                 cmd => {
-                    return ActorResponse::reply(Err(vec!(format!("command {:?} unsupported", cmd))));
+                    return ActorResponse::reply(Err(vec![format!(
+                        "command {:?} unsupported",
+                        cmd
+                    )]));
                 }
             }
         }

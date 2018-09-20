@@ -1,22 +1,20 @@
-
-use std::sync::Arc;
-use std::time::{Instant, Duration};
 use rand::*;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 #[derive(Clone)]
 pub struct MonitorConfig {
-    pub max_wait_time : Duration,
-    pub max_no_interaction_time : Duration,
+    pub max_wait_time: Duration,
+    pub max_no_interaction_time: Duration,
 }
 
 impl MonitorConfig {
-
     pub fn monitor(&self) -> Monitor {
         Monitor {
             last_interaction: None,
             pending_pong: None,
             next_wait_time: Duration::default(),
-            configuration: self.clone()
+            configuration: self.clone(),
         }
     }
 }
@@ -31,24 +29,25 @@ impl Default for MonitorConfig {
 }
 
 pub struct Monitor {
-    last_interaction : Option<Instant>,
-    pending_pong : Option<(String, Instant)>,
-    next_wait_time : Duration,
-    configuration : MonitorConfig
+    last_interaction: Option<Instant>,
+    pending_pong: Option<(String, Instant)>,
+    next_wait_time: Duration,
+    configuration: MonitorConfig,
 }
 
 pub enum MonitorAction {
     Continue,
     SendPing(String),
-    Stop
+    Stop,
 }
 
 impl Monitor {
-
     fn need_interaction(&self) -> bool {
         match self.last_interaction {
-            Some(ts) => Instant::now().duration_since(ts) > self.configuration.max_no_interaction_time,
-            None => true
+            Some(ts) => {
+                Instant::now().duration_since(ts) > self.configuration.max_no_interaction_time
+            }
+            None => true,
         }
     }
 
@@ -56,10 +55,10 @@ impl Monitor {
         self.last_interaction = Some(Instant::now())
     }
 
-    pub fn pong(&mut self, text : &str) {
+    pub fn pong(&mut self, text: &str) {
         let is_valid = match &self.pending_pong {
             Some((ping_text, _)) => ping_text == text,
-            None => false
+            None => false,
         };
         if is_valid {
             self.pending_pong = None;
@@ -73,15 +72,14 @@ impl Monitor {
         match self.pending_pong.take() {
             Some((s, ts)) => if now.duration_since(ts) > self.configuration.max_wait_time {
                 return MonitorAction::Stop;
-            }
-            else {
+            } else {
                 return MonitorAction::Continue;
             },
-            None => ()
+            None => (),
         }
 
         if self.need_interaction() {
-            let rnd_val : [u64;2] = thread_rng().gen();
+            let rnd_val: [u64; 2] = thread_rng().gen();
             let ping_text = format!("{:x}{:x}", rnd_val[0], rnd_val[1]);
 
             self.pending_pong = Some((ping_text.clone(), now));

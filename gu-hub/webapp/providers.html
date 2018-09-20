@@ -1,7 +1,8 @@
 <div class="col-md-12" ng-controller="ProvidersController">
     <div class="panel panel-default">
         <div class="panel-heading">
-            Providers
+            <div class="pull-right"><a class="btn btn-sm btn-default" href="#" ng-click="refresh()"><i class="glyphicon glyphicon-refresh"></i></a></div>
+            <h4><i class="glyphicon glyphicon-th"></i> Providers</h4>
         </div>
         <div class="panel-body">
             <table class="table">
@@ -16,8 +17,11 @@
                 </tr>
                 </thead>
                 <tbody>
-                    <tr ng-repeat="peer in peers">
-                        <td><code><a href="#" ng-click="updatePeer(peer)">{{peer.nodeId}}</a></code></td>
+                    <tr ng-repeat="peer in peers track by peer.nodeId">
+                        <td>
+                            <code><a href="#" ng-click="updatePeer(peer)">{{peer.nodeId}}</a></code>
+                            <span class="label label-default" ng-if="!!peer.os">{{peer.os}}</span>
+                        </td>
                         <td>{{peer.peerAddr}}</td>
                         <td><span ng-if="peer.ram">
                             <uib-progressbar type="success" value="peer.ram.used" max="peer.ram.total"></uib-progressbar>
@@ -25,7 +29,12 @@
                             {{peer.ram.free/1000/1000 | number: 1}} / {{peer.ram.total/1024/1000 | number: 1}} GB
                             </span>
                         </span></td>
-                        <td><span ng-if="!!peer.gpu">{{peer.gpu | json }}</span></td>
+                        <td>
+                            <span ng-if="!!peer.gpu">
+                                <span class="label label-default" ng-if="peer.gpu.amd">AMD</span>
+                                <span class="label label-default" ng-if="peer.gpu.nvidia">NVIDIA</span>
+                            </span>
+                        </td>
                         <td>{{(peer.sessions.length || 0)}}</td>
                         <td>{{peer.nodeName}}</td>
                     </tr>

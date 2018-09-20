@@ -14,6 +14,7 @@ extern crate actix;
 extern crate actix_web;
 extern crate clap;
 extern crate futures;
+extern crate hostname;
 extern crate serde;
 extern crate serde_json;
 extern crate sysinfo;
@@ -30,12 +31,9 @@ use gu_p2p::rpc::start_actor;
 
 pub mod actor;
 mod disk;
-mod gpu;
+pub mod gpuinfo;
 mod inner_actor;
 mod ram;
-
-#[cfg(feature = "clinfo")]
-pub mod clinfo;
 
 pub mod error {
     use actix::MailboxError;
@@ -45,6 +43,8 @@ pub mod error {
         foreign_links {
             IoError(std::io::Error);
             StripPrefixError(std::path::StripPrefixError);
+
+            CLError(super::gpuinfo::ClError) #[cfg(feature="clinfo")];
         }
 
         errors {
@@ -77,7 +77,6 @@ pub fn module() -> HardwareModule {
 impl Module for HardwareModule {
     fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
         gu_base::run_once(|| {
-            println!("start hwinfo");
             let _ = start_actor(self::actor::HardwareActor::default());
         })
     }

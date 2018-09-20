@@ -1,0 +1,40 @@
+<div ng-controller="MiningPrepare">
+    <div class="row">
+        <div class="col-md-12">
+            <span class="text-mute">Preselection</span>
+            <i class="glyphicon glyphicon-menu-right"></i>
+            <b>Benchmark and tests</b>
+            <i class="glyphicon glyphicon-menu-right"></i>
+            Deployment
+            <div class="pull-right" style="padding: 8px;">
+                <button class="btn btn-default" ng-class="{'disabled': blockNext(peers)}" ng-click="nextStep()">Start</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <table class="table table-border">
+                <thead>
+                <tr>
+                    <th>Node Id</th>
+                    <th>RAM</th>
+                    <th>GPU</th>
+                    <th>Monero Hashrate</th>
+                    <th>ETH Hashrate</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr ng-repeat="peer in peers track by peer.nodeId">
+                    <td><code>{{peer.nodeId}}</code></td>
+                    <td></td>
+                    <td></td>
+                    <td><span class="label label-default">pending</span></td>
+                    <td><span class="label label-default">pending</span></td>
+
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

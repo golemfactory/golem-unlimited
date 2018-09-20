@@ -1,0 +1,51 @@
+<div ng-controller="MiningPreselection">
+<div class="row">
+    <div class="col-md-12">
+        <b>Preselection</b><i class="glyphicon glyphicon-menu-right"></i>
+        <span class="text-mute">Benchmark and tests</span> <i class="glyphicon glyphicon-menu-right"></i>
+        Deployment
+        <div class="pull-right" style="padding: 8px;">
+            <button class="btn btn-default" ng-class="{'disabled': blockNext(peers)}" ng-click="nextStep()">Test Selected Nodes</button>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+    <table class="table">
+        <thead>
+        <tr>
+            <th><input type="checkbox" ng-model="all">Node Id</th>
+            <th>Connection</th>
+            <th>RAM</th>
+            <th>GPU</th>
+            <th>Sessions</th>
+            <th>Name</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr ng-repeat="peer in peers track by peer.nodeId">
+            <td><input type="checkbox" ng-model="peer.assigned"><code>{{peer.nodeId}}</code></td>
+            <td>{{peer.peerAddr}}</td>
+            <td><span ng-if="peer.ram">
+                            <uib-progressbar type="success" value="peer.ram.used" max="peer.ram.total"></uib-progressbar>
+                            <span class="progress-label">
+                            {{peer.ram.free/1000/1000 | number: 1}} / {{peer.ram.total/1024/1000 | number: 1}} GB
+                            </span>
+                        </span></td>
+            <td><span ng-if="!!peer.gpu">{{peer.gpu | json }}</span></td>
+            <td>{{(peer.sessions.length || 0)}}</td>
+            <td>{{peer.nodeName}}</td>
+        </tr>
+        </tbody>
+    </table>
+    </div>
+</div>
+<div class="row">
+    {{session | json}}
+</div>
+</div>
