@@ -9,7 +9,7 @@ use gu_persist::config::ConfigModule;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 //use std::sync::Arc;
-use super::sync_exec::{Exec, SyncExecManager};
+use super::sync_exec::{SyncExecManager, Exec, ExecResult};
 use gu_p2p::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
 use std::{io, process, time};
 use uuid::Uuid;
@@ -34,6 +34,13 @@ pub struct HdMan {
 }
 
 impl HdMan {
+    fn get_session_mut(&mut self, session_id: &String) -> Result<&mut SessionInfo, String> {
+        match self.sessions.get_mut(session_id) {
+            Some(session) => Ok(session),
+            None => Err(format!("session_id {} not found", &session_id)),
+        }
+    }
+
     fn scan_for_processes(&mut self) {
         for sess_info in self.sessions.values_mut().into_iter() {
             let finished: Vec<String> = sess_info
@@ -44,17 +51,15 @@ impl HdMan {
                     _ => None,
                 }).collect();
 
+            let some_finished = !finished.is_empty();
             for f in finished {
                 sess_info.processes.remove(&f);
                 info!("finished {:?}; removing", f)
             }
-        }
-    }
 
-    fn get_session_mut(&mut self, session_id: &String) -> Result<&mut SessionInfo, String> {
-        match self.sessions.get_mut(session_id) {
-            Some(session) => Ok(session),
-            None => Err(format!("session_id {} not found", &session_id)),
+            if some_finished & sess_info.processes.is_empty() {
+                sess_info.status = PeerSessionStatus::CONFIGURED;
+            }
         }
     }
 }
@@ -131,6 +136,10 @@ pub fn untgz<P: AsRef<Path>>(input_path: P, output_path: P) -> Result<(), io::Er
     ar.unpack(output_path)
 }
 
+fn new_id() -> String {
+    Uuid::new_v4().to_string()
+}
+
 impl Handler<CreateSession> for HdMan {
     type Result = Result<String, ()>;
 
@@ -139,28 +148,29 @@ impl Handler<CreateSession> for HdMan {
         msg: CreateSession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
-        let mut sess_id = Uuid::new_v4().to_string();
+        let mut sess_id = new_id();
         while self.sessions.contains_key(&sess_id) {
-            sess_id = Uuid::new_v4().to_string();
+            sess_id = new_id();
         }
-        debug!("newly created session_id={}", sess_id);
-        self.sessions.insert(
-            sess_id.clone(),
-            SessionInfo {
-                image: msg.image.clone(),
-                name: msg.name,
-                status: PeerSessionStatus::PENDING,
-                dirty: false,
-                tags: msg.tags,
-                note: msg.note,
-                processes: HashMap::new(),
-            },
-        );
+
+        let session = SessionInfo {
+            image: msg.image.clone(),
+            name: msg.name,
+            status: PeerSessionStatus::PENDING,
+            dirty: false,
+            tags: msg.tags,
+            note: msg.note,
+            processes: HashMap::new(),
+        };
+
+        debug!("newly created session id={}", sess_id);
+        self.sessions.insert(sess_id.clone(), session);
 
         debug!("hey! I'm downloading from: {:?}", msg.image);
         // TODO: download
         // TODO: untgz
 
+        self.sessions.get_mut(&sess_id).unwrap().status = PeerSessionStatus::CREATED;
         Ok(sess_id)
     }
 }
@@ -200,16 +210,22 @@ impl SessionUpdate {
 }
 
 impl Message for SessionUpdate {
-    // TODO: use error_chain
-    type Result = Result<Vec<String>, String>;
+    type Result = Result<Vec<String>, Vec<String>>;
 }
 
 impl Handler<SessionUpdate> for HdMan {
-    type Result = ActorResponse<HdMan, Vec<String>, String>; // TODO: Err -> (succeded cmds, first failed err msg)
+    /// ok: succeeded cmds output
+    /// err: all succeeded cmds output till first failure, plus failed cmd err msg
+    type Result = ActorResponse<HdMan, Vec<String>, Vec<String>>;
 
     fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
+
+        if !self.sessions.contains_key(&msg.session_id) {
+            return ActorResponse::reply(Err(vec!(format!("session_id {} not found", &msg.session_id))));
+        }
+
         let mut future_chain: Box<
-            ActorFuture<Item = Vec<String>, Error = String, Actor = Self>,
+            ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = Self>,
         > = Box::new(fut::ok(Vec::new()));
 
         for cmd in msg.commands {
@@ -218,21 +234,27 @@ impl Handler<SessionUpdate> for HdMan {
             match cmd {
                 Command::Exec { executable, args } => {
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                        let mut vc = v.clone();
                         info!("executing sync: {} {:?}", executable, args);
                         SyncExecManager::from_registry()
                             .send(Exec::Run { executable, args })
                             .flatten_fut()
-                            .map_err(|e| format!("{}", e)) // TODO: chain err
+                            .map_err(|e| {vc.push(format!("{}", e)); vc})
                             .into_actor(act)
-                            .and_then(move |output, act, _ctx| {
-                                info!("sync cmd output: {}", output);
-                                v.push(output);
+                            .and_then(move |result, act, _ctx| {
+                                info!("sync cmd result: {:?}", result);
+                                if let ExecResult::Run(output) = result {
+                                    v.push(String::from_utf8_lossy(&output.stdout).to_string());
+                                }
                                 match act.get_session_mut(&session_id) {
                                     Ok(session) => {
                                         session.dirty = true;
                                         fut::ok(v)
                                     }
-                                    Err(e) => fut::err(format!("{:?}", e))
+                                    Err(e) => {
+                                        v.push(format!("{:?}", e));
+                                        fut::err(v)
+                                    }
                                 }
                             })
                     }));
@@ -242,7 +264,7 @@ impl Handler<SessionUpdate> for HdMan {
                         info!("executing async: {} {:?}", executable, args);
                         match process::Command::new(&executable).args(&args).spawn() {
                             Ok(child) => {
-                                let child_id = Uuid::new_v4().to_string();
+                                let child_id = new_id();
                                 v.push(child_id.clone());
                                 match act.get_session_mut(&session_id) {
                                     Ok(session) => {
@@ -251,43 +273,64 @@ impl Handler<SessionUpdate> for HdMan {
                                         session.status = PeerSessionStatus::RUNNING;
                                         fut::ok(v)
                                     }
-                                    Err(e) => fut::err(format!("{:?}", e)),
+                                    Err(e) => {
+                                        v.push(format!("{:?}", e));
+                                        fut::err(v)
+                                    }
                                 }
                             }
-                            Err(e) => fut::err(format!("{:?}", e)),
+                            Err(e) => {
+                                v.push(format!("{:?}", e));
+                                fut::err(v)
+                            }
                         }
                     }));
                 }
                 Command::Stop { child_id } => {
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                        let mut vc = v.clone();
                         info!("killing: {:?}", &child_id);
                         match act.get_session_mut(&session_id) {
                             Ok(session) => match session.processes.remove(&child_id) {
                                 Some(child) => fut::Either::A(
                                     fut::wrap_future(SyncExecManager::from_registry()
-                                        .send(Exec::Kill { child }))
-                                        .map_err(|e, _act, _ctx| format!("{}", e)) // TODO: chain err
-                                        .and_then(move |r, _act, _ctx| {
-                                            match r {
-                                                Ok(o) => {
-                                                    v.push(o);
-                                                    fut::ok(v)
-                                                }
-                                                Err(e) => fut::err(format!("{:?}", e))
-                                            }
+                                        .send(Exec::Kill(child)))
+                                        .map_err(|e, _act : &mut Self, _ctx| { vc.push(format!("{}", e)); vc})
+                                        .and_then(move |result, act, _ctx| {
+                                                    if let Ok(ExecResult::Kill(output)) = result {
+                                                        match act.get_session_mut(&session_id) {
+                                                            Ok(mut session) => {
+                                                                if session.processes.is_empty() {
+                                                                    session.status = PeerSessionStatus::CONFIGURED;
+                                                                };
+                                                                v.push(output);
+                                                                fut::ok(v)
+                                                            }
+                                                            Err(e) => {
+                                                                v.push(format!("{:?}", e));
+                                                                fut::err(v)
+                                                            }
+                                                        }
+                                                    } else {
+                                                        v.push(format!("wrong result {:?}", result));
+                                                        fut::err(v)
+                                                    }
                                         }),
                                 ),
-                                None => fut::Either::B(fut::err(format!(
-                                    "child {:?} not found",
-                                    child_id
-                                ))),
+                                None => {
+                                    v.push(format!("child {:?} not found",child_id));
+                                    fut::Either::B(fut::err(v))
+                                },
                             },
-                            Err(e) => fut::Either::B(fut::err(format!("{:?}", e))),
+                            Err(e) => {
+                                v.push(format!("{:?}", e));
+                                fut::Either::B(fut::err(v))
+                            },
                         }
                     }));
                 }
                 cmd => {
-                    future_chain = Box::new(fut::err(format!("{:?} unsupported", cmd)));
+                    return ActorResponse::reply(Err(vec!(format!("command {:?} unsupported", cmd))));
                 }
             }
         }
@@ -308,7 +351,7 @@ impl GetSessions {
 }
 
 impl Message for GetSessions {
-    type Result = Result<Vec<PeerSessionInfo>, ()>; // TODO: error chain
+    type Result = Result<Vec<PeerSessionInfo>, ()>;
 }
 
 impl Handler<GetSessions> for HdMan {
@@ -330,22 +373,5 @@ impl Handler<GetSessions> for HdMan {
 
 #[derive(Serialize, Deserialize)]
 struct SessionDestroy {
-    session_id: String, // uuid
+    session_id: String,
 }
-
-// CreateSession - 37
-//
-//{"image": {"Url": "https://github.com/tworec/xmr-stak/releases/download/2.4.7-binaries/xmr-stak-MacOS.tgz"},
-//"name": "monero mining",
-//"tags": [],
-//"note": "None"}
-
-// "executable":"/Users/tworec/git/xmr-stak/bin/xmr-stak",
-// "args": ["--noAMD", "--poolconf", "/Users/tworec/git/xmr-stak/pools.txt", "--httpd", "0"],
-
-// SessionUpdate - 38
-//{"session_id" : "214", "commands": [
-//{"Start":{ "executable": "/bin/pwd", "args": [] } },
-//{"Start":{ "executable": "/bin/ls", "args": ["-o"] } },
-//{"Start":{ "executable": "/bin/date", "args": [] } }
-//] }

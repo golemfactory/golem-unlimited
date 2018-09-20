@@ -42,17 +42,21 @@ pub enum Exec {
         executable: String,
         args: Vec<String>,
     },
-    Kill {
-        child: process::Child,
-    },
+    Kill(process::Child),
+}
+
+#[derive(Debug)]
+pub enum ExecResult {
+    Run(process::Output),
+    Kill(String)
 }
 
 impl Message for Exec {
-    type Result = Result<String>;
+    type Result = Result<ExecResult>;
 }
 
 impl Handler<Exec> for SyncExecManager {
-    type Result = ActorResponse<SyncExecManager, String, Error>;
+    type Result = ActorResponse<SyncExecManager, ExecResult, Error>;
 
     fn handle(&mut self, msg: Exec, _ctx: &mut Self::Context) -> Self::Result {
         debug!("handling {:?}", &msg);
@@ -67,7 +71,7 @@ impl Handler<Exec> for SyncExecManager {
 }
 
 impl Handler<Exec> for SyncExec {
-    type Result = Result<String>;
+    type Result = Result<ExecResult>;
 
     fn handle(&mut self, msg: Exec, _ctx: &mut Self::Context) -> Self::Result {
         debug!("synchronously executing: {:?}", &msg);
@@ -76,11 +80,12 @@ impl Handler<Exec> for SyncExec {
                 match process::Command::new(&executable).args(&args).output() {
                     Ok(output) => {
                         if output.status.success() {
-                            Ok(format!(
+                            debug!(
                                 "stdout:\n{}\nstderr:\n{}\n",
                                 String::from_utf8_lossy(&output.stdout),
                                 String::from_utf8_lossy(&output.stderr)
-                            ))
+                            );
+                            Ok(ExecResult::Run(output))
                         } else {
                             Err(ErrorKind::ExecutionError(executable, args).into())
                         }
@@ -88,10 +93,10 @@ impl Handler<Exec> for SyncExec {
                     Err(e) => Err(e.into()),
                 }
             }
-            Exec::Kill { mut child } => child
+            Exec::Kill ( mut child ) => child
                 .kill()
                 .and_then(|_| child.wait().map_err(From::from))
-                .and_then(|_| Ok("Killed".into()))
+                .and_then(|_| Ok(ExecResult::Kill("Killed".into())))
                 .map_err(From::from),
         }
     }
@@ -118,7 +123,7 @@ impl From<MailboxError> for Error {
 
 #[cfg(test)]
 mod test {
-    use super::{Exec, SyncExecManager};
+    use super::{SyncExecManager, Exec, ExecResult};
     use actix::prelude::*;
     use futures::Future;
     use gu_actix::flatten::FlattenFuture;
@@ -128,19 +133,32 @@ mod test {
         System::run(|| {
             Arbiter::spawn(
                 SyncExecManager::from_registry()
-                    .send(Exec {
+                    .send(Exec::Run {
                         executable: "/bin/echo".into(),
                         args: vec!["zima".into()],
                     }).flatten_fut()
-                    .and_then(|o| {
-                        assert!(o.status.success());
-                        assert_eq!(o.status.code(), Some(0));
-                        assert_eq!(String::from_utf8_lossy(&o.stdout), "zima\n");
-                        assert_eq!(String::from_utf8_lossy(&o.stderr), "");
-                        Ok(())
+                    .and_then(|o : ExecResult| {
+                        match o {
+                            ExecResult::Run(o) => {
+                                assert!(o.status.success());
+                                assert_eq!(o.status.code(), Some(0));
+                                assert_eq!(String::from_utf8_lossy(&o.stdout), "zima\n");
+                                assert_eq!(String::from_utf8_lossy(&o.stderr), "");
+                                Ok(())
+                            }
+                            r => panic!("wrong result: {:?}", r)
+                        }
                     }).map_err(|e| panic!("error: {}", e))
                     .then(|_| Ok(System::current().stop())),
             )
         });
     }
+
+//    #[test]
+//    fn test_map_and_map_err() {
+//        let mut v = Vec::new();
+//        Ok("foo".to_string())
+//            .map(|i| {v.push(i); v})
+//            .map_err(|e : String| {v.push(e); v});
+//    }
 }
