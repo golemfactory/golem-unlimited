@@ -273,7 +273,7 @@ impl<T: de::DeserializeOwned + 'static> Message for ResourceGet<T> {
 impl<T: de::DeserializeOwned + 'static> Handler<ResourceGet<T>> for ServerClient {
     type Result = ActorResponse<ServerClient, T, ClientError>;
 
-    fn handle(&mut self, msg: ResourceGet<T>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: ResourceGet<T>, _ctx: &mut Self::Context) -> Self::Result {
         use actix_web::{client, HttpMessage};
         use futures::future;
 
@@ -281,7 +281,7 @@ impl<T: de::DeserializeOwned + 'static> Handler<ResourceGet<T>> for ServerClient
             ConfigManager::from_registry()
                 .send(config::GetConfig::new())
                 .flatten_fut()
-                .map_err(|e| ClientError::ConfigError)
+                .map_err(|_e| ClientError::ConfigError)
                 .and_then(move |config: Arc<ServerConfig>| {
                     let url = format!("http://127.0.0.1:{}{}", config.port(), msg.0);
                     let client = match client::ClientRequest::get(url)

@@ -175,7 +175,7 @@ impl<T: ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
 impl Handler<SetConfigPath> for ConfigManager {
     type Result = Result<()>;
 
-    fn handle(&mut self, msg: SetConfigPath, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: SetConfigPath, _ctx: &mut Self::Context) -> Self::Result {
         let path = match msg {
             SetConfigPath::Default(app_name) => {
                 use directories::ProjectDirs;

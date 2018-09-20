@@ -104,7 +104,7 @@ impl Handler<HardwareQuery> for HardwareActor {
 
     fn handle(
         &mut self,
-        msg: HardwareQuery,
+        _msg: HardwareQuery,
         _ctx: &mut RemotingContext<Self>,
     ) -> <Self as Handler<HardwareQuery>>::Result {
         let inner = InnerActor::from_registry();

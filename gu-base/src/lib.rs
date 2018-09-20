@@ -39,14 +39,14 @@ pub trait Module: Any {
     }
 
     #[inline]
-    fn args_autocomplete<F>(&self, matches: &ArgMatches, app_gen: &F) -> bool
+    fn args_autocomplete<F>(&self, _matches: &ArgMatches, _app_gen: &F) -> bool
     where
         F: Fn() -> App<'static, 'static>,
     {
         false
     }
 
-    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+    fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
         false
     }
 
@@ -54,7 +54,7 @@ pub trait Module: Any {
         Box::new(future::ok(()))
     }
 
-    fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {}
+    fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {}
 
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
         app

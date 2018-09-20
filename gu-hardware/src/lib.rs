@@ -75,7 +75,7 @@ pub fn module() -> HardwareModule {
 }
 
 impl Module for HardwareModule {
-    fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
+    fn run<D: gu_base::Decorator + Clone + 'static>(&self, _decorator: D) {
         gu_base::run_once(|| {
             let _ = start_actor(self::actor::HardwareActor::default());
         })

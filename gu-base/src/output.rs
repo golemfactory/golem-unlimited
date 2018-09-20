@@ -21,7 +21,7 @@ impl Module for LogModule {
         )
     }
 
-    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+    fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
         if env::var("RUST_LOG").is_err() {
             env::set_var(
                 "RUST_LOG",

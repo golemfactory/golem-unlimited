@@ -49,7 +49,7 @@ impl Message for Init {
 impl Handler<Init> for Test {
     type Result = u32;
 
-    fn handle(&mut self, msg: Init, ctx: &mut Self::Context) -> <Self as Handler<Init>>::Result {
+    fn handle(&mut self, _msg: Init, _ctx: &mut Self::Context) -> <Self as Handler<Init>>::Result {
         info!("init!");
         self.cnt += 1;
         self.cnt
@@ -66,7 +66,7 @@ impl Message for Echo {
 impl Handler<Echo> for Test {
     type Result = Result<serde_json::Value, ()>;
 
-    fn handle(&mut self, msg: Echo, ctx: &mut Self::Context) -> <Self as Handler<Echo>>::Result {
+    fn handle(&mut self, msg: Echo, _ctx: &mut Self::Context) -> <Self as Handler<Echo>>::Result {
         Ok(msg.0)
     }
 }
@@ -79,7 +79,7 @@ fn main() {
 
     let sys = System::new("rpc-test");
 
-    let a = start_actor(Test { cnt: 0 });
+    let _a = start_actor(Test { cnt: 0 });
 
     info!("init={}", serde_json::to_string_pretty(&Init).unwrap());
 

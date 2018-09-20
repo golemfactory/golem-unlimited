@@ -37,7 +37,7 @@ impl Module for PeerModule {
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         if let Some(m) = matches.subcommand_matches("peer") {
-            if let Some(m) = m.subcommand_matches("list") {
+            if let Some(_m) = m.subcommand_matches("list") {
                 self.inner = State::List;
                 return true;
             }
@@ -45,7 +45,7 @@ impl Module for PeerModule {
         false
     }
 
-    fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
+    fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
         match self.inner {
             State::None => return (),
             State::List => {
@@ -56,7 +56,7 @@ impl Module for PeerModule {
                         ServerClient::get("/peer".into())
                             .and_then(|r: Vec<PeerInfo>| Ok(format_peer_table(r)))
                             .map_err(|e| error!("{}", e))
-                            .then(|r| Ok(System::current().stop())),
+                            .then(|_r| Ok(System::current().stop())),
                     )
                 });
             }
@@ -79,7 +79,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         )
 }
 
-fn list_peers<S>(r: HttpRequest<S>) -> impl Responder {
+fn list_peers<S>(_r: HttpRequest<S>) -> impl Responder {
     use gu_p2p::rpc::peer::*;
 
     PeerManager::from_registry()

@@ -6,11 +6,11 @@ use serde_json;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
-use zip::ZipArchive;
 use std::sync::Arc;
-use std::io::Read;
+use zip::ZipArchive;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -183,12 +183,12 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     )
 }
 
-fn list_scope<S>(r: HttpRequest<S>) -> impl Responder {
+fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
     unimplemented!();
     ""
 }
 
-fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
+fn file_scope<S>(_r: HttpRequest<S>) -> impl Responder {
     unimplemented!();
     ""
 }
@@ -249,16 +249,20 @@ fn contains_app_js(path: &Path, name: &String) -> Result<(), String> {
     Ok(())
 }
 
-fn load_archive(zip_path: &Path, app_name: &String) -> Result<HashMap<PathBuf, Arc<Vec<u8>>>, String> {
+fn load_archive(
+    zip_path: &Path,
+    app_name: &String,
+) -> Result<HashMap<PathBuf, Arc<Vec<u8>>>, String> {
     let mut archive = open_archive(zip_path)?;
     let mut map = HashMap::new();
 
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i)
+        let mut file = archive
+            .by_index(i)
             .map_err(|e| warn!("Error during unzip: {:?}", e));
 
         if file.is_err() {
-            continue
+            continue;
         }
 
         let mut file = file.unwrap();

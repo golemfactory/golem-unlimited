@@ -42,7 +42,7 @@ impl Actor for MyActor {
                     v.bytes().collect(),
                 )).and_then(|v| {
                     match v {
-                        Ok(b) => println!("ok"),
+                        Ok(_b) => println!("ok"),
                         Err(e) => println!("err {:?}", e),
                     }
                     println!("stop app");
