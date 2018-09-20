@@ -9,6 +9,8 @@ use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use zip::ZipArchive;
+use std::sync::Arc;
+use std::io::Read;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -57,13 +59,17 @@ struct PluginMetadata {
 struct Plugin {
     metadata: PluginMetadata,
     status: PluginStatus,
+    files: HashMap<String, Arc<Vec<u8>>>,
+    archive_name: String,
 }
 
 impl Plugin {
-    pub fn new(metadata: PluginMetadata) -> Self {
+    pub fn new(archive_name: String, metadata: PluginMetadata) -> Self {
         Self {
             metadata,
             status: PluginStatus::Installed,
+            files: HashMap::new(),
+            archive_name,
         }
     }
 
@@ -73,7 +79,7 @@ impl Plugin {
     }
 
     pub fn inactivate(&mut self) {
-        // TODO: some action?
+        self.files.clear();
         self.status = PluginStatus::Installed;
     }
 
@@ -243,14 +249,9 @@ fn contains_app_js(path: &Path, name: &String) -> Result<(), String> {
     Ok(())
 }
 
-/*
-fn extract_files(path: &Path, name: &String, target: &PathBuf) -> Result<(), String> {
-    println!("in {:?}", target);
-    let mut archive = open_archive(path)?;
-    let app_dir = target.join(name);
-
-    fs::create_dir_all(app_dir)
-        .map_err(|e| format!("Couldn't create plugin directory {:?}", e))?;
+fn load_archive(zip_path: &Path, app_name: &String) -> Result<HashMap<PathBuf, Arc<Vec<u8>>>, String> {
+    let mut archive = open_archive(zip_path)?;
+    let mut map = HashMap::new();
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)
@@ -259,16 +260,16 @@ fn extract_files(path: &Path, name: &String, target: &PathBuf) -> Result<(), Str
         if file.is_err() {
             continue
         }
+
         let mut file = file.unwrap();
         let out_path = file.sanitized_name();
 
-        if out_path.parent().is_some() && out_path.parent().unwrap().to_path_buf() == PathBuf::from(name) {
-            let mut outfile = fs::File::create(target.join(out_path))
-                .map_err(|e| format!("Couldn't create plugin file {:?}", e))?;
-            io::copy(&mut file, &mut outfile)
-                .map_err(|e| format!("Couldn't write plugin file {:?}", e))?;
+        if out_path.starts_with(app_name) {
+            let mut buf = Vec::new();
+            file.read_to_end(&mut buf);
+            map.insert(out_path, Arc::new(buf));
         }
     }
 
-    Ok(())
-}*/
+    Ok(map)
+}
