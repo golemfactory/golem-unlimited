@@ -77,6 +77,8 @@ impl Handler<Exec> for SyncExec {
         debug!("synchronously executing: {:?}", &msg);
         match msg {
             Exec::Run { executable, args } => {
+                // TODO: critical section
+                // TODO: env::set_current_dir(&base_dir)?;
                 match process::Command::new(&executable).args(&args).output() {
                     Ok(output) => {
                         if output.status.success() {
@@ -104,7 +106,7 @@ impl Handler<Exec> for SyncExec {
 
 error_chain!(
     foreign_links {
-        Io(io::Error);
+        IoError(io::Error);
     }
 
     errors {

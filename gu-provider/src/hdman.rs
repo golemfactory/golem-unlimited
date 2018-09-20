@@ -1,44 +1,58 @@
+use super::sync_exec::{Exec, ExecResult, SyncExecManager};
 use actix::fut;
 use actix::prelude::*;
 use actix_web::HttpMessage;
-//use futures::future;
 use futures::prelude::*;
 use gu_actix::prelude::*;
+use gu_p2p::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
 use gu_p2p::rpc::*;
 use gu_persist::config::ConfigModule;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-//use std::sync::Arc;
-use super::sync_exec::{Exec, ExecResult, SyncExecManager};
-use gu_p2p::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
-use std::{io, process, time};
+use std::{fmt, fs, io, process, result, time};
 use uuid::Uuid;
-
-pub struct SessionInfo {
-    image: Image,
-    name: String,
-    status: PeerSessionStatus,
-    dirty: bool,
-    // TODO: use it when last child dies
-    tags: Vec<String>,
-    note: Option<String>,
-    processes: HashMap<String, process::Child>,
-}
 
 /// Host direct manager
 pub struct HdMan {
     sessions: HashMap<String, SessionInfo>,
     image_cache_dir: PathBuf,
     sessions_dir: PathBuf,
-    work_dir: PathBuf,
 }
 
 impl HdMan {
-    fn get_session_mut(&mut self, session_id: &String) -> Result<&mut SessionInfo, String> {
+    fn generate_session_id(&self) -> String {
+        let mut id = new_id();
+        while self.sessions.contains_key(&id) {
+            id = new_id();
+        }
+        id
+    }
+
+    fn get_session_dir(&self, session_id: &String) -> PathBuf {
+        self.sessions_dir.join(session_id)
+    }
+
+    fn get_session_exec_path(&self, session_id: &String, executable: &String) -> String {
+        self.get_session_dir(session_id)
+            .join(executable.trim_left_matches('/'))
+            .into_os_string()
+            .into_string()
+            .unwrap()
+    }
+
+    fn get_session_mut(&mut self, session_id: &String) -> Result<&mut SessionInfo, Error> {
         match self.sessions.get_mut(session_id) {
             Some(session) => Ok(session),
-            None => Err(format!("session_id {} not found", &session_id)),
+            None => Err(Error::NoSuchSession(session_id.clone())),
         }
+    }
+
+    fn insert_child(
+        &mut self,
+        session_id: &String,
+        child: process::Child,
+    ) -> Result<String, Error> {
+        Ok(self.get_session_mut(&session_id)?.insert_process(child))
     }
 
     fn scan_for_processes(&mut self) {
@@ -65,11 +79,15 @@ impl HdMan {
 }
 
 pub fn start(config: &ConfigModule) -> Addr<HdMan> {
+    let image_cache_dir = config.cache_dir().to_path_buf().join("images");
+    let sessions_dir = config.work_dir().to_path_buf().join("sessions");
+    fs::create_dir_all(&image_cache_dir)
+        .and_then(|_| fs::create_dir_all(&sessions_dir))
+        .unwrap();
     start_actor(HdMan {
         sessions: HashMap::new(),
-        image_cache_dir: config.cache_dir().to_path_buf().join("images"),
-        sessions_dir: config.cache_dir().to_path_buf().join("sessions"),
-        work_dir: config.work_dir().into(),
+        image_cache_dir,
+        sessions_dir,
     })
 }
 
@@ -86,6 +104,30 @@ impl Actor for HdMan {
     }
 }
 
+/// internal session representation
+struct SessionInfo {
+    name: String,
+    status: PeerSessionStatus,
+    /// used to determine proper status when last child is finished
+    dirty: bool,
+    tags: Vec<String>,
+    note: Option<String>,
+    processes: HashMap<String, process::Child>,
+}
+
+impl SessionInfo {
+    fn insert_process(&mut self, child: process::Child) -> String {
+        let mut id = new_id();
+        while self.processes.contains_key(&id) {
+            id = new_id();
+        }
+        self.processes.insert(id.clone(), child);
+        self.dirty = true;
+        self.status = PeerSessionStatus::RUNNING;
+        id
+    }
+}
+
 /// Message for session creation: local provisioning: downloads and unpacks the binaries
 #[derive(Serialize, Deserialize)]
 struct CreateSession {
@@ -96,19 +138,23 @@ struct CreateSession {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-enum Image {
-    Url(String),
+struct Image {
+    url: String,
+    cache_file: String,
 }
 
 impl CreateSession {
     const ID: u32 = 37;
 }
 
+/// returns session_id
 impl Message for CreateSession {
-    type Result = Result<String, ()>; // sess_id --> uuid
+    type Result = result::Result<String, Error>;
 }
 
-pub fn download(url: &str, output_path: String) -> Box<Future<Item = (), Error = ()>> {
+// TODO: support redirect
+pub fn download(url: &str, output_path: PathBuf) -> Box<Future<Item = (), Error = ()>> {
+    info!("downloading from {} to {:?}", url, &output_path);
     use actix_web::client;
     use write_to::to_file;
 
@@ -126,14 +172,20 @@ pub fn download(url: &str, output_path: String) -> Box<Future<Item = (), Error =
     )
 }
 
-pub fn untgz<P: AsRef<Path>>(input_path: P, output_path: P) -> Result<(), io::Error> {
+pub fn untgz<P: AsRef<Path>>(input_path: P, output_path: P) -> Result<(), Error> {
     use flate2::read::GzDecoder;
     use std::fs;
     use tar::Archive;
 
-    let d = GzDecoder::new(fs::File::open(input_path)?);
+    info!(
+        "untgz from {:?} to {:?}",
+        input_path.as_ref(),
+        output_path.as_ref()
+    );
+    let d = GzDecoder::new(fs::File::open(input_path).map_err(|e| Error::IoError(e.to_string()))?);
     let mut ar = Archive::new(d);
     ar.unpack(output_path)
+        .map_err(|e| Error::IoError(e.to_string()))
 }
 
 fn new_id() -> String {
@@ -141,20 +193,23 @@ fn new_id() -> String {
 }
 
 impl Handler<CreateSession> for HdMan {
-    type Result = Result<String, ()>;
+    type Result = ActorResponse<HdMan, String, Error>;
 
     fn handle(
         &mut self,
         msg: CreateSession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
-        let mut sess_id = new_id();
-        while self.sessions.contains_key(&sess_id) {
-            sess_id = new_id();
+        let session_id = self.generate_session_id();
+        let work_dir = self.get_session_dir(&session_id);
+        debug!("creating work dir {:?}", work_dir);
+        match fs::create_dir(&work_dir) {
+            Ok(_) => (),
+            Err(e) => return ActorResponse::reply(Err(e.into())),
         }
+        let cache_path = self.image_cache_dir.join(&msg.image.cache_file);
 
         let session = SessionInfo {
-            image: msg.image.clone(),
             name: msg.name,
             status: PeerSessionStatus::PENDING,
             dirty: false,
@@ -163,15 +218,25 @@ impl Handler<CreateSession> for HdMan {
             processes: HashMap::new(),
         };
 
-        debug!("newly created session id={}", sess_id);
-        self.sessions.insert(sess_id.clone(), session);
+        debug!("newly created session id={}", session_id);
+        self.sessions.insert(session_id.clone(), session);
 
         debug!("hey! I'm downloading from: {:?}", msg.image);
-        // TODO: download
-        // TODO: untgz
-
-        self.sessions.get_mut(&sess_id).unwrap().status = PeerSessionStatus::CREATED;
-        Ok(sess_id)
+        ActorResponse::async(
+            download(msg.image.url.as_ref(), cache_path.clone())
+                .map_err(|_| Error::IoError("dload failed".into()))
+                .and_then(move |_| untgz(&cache_path, &work_dir))
+                .into_actor(self)
+                .and_then(|_, act, _ctx| {
+                    act.sessions.get_mut(&session_id).unwrap().status =
+                        PeerSessionStatus::CREATED; // TODO: unwrap
+                    fut::ok(session_id)
+                })
+            //                    .map_err(|e, act, _ctx| {
+            //                        act.sessions.remove(&session_id);
+            //                        e.into()
+            //                    })
+        )
     }
 }
 
@@ -210,7 +275,7 @@ impl SessionUpdate {
 }
 
 impl Message for SessionUpdate {
-    type Result = Result<Vec<String>, Vec<String>>;
+    type Result = result::Result<Vec<String>, Vec<String>>;
 }
 
 impl Handler<SessionUpdate> for HdMan {
@@ -235,6 +300,7 @@ impl Handler<SessionUpdate> for HdMan {
 
             match cmd {
                 Command::Exec { executable, args } => {
+                    let executable = self.get_session_exec_path(&session_id, &executable);
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
                         let mut vc = v.clone();
                         info!("executing sync: {} {:?}", executable, args);
@@ -242,7 +308,7 @@ impl Handler<SessionUpdate> for HdMan {
                             .send(Exec::Run { executable, args })
                             .flatten_fut()
                             .map_err(|e| {
-                                vc.push(format!("{}", e));
+                                vc.push(e.to_string());
                                 vc
                             }).into_actor(act)
                             .and_then(move |result, act, _ctx| {
@@ -256,7 +322,7 @@ impl Handler<SessionUpdate> for HdMan {
                                         fut::ok(v)
                                     }
                                     Err(e) => {
-                                        v.push(format!("{:?}", e));
+                                        v.push(e.to_string());
                                         fut::err(v)
                                     }
                                 }
@@ -264,30 +330,25 @@ impl Handler<SessionUpdate> for HdMan {
                     }));
                 }
                 Command::Start { executable, args } => {
+                    let executable = self.get_session_exec_path(&session_id, &executable);
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
                         info!("executing async: {} {:?}", executable, args);
-                        match process::Command::new(&executable).args(&args).spawn() {
-                            Ok(child) => {
-                                let child_id = new_id();
-                                v.push(child_id.clone());
-                                match act.get_session_mut(&session_id) {
-                                    Ok(session) => {
-                                        session.processes.insert(child_id, child);
-                                        session.dirty = true;
-                                        session.status = PeerSessionStatus::RUNNING;
-                                        fut::ok(v)
-                                    }
-                                    Err(e) => {
-                                        v.push(format!("{:?}", e));
-                                        fut::err(v)
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                v.push(format!("{:?}", e));
-                                fut::err(v)
-                            }
-                        }
+                        // TODO: critical section
+                        // TODO: env::set_current_dir(&base_dir)?;
+                        let mut vc = v.clone();
+                        process::Command::new(&executable)
+                            .args(&args)
+                            .spawn()
+                            .map_err(|e| Error::IoError(e.to_string()))
+                            .and_then(|child| act.insert_child(&session_id, child))
+                            .and_then(|child_id| {
+                                v.push(child_id);
+                                Ok(fut::ok(v))
+                            }).or_else(|e| {
+                                vc.push(e.to_string());
+                                Ok(fut::err(vc))
+                            }).map_err(|e: Error| e)
+                            .unwrap()
                     }));
                 }
                 Command::Stop { child_id } => {
@@ -315,7 +376,7 @@ impl Handler<SessionUpdate> for HdMan {
                                                         fut::ok(v)
                                                     }
                                                     Err(e) => {
-                                                        v.push(format!("{:?}", e));
+                                                        v.push(e.to_string());
                                                         fut::err(v)
                                                     }
                                                 }
@@ -332,7 +393,7 @@ impl Handler<SessionUpdate> for HdMan {
                                 }
                             },
                             Err(e) => {
-                                v.push(format!("{:?}", e));
+                                v.push(e.to_string());
                                 fut::Either::B(fut::err(v))
                             }
                         }
@@ -363,11 +424,11 @@ impl GetSessions {
 }
 
 impl Message for GetSessions {
-    type Result = Result<Vec<PeerSessionInfo>, ()>;
+    type Result = result::Result<Vec<PeerSessionInfo>, ()>;
 }
 
 impl Handler<GetSessions> for HdMan {
-    type Result = Result<Vec<PeerSessionInfo>, ()>;
+    type Result = result::Result<Vec<PeerSessionInfo>, ()>;
 
     fn handle(&mut self, _msg: GetSessions, _ctx: &mut Self::Context) -> Self::Result {
         Ok(self
@@ -386,4 +447,50 @@ impl Handler<GetSessions> for HdMan {
 #[derive(Serialize, Deserialize)]
 struct SessionDestroy {
     session_id: String,
+}
+
+//error_chain!(
+//    foreign_links {
+//        IoError(io::Error);
+//    }
+//
+//    errors {
+//        MailboxError(e : MailboxError){}
+//        NoSuchSession(id: String) {
+//            display("session {} not found", id)
+//        }
+//        NoSuchChild(id: String) {
+//            display("child {} not found", id)
+//        }
+//    }
+//);
+//
+//impl From<MailboxError> for Error {
+//    fn from(e: MailboxError) -> Self {
+//        ErrorKind::MailboxError(e).into()
+//    }
+//}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Error {
+    IoError(String),
+    NoSuchSession(String),
+    NoSuchChild(String),
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::IoError(e.to_string())
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::IoError(msg) => write!(f, "IoError: {}", msg)?,
+            Error::NoSuchSession(msg) => write!(f, "NoSuchSession: {}", msg)?,
+            Error::NoSuchChild(msg) => write!(f, "NoSuchChild: {}", msg)?,
+        }
+        Ok(())
+    }
 }
