@@ -24,10 +24,10 @@
                         </td>
                         <td>{{peer.peerAddr}}</td>
                         <td><span ng-if="peer.ram">
-                            <uib-progressbar type="success" value="peer.ram.used" max="peer.ram.total"></uib-progressbar>
-                            <span class="progress-label">
-                            {{peer.ram.free/1000/1000 | number: 1}} / {{peer.ram.total/1024/1000 | number: 1}} GB
-                            </span>
+                            <uib-progress max="peer.ram.total">
+                                <uib-bar value="peer.ram.used" type="warning" title="used"><span ng-hide="peer.ram.used/peer.ram.total < 0.05">{{peer.ram.used/1000/1000 | number: 1}}</span></uib-bar>
+                                <uib-bar value="peer.ram.free" type="success" title="free"><span ng-hide="peer.ram.free/peer.ram.total < 0.05">{{peer.ram.free/1000/1000 | number: 1}} GB</span></uib-bar>
+                            </uib-progress>
                         </span></td>
                         <td>
                             <span ng-if="!!peer.gpu">
