@@ -3,10 +3,6 @@ use actix::prelude::*;
 use actix_web::*;
 use clap::{self, Arg, ArgMatches, SubCommand};
 use futures::prelude::*;
-use std::borrow::Cow;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::sync::Arc;
-
 use gu_base::Decorator;
 use gu_base::Module;
 use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
@@ -15,8 +11,11 @@ use gu_persist::config::{
     ConfigManager, ConfigModule, Error as ConfigError, GetConfig, HasSectionId, SetConfig,
     SetConfigPath,
 };
+use hdman::HdMan;
 use mdns::Responder;
-//use std::path::PathBuf;
+use std::borrow::Cow;
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -114,7 +113,7 @@ impl Module for ServerModule {
             hub_addr: self.hub_addr,
         }.start();
 
-        let _ = super::hdman::start(config_module);
+        let _ = HdMan::start(config_module);
 
         let sys = actix::System::new("gu-provider");
         let _ = sys.run();
