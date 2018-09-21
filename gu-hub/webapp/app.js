@@ -8,7 +8,7 @@ function guid() {
   return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
 }
 
-var app = angular.module('gu', ['ui.bootstrap'])
+var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
   .controller('AppController', function($scope, pluginManager) {
       $scope.tabs = [
         {icon: 'glyphicon glyphicon-home', name: 'Status', page: 'status.html'},
@@ -47,7 +47,10 @@ var app = angular.module('gu', ['ui.bootstrap'])
         });
         hubApi.callRemote(peer.nodeId, 39, {})
                 .then(data=> {
-                    console.log('d', data)
+                    var ok = data.Ok;
+                    if (ok) {
+                        peer.sessions = ok;
+                    }
                 });
      };
 
@@ -77,13 +80,17 @@ var app = angular.module('gu', ['ui.bootstrap'])
 
         return {addTab: addTab, getTabs: getTabs}
   })
-  .service('sessionMan', function($http) {
+  .service('sessionMan', function($http, $log) {
         var sessions = [];
         if ('gu:sessions' in window.localStorage) {
             sessions = JSON.parse(window.localStorage.getItem('gu:sessions'));
         }
 
-        function save() {
+        function save(newSessions) {
+            if (angular.isArray(newSessions)) {
+                sessions = newSessions;
+            }
+            $log.info('save', sessions);
             window.localStorage.setItem('gu:sessions', JSON.stringify(sessions));
         }
 
@@ -110,6 +117,11 @@ var app = angular.module('gu', ['ui.bootstrap'])
                 }
             });
             save();
+        }
+
+        function dropSession(moduleSession) {
+            $log.info("drop", moduleSession);
+            save(_.reject(sessions, session => session.id === moduleSession.id));
         }
 
         function create(sessionType, env) {
@@ -169,6 +181,7 @@ var app = angular.module('gu', ['ui.bootstrap'])
             peers: peers,
             sessions: listSessions,
             peerDetails: peerDetails,
-            updateSession: updateSession
+            updateSession: updateSession,
+            dropSession: dropSession
          }
   });

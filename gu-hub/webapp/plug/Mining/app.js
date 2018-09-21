@@ -1,8 +1,12 @@
+
+var images = {
+    linux: "http://10.30.8.179:61622/app/images/monero-linux.tar.gz",
+    macos: "http://10.30.8.179:61622/app/images/xmr-stak-MacOS.tgz",
+}
+
 angular.module('gu')
 .run(function(pluginManager) {
-
-
-    pluginManager.addTab({name: 'Mining', page: 'plug/Mining/base.html'})
+    pluginManager.addTab({name: '💎 Mining', page: 'plug/Mining/base.html'})
 })
 .controller('MiningController', function($scope) {
     var myStorage = window.localStorage;
@@ -46,15 +50,32 @@ angular.module('gu')
     }
 
 })
-.controller('MiningSessionsController', function($scope, sessionMan) {
+.controller('MiningSessionsController', function($scope, sessionMan, $uibModal, $log) {
     $scope.sessions = sessionMan.sessions('gu:mining');
-
-    console.log('m', $scope.sessions);
-
     $scope.newSession = function() {
         sessionMan.create('gu:mining', 'hd');
         $scope.sessions = sessionMan.sessions('gu:mining');
     };
+
+    function reload() {
+        $scope.sessions = sessionMan.sessions('gu:mining');
+    }
+
+    $scope.dropSession = function(session) {
+        $uibModal.open({
+            animate: true,
+            templateUrl: 'modal-confirm.html',
+            controller: function($scope, $uibModalInstance) {
+                $scope.title = 'Session delete';
+                $scope.question = 'Delete session ' + session.id + ' ?';
+                $scope.ok = function() {
+                    sessionMan.dropSession(session);
+                    reload();
+                    $uibModalInstance.close()
+                }
+            }
+        })
+    }
 
 })
 .controller('MiningPreselection', function($scope, sessionMan) {
@@ -74,7 +95,7 @@ angular.module('gu')
     }
 
     $scope.nextStep = function() {
-        sessionMan.updateSession($scope.session, 'CREATED', {peers: $scope.peers})
+        sessionMan.updateSession($scope.session, 'CREATED', {peers: _.filter($scope.peers, peer => peer.assigned)})
     }
 
     sessionMan.peers($scope.session, true).then(peers => $scope.peers = peers);
