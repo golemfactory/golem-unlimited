@@ -34,6 +34,17 @@ impl Actor for HdMan {
     }
 }
 
+impl Drop for HdMan {
+    fn drop(&mut self) {
+        let _: Vec<Result<(), Error>> = self
+            .sessions
+            .values_mut()
+            .map(SessionInfo::destroy)
+            .collect();
+        println!("HdMan stopped");
+    }
+}
+
 impl HdMan {
     pub fn start(config: &ConfigModule) -> Addr<Self> {
         let cache_dir = config.cache_dir().to_path_buf().join("images");
@@ -93,11 +104,7 @@ impl HdMan {
         self.sessions
             .remove(session_id)
             .ok_or(Error::NoSuchSession(session_id.clone()))
-            .and_then(|session| {
-                // TODO kill children
-                debug!("cleaning session dir {:?}", session.work_dir);
-                fs::remove_dir_all(session.work_dir).map_err(From::from)
-            })
+            .and_then(|mut s| SessionInfo::destroy(&mut s))
     }
 
     fn scan_for_processes(&mut self) {
@@ -143,12 +150,30 @@ impl SessionInfo {
         self.status = PeerSessionStatus::RUNNING;
         id
     }
+
+    fn destroy(&mut self) -> Result<(), Error> {
+        debug!("killing all running child processes");
+        let mut _x = Vec::new();
+        _x = self
+            .processes
+            .values_mut()
+            .map(|child| child.kill())
+            .collect();
+        _x = self
+            .processes
+            .values_mut()
+            .map(|child| child.wait().map(|_| ()))
+            .collect();
+        debug!("cleaning session dir {:?}", self.work_dir);
+        fs::remove_dir_all(&self.work_dir).map_err(From::from)
+    }
 }
 
 /// image with binaries and resources for given session
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Image {
     url: String,
+    // TODO: sha256sum: String,
     cache_file: String,
 }
 
@@ -269,10 +294,9 @@ impl Handler<SessionUpdate> for HdMan {
 
     fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
         if !self.sessions.contains_key(&msg.session_id) {
-            return ActorResponse::reply(Err(vec![format!(
-                "session_id {} not found",
-                &msg.session_id
-            )]));
+            return ActorResponse::reply(Err(vec![
+                Error::NoSuchSession(msg.session_id).to_string(),
+            ]));
         }
 
         let mut future_chain: Box<
@@ -372,13 +396,49 @@ impl Handler<SessionUpdate> for HdMan {
                                     ),
                                 ),
                                 None => {
-                                    v.push(format!("child {:?} not found", child_id));
+                                    v.push(Error::NoSuchChild(child_id).to_string());
                                     fut::Either::B(fut::err(v))
                                 }
                             },
                             Err(e) => {
                                 v.push(e.to_string());
                                 fut::Either::B(fut::err(v))
+                            }
+                        }
+                    }));
+                }
+                Command::AddTags(mut tags) => {
+                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                        match act.get_session_mut(&session_id) {
+                            Ok(session) => {
+                                session.tags.append(&mut tags);
+                                v.push(format!(
+                                    "tags inserted. Current tags are: {:?}",
+                                    &session.tags
+                                ));
+                                fut::ok(v)
+                            }
+                            Err(e) => {
+                                v.push(e.to_string());
+                                fut::err(v)
+                            }
+                        }
+                    }));
+                }
+                Command::DelTags(mut tags) => {
+                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                        match act.get_session_mut(&session_id) {
+                            Ok(session) => {
+                                session.tags.retain(|t| !tags.contains(t));
+                                v.push(format!(
+                                    "tags removed. Current tags are: {:?}",
+                                    &session.tags
+                                ));
+                                fut::ok(v)
+                            }
+                            Err(e) => {
+                                v.push(e.to_string());
+                                fut::err(v)
                             }
                         }
                     }));

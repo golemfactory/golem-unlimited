@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time;
 
 // TODO: support redirect
+// TODO: support https
 pub fn download(url: &str, output_path: PathBuf) -> Box<Future<Item = (), Error = String>> {
     info!("downloading from {} to {:?}", url, &output_path);
     use actix_web::client;
