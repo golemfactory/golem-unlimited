@@ -5,7 +5,31 @@
             <h4><i class="glyphicon glyphicon-home"></i> Status</h4>
         </div>
         <div class="panel-body">
-            TODO
+            <div class="row">
+                <div class="col-md-4">
+                    <p>Uptime: ...</p>
+                    <p>Connections: ...</p>
+                    <p>Memory: ...</p>
+                    <p>Os: ...</p>
+                </div>
+                <div class="col-md-4">
+                    <ng-gauge
+                            type="arch" thick="10"
+                            value="24.3" max="32" size="150"
+                              fraction-size="1"
+                              cap="butt" label="RAM" append="GB">
+
+                    </ng-gauge>
+                </div>
+                <div class="col-md-4">
+                    <p>.....</p>
+                    <p>.....</p>
+                    <p>.....</p>
+                    <p>.....</p>
+                    <p>.....</p>
+                </div>
+            </div>
+
 
         </div>
     </div>

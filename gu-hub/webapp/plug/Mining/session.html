@@ -12,15 +12,17 @@
                 </thead>
                 <tbody>
                 <tr ng-repeat="session in sessions track by session.id">
-                    <td><code><a href="#" ng-click="openSession(session)"><i class="glyphicon glyphicon-file"></i> {{session.id}}</a></code></td>
+                    <td><code><a href="#" ng-click="openSession(session)"><i class="glyphicon glyphicon-file"></i>
+                        {{session.id}}</a></code></td>
                     <td>{{session.status}}</td>
-                    <td><a href="#" class="btn btn-default"><i class="glyphicon glyphicon-trash"></i> </a></td>
+                    <td><a href="#" class="btn btn-default" ng-click="dropSession(session)"><i class="glyphicon glyphicon-trash"></i> </a></td>
                 </tr>
                 </tbody>
             </table>
             <div class="row">
                 <div class="col-md-12">
-                    <a href="#" class="btn btn-default" ng-click="newSession()"> <i class="glyphicon glyphicon-plus"></i> New Session</a>
+                    <a href="#" class="btn btn-default" ng-click="newSession()"> <i
+                            class="glyphicon glyphicon-plus"></i> New Session</a>
                 </div>
             </div>
         </div>
