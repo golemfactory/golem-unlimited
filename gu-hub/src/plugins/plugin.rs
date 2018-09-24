@@ -2,7 +2,6 @@ use actix_web::{self, http, HttpRequest, Responder, Scope};
 use gu_base::cli;
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_persist::config::ConfigModule;
-use plugins::zip::{load_archive, validate_and_load_metadata};
 use prettytable::Table;
 use semver::Version;
 use semver::VersionReq;
@@ -13,8 +12,12 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
+use plugins::zip::PluginParser;
+use std::marker::PhantomData;
+use std::fmt::Debug;
+use plugins::zip::ZipParser;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct PluginMetadata {
     /// plugin name
@@ -45,51 +48,79 @@ impl PluginMetadata {
     }
 }
 
+pub trait PluginAPI: Debug {
+    fn name(&self) -> String;
+
+    fn activate(&mut self, plugins_dir: PathBuf) -> Result<(), String>;
+
+    fn inactivate(&mut self);
+
+    fn handle_error(&mut self);
+
+    fn info(&self) -> PluginInfo;
+
+    fn file(&self, path: String) -> Option<Vec<u8>>;
+
+    fn is_active(&self) -> bool;
+
+    fn archive_name(&self) -> String;
+
+    fn metadata(&self) -> PluginMetadata;
+}
+
+pub fn create_plugin_controller(path: &Path, gu_version: Version) -> Result<Box<PluginAPI>, String> {
+    Plugin::<ZipParser>::load_metadata(path, gu_version)
+}
+
 #[derive(Debug)]
-pub struct Plugin {
+pub struct Plugin<T: PluginParser + 'static> {
     metadata: PluginMetadata,
     status: PluginStatus,
     files: HashMap<PathBuf, Vec<u8>>,
     archive_name: String,
+    phantom: PhantomData<T>
 }
 
-impl Plugin {
-    pub fn name(&self) -> String {
-        self.metadata.name.clone()
-    }
-
-    pub fn load_metadata(path: &Path, gu_version: Version) -> Result<Self, String> {
-        let (zip_name, metadata) = validate_and_load_metadata(path, gu_version)?;
+impl<T: PluginParser + 'static> Plugin<T> {
+    fn load_metadata(path: &Path, gu_version: Version) -> Result<Box<PluginAPI>, String> {
+        let (zip_name, metadata) = T::validate_and_load_metadata(path, gu_version)?;
         Ok(Self::new(zip_name, metadata))
     }
 
-    pub fn new(archive_name: String, metadata: PluginMetadata) -> Self {
-        Self {
+    fn new(archive_name: String, metadata: PluginMetadata) -> Box<PluginAPI> {
+        Box::new(Self {
             metadata,
             status: PluginStatus::Installed,
             files: HashMap::new(),
             archive_name,
-        }
+            phantom: PhantomData::<T>
+        })
+    }
+}
+
+impl<T: PluginParser + 'static> PluginAPI for Plugin<T> {
+    fn name(&self) -> String {
+        self.metadata.name.clone()
     }
 
-    pub fn activate(&mut self, plugins_dir: PathBuf) -> Result<(), String> {
+    fn activate(&mut self, plugins_dir: PathBuf) -> Result<(), String> {
         let zip_path = plugins_dir.join(&self.archive_name);
-        self.files = load_archive(zip_path.as_ref(), &self.metadata.name)?;
+        self.files = T::load_files(zip_path.as_ref(), &self.metadata.name)?;
         self.status = PluginStatus::Active;
         Ok(())
     }
 
-    pub fn inactivate(&mut self) {
+    fn inactivate(&mut self) {
         self.files.clear();
         self.status = PluginStatus::Installed;
     }
 
-    pub fn handle_error(&mut self) {
+    fn handle_error(&mut self) {
         // TODO: some action?
         self.status = PluginStatus::Error;
     }
 
-    pub fn info(&self) -> PluginInfo {
+    fn info(&self) -> PluginInfo {
         PluginInfo {
             name: self.metadata.name.clone(),
             version: self.metadata.version.clone(),
@@ -97,12 +128,20 @@ impl Plugin {
         }
     }
 
-    pub fn file(&self, path: String) -> Option<Vec<u8>> {
+    fn file(&self, path: String) -> Option<Vec<u8>> {
         self.files.get(&PathBuf::from(path)).map(|arc| arc.clone())
     }
 
-    pub fn is_active(&self) -> bool {
+    fn is_active(&self) -> bool {
         self.status == PluginStatus::Active
+    }
+
+    fn archive_name(&self) -> String {
+        self.archive_name.clone()
+    }
+
+    fn metadata(&self) -> PluginMetadata {
+        self.metadata.clone()
     }
 }
 
