@@ -1,33 +1,41 @@
-<div class="col-md-12">
+<div class="col-md-12" ng-controller="StatusController">
     <div class="panel panel-default">
         <div class="panel-heading">
-            <!--div class="pull-right"><a class="btn btn-sm btn-default" href="#" ng-click="refresh()"><i class="glyphicon glyphicon-refresh"></i></a></div-->
+            <div class="pull-right">
+                <a class="btn btn-sm btn-default" href="#" ng-click="refresh()">
+                    <i class="glyphicon glyphicon-refresh"></i>
+                </a>
+            </div>
             <h4><i class="glyphicon glyphicon-home"></i> Status</h4>
         </div>
         <div class="panel-body">
             <div class="row">
                 <div class="col-md-4">
-                    <p>Uptime: ...</p>
-                    <p>Connections: ...</p>
-                    <p>Memory: ...</p>
-                    <p>Os: ...</p>
+                    <!--p>Uptime: </p-->
+                    <p>Peers connected: <b>{{(peers.length || 0)}}</b></p>
+                    <p>Memory: {{hub.ram.used/1000/1000 | number: 1}} / {{hub.ram.total/1000/1000 | number: 1}} GB</p>
+                    <p>Server Os: <b>{{hub.os}}</b></p>
                 </div>
                 <div class="col-md-4">
                     <ng-gauge
                             type="arch" thick="10"
-                            value="24.3" max="32" size="150"
-                              fraction-size="1"
-                              cap="butt" label="RAM" append="GB">
+                            value="hub.ram.used/hub.ram.total*100" size="150"
+                              fraction-size="1" cap="butt" label="RAM used" append="%"
+                    thresholds="{
+                        '0': { color: 'green' },
+                        '40': {color: 'orange' },
+                        '80': {color: 'red'}
+                    }">
 
                     </ng-gauge>
                 </div>
-                <div class="col-md-4">
+                <!--div class="col-md-4">
                     <p>.....</p>
                     <p>.....</p>
                     <p>.....</p>
                     <p>.....</p>
                     <p>.....</p>
-                </div>
+                </div-->
             </div>
 
 
