@@ -9,34 +9,41 @@
                 <thead>
                 <tr>
                     <th>Node Id</th>
-                    <th>Connection</th>
+                    <th>Node Name</th>
                     <th>RAM</th>
                     <th>GPU</th>
                     <th>Sessions</th>
-                    <th>Name</th>
+                    <th>Connection</th>
                 </tr>
                 </thead>
                 <tbody>
                     <tr ng-repeat="peer in peers track by peer.nodeId">
                         <td>
                             <code><a href="#" ng-click="updatePeer(peer)">{{peer.nodeId}}</a></code>
-                            <span class="label label-default" ng-if="!!peer.os">{{peer.os}}</span>
                         </td>
-                        <td>{{peer.peerAddr}}</td>
+                        <td>
+                            <span>{{peer.nodeName || peer.hostname}}</span>
+                            <span class="label label-info" ng-if="peer.os.toLowerCase().includes('macos')">{{peer.os}}</span>
+                            <span class="label label-default" ng-if="!peer.os.toLowerCase().includes('macos')">{{peer.os}}</span>
+                        </td>
                         <td><span ng-if="peer.ram">
                             <uib-progress max="peer.ram.total" animate="false">
-                                <uib-bar value="peer.ram.used" type="warning" title="used"><span ng-hide="peer.ram.used/peer.ram.total < 0.05">{{peer.ram.used/1000/1000 | number: 1}}</span></uib-bar>
-                                <uib-bar value="peer.ram.free" type="success" title="free"><span ng-hide="peer.ram.free/peer.ram.total < 0.05">{{peer.ram.free/1000/1000 | number: 1}} GB</span></uib-bar>
+                                <uib-bar value="peer.ram.used" type="warning" title="used: {{peer.ram.used/1000/1000 | number: 1}} GB">
+                                    <span ng-hide="peer.ram.used/peer.ram.total < 0.05">{{peer.ram.used/1000/1000 | number: 1}}</span>
+                                </uib-bar>
+                                <uib-bar value="peer.ram.free" type="success" title="free: {{peer.ram.free/1000/1000 | number: 1}} GB">
+                                    <span ng-hide="peer.ram.free/peer.ram.total < 0.05">{{peer.ram.free/1000/1000 | number: 1}} GB</span>
+                                </uib-bar>
                             </uib-progress>
                         </span></td>
                         <td>
                             <span ng-if="!!peer.gpu">
-                                <span class="label label-success" ng-if="peer.gpu.amd">AMD</span>
-                                <span class="label label-success" ng-if="peer.gpu.nvidia">NVIDIA</span>
+                                <span class="label label-primary" ng-if="peer.gpu.amd">AMD {{peer.gpu.amd > 1 ? "x"+peer.gpu.amd : ""}}</span>
+                                <span class="label label-danger" ng-if="peer.gpu.nvidia">NVidia {{peer.gpu.nvidia > 1 ? "x"+peer.gpu.nvidia : ""}}</span>
                             </span>
                         </td>
                         <td>{{(peer.sessions.length || 0)}}</td>
-                        <td>{{peer.nodeName || peer.hostname}}</td>
+                        <td>{{peer.peerAddr}}</td>
                     </tr>
                 </tbody>
             </table>
