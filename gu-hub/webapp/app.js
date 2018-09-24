@@ -184,4 +184,67 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             updateSession: updateSession,
             dropSession: dropSession
          }
+  })
+  .service('hdMan', function($http, hubApi, $q, $log) {
+        const HDMAN_CREATE = 37;
+        const HDMAN_UPDATE = 38;
+        const HDMAN_GET_SESSIONS = 39;
+
+        class HdMan {
+            constructor(nodeId) {
+                this.nodeId = nodeId;
+            }
+
+            newSession(sessionSpec) {
+                return new Session(this.nodeId,
+                    hubApi.callRemote(this.nodeId, HDMAN_CREATE, sessionSpec));
+            }
+
+            fromId(sessionId) {
+                return new Session(this.nodeId, {Ok: sessionId});
+            }
+
+            sessions() {
+                return hubApi.callRemote(this.nodeId, HDMAN_GET_SESSIONS, null)
+                    .then(sessions => _.map(sessions, session => this.fromId(session.session_id, session)))
+            }
+        }
+
+        class Session {
+            constructor(nodeId, sessionId) {
+                this.nodeId = nodeId;
+                this.status = 'PENDING';
+                this.$create = $q.when(sessionId).then(id => {
+                    if (id.Ok) {
+                        this.id = id.Ok;
+                        this.status = 'CREATED';
+                        return id.Ok;
+                    }
+                    else {
+                        this.status = 'FAIL';
+                        return null;
+                    }
+                });
+            }
+
+            exec(entry, args) {
+                return this.$create.then(id =>
+                    hubApi.callRemote(this.nodeId, HDMAN_UPDATE, {
+                        session_id: id,
+                        commands: [
+                            {Exec: {executable: entry, args: (args||[])}}
+                        ]
+                    })
+                ).then(result => {
+                    $log.info("exec result", result);
+                    return result;
+                });
+            }
+        }
+
+        function peer(nodeId) {
+            return new HdMan(nodeId);
+        }
+
+        return { peer: peer }
   });

@@ -26,11 +26,16 @@
                 </thead>
                 <tbody>
                 <tr ng-repeat="peer in peers track by peer.nodeId">
-                    <td><code>{{peer.nodeId}}</code></td>
+                    <td><a href="#" ng-click="runBenchmark(peer)" class="btn btn-default">R</a><code>{{peer.nodeId}}</code></td>
                     <td></td>
                     <td></td>
-                    <td><span class="label label-default">pending</span></td>
-                    <td><span class="label label-default">pending</span></td>
+                    <td>
+                        <span ng-if="progress[peer.nodeId]">
+                            <uib-progressbar max="progress[peer.nodeId].max" value="progress[peer.nodeId].step" type="success">{{progress[peer.nodeId].label}}</uib-progressbar>
+                        </span>
+                        <span ng-if="monero[peer.nodeId]">{{monero[peer.nodeId].hashRate}} H/s</span>
+                    </td>
+                    <td></td>
 
                 </tr>
                 </tbody>

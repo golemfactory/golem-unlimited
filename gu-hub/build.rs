@@ -3,7 +3,6 @@ extern crate flate2;
 use std::io::prelude::*;
 use std::{env, fs, path};
 
-
 fn main() {
     let mut outf = fs::OpenOptions::new()
         .read(false)
