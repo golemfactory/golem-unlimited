@@ -26,7 +26,7 @@ use std::str::Bytes;
 pub fn list_query() {
     System::run(|| {
         Arbiter::spawn(
-            ServerClient::get("/plug".into())
+            ServerClient::get("/plug")
                 .and_then(|r| Ok(format_plugins_table(r)))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
@@ -37,7 +37,7 @@ pub fn list_query() {
 pub fn install_query(path: &Path) {
     System::run(|| {
         Arbiter::spawn(
-            ServerClient::get("/plug".into())
+            ServerClient::get("/plug")
                 .and_then(|r: Vec<PluginInfo>| Ok(format_plugins_table(r)))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),

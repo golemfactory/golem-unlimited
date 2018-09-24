@@ -169,16 +169,23 @@ impl fmt::Display for PluginStatus {
 }
 
 pub fn format_plugins_table(plugins: Vec<PluginInfo>) {
-    let mut table = Table::new();
-    table.set_titles(row!["Name", "Version", "Status"]);
+    cli::format_table(
+        row!["Name", "Version", "Status"],
+        || "No plugins installed",
+        plugins.iter().map(|plugin| {
+            row![
+                plugin.name,
+                plugin.version.to_string(),
+                plugin.status.to_string(),
+            ]
+        }),
+    )
+    /*let mut table = Table::new();
+    table.set_titles();
     for plugin in plugins {
-        table.add_row(row![
-            plugin.name,
-            plugin.version.to_string(),
-            plugin.status.to_string(),
-        ]);
+        table.add_row();
     }
 
     table.set_format(*cli::FORMAT_BASIC);
-    table.printstd()
+    table.printstd()*/
 }

@@ -1,8 +1,8 @@
 use actix::Message;
 use error::{ErrorKind, Result};
+use gu_persist::config::ConfigModule;
 use std::path::PathBuf;
 use sysinfo::{DiskExt, DiskType, SystemExt};
-use gu_persist::config::ConfigModule;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiskInfo {

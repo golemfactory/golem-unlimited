@@ -53,7 +53,7 @@ impl Module for PeerModule {
 
                 System::run(|| {
                     Arbiter::spawn(
-                        ServerClient::get("/peer".into())
+                        ServerClient::get("/peer")
                             .and_then(|r: Vec<PeerInfo>| Ok(format_peer_table(r)))
                             .map_err(|e| error!("{}", e))
                             .then(|_r| Ok(System::current().stop())),
@@ -143,17 +143,16 @@ fn peer_send_path<S: 'static>(r: HttpRequest<S>) -> impl Responder {
 }
 
 fn format_peer_table(peers: Vec<PeerInfo>) {
-    let mut table = Table::new();
-    table.set_titles(row!["Node id", "Name", "Connection", "Sessions"]);
-    for peer in peers {
-        table.add_row(row![
-            peer.node_id,
-            peer.node_name,
-            peer.peer_addr.unwrap_or_else(|| String::default()),
-            peer.sessions.len()
-        ]);
-    }
-
-    table.set_format(*cli::FORMAT_BASIC);
-    table.printstd()
+    cli::format_table(
+        row!["Node id", "Name", "Connection", "Sessions"],
+        || "No peers connected",
+        peers.into_iter().map(|peer| {
+            row![
+                peer.node_id,
+                peer.node_name,
+                peer.peer_addr.unwrap_or_else(|| String::default()),
+                peer.sessions.len()
+            ]
+        }),
+    )
 }

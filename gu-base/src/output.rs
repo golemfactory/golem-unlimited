@@ -21,15 +21,18 @@ impl Module for LogModule {
         )
     }
 
-    fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         if env::var("RUST_LOG").is_err() {
-            env::set_var(
-                "RUST_LOG",
-                "info,gu_p2p=debug,gu_provider=debug,gu_hub=debug",
-            )
+            match matches.occurrences_of("v") {
+                0 => env::set_var("RUST_LOG", "error"),
+                1 => env::set_var("RUST_LOG", "info"),
+                _ => env::set_var(
+                    "RUST_LOG",
+                    "info,gu_p2p=debug,gu_provider=debug,gu_hub=debug",
+                ),
+            }
         }
         env_logger::init();
-        debug!("debug");
         false
     }
 }

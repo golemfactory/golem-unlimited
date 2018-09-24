@@ -251,11 +251,11 @@ impl ServerClient {
         ServerClient { inner: () }
     }
 
-    pub fn get<T: de::DeserializeOwned + Send + 'static>(
-        path: String,
+    pub fn get<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
+        path: IntoStr,
     ) -> impl Future<Item = T, Error = ClientError> {
         ServerClient::from_registry()
-            .send(ResourceGet(path, PhantomData))
+            .send(ResourceGet(path.into(), PhantomData))
             .flatten_fut()
     }
 }
