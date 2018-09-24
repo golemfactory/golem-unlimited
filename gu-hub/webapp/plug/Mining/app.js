@@ -86,6 +86,8 @@ angular.module('gu')
     $scope.$watch('all', function(v) {
         if ($scope.all) {
             angular.forEach($scope.peers, peer => peer.assigned=true)
+        } else {
+            angular.forEach($scope.peers, peer => peer.assigned=false)
         }
     });
 

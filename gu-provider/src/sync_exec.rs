@@ -123,6 +123,7 @@ impl From<MailboxError> for Error {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::{Exec, ExecResult, SyncExecManager};
@@ -162,3 +163,4 @@ mod test {
     //            .map_err(|e : String| {v.push(e); v});
     //    }
 }
+*/

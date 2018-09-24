@@ -43,7 +43,7 @@ use gu_base::*;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod peer;
-mod plugin;
+mod plugins;
 mod server;
 
 fn main() {
@@ -52,7 +52,7 @@ fn main() {
             .chain(AutocompleteModule::new())
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::rest_client::LanModule)
-            .chain(plugin::PluginManager::default())
+            .chain(plugins::PluginModule::new())
             .chain(peer::PeerModule::new())
             .chain(gu_hardware::module())
             .chain(server::ServerModule::new()),

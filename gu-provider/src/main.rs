@@ -1,9 +1,13 @@
-extern crate futures;
-extern crate tokio;
-
 extern crate actix;
 extern crate actix_web;
+extern crate bytes;
 extern crate clap;
+extern crate directories;
+extern crate env_logger;
+#[macro_use]
+extern crate error_chain;
+extern crate flate2;
+extern crate futures;
 extern crate gu_actix;
 extern crate gu_base;
 extern crate gu_ethkey;
@@ -11,37 +15,29 @@ extern crate gu_hardware;
 extern crate gu_lan;
 extern crate gu_p2p;
 extern crate gu_persist;
-
-extern crate serde;
-extern crate serde_json;
-
-#[macro_use]
-extern crate serde_derive;
-
-#[macro_use]
-extern crate error_chain;
-extern crate directories;
-
-extern crate env_logger;
 #[macro_use]
 extern crate log;
-
-extern crate bytes;
-extern crate flate2;
 extern crate mdns;
 extern crate rand;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate tar;
+extern crate tokio;
 extern crate uuid;
 
+use clap::App;
+use gu_base::*;
+
 mod hdman;
+mod id;
+mod provision;
 mod server;
 mod sync_exec;
 mod write_to;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-use clap::App;
-use gu_base::*;
 
 fn main() {
     GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
