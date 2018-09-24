@@ -47,7 +47,7 @@ impl PluginManager {
     pub fn save_plugin(&self, path: &Path) -> Result<(), String> {
         let parser = create_plugin_controller(path, self.gu_version.clone())?;
         let zip_name = parser.archive_name();
-        let metadata = parser.metadata();
+        let _metadata = parser.metadata();
 
         fs::copy(&path, self.directory.join(zip_name))
             .and_then(|_| Ok(()))
@@ -86,7 +86,7 @@ impl SystemService for PluginManager {}
 impl Actor for PluginManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
+    fn started(&mut self, _ctx: &mut Self::Context) {
         self.reload_plugins().map_err(|e| error!("{:?}", e));
     }
 }
@@ -103,7 +103,7 @@ impl Handler<ListPlugins> for PluginManager {
     fn handle(
         &mut self,
         _msg: ListPlugins,
-        ctx: &mut Context<Self>,
+        _ctx: &mut Context<Self>,
     ) -> <Self as Handler<ListPlugins>>::Result {
         let mut vec = Vec::new();
         for plugin in self.plugins.values() {
@@ -129,7 +129,7 @@ impl Handler<PluginFile> for PluginManager {
     fn handle(
         &mut self,
         msg: PluginFile,
-        ctx: &mut Context<Self>,
+        _ctx: &mut Context<Self>,
     ) -> <Self as Handler<PluginFile>>::Result {
         let plugin = self.plugins.get(&msg.plugin).unwrap();
         MessageResult(if plugin.is_active() {

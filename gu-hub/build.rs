@@ -14,7 +14,7 @@ fn main() {
 
     writeln!(outf, "start!");
     let out_dir = env::var("OUT_DIR").unwrap();
-    let out_path: path::PathBuf = out_dir.into();
+    let _out_path: path::PathBuf = out_dir.into();
 
     let webapp = fs::read_dir("webapp").unwrap();
 

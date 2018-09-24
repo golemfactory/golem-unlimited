@@ -34,7 +34,7 @@ pub fn list_query() {
     });
 }
 
-pub fn install_query(path: &Path) {
+pub fn install_query(_path: &Path) {
     System::run(|| {
         Arbiter::spawn(
             ServerClient::get("/plug")

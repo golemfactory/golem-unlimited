@@ -65,9 +65,9 @@ impl PciDevice {
                     return Err(io::ErrorKind::InvalidInput.into());
                 }
 
-                i64::from_str_radix(&s[2..], 16).map_err(|e| io::ErrorKind::InvalidInput.into())
+                i64::from_str_radix(&s[2..], 16).map_err(|_e| io::ErrorKind::InvalidInput.into())
             }
-            Err(e) => Err(io::ErrorKind::InvalidInput.into()),
+            Err(_e) => Err(io::ErrorKind::InvalidInput.into()),
         }
     }
 
