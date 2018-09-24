@@ -77,7 +77,7 @@ pub fn gpu_count() -> error::Result<GpuCount> {
 #[cfg(not(target_os = "linux"))]
 #[cfg(not(feature = "clinfo"))]
 pub fn gpu_count() -> error::Result<GpuCount> {
-    bail!("gpu detection unspuported on windows")
+    bail!("gpu detection unsupported on windows")
 }
 
 #[cfg(test)]
