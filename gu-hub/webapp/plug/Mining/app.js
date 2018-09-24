@@ -1,7 +1,7 @@
 
 var images = {
     linux: "http://10.30.8.179:61622/app/images/monero-linux.tar.gz",
-    macos: "http://10.30.8.179:61622/app/images/xmr-stak-MacOS.tgz",
+    macos: "http://10.30.8.179:61622/app/images/monero-macos.tar.gz",
 }
 
 angular.module('gu')
