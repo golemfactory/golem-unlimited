@@ -17,6 +17,9 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
+#[macro_use]
+extern crate lazy_static;
+
 extern crate byteorder;
 extern crate gu_actix;
 extern crate rand;

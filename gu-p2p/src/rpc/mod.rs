@@ -4,6 +4,7 @@ mod message;
 pub mod mock;
 mod monitor;
 pub mod peer;
+mod registry;
 pub mod reply;
 pub mod router;
 mod util;
@@ -54,5 +55,6 @@ pub use self::error::Error as RpcError;
 pub use self::message::{
     gen_destination_id, public_destination, DestinationId, EmitMessage, MessageId, RouteMessage,
 };
+pub use self::registry::RemotingSystemService;
 pub use self::reply::ReplyRouter;
 pub use self::router::MessageRouter;

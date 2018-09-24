@@ -9,7 +9,7 @@ use sysinfo::SystemExt;
 
 use disk::{DiskInfo, DiskQuery};
 use gu_actix::flatten::FlattenFuture;
-use gu_p2p::rpc::RemotingContext;
+use gu_p2p::rpc::{RemotingContext, RemotingSystemService};
 use inner_actor::InnerActor;
 use ram::{RamInfo, RamQuery};
 
@@ -76,6 +76,8 @@ impl Actor for HardwareActor {
         self.hostname = get_hostname()
     }
 }
+
+impl RemotingSystemService for HardwareActor {}
 
 fn ram(
     query: RamQuery,

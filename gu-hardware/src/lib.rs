@@ -19,17 +19,18 @@ extern crate serde;
 extern crate serde_json;
 extern crate sysinfo;
 
-#[cfg(feature="clinfo")]
+#[cfg(feature = "clinfo")]
 extern crate cl_sys;
-#[cfg(feature="clinfo")]
+#[cfg(feature = "clinfo")]
 extern crate smallvec;
 
 use futures::future;
 use futures::prelude::*;
 use gu_base::Module;
-use gu_p2p::rpc::start_actor;
+use gu_p2p::rpc::{start_actor, RemotingSystemService};
 
 pub mod actor;
+mod cli;
 mod disk;
 pub mod gpuinfo;
 mod inner_actor;
@@ -76,9 +77,9 @@ pub fn module() -> HardwareModule {
 
 impl Module for HardwareModule {
     fn run<D: gu_base::Decorator + Clone + 'static>(&self, _decorator: D) {
-        info!("clinfo {}", cfg!(feature="clinfo"));
+        info!("clinfo {}", cfg!(feature = "clinfo"));
         gu_base::run_once(|| {
-            let _ = start_actor(self::actor::HardwareActor::default());
+            let _ = self::actor::HardwareActor::from_registry();
         })
     }
 }
