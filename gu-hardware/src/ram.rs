@@ -24,6 +24,7 @@ impl RamInfo {
 }
 
 pub(crate) fn ram_info(sys: &impl SystemExt) -> RamInfo {
+    // TODO: this is not refreshing and not providing accurate numbers
     RamInfo {
         free: sys.get_free_memory(),
         used: sys.get_used_memory(),

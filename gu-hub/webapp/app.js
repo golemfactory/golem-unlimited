@@ -58,6 +58,32 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
      refresh();
 
   })
+  .controller('StatusController', function($scope, $http) {
+     function refresh() {
+        console.log("refreshing");
+        $http.post('/m/19354', "null").then(r => {
+            var ok = r.data.Ok;
+            if (ok) {
+                $scope.hub = {
+                    ram: ok.ram,
+                    gpu: ok.gpu,
+                    os: ok.os,
+                    hostname: ok.hostname
+                }
+                console.log("hub", $scope.hub);
+            }
+        });
+        $http.get('/peer').then(r => {
+            $scope.peers = r.data;
+        });
+     };
+
+     $scope.refresh = refresh;
+
+     $scope.hub = {};
+     refresh();
+
+  })
   .service('hubApi', function($http) {
         function callRemote(nodeId, destinationId, body) {
             return $http.post('/peer/send-to/' + nodeId + '/' + destinationId, {b: body}).then(r => r.data);
