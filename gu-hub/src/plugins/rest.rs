@@ -11,17 +11,17 @@ use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::Scope;
+use futures::future;
 use futures::future::Future;
 use plugins::manager::ListPlugins;
 use plugins::manager::PluginFile;
 use plugins::manager::PluginManager;
 use plugins::plugin::format_plugins_table;
 use plugins::plugin::PluginInfo;
+use plugins::zip::PluginParser;
 use server::ServerClient;
 use std::path::{Path, PathBuf};
 use std::str::Bytes;
-use futures::future;
-use plugins::zip::PluginParser;
 
 pub fn list_query() {
     System::run(|| {
@@ -87,9 +87,8 @@ fn valid_path_part(part: &Path) -> bool {
 
     match part.to_str() {
         Some(x) => x.chars().all(lambda),
-        None => false
+        None => false,
     }
-
 }
 
 fn valid_path(path: &String) -> Result<ContentType, String> {
@@ -101,14 +100,12 @@ fn valid_path(path: &String) -> Result<ContentType, String> {
             .and_then(|ext| match ext {
                 "js" => Some(ContentType::JavaScript),
                 "html" => Some(ContentType::Html),
-                _ => None
-            })
-            .ok_or(format!("Unsupported file extension: {:?}", buf.file_name()).to_string())
+                _ => None,
+            }).ok_or(format!("Unsupported file extension: {:?}", buf.file_name()).to_string())
     } else {
         Err("Invalid file path".to_string())
     }
 }
-
 
 fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
     let manager = PluginManager::from_registry();
@@ -126,14 +123,15 @@ fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
     };
 
     match valid_path(&file.path) {
-        Ok(content_type) => {
-            manager
-                .send(file)
-                .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
-                .and_then(|res| res.map_err(|e| ErrorInternalServerError(format!("err: {}", e))))
-                .and_then(move |res| Ok(HttpResponse::Ok().content_type(content_type.to_string()).body(res)))
-                .responder()
-        }
+        Ok(content_type) => manager
+            .send(file)
+            .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+            .and_then(|res| res.map_err(|e| ErrorInternalServerError(format!("err: {}", e))))
+            .and_then(move |res| {
+                Ok(HttpResponse::Ok()
+                    .content_type(content_type.to_string())
+                    .body(res))
+            }).responder(),
         Err(e) => future::err(ErrorBadRequest(e)).responder(),
     }
 }

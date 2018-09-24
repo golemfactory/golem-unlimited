@@ -2,20 +2,20 @@ use actix_web::{self, http, HttpRequest, Responder, Scope};
 use gu_base::cli;
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_persist::config::ConfigModule;
+use plugins::zip::PluginParser;
+use plugins::zip::ZipParser;
 use prettytable::Table;
 use semver::Version;
 use semver::VersionReq;
 use serde_json;
 use std::collections::HashMap;
 use std::fmt;
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::Read;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
-use plugins::zip::PluginParser;
-use std::marker::PhantomData;
-use std::fmt::Debug;
-use plugins::zip::ZipParser;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -68,7 +68,10 @@ pub trait PluginAPI: Debug {
     fn metadata(&self) -> PluginMetadata;
 }
 
-pub fn create_plugin_controller(path: &Path, gu_version: Version) -> Result<Box<PluginAPI>, String> {
+pub fn create_plugin_controller(
+    path: &Path,
+    gu_version: Version,
+) -> Result<Box<PluginAPI>, String> {
     Plugin::<ZipParser>::load_metadata(path, gu_version)
 }
 
@@ -78,7 +81,7 @@ pub struct Plugin<T: PluginParser + 'static> {
     status: PluginStatus,
     files: HashMap<PathBuf, Vec<u8>>,
     archive_name: String,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T: PluginParser + 'static> Plugin<T> {
@@ -93,7 +96,7 @@ impl<T: PluginParser + 'static> Plugin<T> {
             status: PluginStatus::Installed,
             files: HashMap::new(),
             archive_name,
-            phantom: PhantomData::<T>
+            phantom: PhantomData::<T>,
         })
     }
 }

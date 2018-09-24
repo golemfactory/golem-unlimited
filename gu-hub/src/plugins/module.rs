@@ -4,8 +4,8 @@ use plugins;
 use plugins::manager::PluginManager;
 use plugins::plugin::format_plugins_table;
 use plugins::rest::scope;
-use std::path::PathBuf;
 use plugins::zip::ZipParser;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct PluginModule {

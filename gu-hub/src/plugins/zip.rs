@@ -2,24 +2,30 @@ use plugins::plugin::PluginMetadata;
 use semver::Version;
 use serde_json;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 use zip::ZipArchive;
-use std::fmt::Debug;
 
 pub trait PluginParser: Debug {
-    fn validate_and_load_metadata(path: &Path, gu_version: Version)
-        -> Result<(String, PluginMetadata), String>;
+    fn validate_and_load_metadata(
+        path: &Path,
+        gu_version: Version,
+    ) -> Result<(String, PluginMetadata), String>;
 
     fn load_files(zip_path: &Path, app_name: &String) -> Result<HashMap<PathBuf, Vec<u8>>, String>;
 }
 
 impl<T> PluginParser for T
-where T: PluginParserInner {
-    fn validate_and_load_metadata(path: &Path, gu_version: Version)
-                                  -> Result<(String, PluginMetadata), String> {
+where
+    T: PluginParserInner,
+{
+    fn validate_and_load_metadata(
+        path: &Path,
+        gu_version: Version,
+    ) -> Result<(String, PluginMetadata), String> {
         let name = T::validate_package_name(path)?;
         let metadata = T::load_metadata(path)?;
         T::validate_gu_version(&metadata, &gu_version)?;
@@ -35,8 +41,7 @@ where T: PluginParserInner {
 
 pub trait PluginParserInner: Debug {
     fn validate_package_name(path: &Path) -> Result<String, String> {
-        path
-            .file_name()
+        path.file_name()
             .ok_or_else(|| format!("Cannot get package name"))?
             .to_str()
             .ok_or_else(|| format!("Invalid unicode in package name"))
@@ -68,7 +73,8 @@ pub struct ZipParser;
 
 impl ZipParser {
     fn open_archive(path: &Path) -> Result<ZipArchive<File>, String> {
-        let file = File::open(path).map_err(|e| format!("Cannot open {:?} archive: {:?}", path, e))?;
+        let file =
+            File::open(path).map_err(|e| format!("Cannot open {:?} archive: {:?}", path, e))?;
         ZipArchive::new(file).map_err(|e| format!("Cannot unzip file: {:?}", e))
     }
 }

@@ -8,17 +8,17 @@ use actix::SystemService;
 use gu_p2p::rpc::start_actor;
 use gu_p2p::rpc::RemotingContext;
 use gu_persist::config::ConfigModule;
+use plugins::plugin::create_plugin_controller;
 use plugins::plugin::Plugin;
+use plugins::plugin::PluginAPI;
 use plugins::plugin::PluginInfo;
+use plugins::zip::PluginParser;
+use plugins::zip::ZipParser;
 use semver::Version;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
-use plugins::zip::PluginParser;
 use std::marker::PhantomData;
-use plugins::zip::ZipParser;
-use plugins::plugin::PluginAPI;
-use plugins::plugin::create_plugin_controller;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -61,7 +61,8 @@ impl PluginManager {
             .map_err(|e| format!("Cannot read plugins directory: {:?}", e))?;
 
         for plug_pack in dir {
-            let plug_pack = plug_pack.map_err(|e| format!("Cannot read plugin archive: {:?}", e))?;
+            let plug_pack =
+                plug_pack.map_err(|e| format!("Cannot read plugin archive: {:?}", e))?;
             let plugin = create_plugin_controller(&plug_pack.path(), self.gu_version.clone());
 
             match plugin {
