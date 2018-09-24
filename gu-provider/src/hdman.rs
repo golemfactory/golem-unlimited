@@ -274,6 +274,7 @@ enum Command {
     AddTags(Vec<String>),
     DelTags(Vec<String>),
     DumpFile {
+        // TODO: implement file up- and download
         data: Vec<u8>,
         file_name: String,
     },
@@ -455,6 +456,7 @@ impl Handler<SessionUpdate> for HdMan {
     }
 }
 
+// TODO: implement child process polling and status reporting
 #[derive(Serialize, Deserialize, Debug)]
 struct SessionStatus {
     session_id: String,
