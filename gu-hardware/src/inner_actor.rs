@@ -29,6 +29,7 @@ impl Handler<RamQuery> for InnerActor {
         _msg: RamQuery,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<RamQuery>>::Result {
+        self.sys.refresh_system();
         MessageResult(Ok(ram_info(&self.sys)))
     }
 }
@@ -41,6 +42,7 @@ impl Handler<DiskQuery> for InnerActor {
         msg: DiskQuery,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<DiskQuery>>::Result {
+        self.sys.refresh_disk_list();
         MessageResult(disk_info(&self.sys, msg.path()))
     }
 }
