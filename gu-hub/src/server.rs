@@ -5,7 +5,6 @@ use futures::prelude::*;
 use gu_persist::config;
 
 use actix_web;
-use actix_web::server::StopServer;
 use clap::{App, ArgMatches, SubCommand};
 use gu_actix::*;
 use std::borrow::Cow;

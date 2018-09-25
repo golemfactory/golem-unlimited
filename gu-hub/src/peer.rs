@@ -6,14 +6,10 @@ use actix_web::{
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::cli;
-use gu_base::{App, ArgMatches, Decorator, LogModule, Module, SubCommand};
+use gu_base::{App, ArgMatches, Decorator, Module, SubCommand};
 use gu_p2p::rpc::peer::PeerInfo;
 use gu_p2p::NodeId;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::any::*;
-
-use prettytable::{self, cell::Cell, row::Row, Table};
 
 pub struct PeerModule {
     inner: State,

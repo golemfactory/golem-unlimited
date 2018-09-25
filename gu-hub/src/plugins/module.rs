@@ -1,10 +1,7 @@
 use actix_web;
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use plugins;
-use plugins::manager::PluginManager;
-use plugins::plugin::format_plugins_table;
 use plugins::rest::scope;
-use plugins::zip::ZipParser;
 use std::path::PathBuf;
 
 #[derive(Debug)]

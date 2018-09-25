@@ -24,6 +24,7 @@ extern crate directories;
 #[macro_use]
 extern crate failure;
 
+extern crate bytes;
 extern crate gu_base;
 extern crate mdns;
 extern crate rand;

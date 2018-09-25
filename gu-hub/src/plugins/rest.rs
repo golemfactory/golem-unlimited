@@ -3,31 +3,30 @@ use actix::System;
 use actix::SystemService;
 use actix_web::error::ErrorBadRequest;
 use actix_web::error::ErrorInternalServerError;
-use actix_web::error::ParseError::Status;
 use actix_web::http;
-use actix_web::http::StatusCode;
 use actix_web::AsyncResponder;
+use actix_web::HttpMessage;
 use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::Scope;
 use futures::future;
 use futures::future::Future;
+use plugins::manager::InstallPlugin;
 use plugins::manager::ListPlugins;
 use plugins::manager::PluginFile;
 use plugins::manager::PluginManager;
 use plugins::plugin::format_plugins_table;
 use plugins::plugin::PluginInfo;
-use plugins::zip::PluginParser;
 use server::ServerClient;
 use std::path::{Path, PathBuf};
-use std::str::Bytes;
+use futures::stream::Stream;
 
 pub fn list_query() {
     System::run(|| {
         Arbiter::spawn(
             ServerClient::get("/plug")
-                .and_then(|r| Ok(format_plugins_table(r)))
+                .and_then(|r: Vec<PluginInfo>| Ok(format_plugins_table(r)))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
@@ -46,11 +45,10 @@ pub fn install_query(_path: &Path) {
 }
 
 pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
-    scope.route("", http::Method::GET, list_scope).route(
-        "/{pluginName}/{fileName}",
-        http::Method::GET,
-        file_scope,
-    )
+    scope
+        .route("", http::Method::GET, list_scope)
+        .route("/{pluginName}/{fileName}", http::Method::GET, file_scope)
+        .route("", http::Method::POST, install_scope)
 }
 
 fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
@@ -134,4 +132,22 @@ fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
             }).responder(),
         Err(e) => future::err(ErrorBadRequest(e)).responder(),
     }
+}
+
+fn install_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
+    let manager = PluginManager::from_registry();
+
+    //r.multipart().for_each(|a| Ok(a));
+/*
+    r.body()
+        .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
+        .and_then(|bytes| {
+            manager
+                .send(InstallPlugin { message: bytes })
+                .map_err(|err| warn!("{}", err))
+                .map_err(|e| ErrorBadRequest(format!("Wrong body content: {:?}", e)))
+        }).and_then(|res| Ok(HttpResponse::Ok()))
+        .responder();
+*/
+    future::ok(HttpResponse::Ok()).map_err(|()| ErrorBadRequest("")).responder()
 }
