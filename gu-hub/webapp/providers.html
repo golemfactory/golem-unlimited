@@ -27,8 +27,7 @@
                         </td>
                         <td>
                             <span>{{peer.nodeName || peer.hostname}}</span>
-                            <span class="label label-info" ng-if="peer.os.toLowerCase().includes('macos')">{{peer.os}}</span>
-                            <span class="label label-default" ng-if="!peer.os.toLowerCase().includes('macos')">{{peer.os}}</span>
+                            <span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">{{peer.os}}</span>
                         </td>
                         <td><span ng-if="peer.ram">
                             <uib-progress max="peer.ram.total" animate="false">

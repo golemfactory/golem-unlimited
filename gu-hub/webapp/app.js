@@ -55,12 +55,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         $http.post('/m/19354', "null").then(r => {
             var ok = r.data.Ok;
             if (ok) {
-                $scope.hub = {
-                    ram: ok.ram,
-                    gpu: ok.gpu,
-                    os: ok.os,
-                    hostname: ok.hostname
-                }
+                $scope.hub = ok
             }
         });
         $http.get('/peer').then(r => {
