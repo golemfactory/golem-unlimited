@@ -64,7 +64,7 @@ pub fn create_plugin_controller(
     path: &Path,
     gu_version: Version,
 ) -> Result<Box<PluginAPI>, String> {
-    let parser = ZipParser::new(path)?;
+    let parser = ZipParser::from_path(path)?;
     Plugin::<ZipParser<File>>::new(parser, gu_version)
 }
 

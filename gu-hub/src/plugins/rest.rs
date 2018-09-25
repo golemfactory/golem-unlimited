@@ -21,6 +21,7 @@ use plugins::plugin::PluginInfo;
 use server::ServerClient;
 use std::path::{Path, PathBuf};
 use futures::stream::Stream;
+use bytes::BytesMut;
 
 pub fn list_query() {
     System::run(|| {
@@ -134,20 +135,24 @@ fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
     }
 }
 
-fn install_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
+fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
+    use bytes::buf::IntoBuf;
+    use std::io::Cursor;
+    use bytes::Bytes;
     let manager = PluginManager::from_registry();
 
     //r.multipart().for_each(|a| Ok(a));
-/*
-    r.body()
+
+    r.payload()
         .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
-        .and_then(|bytes| {
-            manager
-                .send(InstallPlugin { message: bytes })
-                .map_err(|err| warn!("{}", err))
-                .map_err(|e| ErrorBadRequest(format!("Wrong body content: {:?}", e)))
-        }).and_then(|res| Ok(HttpResponse::Ok()))
-        .responder();
-*/
-    future::ok(HttpResponse::Ok()).map_err(|()| ErrorBadRequest("")).responder()
+        .concat2()
+        .and_then(|a| Ok(a.into_buf()))
+        .and_then(move |a: Cursor<Bytes>| manager.send(InstallPlugin{ bytes: a })
+            .map_err(|e| ErrorInternalServerError(format!("{:?}", e))))
+        .and_then(|res| {
+            Ok(HttpResponse::Ok())
+        }).map_err(|e| {
+        println!("{:?}", e);
+        e
+    }).responder()
 }
