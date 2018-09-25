@@ -13,8 +13,9 @@
                 <div class="col-md-4">
                     <!--p>Uptime: </p-->
                     <p>Peers connected: <b>{{(peers.length || 0)}}</b></p>
-                    <p>Memory: {{hub.ram.used/1000/1000 | number: 1}} / {{hub.ram.total/1000/1000 | number: 1}} GB</p>
-                    <p>Server Os: <b>{{hub.os}}</b></p>
+                    <p ng-if="hub.os">Server Os:
+                        <span class="label label-{{hub.os.toLowerCase().includes('macos') ? 'info' : 'default'}}">{{hub.os}}</span>
+                    </p>
                 </div>
                 <div class="col-md-4">
                     <ng-gauge
@@ -26,8 +27,23 @@
                         '40': {color: 'orange' },
                         '80': {color: 'red'}
                     }">
-
                     </ng-gauge>
+                    <p>{{hub.ram.used/1000000 | number: 1}} / {{hub.ram.total/1000000 | number: 1}} GB</p>
+                </div>
+                <div>
+                    <ng-gauge
+                            type="arch" thick="10"
+                            value="hub.disk.available/hub.disk.total*100" size="150"
+                            fraction-size="1" cap="butt" label="Disk used" append="%"
+                            thresholds="{
+                        '0': { color: 'green' },
+                        '40': {color: 'orange' },
+                        '80': {color: 'red'}
+                    }">
+                    </ng-gauge>
+                    <p>{{hub.disk.available/1000000000 | number: 1}} / {{hub.disk.total/1000000000 | number: 1}} GB
+                        <span class="label label-{{hub.disk.disk_type == 'SSD' ? 'success' : 'danger'}}">{{hub.disk.disk_type}}</span>
+                    </p>
                 </div>
                 <!--div class="col-md-4">
                     <p>.....</p>
