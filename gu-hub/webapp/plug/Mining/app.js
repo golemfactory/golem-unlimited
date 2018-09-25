@@ -29,6 +29,10 @@ angular.module('gu')
         if (session.status === 'CREATED') {
             return "plug/Mining/prepare-session.html"
         }
+        if (session.status === 'WORKING') {
+            return "plug/Mining/session-working.html"
+        }
+
     }
 
     $scope.save = function() {
@@ -107,13 +111,19 @@ angular.module('gu')
     $scope.session = $scope.$parent.$parent.$parent.$parent.session;
 
     $scope.peers = [];
-    $scope.progress = {};
+    $scope.progress = miningMan.getProgressAll();
     $scope.monero = {};
     $scope.mSession = miningMan.session($scope.session.id);
 
     $scope.mSession.resolveSessions();
 
     sessionMan.peers($scope.session, true).then(peers => $scope.peers = peers);
+
+   $scope.nextStep = function() {
+          $scope.mSession.commit();
+          sessionMan.updateSession($scope.session, 'WORKING');
+      }
+
 
     $scope.runBenchmark = function(peer) {
         var nodeId = peer.nodeId;
@@ -170,7 +180,7 @@ angular.module('gu')
     };
     console.log('s', $scope);
 })
-.service('miningMan', function($log, sessionMan, hdMan) {
+.service('miningMan', function($log, $interval, $q, sessionMan, hdMan) {
 
     const TAG_MONERO = 'gu:mining:monero';
     const TAG_ETH = 'gu:mining:eth';
@@ -184,12 +194,19 @@ angular.module('gu')
 
         tagProgress.start = ts.getTime();
         tagProgress.end = ts.getTime() + estimated*1000;
+        tagProgress.size = tagProgress.end - tagProgress.start;
         tagProgress.label = label;
 
         nodeProgress[tag] = tagProgress;
         progress[nodeId] = nodeProgress;
 
-        $q.when(future).then(v => delete nodeProgress[tag])
+        $q.when(future)
+        .then(v => $log.info('tag done', tag, nodeId))
+        .then(v => delete nodeProgress[tag])
+    }
+
+    function getProgressAll() {
+        return progress;
     }
 
     function getProgress(nodeId, tag) {
@@ -226,18 +243,28 @@ angular.module('gu')
                     $log.info('resolved peers', this.session, peers);
                     this.peers = _.map(peers, peer => new MiningPeer(this, peer.nodeId, peer));
                     this.$resolved = true;
+
+                    this.initPeers();
+
                     return peers;
                 })
             }
         }
 
+        initPeers() {
+            angular.forEach(this.peers, peer => peer.init())
+        }
+
         hr(nodeId, type) {
-            $log.info('hr', nodeId, type);
+            //$log.info('hr', nodeId, type);
             var peer =  _.find(this.peers, peer => peer.id === nodeId);
             if (peer) {
-                $log.info('hr peer', peer, nodeId, type);
                 return peer.hr(type);
             }
+        }
+
+        commit() {
+            angular.forEach(this.peers, peer => peer.commit());
         }
     }
 
@@ -248,12 +275,13 @@ angular.module('gu')
             this.peer = hdMan.peer(nodeId);
             this.os = details.os;
             this.gpu = details.gpu;
+            this.sessions = [];
             if (details.sessions) {
-                this.importSessions(details.sessions);
+                $this.$init = this.importSessions(details.sessions);
             }
             else {
                 $log.warn('no import', details, session);
-                this.peer.sessions().then(sessions => this.importSessions(sessions));
+                this.$init = this.peer.sessions().then(sessions => this.importSessions(sessions));
             }
         }
 
@@ -269,8 +297,30 @@ angular.module('gu')
             });
         }
 
+        init() {
+        $q.when(this.$init).then(v => {
+             var anySession = false;
+             angular.forEach(this.sessions, session => {
+                session.validate().then(_ => {
+                    if (!this.$validSession) {
+                        this.$validSession = session;
+                        session.bench();
+                    }
+                })
+             })
+
+             if (!anySession) {
+                this.deploy('gu:mining:monero').then(session => {
+                    session.validate().then(_ => session.bench())
+                })
+             }
+
+        })
+
+        }
+
         deploy(type) {
-            sessionMan.getOs(this.id).then(os => {
+            var promise = sessionMan.getOs(this.id).then(os => {
                 var image = images[os.toLowerCase()][type];
                 $log.info('image', image, os.toLowerCase(), images[os.toLowerCase()], type);
                 $log.info('hd peer', typeof this.peer, this.peer);
@@ -281,17 +331,48 @@ angular.module('gu')
                 });
                 var session = new MiningPeerSession(this, rawSession.id, type);
                 session.hdSession = rawSession;
+
                 this.sessions.push(session);
+
+                return rawSession.$create.then(v => {
+                    return session;
+                })
             });
+
+            startProgress(this.id, 'deploy:' + type, 15, promise, 'installing');
+
+            return promise;
         }
 
         hr(type) {
-            $log.info('hr peer', type, this.sessions);
+            var it = window.localStorage.getItem('gu:mining:hr');
+            if (it) {
+                var hr = JSON.parse(it);
+
+                return hr[type];
+            }
+
             return  _.filter(this.sessions, session => session.type === type)
                 .map(session => session.hr)
                 .find(hr => !!hr);
 
         }
+
+        save(key, val) {
+            window.localStorage.setItem('gu:mining:' + key, JSON.stringify(val))
+        }
+
+        commit() {
+                    var hr = {};
+
+                    angular.forEach(this.sessions, session => {
+                        if (session.hr) {
+                            hr[session.type] = session.hr;
+                        }
+                    });
+
+                    this.save('hr', hr);
+                }
     }
 
     class MiningPeerSession {
@@ -300,6 +381,7 @@ angular.module('gu')
             this.peer = peer;
             this.id= id;
             this.type = type;
+            this.process = {};
         }
 
         validate() {
@@ -327,7 +409,12 @@ angular.module('gu')
         bench(type) {
             type = type || 'dual';
             $log.info('hashRate start');
-            return this.hdSession.exec('gu-mine', ['bench-' + type]).then(output => {
+
+            if (this.$benchPromise) {
+                return this.$benchPromise;
+            }
+
+            var promise =  this.hdSession.exec('gu-mine', ['bench-' + type]).then(output => {
                 if (output.Ok) {
                     try {
                         var result = JSON.parse(output.Ok);
@@ -335,16 +422,25 @@ angular.module('gu')
                         return {Ok: result};
                     }
                     catch(e) {
+                        delete this.$benchPromise;
                         this.status = 'FAIL';
                         $log.error('hr fail', e, output, this);
                         return {Err: 'invalid output'};
                     }
                 }
                 else {
+                    delete this.$benchPromise;
                     this.status = 'FAIL';
                     return output;
                 }
-            })
+            });
+
+            this.$benchPromise = promise;
+
+
+            startProgress(this.peer.id, 'bench:' + this.type, this.spec.benchmark[type.toUpperCase()], promise, "benchmark");
+
+            return promise;
         }
 
         start(type) {
@@ -371,6 +467,20 @@ angular.module('gu')
                 }
             })
         }
+
+        status(type) {
+            return this.process[type];
+        }
+
+        stop(type) {
+            var pid = this.process[type];
+            return this.hdSession.stopWithTag('gu:mine:working', pid).then(output => {
+                if (pid === this.process[type]) {
+                    delete this.process[type];
+                }
+                return output;
+            })
+        }
     }
 
     var cache = {};
@@ -383,6 +493,24 @@ angular.module('gu')
         return cache[id];
     }
 
-    return { session: session, progress: getProgress }
+    interval = $interval(tick, 200);
+
+    function tick() {
+        var ts = new Date();
+
+        angular.forEach(progress, (progressNode, nodeId) => {
+            angular.forEach(progressNode, (progressInfo, tag) => {
+                if (!progressInfo.size) {
+                    progressInfo.size = progressInfo.end - progressInfo.start;
+                }
+                progressInfo.pos = ts.getTime() - progressInfo.start;
+                if (progressInfo.pos > progressInfo.size) {
+                    progressInfo.size = progressInfo.size * 1.2;
+                }
+            })
+        })
+    }
+
+    return { session: session, progress: getProgress, getProgressAll: getProgressAll }
 })
 

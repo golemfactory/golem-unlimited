@@ -121,8 +121,10 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             $log.info('updateSession', moduleSession, newStatus, updates);
             angular.forEach(sessions, session => {
                 if (session.id === moduleSession.id) {
-                    if (updates.peers) {
-                        session.peers = cleanPeers(updates.peers);
+                    if (updates) {
+                        if (updates.peers) {
+                            session.peers = cleanPeers(updates.peers);
+                        }
                     }
                     session.status = newStatus;
                     angular.copy(session, moduleSession);
