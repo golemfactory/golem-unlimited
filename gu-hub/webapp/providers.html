@@ -23,7 +23,7 @@
                 <tbody>
                     <tr ng-repeat="peer in peers track by peer.nodeId">
                         <td>
-                            <code><a href="#" ng-click="updatePeer(peer)">{{peer.nodeId}}</a></code>
+                            <code><a href="#" ng-click="show(peer)">{{peer.nodeId}}</a></code>
                         </td>
                         <td>
                             <span>{{peer.nodeName || peer.hostname}}</span>

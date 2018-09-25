@@ -1,0 +1,37 @@
+<div class="modal-header">
+    <h3 class="modal-title" id="modal-title-{{name}}">Node {{(peer.nodeName || peer.hostname) }}</h3>
+</div>
+<div class="modal-body">
+    <p>NodeId: {{peer.nodeId}}</p>
+
+    <p>Sessions:</p>
+    <div class="row">
+        <table class="table table-hover">
+            <thead>
+            <tr>
+                <th>Id</th>
+                <th>Status</th>
+                <th>Tags</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr ng-repeat="session in peer.sessions">
+                <td>{{session.id}}</td>
+                <td>{{session.status}}</td>
+                <td>
+                    <span ng-repeat="tag in session.data.tags" style="padding: 2px;">
+                        <span class="label label-default">{{tag}}</span>
+                    </span>
+                </td>
+                <td><a href="#" class="btn-sm btn-danger"><i class="glyphicon glyphicon-trash"></i></a></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="modal-footer">
+    <div class="pull-right">
+        <button class="btn btn-primary" ng-click="ok()">Ok</button>
+    </div>
+</div>

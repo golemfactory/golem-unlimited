@@ -15,47 +15,36 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         {icon: 'glyphicon glyphicon-th', name: 'Providers', page: 'providers.html'}
       ];
       $scope.pluginTabs = pluginManager.getTabs();
-
       $scope.activeTab =  $scope.tabs[0];
 
       $scope.openTab = tab => {
         $scope.activeTab = tab;
       }
   })
-  .controller('ProvidersController', function($scope, $http, hubApi) {
-     function refresh() {
-        $http.get('/peer').then(r => {
-            $scope.peers = r.data;
-            angular.forEach(r.data, peer => $scope.updatePeer(peer));
-        });
+  .controller('ProvidersController', function($scope, $http, $uibModal, hubApi, sessionMan) {
+
+     $scope.refresh = function refresh() {
+        sessionMan.peers(null, true).then(peers => $scope.peers = peers)
      }
 
-     $scope.refresh = refresh;
 
-     $scope.updatePeer = function(peer) {
-        hubApi.callRemote(peer.nodeId, 19354, null)
-        .then(data=> {
-            var ok = data.Ok;
-            if (ok) {
-
-                peer.ram = ok.ram;
-                peer.gpu = ok.gpu;
-                peer.os = ok.os || peer.os;
-                peer.hostname = ok.hostname;
-
+     $scope.show = function(peer) {
+        $uibModal.open({
+            animate: true,
+            templateUrl: 'hdsession.html',
+            controller: function($scope, $uibModalInstance) {
+                $scope.peer = peer;
+                $scope.ok = function() {
+                    $uibModalInstance.close()
+                }
             }
-        });
-        hubApi.callRemote(peer.nodeId, 39, {})
-                .then(data=> {
-                    var ok = data.Ok;
-                    if (ok) {
-                        peer.sessions = ok;
-                    }
-                });
-     };
+        })
+     }
+
+
 
      $scope.peers = [];
-     refresh();
+     $scope.refresh();
 
   })
   .controller('StatusController', function($scope, $http) {
@@ -106,7 +95,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
 
         return {addTab: addTab, getTabs: getTabs}
   })
-  .service('sessionMan', function($http, $log) {
+  .service('sessionMan', function($http, $log, hubApi, hdMan) {
         var sessions = [];
         if ('gu:sessions' in window.localStorage) {
             sessions = JSON.parse(window.localStorage.getItem('gu:sessions'));
@@ -168,24 +157,28 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         }
 
         function peers(session, needDetails) {
-            return $http.get('/peer').then(r => r.data);
+            var peersPromise = $http.get('/peer').then(r => r.data);
+
+            $log.info('peers', session, needDetails);
             if (needDetails) {
-                angular.forEach(r.data, peer => peerDetails(peer));
+                peersPromise.then(peers => angular.forEach(peers, peer => peerDetails(peer)));
             }
+
+            return peersPromise;
         }
 
         function peerDetails(peer) {
                 hubApi.callRemote(peer.nodeId, 19354, null)
                 .then(data=> {
-                    if (data.Ok) {
-                        peer.ram = data.Ok.ram;
-                        peer.gpu = data.Ok.gpu;
+                    var ok = data.Ok;
+                    if (ok) {
+                        peer.ram = ok.ram;
+                        peer.gpu = ok.gpu;
+                        peer.os = ok.os || peer.os;
+                        peer.hostname = ok.hostname;
                     }
                 });
-                hubApi.callRemote(peer.nodeId, 39, {})
-                        .then(data=> {
-                            console.log('d', data)
-                        });
+                hdMan.peer(peer.nodeId).sessionsFast().then(sessions => peer.sessions = sessions);
         };
 
 
@@ -212,6 +205,8 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
          }
   })
   .service('hdMan', function($http, hubApi, $q, $log) {
+        var cache = {};
+
         const HDMAN_CREATE = 37;
         const HDMAN_UPDATE = 38;
         const HDMAN_GET_SESSIONS = 39;
@@ -226,20 +221,32 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                     hubApi.callRemote(this.nodeId, HDMAN_CREATE, sessionSpec));
             }
 
-            fromId(sessionId) {
-                return new Session(this.nodeId, {Ok: sessionId});
+            fromId(sessionId, sessionData) {
+                return new Session(this.nodeId, {Ok: sessionId}, sessionData);
             }
 
             sessions() {
-                return hubApi.callRemote(this.nodeId, HDMAN_GET_SESSIONS, null)
-                    .then(sessions => _.map(sessions, session => this.fromId(session.session_id, session)))
+                return hubApi.callRemote(this.nodeId, HDMAN_GET_SESSIONS, {})
+                    .then(sessions => {
+                        var sessions = _.map(sessions.Ok, session => this.fromId(session.id, session));
+                        cache[this.nodeId] = sessions;
+                        return sessions;
+                    })
+            }
+
+            sessionsFast() {
+                if (this.nodeId in cache) {
+                    return $q.when(cache[this.nodeId]);
+                }
+                return this.sessions();
             }
         }
 
         class Session {
-            constructor(nodeId, sessionId) {
+            constructor(nodeId, sessionId, sessionData) {
                 this.nodeId = nodeId;
                 this.status = 'PENDING';
+                this.data = sessionData;
                 this.$create = $q.when(sessionId).then(id => {
                     if (id.Ok) {
                         this.id = id.Ok;
@@ -247,6 +254,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                         return id.Ok;
                     }
                     else {
+                        $log.error('create session fail', id);
                         this.status = 'FAIL';
                         return null;
                     }
