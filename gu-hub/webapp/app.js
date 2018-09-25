@@ -98,6 +98,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
   })
   .service('sessionMan', function($http, $log, $q, hubApi, hdMan) {
         var sessions = [];
+        var osMap = {};
         if ('gu:sessions' in window.localStorage) {
             sessions = JSON.parse(window.localStorage.getItem('gu:sessions'));
         }
@@ -161,7 +162,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             var peersPromise;
 
             if (session && session.status !== 'NEW' && session.peers) {
-                peersPromise = $q.when(session.peers);
+                peersPromise = $q.when(_.map(session.peers, peer => angular.copy(peer)));
             }
             else {
                 peersPromise = $http.get('/peer').then(r => r.data);
@@ -181,6 +182,9 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                     peer.ram = ok.ram;
                     peer.gpu = ok.gpu;
                     peer.os = ok.os || peer.os;
+                    if (ok.os) {
+                        osMap[peer.nodeId] = ok.os;
+                    }
                     peer.hostname = ok.hostname;
                 }
             });
@@ -211,6 +215,10 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             return  _.find(sessions, session => session.id === sessionId);
         }
 
+        function getOs(nodeId) {
+            return $q.when(osMap[nodeId]);
+        }
+
         return {
             create: create,
             peers: peers,
@@ -218,7 +226,8 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             peerDetails: peerDetails,
             updateSession: updateSession,
             dropSession: dropSession,
-            getSession: getSession
+            getSession: getSession,
+            getOs: getOs
          }
   })
   .service('hdMan', function($http, hubApi, $q, $log) {
@@ -296,7 +305,24 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                 });
             }
 
+            runWithTag(tag, entry, args) {
+                return this.$create.then(id =>
+                    hubApi.callRemote(this.nodeId, HDMAN_UPDATE, {
+                        session_id: id,
+                        commands: [
+                            {Start: {executable: entry, args: (args||[])}},
+                            {AddTags: angular.isArray(tag) ? tag : [tag]}
+                        ]
+                    })
+                ).then(result => {
+                    $log.info("run_tag result", result);
+                    return result;
+                });
+            }
+
             destroy() {
+                this.status = 'DELETED';
+
                 return hubApi.callRemote(this.nodeId, HDMAN_DESTROY, {session_id : this.id}).then(result => {
                     if (result.Ok) {
                         $log.info("session", this.id, "closed: ", result);

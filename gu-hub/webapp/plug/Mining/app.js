@@ -1,7 +1,7 @@
 
 var images = {
-    linux: "http://10.30.8.179:61622/app/images/monero-linux.tar.gz",
-    macos: "http://10.30.8.179:61622/app/images/monero-macos.tar.gz",
+    linux: {"gu:mining:monero": ["http://10.30.8.179:61622/app/images/monero-linux.tar.gz", "dc4d9e0c100b36c46b6355311ab853996a1448936068283cd7fafb5a90014877"]},
+    macos: {"gu:mining:monero": ["http://10.30.8.179:61622/app/images/monero-macos.tar.gz", "846e1125f927a4817d19e9c1bf34f6ff4ffcf54f6cbeabedbf21e7f59a46d4ac"]},
 }
 
 angular.module('gu')
@@ -175,6 +175,30 @@ angular.module('gu')
     const TAG_MONERO = 'gu:mining:monero';
     const TAG_ETH = 'gu:mining:eth';
 
+    var progress = {};
+
+    function startProgress(nodeId, tag, estimated, future, label) {
+        var nodeProgress = progress[nodeId] || {};
+        var tagProgress = nodeProgress[tag] || {};
+        var ts = new Date();
+
+        tagProgress.start = ts.getTime();
+        tagProgress.end = ts.getTime() + estimated*1000;
+        tagProgress.label = label;
+
+        nodeProgress[tag] = tagProgress;
+        progress[nodeId] = nodeProgress;
+
+        $q.when(future).then(v => delete nodeProgress[tag])
+    }
+
+    function getProgress(nodeId, tag) {
+        var nodeProgress = progress[nodeId] || {};
+        var tagProgress = nodeProgress[tag] || {};
+
+        return tagProgress;
+    }
+
     function isMiningSession(session) {
         return _.any(session.data.tags, tag => tag === 'gu:mining');
     }
@@ -193,14 +217,27 @@ angular.module('gu')
             this.id = id;
             this.session = sessionMan.getSession(id);
             this.peers = [];
+            this.$resolved=false;
         }
 
         resolveSessions() {
-            sessionMan.peers(this.session, true).then(peers => {
-                $log.info('resolved peers', this.session, peers);
-                this.peers = _.map(peers, peer => new MiningPeer(this, peer.nodeId, peer));
-                return peers;
-            })
+            if (!this.$resolved) {
+                sessionMan.peers(this.session, true).then(peers => {
+                    $log.info('resolved peers', this.session, peers);
+                    this.peers = _.map(peers, peer => new MiningPeer(this, peer.nodeId, peer));
+                    this.$resolved = true;
+                    return peers;
+                })
+            }
+        }
+
+        hr(nodeId, type) {
+            $log.info('hr', nodeId, type);
+            var peer =  _.find(this.peers, peer => peer.id === nodeId);
+            if (peer) {
+                $log.info('hr peer', peer, nodeId, type);
+                return peer.hr(type);
+            }
         }
     }
 
@@ -209,6 +246,8 @@ angular.module('gu')
             this.session = session;
             this.id = nodeId;
             this.peer = hdMan.peer(nodeId);
+            this.os = details.os;
+            this.gpu = details.gpu;
             if (details.sessions) {
                 this.importSessions(details.sessions);
             }
@@ -229,6 +268,30 @@ angular.module('gu')
                 }
             });
         }
+
+        deploy(type) {
+            sessionMan.getOs(this.id).then(os => {
+                var image = images[os.toLowerCase()][type];
+                $log.info('image', image, os.toLowerCase(), images[os.toLowerCase()], type);
+                $log.info('hd peer', typeof this.peer, this.peer);
+                var rawSession = this.peer.newSession({
+                    name: 'gu:mining ' + type,
+                    image: {cache_file: image[1] + '.tar.gz', url: image[0]},
+                    tags: ['gu:mining', type]
+                });
+                var session = new MiningPeerSession(this, rawSession.id, type);
+                session.hdSession = rawSession;
+                this.sessions.push(session);
+            });
+        }
+
+        hr(type) {
+            $log.info('hr peer', type, this.sessions);
+            return  _.filter(this.sessions, session => session.type === type)
+                .map(session => session.hr)
+                .find(hr => !!hr);
+
+        }
     }
 
     class MiningPeerSession {
@@ -240,14 +303,86 @@ angular.module('gu')
         }
 
         validate() {
-            return this.hdSession.exec('gu-mine', ['spec']);
+            $log.info('validate start');
+            return this.hdSession.exec('gu-mine', ['spec'])
+                .then(output => {
+                    if (output.Ok) {
+                        try {
+                            var spec = JSON.parse(output.Ok);
+                            this.spec = spec;
+                            return {Ok: spec};
+                        }
+                        catch(e) {
+                            this.status = 'FAIL';
+                            return {'Err': 'invalid output'};
+                        }
+                    }
+                    else {
+                        this.status = 'FAIL';
+                        return output;
+                    }
+                });
+        }
+
+        bench(type) {
+            type = type || 'dual';
+            $log.info('hashRate start');
+            return this.hdSession.exec('gu-mine', ['bench-' + type]).then(output => {
+                if (output.Ok) {
+                    try {
+                        var result = JSON.parse(output.Ok);
+                        this.hr = result;
+                        return {Ok: result};
+                    }
+                    catch(e) {
+                        this.status = 'FAIL';
+                        $log.error('hr fail', e, output, this);
+                        return {Err: 'invalid output'};
+                    }
+                }
+                else {
+                    this.status = 'FAIL';
+                    return output;
+                }
+            })
+        }
+
+        start(type) {
+            type = type || 'dual';
+            $log.info('mining start');
+            return this.hdSession.runWithTag('gu:mine:working', 'gu-mine', ['mine-' + type]).then(output => {
+                if (output.Ok) {
+                    try {
+                        this.status = 'RUNNING';
+                        var result = JSON.parse(output.Ok);
+                        this.process = this.process || {};
+                        this.process[type] = result;
+                        return {Ok: result};
+                    }
+                    catch(e) {
+                        this.status = 'FAIL';
+                        $log.error('hr fail', e, output, this);
+                        return {Err: 'invalid output'};
+                    }
+                }
+                else {
+                    this.status = 'FAIL';
+                    return output;
+                }
+            })
         }
     }
 
+    var cache = {};
+
     function session(id) {
-        return new MiningSession(id);
+        if (id in cache) {
+            return cache[id];
+        }
+        cache[id] = new MiningSession(id);
+        return cache[id];
     }
 
-    return { session: session }
+    return { session: session, progress: getProgress }
 })
 

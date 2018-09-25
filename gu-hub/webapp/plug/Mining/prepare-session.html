@@ -52,6 +52,7 @@
                                 <span class="label label-danger" ng-if="peer.gpu.nvidia">NVidia {{peer.gpu.nvidia > 1 ? "x"+peer.gpu.nvidia : ""}}</span>
                             </span></td>
                     <td colspan="2">
+                        {{mSession.hr(peer.nodeId, 'gu:mining:monero') | json }}
                         <span ng-if="progress[peer.nodeId]">
                             <uib-progressbar max="progress[peer.nodeId].max" value="progress[peer.nodeId].step" type="success">{{progress[peer.nodeId].label}}</uib-progressbar>
                         </span>
@@ -70,11 +71,18 @@
         </pre>
         <div ng-repeat="peer in mSession.peers">
             peer: {{peer.id}}<br />
+            os: {{peer.os}}<br />
             s: {{peer.sessions.length}}
             <div ng-repeat="session in peer.sessions">
-                id: {{session.id}},
-                type: {{session.type}}
+                id: {{session.id}},<br/>
+                type: {{session.type}},<br/>
+                spec: {{session.spec | json }}</br/>
+                hr: {{session.hr | json }}<br/>
+                <a href="#" class="btn btn-default" ng-click="session.validate()">Check Session</a>
+                <a href="#" class="btn btn-default" ng-click="session.bench()">Bench</a>
+                <a href="#" class="btn btn-default" ng-click="session.start()">Start</a>
             </div>
+            <a href="#" class="btn btn-default" ng-click="peer.deploy('gu:mining:monero')">Deploy monero</a>
         </div>
 
     </div>
