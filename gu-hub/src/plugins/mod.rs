@@ -1,7 +1,7 @@
 mod manager;
 pub mod module;
+mod parser;
 mod plugin;
 mod rest;
-mod zip;
 
 pub use self::module::PluginModule;

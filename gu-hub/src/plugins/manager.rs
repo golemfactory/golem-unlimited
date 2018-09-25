@@ -5,20 +5,18 @@ use actix::Message;
 use actix::MessageResult;
 use actix::Supervised;
 use actix::SystemService;
-use gu_p2p::rpc::start_actor;
-use gu_p2p::rpc::RemotingContext;
+use bytes::Bytes;
 use gu_persist::config::ConfigModule;
 use plugins::plugin::create_plugin_controller;
-use plugins::plugin::Plugin;
 use plugins::plugin::PluginAPI;
 use plugins::plugin::PluginInfo;
-use plugins::zip::PluginParser;
-use plugins::zip::ZipParser;
 use semver::Version;
 use std::collections::HashMap;
 use std::fs;
-use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use plugins::parser::ZipParser;
+use actix_web::dev::Resource;
+use plugins::parser::PluginParser;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -46,10 +44,9 @@ impl Default for PluginManager {
 impl PluginManager {
     pub fn save_plugin(&self, path: &Path) -> Result<(), String> {
         let parser = create_plugin_controller(path, self.gu_version.clone())?;
-        let zip_name = parser.archive_name();
-        let _metadata = parser.metadata();
+        let metadata = parser.metadata();
 
-        fs::copy(&path, self.directory.join(zip_name))
+        fs::copy(&path, self.directory.join(metadata.name()))
             .and_then(|_| Ok(()))
             .map_err(|e| format!("Cannot copy zip archive: {:?}", e))
     }
@@ -141,3 +138,31 @@ impl Handler<PluginFile> for PluginManager {
         })
     }
 }
+
+#[derive(Debug)]
+pub struct InstallPlugin {
+    pub message: Bytes,
+}
+
+impl Message for InstallPlugin {
+    type Result = Result<(), String>;
+}
+/*
+impl Handler<InstallPlugin> for PluginManager {
+    type Result = MessageResult<InstallPlugin>;
+
+    fn handle(
+        &mut self,
+        msg: InstallPlugin,
+        _ctx: &mut Context<Self>,
+    ) -> <Self as Handler<InstallPlugin>>::Result {
+        let mut parser: ZipParser<File> = ZipParser::new(PluginResource::Bytes(&msg.message));
+        MessageResult(parser.validate_and_load_metadata(self.gu_version)
+            .and_then(|metadata| {
+                fs::copy(self.directory, self.directory.join(metadata.name()))
+                    .and_then(|_| Ok(()))
+                    .map_err(|e| format!("Cannot save archive: {:?}", e))
+            }))
+    }
+}
+*/

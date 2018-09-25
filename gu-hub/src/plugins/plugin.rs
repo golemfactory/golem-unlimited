@@ -1,21 +1,15 @@
-use actix_web::{self, http, HttpRequest, Responder, Scope};
 use gu_base::cli;
-use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
-use gu_persist::config::ConfigModule;
-use plugins::zip::PluginParser;
-use plugins::zip::ZipParser;
-use prettytable::Table;
+use plugins::parser::PluginParser;
+use plugins::parser::ZipParser;
 use semver::Version;
 use semver::VersionReq;
-use serde_json;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
-use std::fs::File;
-use std::io::Read;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
-use zip::ZipArchive;
+use std::fs::File;
+use plugins::parser::PathPluginParser;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -35,12 +29,12 @@ pub struct PluginMetadata {
 }
 
 impl PluginMetadata {
-    pub fn proper_version(&self, version: &Version) -> bool {
-        self.gu_version_req.matches(version)
-    }
-
     pub fn version(&self) -> Version {
         self.version.clone()
+    }
+
+    pub fn gu_version_req(&self) -> VersionReq {
+        self.gu_version_req.clone()
     }
 
     pub fn name(&self) -> String {
@@ -63,8 +57,6 @@ pub trait PluginAPI: Debug {
 
     fn is_active(&self) -> bool;
 
-    fn archive_name(&self) -> String;
-
     fn metadata(&self) -> PluginMetadata;
 }
 
@@ -72,7 +64,8 @@ pub fn create_plugin_controller(
     path: &Path,
     gu_version: Version,
 ) -> Result<Box<PluginAPI>, String> {
-    Plugin::<ZipParser>::load_metadata(path, gu_version)
+    let parser = ZipParser::new(path)?;
+    Plugin::<ZipParser<File>>::new(parser, gu_version)
 }
 
 #[derive(Debug)]
@@ -80,24 +73,19 @@ pub struct Plugin<T: PluginParser + 'static> {
     metadata: PluginMetadata,
     status: PluginStatus,
     files: HashMap<PathBuf, Vec<u8>>,
-    archive_name: String,
-    phantom: PhantomData<T>,
+    parser: T,
 }
 
-impl<T: PluginParser + 'static> Plugin<T> {
-    fn load_metadata(path: &Path, gu_version: Version) -> Result<Box<PluginAPI>, String> {
-        let (zip_name, metadata) = T::validate_and_load_metadata(path, gu_version)?;
-        Ok(Self::new(zip_name, metadata))
-    }
+impl<T: PathPluginParser + 'static> Plugin<T> {
+    fn new(mut parser: T, gu_version: Version) -> Result<Box<PluginAPI>, String> {
+        let metadata = parser.validate_and_load_metadata(gu_version)?;
 
-    fn new(archive_name: String, metadata: PluginMetadata) -> Box<PluginAPI> {
-        Box::new(Self {
+        Ok(Box::new(Self {
             metadata,
             status: PluginStatus::Installed,
             files: HashMap::new(),
-            archive_name,
-            phantom: PhantomData::<T>,
-        })
+            parser,
+        }))
     }
 }
 
@@ -107,8 +95,8 @@ impl<T: PluginParser + 'static> PluginAPI for Plugin<T> {
     }
 
     fn activate(&mut self, plugins_dir: PathBuf) -> Result<(), String> {
-        let plugin_path = plugins_dir.join(&self.archive_name);
-        self.files = T::load_files(plugin_path.as_ref(), &self.metadata.name)?;
+        let plugin_path = plugins_dir.join(&self.metadata.name());
+        self.files = self.parser.load_files(&self.metadata.name)?;
         self.status = PluginStatus::Active;
         Ok(())
     }
@@ -137,10 +125,6 @@ impl<T: PluginParser + 'static> PluginAPI for Plugin<T> {
 
     fn is_active(&self) -> bool {
         self.status == PluginStatus::Active
-    }
-
-    fn archive_name(&self) -> String {
-        self.archive_name.clone()
     }
 
     fn metadata(&self) -> PluginMetadata {
