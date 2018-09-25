@@ -107,8 +107,8 @@ impl<T: PluginParser + 'static> PluginAPI for Plugin<T> {
     }
 
     fn activate(&mut self, plugins_dir: PathBuf) -> Result<(), String> {
-        let zip_path = plugins_dir.join(&self.archive_name);
-        self.files = T::load_files(zip_path.as_ref(), &self.metadata.name)?;
+        let plugin_path = plugins_dir.join(&self.archive_name);
+        self.files = T::load_files(plugin_path.as_ref(), &self.metadata.name)?;
         self.status = PluginStatus::Active;
         Ok(())
     }
@@ -180,12 +180,4 @@ pub fn format_plugins_table(plugins: Vec<PluginInfo>) {
             ]
         }),
     )
-    /*let mut table = Table::new();
-    table.set_titles();
-    for plugin in plugins {
-        table.add_row();
-    }
-
-    table.set_format(*cli::FORMAT_BASIC);
-    table.printstd()*/
 }
