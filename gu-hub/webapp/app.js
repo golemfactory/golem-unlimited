@@ -95,7 +95,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
 
         return {addTab: addTab, getTabs: getTabs}
   })
-  .service('sessionMan', function($http, $log, hubApi, hdMan) {
+  .service('sessionMan', function($http, $log, $q, hubApi, hdMan) {
         var sessions = [];
         if ('gu:sessions' in window.localStorage) {
             sessions = JSON.parse(window.localStorage.getItem('gu:sessions'));
@@ -157,7 +157,14 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         }
 
         function peers(session, needDetails) {
-            var peersPromise = $http.get('/peer').then(r => r.data);
+            var peersPromise;
+
+            if (session && session.status !== 'NEW' && session.peers) {
+                peersPromise = $q.when(session.peers);
+            }
+            else {
+                peersPromise = $http.get('/peer').then(r => r.data);
+            }
 
             $log.info('peers', session, needDetails);
             if (needDetails) {
@@ -195,13 +202,18 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             return s;
         }
 
+        function getSession(sessionId) {
+            return  _.find(sessions, session => session.id === sessionId);
+        }
+
         return {
             create: create,
             peers: peers,
             sessions: listSessions,
             peerDetails: peerDetails,
             updateSession: updateSession,
-            dropSession: dropSession
+            dropSession: dropSession,
+            getSession: getSession
          }
   })
   .service('hdMan', function($http, hubApi, $q, $log) {

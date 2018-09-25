@@ -102,12 +102,18 @@ angular.module('gu')
 
     sessionMan.peers($scope.session, true).then(peers => $scope.peers = peers);
 })
-.controller('MiningPrepare', function($scope, $log, $interval, sessionMan, hdMan) {
+.controller('MiningPrepare', function($scope, $log, $interval, sessionMan, hdMan, miningMan) {
 
     $scope.session = $scope.$parent.$parent.$parent.$parent.session;
-    $scope.peers = $scope.session.peers;
+
+    $scope.peers = [];
     $scope.progress = {};
     $scope.monero = {};
+    $scope.mSession = miningMan.session($scope.session.id);
+
+    $scope.mSession.resolveSessions();
+
+    sessionMan.peers($scope.session, true).then(peers => $scope.peers = peers);
 
     $scope.runBenchmark = function(peer) {
         var nodeId = peer.nodeId;
@@ -163,5 +169,85 @@ angular.module('gu')
         interval = $interval(tick, 200, 120*5, true);
     };
     console.log('s', $scope);
-});
+})
+.service('miningMan', function($log, sessionMan, hdMan) {
+
+    const TAG_MONERO = 'gu:mining:monero';
+    const TAG_ETH = 'gu:mining:eth';
+
+    function isMiningSession(session) {
+        return _.any(session.data.tags, tag => tag === 'gu:mining');
+    }
+
+    function getSessionType(session) {
+            if (_.any(session.data.tags, tag => tag === TAG_MONERO)) {
+                return TAG_MONERO;
+            }
+            if (_.any(session.data.tags, tag => tag === TAG_ETH)) {
+                return TAG_ETH;
+            }
+    }
+
+    class MiningSession {
+        constructor(id) {
+            this.id = id;
+            this.session = sessionMan.getSession(id);
+            this.peers = [];
+        }
+
+        resolveSessions() {
+            sessionMan.peers(this.session, true).then(peers => {
+                $log.info('resolved peers', this.session, peers);
+                this.peers = _.map(peers, peer => new MiningPeer(this, peer.nodeId, peer));
+                return peers;
+            })
+        }
+    }
+
+    class MiningPeer {
+        constructor(session, nodeId, details) {
+            this.session = session;
+            this.id = nodeId;
+            this.peer = hdMan.peer(nodeId);
+            if (details.sessions) {
+                this.importSessions(details.sessions);
+            }
+            else {
+                $log.warn('no import', details, session);
+                this.peer.sessions().then(sessions => this.importSessions(sessions));
+            }
+        }
+
+        importSessions(rawHdManSessions) {
+            $log.info('rawSessions', rawHdManSessions);
+            this.sessions = [];
+            angular.forEach(rawHdManSessions, rawSession => {
+                if (isMiningSession(rawSession)) {
+                    var session = new MiningPeerSession(this, rawSession.id, getSessionType(rawSession));
+                    session.hdSession = rawSession;
+                    this.sessions.push(session);
+                }
+            });
+        }
+    }
+
+    class MiningPeerSession {
+
+        constructor(peer, id, type) {
+            this.peer = peer;
+            this.id= id;
+            this.type = type;
+        }
+
+        validate() {
+            return this.hdSession.exec('gu-mine', ['spec']);
+        }
+    }
+
+    function session(id) {
+        return new MiningSession(id);
+    }
+
+    return { session: session }
+})
 

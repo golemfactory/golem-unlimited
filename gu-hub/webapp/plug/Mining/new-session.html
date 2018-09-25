@@ -29,7 +29,7 @@
         </thead>
         <tbody>
         <tr ng-repeat="peer in peers track by peer.nodeId">
-            <td><input type="checkbox" ng-model="peer.assigned"><code>{{peer.nodeId}}</code></td>
+            <td><input id="n-{{peer.nodeId}}" type="checkbox" ng-model="peer.assigned"><label for="n-{{peer.nodeId}}"><code>{{peer.nodeId}}</code></label></td>
             <td>{{peer.peerAddr}}</td>
             <td><span ng-if="peer.ram">
                             <uib-progressbar type="success" value="peer.ram.used" max="peer.ram.total"></uib-progressbar>

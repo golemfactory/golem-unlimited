@@ -18,18 +18,40 @@
                 <thead>
                 <tr>
                     <th>Node Id</th>
+                    <th>Name</th>
                     <th>RAM</th>
                     <th>GPU</th>
-                    <th>Monero Hashrate</th>
-                    <th>ETH Hashrate</th>
+                    <th colspan="2">Monero</th>
+                    <th colspan="1">ETH</th>
+                </tr>
+                <tr>
+                    <td colspan="4">
+
+                    </td>
+                    <th>CPU</th>
+                    <th>GPU</th>
+                    <th>GPU</th>
                 </tr>
                 </thead>
                 <tbody>
                 <tr ng-repeat="peer in peers track by peer.nodeId">
                     <td><a href="#" ng-click="runBenchmark(peer)" class="btn btn-default">R</a><code>{{peer.nodeId}}</code></td>
-                    <td></td>
-                    <td></td>
-                    <td>
+                    <td>{{(peer.nodeName || peer.hostname)}}</td>
+                    <td><span ng-if="peer.ram">
+                            <uib-progress max="peer.ram.total" animate="false">
+                                <uib-bar value="peer.ram.used" type="warning" title="used: {{peer.ram.used/1000/1000 | number: 1}} GB">
+                                    <span ng-hide="peer.ram.used/peer.ram.total < 0.05">{{peer.ram.used/1000/1000 | number: 1}}</span>
+                                </uib-bar>
+                                <uib-bar value="peer.ram.free" type="success" title="free: {{peer.ram.free/1000/1000 | number: 1}} GB">
+                                    <span ng-hide="peer.ram.free/peer.ram.total < 0.05">{{peer.ram.free/1000/1000 | number: 1}} GB</span>
+                                </uib-bar>
+                            </uib-progress>
+                        </span></td>
+                    <td><span ng-if="!!peer.gpu">
+                                <span class="label label-primary" ng-if="peer.gpu.amd">AMD {{peer.gpu.amd > 1 ? "x"+peer.gpu.amd : ""}}</span>
+                                <span class="label label-danger" ng-if="peer.gpu.nvidia">NVidia {{peer.gpu.nvidia > 1 ? "x"+peer.gpu.nvidia : ""}}</span>
+                            </span></td>
+                    <td colspan="2">
                         <span ng-if="progress[peer.nodeId]">
                             <uib-progressbar max="progress[peer.nodeId].max" value="progress[peer.nodeId].step" type="success">{{progress[peer.nodeId].label}}</uib-progressbar>
                         </span>
@@ -41,5 +63,19 @@
                 </tbody>
             </table>
         </div>
+    </div>
+    <div>
+        <pre>
+            {{mSession.id}}
+        </pre>
+        <div ng-repeat="peer in mSession.peers">
+            peer: {{peer.id}}<br />
+            s: {{peer.sessions.length}}
+            <div ng-repeat="session in peer.sessions">
+                id: {{session.id}},
+                type: {{session.type}}
+            </div>
+        </div>
+
     </div>
 </div>
