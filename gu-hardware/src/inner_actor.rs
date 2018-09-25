@@ -42,7 +42,7 @@ impl Handler<DiskQuery> for InnerActor {
         msg: DiskQuery,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<DiskQuery>>::Result {
-        self.sys.refresh_disk_list();
+        self.sys.refresh_disks();
         MessageResult(disk_info(&self.sys, msg.path()))
     }
 }

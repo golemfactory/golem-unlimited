@@ -33,7 +33,7 @@
                 <div>
                     <ng-gauge
                             type="arch" thick="10"
-                            value="hub.disk.available/hub.disk.total*100" size="150"
+                            value="(hub.disk.total-hub.disk.available)/hub.disk.total*100" size="150"
                             fraction-size="1" cap="butt" label="Disk used" append="%"
                             thresholds="{
                         '0': { color: 'green' },
@@ -41,7 +41,7 @@
                         '80': {color: 'red'}
                     }">
                     </ng-gauge>
-                    <p>{{hub.disk.available/1000000000 | number: 1}} / {{hub.disk.total/1000000000 | number: 1}} GB
+                    <p>{{(hub.disk.total-hub.disk.available)/1000000000 | number: 1}} / {{hub.disk.total/1000000000 | number: 1}} GB
                         <span class="label label-{{hub.disk.disk_type == 'SSD' ? 'success' : 'danger'}}">{{hub.disk.disk_type}}</span>
                     </p>
                 </div>
