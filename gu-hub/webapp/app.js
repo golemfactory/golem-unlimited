@@ -33,15 +33,18 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             animate: true,
             templateUrl: 'hdsession.html',
             controller: function($scope, $uibModalInstance) {
+                peer.refreshSessions();
                 $scope.peer = peer;
                 $scope.ok = function() {
                     $uibModalInstance.close()
                 }
+                $scope.destroySession = function(peer, session) {
+                    session.destroy();
+                    peer.refreshSessions();
+                }
             }
         })
      }
-
-
 
      $scope.peers = [];
      $scope.refresh();
@@ -49,7 +52,6 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
   })
   .controller('StatusController', function($scope, $http) {
      function refresh() {
-        console.log("refreshing");
         $http.post('/m/19354', "null").then(r => {
             var ok = r.data.Ok;
             if (ok) {
@@ -59,7 +61,6 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                     os: ok.os,
                     hostname: ok.hostname
                 }
-                console.log("hub", $scope.hub);
             }
         });
         $http.get('/peer').then(r => {
@@ -80,16 +81,16 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
 
         return { callRemote: callRemote};
   })
-  .service('pluginManager', function() {
+  .service('pluginManager', function($log) {
         var plugins = [];
 
         function addTab(desc) {
-            console.log('add', desc);
+            $log.info('add', desc);
             plugins.push(desc)
         }
 
         function getTabs() {
-            console.log('get')
+            $log.info('get')
             return plugins;
         }
 
@@ -121,7 +122,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         }
 
         function updateSession(moduleSession, newStatus, updates) {
-            console.log('updateSession', moduleSession, newStatus, updates);
+            $log.info('updateSession', moduleSession, newStatus, updates);
             angular.forEach(sessions, session => {
                 if (session.id === moduleSession.id) {
                     if (updates.peers) {
@@ -159,7 +160,6 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         function peers(session, needDetails) {
             var peersPromise = $http.get('/peer').then(r => r.data);
 
-            $log.info('peers', session, needDetails);
             if (needDetails) {
                 peersPromise.then(peers => angular.forEach(peers, peer => peerDetails(peer)));
             }
@@ -168,17 +168,22 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         }
 
         function peerDetails(peer) {
-                hubApi.callRemote(peer.nodeId, 19354, null)
-                .then(data=> {
-                    var ok = data.Ok;
-                    if (ok) {
-                        peer.ram = ok.ram;
-                        peer.gpu = ok.gpu;
-                        peer.os = ok.os || peer.os;
-                        peer.hostname = ok.hostname;
-                    }
-                });
-                hdMan.peer(peer.nodeId).sessionsFast().then(sessions => peer.sessions = sessions);
+            hubApi.callRemote(peer.nodeId, 19354, null).then(data=> {
+                var ok = data.Ok;
+                if (ok) {
+                    peer.ram = ok.ram;
+                    peer.gpu = ok.gpu;
+                    peer.os = ok.os || peer.os;
+                    peer.hostname = ok.hostname;
+                }
+            });
+
+            peer.hdMan = hdMan.peer(peer.nodeId);
+            peer.refreshSessions = function() {
+                peer.hdMan.sessions().then(sessions => peer.sessions = sessions);
+            }
+
+            peer.refreshSessions();
         };
 
 
@@ -210,6 +215,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         const HDMAN_CREATE = 37;
         const HDMAN_UPDATE = 38;
         const HDMAN_GET_SESSIONS = 39;
+        const HDMAN_DESTROY = 40;
 
         class HdMan {
             constructor(nodeId) {
@@ -235,9 +241,12 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             }
 
             sessionsFast() {
-                if (this.nodeId in cache) {
-                    return $q.when(cache[this.nodeId]);
-                }
+            // TODO: FIXME
+//                if (this.nodeId in cache) {
+//                    $log.debug("sessionFast: cache used", $q.when(cache[this.nodeId]), this.sessions())
+//                    return $q.when(cache[this.nodeId]);
+//                }
+//                $log.debug("sessionFast: cache not used", this.sessions())
                 return this.sessions();
             }
         }
@@ -271,6 +280,17 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                     })
                 ).then(result => {
                     $log.info("exec result", result);
+                    return result;
+                });
+            }
+
+            destroy() {
+                return hubApi.callRemote(this.nodeId, HDMAN_DESTROY, {session_id : this.id}).then(result => {
+                    if (result.Ok) {
+                        $log.info("session", this.id, "closed: ", result);
+                    } else {
+                        $log.error("session", this.id, "closing error:", result);
+                    }
                     return result;
                 });
             }
