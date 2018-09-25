@@ -32,7 +32,7 @@
                 </thead>
                 <tbody>
                 <tr ng-repeat="peer in peers track by peer.nodeId">
-                    <td><a href="#" ng-click="runBenchmark(peer)" class="btn btn-default">R</a><code>{{peer.nodeId}}</code></td>
+                    <td><code>{{peer.nodeId}}</code></td>
                     <td>{{(peer.nodeName || peer.hostname)}}</td>
                     <td><span ng-if="peer.ram">
                             <uib-progress max="peer.ram.total" animate="false">
@@ -49,6 +49,7 @@
                                 <span class="label label-danger" ng-if="peer.gpu.nvidia">NVidia {{peer.gpu.nvidia > 1 ? "x"+peer.gpu.nvidia : ""}}</span>
                             </span></td>
                     <td ng-if="!!mSession.hr(peer.nodeId, 'gu:mining:monero')">
+                        <button type="button" class="btn btn-primary" aria-pressed="false" autocomplete="off">Off</button><br />
                         {{mSession.hr(peer.nodeId, 'gu:mining:monero')['hashrate-cpu']}} H/s
                     </td>
                     <td ng-if="!!mSession.hr(peer.nodeId, 'gu:mining:monero')">

@@ -345,11 +345,9 @@ angular.module('gu')
         }
 
         hr(type) {
-            var it = window.localStorage.getItem('gu:mining:hr');
+            var it = this.load('hr')
             if (it) {
-                var hr = JSON.parse(it);
-
-                return hr[type];
+                return it[type];
             }
 
             return  _.filter(this.sessions, session => session.type === type)
@@ -359,7 +357,16 @@ angular.module('gu')
         }
 
         save(key, val) {
-            window.localStorage.setItem('gu:mining:' + key, JSON.stringify(val))
+            window.localStorage.setItem('gu:mining:' + this.id + ':' + key, JSON.stringify(val))
+        }
+
+        load(key) {
+            var key = 'gu:mining:' + this.id + ':' + key;
+            var it = window.localStorage.getItem(key);
+            if (it) {
+                return JSON.parse(it);
+            }
+
         }
 
         commit() {
