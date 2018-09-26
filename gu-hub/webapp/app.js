@@ -179,9 +179,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                     peer.ram = ok.ram;
                     peer.gpu = ok.gpu;
                     peer.os = ok.os || peer.os;
-                    if (ok.os) {
-                        osMap[peer.nodeId] = ok.os;
-                    }
+                    osMap[peer.nodeId] = ok.os || peer.os || 'unk';
                     peer.hostname = ok.hostname;
                 }
             });
@@ -213,7 +211,18 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         }
 
         function getOs(nodeId) {
-            return $q.when(osMap[nodeId]);
+            if (nodeId in osMap) {
+                return $q.when(osMap[nodeId]);
+            }
+            else {
+                return hubApi.callRemote(nodeId, 19354, null).then(data=> {
+                    var ok = data.ok;
+                    if (ok) {
+                        osMap[peer.nodeId] = ok.os || peer.os || 'unk';
+                    }
+                    return osMap[peer.nodeId];
+                });
+            }
         }
 
         return {
