@@ -17,6 +17,10 @@ use std::path::{Path, PathBuf};
 use plugins::parser::ZipParser;
 use actix_web::dev::Resource;
 use plugins::parser::PluginParser;
+use plugins::parser::BytesPluginParser;
+use std::io::Cursor;
+use std::io::BufReader;
+use std::io::Read;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -32,6 +36,8 @@ impl Default for PluginManager {
     fn default() -> Self {
         let gu_version = Version::parse(env!("CARGO_PKG_VERSION"))
             .expect("Failed to run UI Plugin Manager:\nCouldn't parse crate version");
+
+        info!("Plugins dir: {:?}", ConfigModule::new().work_dir().join("plugins"));
 
         Self {
             gu_version,
@@ -141,13 +147,18 @@ impl Handler<PluginFile> for PluginManager {
 
 #[derive(Debug)]
 pub struct InstallPlugin {
-    pub message: Bytes,
+    pub bytes: Cursor<Bytes>,
 }
 
 impl Message for InstallPlugin {
     type Result = Result<(), String>;
 }
-/*
+
+fn zip_name(mut s: String) -> String {
+    s.push_str(".zip");
+    s
+}
+
 impl Handler<InstallPlugin> for PluginManager {
     type Result = MessageResult<InstallPlugin>;
 
@@ -156,13 +167,11 @@ impl Handler<InstallPlugin> for PluginManager {
         msg: InstallPlugin,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<InstallPlugin>>::Result {
-        let mut parser: ZipParser<File> = ZipParser::new(PluginResource::Bytes(&msg.message));
-        MessageResult(parser.validate_and_load_metadata(self.gu_version)
+        MessageResult(ZipParser::<BufReader<Cursor<Bytes>>>::from_bytes(msg.bytes.clone())
+            .and_then(|mut parser| parser.validate_and_load_metadata(self.gu_version.clone()))
             .and_then(|metadata| {
-                fs::copy(self.directory, self.directory.join(metadata.name()))
-                    .and_then(|_| Ok(()))
+                fs::write(self.directory.join(zip_name(metadata.name())), msg.bytes.into_inner())
                     .map_err(|e| format!("Cannot save archive: {:?}", e))
             }))
     }
 }
-*/

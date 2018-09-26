@@ -15,6 +15,8 @@ use std::path::PathBuf;
 use zip::ZipArchive;
 use std::io::Seek;
 use bytes::Bytes;
+use std::io::BufReader;
+use std::io::Cursor;
 
 pub trait PluginParser: Debug {
     /// Performs all checks on plugin resource and returns its metadata on success
@@ -56,18 +58,31 @@ fn read_file(file: &mut impl Read) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
+pub trait PathPluginParser: PluginParser + Sized {
+    fn from_path(path: &Path) -> Result<Self, String>;
+}
+
+pub trait BytesPluginParser: PluginParser + Sized {
+    fn from_bytes(bytes: Cursor<Bytes>) -> Result<Self, String>;
+}
+
 #[derive(Debug)]
 pub struct ZipParser<T: Debug + Read + Seek> {
     archive: ZipArchive<T>,
 }
 
+impl BytesPluginParser for ZipParser<BufReader<Cursor<Bytes>>> {
+    fn from_bytes(bytes: Cursor<Bytes>) -> Result<Self, String> {
+        let buf_reader = BufReader::new(bytes);
+        let archive = ZipArchive::new(buf_reader)
+            .map_err(|e| format!("Cannot parse string as zip: {:?}", e))?;
 
-pub trait PathPluginParser: PluginParser + Sized {
-    fn new(path: &Path) -> Result<Self, String>;
+        Ok(ZipParser::inner_new(archive))
+    }
 }
 
 impl PathPluginParser for ZipParser<File> {
-    fn new(path: &Path) -> Result<Self, String> {
+    fn from_path(path: &Path) -> Result<Self, String> {
         File::open(path)
             .map_err(|e| format!("Cannot open file: {:?}", e))
             .and_then(|f| ZipArchive::new(f)
@@ -76,8 +91,8 @@ impl PathPluginParser for ZipParser<File> {
     }
 }
 
-impl ZipParser<File> {
-    fn inner_new(zip: ZipArchive<File>) -> Self {
+impl<T: Debug + Read + Seek> ZipParser<T> {
+    fn inner_new(zip: ZipArchive<T>) -> Self {
         Self {
             archive: zip,
         }
