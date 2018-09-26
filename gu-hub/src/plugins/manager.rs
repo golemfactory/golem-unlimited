@@ -7,27 +7,26 @@ use actix::Supervised;
 use actix::SystemService;
 use bytes::Bytes;
 use gu_persist::config::ConfigModule;
-use plugins::plugin::create_plugin_controller;
-use plugins::plugin::PluginAPI;
+use plugins::parser::BytesPluginParser;
+use plugins::parser::PluginParser;
+use plugins::parser::ZipParser;
+use plugins::plugin::Plugin;
+use plugins::plugin::PluginHandler;
 use plugins::plugin::PluginInfo;
+use plugins::plugin::ZipHandler;
 use semver::Version;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
-use plugins::parser::ZipParser;
-use actix_web::dev::Resource;
-use plugins::parser::PluginParser;
-use plugins::parser::BytesPluginParser;
-use std::io::Cursor;
 use std::io::BufReader;
-use std::io::Read;
+use std::io::Cursor;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct PluginManager {
     /// version of currently running app
     gu_version: Version,
     /// map from a name of plugin into the plugin
-    plugins: HashMap<String, Box<PluginAPI>>,
+    plugins: HashMap<String, Plugin>,
     /// directory containing plugin files
     directory: PathBuf,
 }
@@ -37,7 +36,10 @@ impl Default for PluginManager {
         let gu_version = Version::parse(env!("CARGO_PKG_VERSION"))
             .expect("Failed to run UI Plugin Manager:\nCouldn't parse crate version");
 
-        info!("Plugins dir: {:?}", ConfigModule::new().work_dir().join("plugins"));
+        info!(
+            "Plugins dir: {:?}",
+            ConfigModule::new().work_dir().join("plugins")
+        );
 
         Self {
             gu_version,
@@ -48,13 +50,28 @@ impl Default for PluginManager {
 }
 
 impl PluginManager {
-    pub fn save_plugin(&self, path: &Path) -> Result<(), String> {
-        let parser = create_plugin_controller(path, self.gu_version.clone())?;
-        let metadata = parser.metadata();
+    fn install_plugin<T: 'static + PluginHandler>(&mut self, handler: T) -> Result<(), String> {
+        let mut plugin = Plugin::new(handler);
+        plugin.activate();
 
-        fs::copy(&path, self.directory.join(metadata.name()))
+        plugin.metadata().and_then(|meta| {
+            match self.plugins.insert(meta.name().to_string(), plugin) {
+                None => Ok(()),
+                Some(a) => Err(format!("Overwritten old ({:?}) module", a)),
+            }
+        })
+    }
+
+    fn load_zip(&mut self, name: &str) -> Result<(), String> {
+        let path = self.directory.join(name.to_string());
+        let handler = ZipHandler::new(&path, self.gu_version.clone())?;
+        self.install_plugin(handler)
+    }
+
+    fn save_bytes_in_dir(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
+        fs::write(self.directory.join(zip_name(name.to_string())), bytes)
             .and_then(|_| Ok(()))
-            .map_err(|e| format!("Cannot copy zip archive: {:?}", e))
+            .map_err(|e| format!("Cannot save file: {:?}", e))
     }
 
     fn reload_plugins(&mut self) -> Result<(), String> {
@@ -66,17 +83,9 @@ impl PluginManager {
         for plug_pack in dir {
             let plug_pack =
                 plug_pack.map_err(|e| format!("Cannot read plugin archive: {:?}", e))?;
-            let plugin = create_plugin_controller(&plug_pack.path(), self.gu_version.clone());
+            let handler = ZipHandler::new(&plug_pack.path(), self.gu_version.clone())?;
 
-            match plugin {
-                Err(e) => warn!("Cannot load plugin: {:?}", e),
-                Ok(mut plugin) => {
-                    plugin.activate(self.directory.clone());
-                    if let Some(old) = self.plugins.insert(plugin.name(), plugin) {
-                        error!("Overwriting old ({:?}) module", old.name());
-                    };
-                }
-            }
+            let _ = self.install_plugin(handler).map_err(|e| warn!("{:?}", e));
         }
 
         Ok(())
@@ -90,10 +99,11 @@ impl Actor for PluginManager {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        self.reload_plugins().map_err(|e| error!("{:?}", e));
+        let _ = self.reload_plugins().map_err(|e| error!("{:?}", e));
     }
 }
 
+/// LIST PLUGINS
 pub struct ListPlugins;
 
 impl Message for ListPlugins {
@@ -110,12 +120,16 @@ impl Handler<ListPlugins> for PluginManager {
     ) -> <Self as Handler<ListPlugins>>::Result {
         let mut vec = Vec::new();
         for plugin in self.plugins.values() {
-            vec.push(plugin.info())
+            let _ = plugin
+                .info()
+                .map(|info| vec.push(info))
+                .map_err(|e| error!("Cannot get info: {}", e));
         }
         MessageResult(vec)
     }
 }
 
+/// GET PLUGIN FILE
 #[derive(Debug)]
 pub struct PluginFile {
     pub plugin: String,
@@ -134,17 +148,19 @@ impl Handler<PluginFile> for PluginManager {
         msg: PluginFile,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<PluginFile>>::Result {
-        let plugin = self.plugins.get(&msg.plugin).unwrap();
-        MessageResult(if plugin.is_active() {
-            plugin
-                .file(msg.path)
-                .ok_or_else(|| "Page not found".to_string())
-        } else {
-            Err("Plugin is not active".to_string())
-        })
+        MessageResult(
+            self.plugins
+                .get(&msg.plugin)
+                .ok_or(format!("Cannot find {} plugin", msg.plugin))
+                .and_then(|plug| {
+                    plug.file(&msg.path)
+                        .map_err(|_| format!("Cannot find {} file", msg.path))
+                }),
+        )
     }
 }
 
+/// INSTALL PLUGIN
 #[derive(Debug)]
 pub struct InstallPlugin {
     pub bytes: Cursor<Bytes>,
@@ -167,11 +183,14 @@ impl Handler<InstallPlugin> for PluginManager {
         msg: InstallPlugin,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<InstallPlugin>>::Result {
-        MessageResult(ZipParser::<BufReader<Cursor<Bytes>>>::from_bytes(msg.bytes.clone())
-            .and_then(|mut parser| parser.validate_and_load_metadata(self.gu_version.clone()))
-            .and_then(|metadata| {
-                fs::write(self.directory.join(zip_name(metadata.name())), msg.bytes.into_inner())
-                    .map_err(|e| format!("Cannot save archive: {:?}", e))
-            }))
+        MessageResult(
+            ZipParser::<BufReader<Cursor<Bytes>>>::from_bytes(msg.bytes.clone())
+                .and_then(|mut parser| parser.validate_and_load_metadata(self.gu_version.clone()))
+                .and_then(|metadata| {
+                    let name = metadata.name();
+                    self.save_bytes_in_dir(name, msg.bytes.into_inner().as_ref())
+                        .and_then(|_| self.load_zip(&zip_name(name.to_string())))
+                }).and_then(|_| Ok(())),
+        )
     }
 }

@@ -1,15 +1,16 @@
 use gu_base::cli;
+use plugins::parser;
+use plugins::parser::PathPluginParser;
 use plugins::parser::PluginParser;
-use plugins::parser::ZipParser;
 use semver::Version;
 use semver::VersionReq;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
 use std::fs::File;
-use plugins::parser::PathPluginParser;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -37,98 +38,8 @@ impl PluginMetadata {
         self.gu_version_req.clone()
     }
 
-    pub fn name(&self) -> String {
-        self.name.clone()
-    }
-}
-
-pub trait PluginAPI: Debug {
-    fn name(&self) -> String;
-
-    fn activate(&mut self, plugins_dir: PathBuf) -> Result<(), String>;
-
-    fn inactivate(&mut self);
-
-    fn handle_error(&mut self);
-
-    fn info(&self) -> PluginInfo;
-
-    fn file(&self, path: String) -> Option<Vec<u8>>;
-
-    fn is_active(&self) -> bool;
-
-    fn metadata(&self) -> PluginMetadata;
-}
-
-pub fn create_plugin_controller(
-    path: &Path,
-    gu_version: Version,
-) -> Result<Box<PluginAPI>, String> {
-    let parser = ZipParser::from_path(path)?;
-    Plugin::<ZipParser<File>>::new(parser, gu_version)
-}
-
-#[derive(Debug)]
-pub struct Plugin<T: PluginParser + 'static> {
-    metadata: PluginMetadata,
-    status: PluginStatus,
-    files: HashMap<PathBuf, Vec<u8>>,
-    parser: T,
-}
-
-impl<T: PathPluginParser + 'static> Plugin<T> {
-    fn new(mut parser: T, gu_version: Version) -> Result<Box<PluginAPI>, String> {
-        let metadata = parser.validate_and_load_metadata(gu_version)?;
-
-        Ok(Box::new(Self {
-            metadata,
-            status: PluginStatus::Installed,
-            files: HashMap::new(),
-            parser,
-        }))
-    }
-}
-
-impl<T: PluginParser + 'static> PluginAPI for Plugin<T> {
-    fn name(&self) -> String {
-        self.metadata.name.clone()
-    }
-
-    fn activate(&mut self, plugins_dir: PathBuf) -> Result<(), String> {
-        let plugin_path = plugins_dir.join(&self.metadata.name());
-        self.files = self.parser.load_files(&self.metadata.name)?;
-        self.status = PluginStatus::Active;
-        Ok(())
-    }
-
-    fn inactivate(&mut self) {
-        self.files.clear();
-        self.status = PluginStatus::Installed;
-    }
-
-    fn handle_error(&mut self) {
-        // TODO: some action?
-        self.status = PluginStatus::Error;
-    }
-
-    fn info(&self) -> PluginInfo {
-        PluginInfo {
-            name: self.metadata.name.clone(),
-            version: self.metadata.version.clone(),
-            status: self.status.clone(),
-        }
-    }
-
-    fn file(&self, path: String) -> Option<Vec<u8>> {
-        self.files.get(&PathBuf::from(path)).map(|arc| arc.clone())
-    }
-
-    fn is_active(&self) -> bool {
-        self.status == PluginStatus::Active
-    }
-
-    fn metadata(&self) -> PluginMetadata {
-        self.metadata.clone()
+    pub fn name(&self) -> &str {
+        self.name.as_ref()
     }
 }
 
@@ -140,7 +51,7 @@ pub struct PluginInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-enum PluginStatus {
+pub enum PluginStatus {
     Active,
     Installed,
     Error,
@@ -164,4 +75,120 @@ pub fn format_plugins_table(plugins: Vec<PluginInfo>) {
             ]
         }),
     )
+}
+
+/// Trait for providing plugin files
+pub trait PluginHandler: Debug {
+    fn metadata(&self) -> Result<PluginMetadata, String>;
+
+    fn file(&self, path: &str) -> Result<Vec<u8>, String>;
+}
+
+#[derive(Debug)]
+pub struct DirectoryHandler {
+    directory: Cow<'static, Path>,
+}
+
+impl PluginHandler for DirectoryHandler {
+    fn metadata(&self) -> Result<PluginMetadata, String> {
+        let metadata_file = File::open(self.directory.to_path_buf().join("gu-plugin.json"))
+            .map_err(|_| "Couldn't read metadata file".to_string())?;
+
+        parser::parse_metadata(metadata_file)
+    }
+
+    fn file(&self, path: &str) -> Result<Vec<u8>, String> {
+        let mut file = File::open(self.directory.to_path_buf().join(path))
+            .map_err(|e| format!("Cannot open file: {:?}", e))?;
+
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)
+            .map_err(|e| format!("Reading file failed: {:?}", e))?;
+        Ok(buf)
+    }
+}
+
+#[derive(Debug)]
+pub struct ZipHandler {
+    metadata: PluginMetadata,
+    files: HashMap<PathBuf, Vec<u8>>,
+}
+
+impl ZipHandler {
+    pub fn new(path: &PathBuf, gu_version: Version) -> Result<Self, String> {
+        let mut parser = parser::ZipParser::<File>::from_path(path)?;
+
+        let metadata = parser.validate_and_load_metadata(gu_version)?;
+        let files = parser.load_files(metadata.name())?;
+
+        Ok(Self { metadata, files })
+    }
+}
+
+impl PluginHandler for ZipHandler {
+    fn metadata(&self) -> Result<PluginMetadata, String> {
+        Ok(self.metadata.clone())
+    }
+
+    fn file(&self, path: &str) -> Result<Vec<u8>, String> {
+        println!("hash: {:?}", self.files.keys());
+        println!("path: {:?}", path);
+
+        self.files
+            .get(&PathBuf::from(path))
+            .map(|data| data.clone())
+            .ok_or(format!("File {} not found", path))
+    }
+}
+
+#[derive(Debug)]
+pub struct Plugin {
+    handler: Box<PluginHandler>,
+    status: PluginStatus,
+}
+
+impl Plugin {
+    pub fn new<T: 'static + PluginHandler>(handler: T) -> Self {
+        Self {
+            handler: Box::new(handler),
+            status: PluginStatus::Installed,
+        }
+    }
+
+    pub fn activate(&mut self) {
+        self.status = PluginStatus::Active;
+    }
+
+    pub fn inactivate(&mut self) {
+        self.status = PluginStatus::Installed;
+    }
+
+    pub fn log_error(&mut self) {
+        self.status = PluginStatus::Error;
+    }
+
+    pub fn status(&self) -> PluginStatus {
+        self.status.clone()
+    }
+
+    pub fn info(&self) -> Result<PluginInfo, String> {
+        let meta = self.handler.metadata()?;
+
+        Ok(PluginInfo {
+            name: meta.name().to_string(),
+            version: meta.version(),
+            status: self.status(),
+        })
+    }
+
+    pub fn file(&self, path: &str) -> Result<Vec<u8>, String> {
+        match self.status() {
+            PluginStatus::Active => self.handler.file(path),
+            a => Err(format!("Plugin is not active (State - {})", a)),
+        }
+    }
+
+    pub fn metadata(&self) -> Result<PluginMetadata, String> {
+        self.handler.metadata()
+    }
 }
