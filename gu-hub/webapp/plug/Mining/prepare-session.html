@@ -35,7 +35,10 @@
                 </thead>
                 <tbody>
                 <tr ng-repeat="peer in peers track by peer.nodeId">
-                    <td><code>{{peer.nodeId}}</code></td>
+                    <td>
+                        <code>{{peer.nodeId}}</code>
+                        <span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">{{peer.os}}</span>
+                    </td>
                     <td>{{(peer.nodeName || peer.hostname)}}</td>
                     <td><span ng-if="peer.ram">
                             <uib-progress max="peer.ram.total" animate="false">
@@ -72,7 +75,24 @@
                     <td ng-if="!!mSession.hr(peer.nodeId, 'gu:mining:monero')">
                         {{mSession.hr(peer.nodeId, 'gu:mining:monero')['hashrate-gpu']}} H/s
                     </td>
-                    <td></td>
+                    <td ng-if="!mSession.hr(peer.nodeId, 'gu:mining:eth')">
+                        <span ng-if="progress[peer.nodeId]['deploy:gu:mining:eth']">
+                            <uib-progressbar max="progress[peer.nodeId]['deploy:gu:mining:eth'].size"
+                                             value="progress[peer.nodeId]['deploy:gu:mining:eth'].pos" type="success">
+                                {{progress[peer.nodeId]['deploy:gu:mining:eth'].label}}
+                            </uib-progressbar>
+                        </span>
+                        <span ng-if="progress[peer.nodeId]['bench:gu:mining:eth']">
+                            <uib-progressbar max="progress[peer.nodeId]['bench:gu:mining:eth'].size"
+                                             value="progress[peer.nodeId]['bench:gu:mining:eth'].pos" type="success">
+                                {{progress[peer.nodeId]['bench:gu:mining:eth'].label}}
+                            </uib-progressbar>
+                        </span>
+                    </td>
+                    <td ng-if="!!mSession.hr(peer.nodeId, 'gu:mining:eth')">
+                        {{mSession.hr(peer.nodeId, 'gu:mining:eth')['hashrate-gpu']}} H/s
+                    </td>
+
 
                 </tr>
                 </tbody>

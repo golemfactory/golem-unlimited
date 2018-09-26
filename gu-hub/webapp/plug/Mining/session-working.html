@@ -32,7 +32,10 @@
                 </thead>
                 <tbody>
                 <tr ng-repeat="peer in peers track by peer.nodeId">
-                    <td><code>{{peer.nodeId}}</code></td>
+                    <td>
+                        <code>{{peer.nodeId}}</code>
+                        <span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">{{peer.os}}</span>
+                    </td>
                     <td>{{(peer.nodeName || peer.hostname)}}</td>
                     <td><span ng-if="peer.ram">
                             <uib-progress max="peer.ram.total" animate="false">
@@ -49,19 +52,28 @@
                                 <span class="label label-danger" ng-if="peer.gpu.nvidia">NVidia {{peer.gpu.nvidia > 1 ? "x"+peer.gpu.nvidia : ""}}</span>
                             </span></td>
                     <td >
-                        <button type="button" class="btn" ng-class="{btn-primary: peer.isCpu('gu:mining:monero'), btn-default: !peer.isCpu('gu:mining:monero')}" ng-click="toggle(peer, 'gu:mining:monero', 'gpu')"></button>
+                        <button type="button" class="btn" ng-class="{'btn-primary': isCpu(peer, 'gu:mining:monero'), 'btn-default': !isCpu(peer, 'gu:mining:monero')}" ng-click="toggle(peer, 'gu:mining:monero', 'cpu')"></button>
 
                         <div ng-if="!!mSession.hr(peer.nodeId, 'gu:mining:monero')">
                         {{mSession.hr(peer.nodeId, 'gu:mining:monero')['hashrate-cpu']}} H/s
                         </div>
                     </td>
                     <td ng-if="!!mSession.hr(peer.nodeId, 'gu:mining:monero')">
-                        <button type="button" class="btn" ng-class="{btn-primary: peer.isGpu('gu:mining:monero'), btn-default: !peer.isCpu('gu:mining:monero')}" ng-click="toggle(peer, 'gu:mining:monero', 'gpu')"></button>
+                        <button type="button" class="btn"
+                                ng-if="mSession.hr(peer.nodeId, 'gu:mining:monero')['hashrate-gpu']"
+                                ng-class="{'btn-primary': isGpu(peer, 'gu:mining:monero'), 'btn-default': !isGpu(peer, 'gu:mining:monero')}" ng-click="toggle(peer, 'gu:mining:monero', 'gpu')"></button>
                         <div ng-if="!!mSession.hr(peer.nodeId, 'gu:mining:monero')">
                         {{mSession.hr(peer.nodeId, 'gu:mining:monero')['hashrate-gpu']}} H/s
                         </div>
                     </td>
-                    <td></td>
+                    <td>
+                        <button type="button" class="btn"
+                                ng-if="mSession.hr(peer.nodeId, 'gu:mining:eth')['hashrate-gpu']"
+                                ng-class="{'btn-primary': isGpu(peer, 'gu:mining:eth'), 'btn-default': !isGpu(peer, 'gu:mining:monero')}" ng-click="toggle(peer, 'gu:mining:eth', 'gpu')"></button>
+                        <div ng-if="!!mSession.hr(peer.nodeId, 'gu:mining:eth')">
+                            {{mSession.hr(peer.nodeId, 'gu:mining:eth')['hashrate-gpu']}} H/s
+                        </div>
+                    </td>
 
                 </tr>
                 </tbody>

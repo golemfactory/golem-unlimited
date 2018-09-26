@@ -326,6 +326,22 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                 });
             }
 
+            stopWithTag(tag, pid) {
+                return this.$create.then(id =>
+                    hubApi.callRemote(this.nodeId, HDMAN_UPDATE, {
+                        session_id: id,
+                        commands: [
+                            {Stop: {child_id: pid}},
+                            {DelTags: angular.isArray(tag) ? tag : [tag]}
+                        ]
+                    })
+                ).then(result => {
+                    $log.info("run_tag result", result);
+                    return result;
+                });
+
+            }
+
             destroy() {
                 this.status = 'DELETED';
 

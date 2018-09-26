@@ -1,7 +1,13 @@
 
 var images = {
-    linux: {"gu:mining:monero": ["http://10.30.8.179:61622/app/images/monero-linux.tar.gz", "dc4d9e0c100b36c46b6355311ab853996a1448936068283cd7fafb5a90014877"]},
-    macos: {"gu:mining:monero": ["http://10.30.8.179:61622/app/images/monero-macos.tar.gz", "846e1125f927a4817d19e9c1bf34f6ff4ffcf54f6cbeabedbf21e7f59a46d4ac"]},
+    linux: {
+        "gu:mining:monero": ["http://10.30.8.179:61622/app/images/monero-linux.tar.gz", "dc4d9e0c100b36c46b6355311ab853996a1448936068283cd7fafb5a90014877"],
+        "gu:mining:eth": ["http://10.30.8.179:61622/app/images/eth-linux.tar.gz", "d21f315ed0af9fff9cbc9db38729ebfdcbf16cd7588d39f4f5319e7283cda159"]
+    },
+    macos: {
+        "gu:mining:monero": ["http://10.30.8.179:61622/app/images/monero-macos.tar.gz", "846e1125f927a4817d19e9c1bf34f6ff4ffcf54f6cbeabedbf21e7f59a46d4ac"],
+        "gu:mining:eth": ["http://10.30.8.179:61622/app/images/eth-macos.tar.gz", "aabb3fad0ee90eda7cb66473f3579abac35b256276c900d6fbed2050949c6af2"]
+    },
 }
 
 angular.module('gu')
@@ -112,7 +118,6 @@ angular.module('gu')
 
     $scope.peers = [];
     $scope.progress = miningMan.getProgressAll();
-    $scope.monero = {};
     $scope.mSession = miningMan.session($scope.session.id);
 
     $scope.mSession.resolveSessions();
@@ -132,11 +137,27 @@ angular.module('gu')
         $scope.mSession.resolveSessions();
     });
     $scope.mSession = miningMan.session(session.id);
-    $scope.isCpu = function(peer, type) {
-        return true;
+    $scope.isCpu = function(rawPeer, type) {
+        var peer = $scope.mSession.peer(rawPeer.nodeId);
+        //$log.info('isCpu', rawPeer, type);
+        return peer.isCpu(type);
     };
-    $scope.isGpu = function(peer, type) {
-        return true;
+    $scope.isGpu = function(rawPeer, type) {
+        var peer = $scope.mSession.peer(rawPeer.nodeId);
+        return peer.isGpu(type);
+    };
+
+    $scope.toggle = function(rawPeer, type, mode) {
+        var peer = $scope.mSession.peer(rawPeer.nodeId);
+
+        $log.info('toggle', peer, type, mode);
+
+        if (peer.isWorking(type, mode)) {
+            peer.stop(type, mode);
+        }
+        else {
+            peer.start(type, mode);
+         }
     };
 
     console.log('session', session);
@@ -225,6 +246,10 @@ angular.module('gu')
             }
         }
 
+        peer(nodeId) {
+            return _.findWhere(this.peers, {id: nodeId});
+        }
+
         commit() {
             angular.forEach(this.peers, peer => peer.commit());
         }
@@ -240,6 +265,8 @@ angular.module('gu')
             this.sessions = [];
             // map session.type -> 'pid'
             this.work = this.load('work') || {};
+            this.$benchPromise = {};
+            this.$afterBench = null;
 
             if (details.sessions) {
                 $this.$init = this.importSessions(details.sessions);
@@ -264,19 +291,23 @@ angular.module('gu')
 
         init() {
 
+            this.$validSession = {};
+
             $q.when(this.$init).then(v => {
-             var p = [];
-             angular.forEach(this.sessions, session => {
+                var p = [];
+                angular.forEach(this.sessions, session => {
                 var promise = session.validate().then(result => {
+                    var type = session.type;
                     $log.info('validate', result);
-                    if (!this.$validSession) {
-                        this.$validSession = session;
+                    if (!this.$validSession[type]) {
+                        this.$validSession[type] = session;
                     }
                     return result;
                 });
 
-                promise.then(_ => {
-                    if (this.$validSession === session) {
+                promise.then(_v => {
+                    var type = session.type;
+                    if (this.$validSession[type] === session) {
                         if (!this.hr(session.type)) {
                             $log.info('bench', session.type, this.load('hr'))
                             session.bench();
@@ -287,29 +318,30 @@ angular.module('gu')
                 p.push(promise);
              })
 
-            $q.all(p).then(_ => {
-                if (!this.$validSession) {
-                    angular.forEach(this.sessions, session => {
-                        if (session !== this.$validSession) {
-                            session.drop();
-                        }
-                    })
-                    this.deploy('gu:mining:monero').then(session => {
-                        session.validate().then(_ => session.bench())
-                    })
-                }
-                else {
-                    angular.forEach(this.sessions, session => {
-                        if (session !== this.$validSession) {
-                            session.drop();
-                        }
-                    })
+                $q.all(p).then(_v => {
+                    angular.forEach(['gu:mining:monero', 'gu:mining:eth'], type => {
+                    if (!this.$validSession[type]) {
+                        angular.forEach(_.where(this.sessions, {type: type}), session => {
+                            if (session !== this.$validSession[type]) {
+                                session.drop();
+                            }
+                        });
 
-                }
-             });
+                        this.deploy(type).then(session => {
+                            session.validate().then(_ => session.bench())
+                        })
+                    }
+                    else {
+                        angular.forEach(_.where(this.sessions, {type: type}), session => {
+                            if (session !== this.$validSession[type]) {
+                                session.drop();
+                            }
+                        })
 
-        })
-
+                    }
+                });
+            });
+            });
         }
 
         deploy(type) {
@@ -374,24 +406,54 @@ angular.module('gu')
             this.save('hr', hr);
         }
 
-        bindWork(type, pid) {
+        bindWork(type, mode, pid) {
+            var key = type + ':' + mode;
             if (pid) {
-                this.work[type] = pid;
+                this.work[key] = pid;
             }
             else {
-                delete this.work[type];
+                delete this.work[key];
             }
-            save('work', this.work);
+            this.save('work', this.work);
         }
 
         start(type, mode) {
             var session = _.findWhere(this.sessions, {type: type});
-            session.start(mode);
+            $log.info('start', type, mode, session);
+            return session.start(mode).then(r => {
+                if (r.Ok) {
+                    var pid = r.Ok;
+                    this.bindWork(type, mode, pid);
+                }
+            })
+        }
+
+        stop(type, mode) {
+            var key = type + ':' + mode;
+            var pid = this.work[key];
+            var session = _.findWhere(this.sessions, {type: type});
+            session.hdSession.stopWithTag('gu:mine:working', pid);
+            this.bindWork(type, mode);
         }
 
         removeSession(session) {
             this.sessions = _.without(this.sessions, session);
         }
+
+
+        isCpu(type) {
+            return this.isWorking(type, 'cpu');
+        }
+
+        isGpu(type) {
+           return this.isWorking(type, 'gpu');
+        }
+
+        isWorking(type, mode) {
+            var key = type + ':' + mode;
+            return !!this.work[key];
+        }
+
     }
 
     class MiningPeerSession {
@@ -426,14 +488,26 @@ angular.module('gu')
         }
 
         bench(type) {
-            type = type || 'dual';
+            if (!type) {
+                if (this.spec.benchmark['DUAL']) {
+                    type = 'dual';
+                }
+                else if (this.spec.benchmark['GPU']) {
+                    type = 'gpu';
+                }
+                else if (this.spec.benchmark['CPU']) {
+                    type = 'cpu';
+                }
+            }
             $log.info('hashRate start');
 
-            if (this.$benchPromise) {
-                return this.$benchPromise;
+            if (this.peer.$benchPromise[type]) {
+                return this.$benchPromise[type];
             }
 
-            var promise =  this.hdSession.exec('gu-mine', ['bench-' + type]).then(output => {
+            var promise =  $q.when(this.peer.$afterBench).then(_v => {
+
+                var pp = this.hdSession.exec('gu-mine', ['bench-' + type]).then(output => {
                 if (output.Ok) {
                     try {
                         var result = JSON.parse(output.Ok);
@@ -453,11 +527,13 @@ angular.module('gu')
                     return output;
                 }
             });
+                $q.when(this.hdSession.$create).then(_v => startProgress(this.peer.id, 'bench:' + this.type, this.spec.benchmark[type.toUpperCase()], pp, "benchmark"));
 
-            this.$benchPromise = promise;
+                return pp;
+            });
 
-
-            startProgress(this.peer.id, 'bench:' + this.type, this.spec.benchmark[type.toUpperCase()], promise, "benchmark");
+            this.peer.$benchPromise[type] = promise;
+            this.peer.$afterBench = promise;
 
             return promise;
         }
@@ -469,7 +545,7 @@ angular.module('gu')
                 if (output.Ok) {
                     try {
                         this.status = 'RUNNING';
-                        var result = JSON.parse(output.Ok);
+                        var result = output.Ok[0];
                         this.process = this.process || {};
                         this.process[type] = result;
                         $log.info('start output', result);
