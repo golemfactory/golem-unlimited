@@ -3,6 +3,7 @@
 members= [
     'gu-actix',
     'gu-base',
+    'gu-webapp',
 	'gu-provider',
 	'gu-hub',
 	'gu-ethkey',
