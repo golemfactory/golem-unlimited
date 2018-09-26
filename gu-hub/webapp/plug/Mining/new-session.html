@@ -28,7 +28,7 @@
         </thead>
         <tbody>
         <tr ng-repeat="peer in peers track by peer.nodeId">
-            <td><code>{{peer.nodeId}}</code></td>
+            <td><input id="n-{{peer.nodeId}}" type="checkbox" ng-model="peer.assigned"><label for="n-{{peer.nodeId}}"><code>{{peer.nodeId}}</code></td>
             <td>{{(peer.nodeName || peer.hostname)}}</td>
             <td><span ng-if="peer.ram">
                             <uib-progress max="peer.ram.total" animate="false">
