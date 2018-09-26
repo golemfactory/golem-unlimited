@@ -21,6 +21,11 @@ use plugins::plugin::format_plugins_table;
 use plugins::plugin::PluginInfo;
 use server::ServerClient;
 use std::path::{Path, PathBuf};
+use bytes::buf::IntoBuf;
+use bytes::Bytes;
+use std::io::Cursor;
+use plugins::manager::ChangePluginState;
+use plugins::manager::QueriedState;
 
 pub fn list_query() {
     System::run(|| {
@@ -47,8 +52,10 @@ pub fn install_query(_path: &Path) {
 pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .route("", http::Method::GET, list_scope)
-        .route("/{pluginName}/{fileName}", http::Method::GET, file_scope)
         .route("", http::Method::POST, install_scope)
+        .route("/{pluginName}/activate", http::Method::POST, |r| state_scope(QueriedState::Activate, r))
+        .route("/{pluginName}/inactivate", http::Method::POST, |r| state_scope(QueriedState::Inactivate, r))
+        .route("/{pluginName}/{fileName}", http::Method::GET, file_scope)
 }
 
 fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
@@ -135,12 +142,7 @@ fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
 }
 
 fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
-    use bytes::buf::IntoBuf;
-    use bytes::Bytes;
-    use std::io::Cursor;
     let manager = PluginManager::from_registry();
-
-    //r.multipart().for_each(|a| Ok(a));
 
     r.payload()
         .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
@@ -152,4 +154,21 @@ fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
                 .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
         }).and_then(|_| Ok(HttpResponse::Ok()))
         .responder()
+}
+
+fn state_scope<S>(state: QueriedState, r: HttpRequest<S>) -> impl Responder {
+    let manager = PluginManager::from_registry();
+    let match_info = r.match_info();
+
+    let plugin = match_info.get("pluginName")
+            .expect("Can't get plugin name from query")
+            .to_string();
+
+    manager
+        .send(ChangePluginState {
+            plugin,
+            state,
+        }).and_then(move |res| {
+            Ok(HttpResponse::Ok())
+        }).responder()
 }

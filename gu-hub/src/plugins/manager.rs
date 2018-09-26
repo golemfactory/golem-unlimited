@@ -90,6 +90,18 @@ impl PluginManager {
 
         Ok(())
     }
+
+    fn plugin(&self, name: &str) -> Result<&Plugin, String> {
+        self.plugins
+            .get(name)
+            .ok_or(format!("Cannot find {} plugin", name))
+    }
+
+    fn plugin_mut(&mut self, name: &str) -> Result<&mut Plugin, String> {
+        self.plugins
+            .get_mut(name)
+            .ok_or(format!("Cannot find {} plugin", name))
+    }
 }
 
 impl Supervised for PluginManager {}
@@ -149,9 +161,7 @@ impl Handler<PluginFile> for PluginManager {
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<PluginFile>>::Result {
         MessageResult(
-            self.plugins
-                .get(&msg.plugin)
-                .ok_or(format!("Cannot find {} plugin", msg.plugin))
+            self.plugin(&msg.plugin)
                 .and_then(|plug| {
                     plug.file(&msg.path)
                         .map_err(|_| format!("Cannot find {} file", msg.path))
@@ -191,6 +201,47 @@ impl Handler<InstallPlugin> for PluginManager {
                     self.save_bytes_in_dir(name, msg.bytes.into_inner().as_ref())
                         .and_then(|_| self.load_zip(&zip_name(name.to_string())))
                 }).and_then(|_| Ok(())),
+        )
+    }
+}
+
+/// (IN)ACTIVATE PLUGIN
+
+#[derive(Debug)]
+pub enum QueriedState {
+    Activate,
+    Inactivate,
+    Uninstall,
+    Error(String),
+}
+
+#[derive(Debug)]
+pub struct ChangePluginState {
+    pub plugin: String,
+    pub state: QueriedState,
+}
+
+impl Message for ChangePluginState {
+    type Result = Result<(), String>;
+}
+
+impl Handler<ChangePluginState> for PluginManager {
+    type Result = MessageResult<ChangePluginState>;
+
+    fn handle(
+        &mut self,
+        msg: ChangePluginState,
+        _ctx: &mut Context<Self>,
+    ) -> <Self as Handler<ChangePluginState>>::Result {
+        MessageResult(
+            self.plugin_mut(&msg.plugin).map(|mut plug| {
+                match msg.state {
+                    QueriedState::Activate => plug.activate(),
+                    QueriedState::Inactivate => plug.inactivate(),
+                    QueriedState::Uninstall => unimplemented!(),
+                    QueriedState::Error(s) => plug.log_error(s),
+                }
+            })
         )
     }
 }

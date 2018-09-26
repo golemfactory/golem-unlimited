@@ -90,7 +90,6 @@ impl PathPluginParser for ZipParser<File> {
         File::open(path)
             .map_err(|e| format!("Cannot open file: {:?}", e))
             .and_then(|f| {
-                println!("{:?}", path);
                 ZipArchive::new(f).map_err(|e| format!("Cannot open file as zip: {:?}", e))
             }).map(|zip| Self::inner_new(zip))
     }
@@ -114,9 +113,6 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
                 continue;
             }
             let mut file = file.unwrap();
-            if file.name() == "/" {
-                continue;
-            }
 
             match file.sanitized_name().strip_prefix(app_name) {
                 Err(e) => (),

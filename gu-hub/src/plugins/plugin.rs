@@ -131,9 +131,6 @@ impl PluginHandler for ZipHandler {
     }
 
     fn file(&self, path: &str) -> Result<Vec<u8>, String> {
-        println!("hash: {:?}", self.files.keys());
-        println!("path: {:?}", path);
-
         self.files
             .get(&PathBuf::from(path))
             .map(|data| data.clone())
@@ -163,7 +160,7 @@ impl Plugin {
         self.status = PluginStatus::Installed;
     }
 
-    pub fn log_error(&mut self) {
+    pub fn log_error(&mut self, _s: String) {
         self.status = PluginStatus::Error;
     }
 
