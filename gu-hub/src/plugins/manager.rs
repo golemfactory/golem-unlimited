@@ -10,6 +10,7 @@ use gu_persist::config::ConfigModule;
 use plugins::parser::BytesPluginParser;
 use plugins::parser::PluginParser;
 use plugins::parser::ZipParser;
+use plugins::plugin::DirectoryHandler;
 use plugins::plugin::Plugin;
 use plugins::plugin::PluginHandler;
 use plugins::plugin::PluginInfo;
@@ -145,7 +146,7 @@ impl Handler<ListPlugins> for PluginManager {
 #[derive(Debug)]
 pub struct PluginFile {
     pub plugin: String,
-    pub path: String,
+    pub path: PathBuf,
 }
 
 impl Message for PluginFile {
@@ -160,13 +161,10 @@ impl Handler<PluginFile> for PluginManager {
         msg: PluginFile,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<PluginFile>>::Result {
-        MessageResult(
-            self.plugin(&msg.plugin)
-                .and_then(|plug| {
-                    plug.file(&msg.path)
-                        .map_err(|_| format!("Cannot find {} file", msg.path))
-                }),
-        )
+        MessageResult(self.plugin(&msg.plugin).and_then(|plug| {
+            plug.file(&msg.path)
+                .map_err(|_| format!("Cannot find {:?} file", msg.path))
+        }))
     }
 }
 
@@ -206,7 +204,6 @@ impl Handler<InstallPlugin> for PluginManager {
 }
 
 /// (IN)ACTIVATE PLUGIN
-
 #[derive(Debug)]
 pub enum QueriedState {
     Activate,
@@ -233,15 +230,40 @@ impl Handler<ChangePluginState> for PluginManager {
         msg: ChangePluginState,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<ChangePluginState>>::Result {
-        MessageResult(
-            self.plugin_mut(&msg.plugin).map(|mut plug| {
-                match msg.state {
-                    QueriedState::Activate => plug.activate(),
-                    QueriedState::Inactivate => plug.inactivate(),
-                    QueriedState::Uninstall => unimplemented!(),
-                    QueriedState::Error(s) => plug.log_error(s),
-                }
-            })
-        )
+        let res = self
+            .plugin_mut(&msg.plugin)
+            .map(|mut plug| match msg.state {
+                QueriedState::Activate => plug.activate(),
+                QueriedState::Inactivate => plug.inactivate(),
+                QueriedState::Uninstall => unimplemented!(),
+                QueriedState::Error(s) => plug.log_error(s),
+            });
+
+        MessageResult(res)
+    }
+}
+
+/// DEV MODE
+#[derive(Debug)]
+pub struct InstallDevPlugin {
+    pub path: PathBuf,
+}
+
+impl Message for InstallDevPlugin {
+    type Result = Result<(), String>;
+}
+
+impl Handler<InstallDevPlugin> for PluginManager {
+    type Result = MessageResult<InstallDevPlugin>;
+
+    fn handle(
+        &mut self,
+        msg: InstallDevPlugin,
+        _ctx: &mut Context<Self>,
+    ) -> <Self as Handler<InstallDevPlugin>>::Result {
+        let handler = DirectoryHandler::new(msg.path);
+        let plugin = self.install_plugin(handler);
+
+        MessageResult(plugin.and_then(|_| Ok(())))
     }
 }

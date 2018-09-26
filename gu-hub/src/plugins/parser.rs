@@ -117,12 +117,13 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
             match file.sanitized_name().strip_prefix(app_name) {
                 Err(e) => (),
                 Ok(path) => {
-                    read_file(&mut file).and_then(|x| {
-                        map.insert(path.to_path_buf(), x)
-                            .map(|_| warn!("File overwritten: {:?}", path));
-                        Ok(())
-                    }).map_err(|e| warn!("{:?}", e));
-                },
+                    read_file(&mut file)
+                        .and_then(|x| {
+                            map.insert(path.to_path_buf(), x)
+                                .map(|_| warn!("File overwritten: {:?}", path));
+                            Ok(())
+                        }).map_err(|e| warn!("{:?}", e));
+                }
             }
         }
 

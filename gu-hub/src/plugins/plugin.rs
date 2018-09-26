@@ -81,24 +81,30 @@ pub fn format_plugins_table(plugins: Vec<PluginInfo>) {
 pub trait PluginHandler: Debug {
     fn metadata(&self) -> Result<PluginMetadata, String>;
 
-    fn file(&self, path: &str) -> Result<Vec<u8>, String>;
+    fn file(&self, path: &Path) -> Result<Vec<u8>, String>;
 }
 
 #[derive(Debug)]
 pub struct DirectoryHandler {
-    directory: Cow<'static, Path>,
+    directory: PathBuf,
+}
+
+impl DirectoryHandler {
+    pub fn new(path: PathBuf) -> Self {
+        Self { directory: path }
+    }
 }
 
 impl PluginHandler for DirectoryHandler {
     fn metadata(&self) -> Result<PluginMetadata, String> {
-        let metadata_file = File::open(self.directory.to_path_buf().join("gu-plugin.json"))
+        let metadata_file = File::open(self.directory.join("gu-plugin.json"))
             .map_err(|_| "Couldn't read metadata file".to_string())?;
 
         parser::parse_metadata(metadata_file)
     }
 
-    fn file(&self, path: &str) -> Result<Vec<u8>, String> {
-        let mut file = File::open(self.directory.to_path_buf().join(path))
+    fn file(&self, path: &Path) -> Result<Vec<u8>, String> {
+        let mut file = File::open(self.directory.join(path))
             .map_err(|e| format!("Cannot open file: {:?}", e))?;
 
         let mut buf = Vec::new();
@@ -130,11 +136,11 @@ impl PluginHandler for ZipHandler {
         Ok(self.metadata.clone())
     }
 
-    fn file(&self, path: &str) -> Result<Vec<u8>, String> {
+    fn file(&self, path: &Path) -> Result<Vec<u8>, String> {
         self.files
             .get(&PathBuf::from(path))
             .map(|data| data.clone())
-            .ok_or(format!("File {} not found", path))
+            .ok_or(format!("File {:?} not found", path))
     }
 }
 
@@ -178,7 +184,7 @@ impl Plugin {
         })
     }
 
-    pub fn file(&self, path: &str) -> Result<Vec<u8>, String> {
+    pub fn file(&self, path: &Path) -> Result<Vec<u8>, String> {
         match self.status() {
             PluginStatus::Active => self.handler.file(path),
             a => Err(format!("Plugin is not active (State - {})", a)),
