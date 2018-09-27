@@ -26,7 +26,7 @@ pub struct PluginMetadata {
     author: String,
     /// optional plugin description
     #[serde(default)]
-    description: Vec<String>,
+    description: String,
     /// minimal required app version
     #[serde(default = "VersionReq::any")]
     gu_version_req: VersionReq,
