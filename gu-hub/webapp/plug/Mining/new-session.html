@@ -29,7 +29,8 @@
         <tbody>
         <tr ng-repeat="peer in peers track by peer.nodeId">
             <td>
-                <input id="n-{{peer.nodeId}}" type="checkbox" ng-model="peer.assigned"><label for="n-{{peer.nodeId}}"><code>{{peer.nodeId}}</code>
+                <input id="n-{{peer.nodeId}}" type="checkbox" ng-model="peer.assigned"><label for="n-{{peer.nodeId}}">
+                <code>{{peer.nodeId | limitTo:11}}</code>
                 <span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">{{peer.os}}</span>
             </td>
             <td>{{(peer.nodeName || peer.hostname)}}</td>

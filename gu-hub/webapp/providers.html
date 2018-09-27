@@ -3,10 +3,10 @@
         <div class="panel-heading">
             <div class="pull-right">
                 <a class="btn btn-sm btn-default" href="#" ng-click="refresh()">
-                    <i class="glyphicon glyphicon-refresh"></i>
+                    <img src="icons/refresh.svg" width="30" height="30">
                 </a>
             </div>
-            <h4><i class="glyphicon glyphicon-th"></i> Providers</h4>
+            <h4><img src="icons/providers.svg" width="45" height="45"></i> Providers</h4>
         </div>
         <div class="panel-body">
             <table class="table">
@@ -23,7 +23,7 @@
                 <tbody>
                     <tr ng-repeat="peer in peers track by peer.nodeId">
                         <td>
-                            <code><a href="#" ng-click="show(peer)">{{peer.nodeId}}</a></code>
+                            <code><a href="#" ng-click="show(peer)">{{peer.nodeId | limitTo:11}}</a></code>
                             <span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">{{peer.os}}</span>
                         </td>
                         <td>
