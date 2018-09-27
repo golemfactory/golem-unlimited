@@ -84,11 +84,11 @@ impl PluginManager {
             .map_err(|e| format!("Cannot read plugins directory: {:?}", e))?;
 
         for plug_pack in dir {
-            let plug_pack =
-                plug_pack.map_err(|e| format!("Cannot read plugin archive: {:?}", e))?;
-            let handler = ZipHandler::new(&plug_pack.path(), self.gu_version.clone())?;
-
-            let _ = self.install_plugin(handler).map_err(|e| warn!("{:?}", e));
+            plug_pack
+                .map_err(|e| e.to_string())
+                .and_then(|pack| ZipHandler::new(&pack.path(), self.gu_version.clone()))
+                .and_then(|handler| self.install_plugin(handler))
+                .map_err(|e| warn!("Cannot read file in plugins directory as zip archive: {:?}", e));
         }
 
         Ok(())
@@ -138,7 +138,7 @@ impl Handler<ListPlugins> for PluginManager {
             let _ = plugin
                 .info()
                 .map(|info| vec.push(info))
-                .map_err(|e| error!("Cannot get info: {}", e));
+                .map_err(|e| warn!("Cannot get info: {}", e));
         }
         MessageResult(vec)
     }

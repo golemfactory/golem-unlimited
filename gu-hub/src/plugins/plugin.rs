@@ -16,16 +16,22 @@ use std::path::{Path, PathBuf};
 #[serde(rename_all = "kebab-case")]
 pub struct PluginMetadata {
     /// plugin name
+    #[serde(default = "PluginMetadata::default_name")]
     name: String,
     /// plugin version
+    #[serde(default = "PluginMetadata::default_version")]
     version: Version,
     /// vendor
+    #[serde(default)]
     author: String,
     /// optional plugin description
+    #[serde(default)]
     description: Vec<String>,
     /// minimal required app version
+    #[serde(default = "VersionReq::any")]
     gu_version_req: VersionReq,
     /// scripts to load on startup
+    #[serde(default)]
     load: Vec<String>,
 }
 
@@ -40,6 +46,14 @@ impl PluginMetadata {
 
     pub fn name(&self) -> &str {
         self.name.as_ref()
+    }
+
+    fn default_name() -> String {
+        "plugin".to_string()
+    }
+
+    fn default_version() -> Version {
+        Version::new(0, 0, 1)
     }
 }
 
