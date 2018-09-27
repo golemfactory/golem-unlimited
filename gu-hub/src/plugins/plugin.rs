@@ -104,17 +104,25 @@ pub struct DirectoryHandler {
 }
 
 impl DirectoryHandler {
-    pub fn new(path: PathBuf) -> Self {
-        Self { directory: path }
+    pub fn new(path: PathBuf) -> Result<Self, String> {
+        Self::inner_metadata(path.clone())?;
+
+        Ok(Self { directory: path })
+    }
+}
+
+impl DirectoryHandler {
+    fn inner_metadata(path: PathBuf) -> Result<PluginMetadata, String> {
+        let metadata_file = File::open(path.join("gu-plugin.json"))
+            .map_err(|_| "Couldn't read metadata file".to_string())?;
+
+        parser::parse_metadata(metadata_file)
     }
 }
 
 impl PluginHandler for DirectoryHandler {
     fn metadata(&self) -> Result<PluginMetadata, String> {
-        let metadata_file = File::open(self.directory.join("gu-plugin.json"))
-            .map_err(|_| "Couldn't read metadata file".to_string())?;
-
-        parser::parse_metadata(metadata_file)
+        Self::inner_metadata(self.directory.clone())
     }
 
     fn file(&self, path: &Path) -> Result<Vec<u8>, String> {

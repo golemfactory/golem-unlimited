@@ -264,8 +264,8 @@ impl Handler<InstallDevPlugin> for PluginManager {
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<InstallDevPlugin>>::Result {
         println!("{:?}", msg.path.clone());
-        let handler = DirectoryHandler::new(msg.path);
-        let plugin = self.install_plugin(handler);
+        let plugin = DirectoryHandler::new(msg.path)
+            .and_then(|handler| self.install_plugin(handler));
 
         MessageResult(plugin.and_then(|_| Ok(())))
     }
