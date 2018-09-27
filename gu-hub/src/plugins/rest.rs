@@ -10,18 +10,22 @@ use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::Scope;
+use bytes::buf::IntoBuf;
+use bytes::Bytes;
 use futures::future;
 use futures::future::Future;
+use futures::stream::Stream;
+use plugins::manager::ChangePluginState;
 use plugins::manager::InstallPlugin;
 use plugins::manager::ListPlugins;
 use plugins::manager::PluginFile;
 use plugins::manager::PluginManager;
+use plugins::manager::QueriedState;
 use plugins::plugin::format_plugins_table;
 use plugins::plugin::PluginInfo;
 use server::ServerClient;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use futures::stream::Stream;
-use bytes::BytesMut;
 
 pub fn list_query() {
     System::run(|| {
@@ -48,8 +52,12 @@ pub fn install_query(_path: &Path) {
 pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .route("", http::Method::GET, list_scope)
-        .route("/{pluginName}/{fileName}", http::Method::GET, file_scope)
         .route("", http::Method::POST, install_scope)
+        .route("/{pluginName}/activate", http::Method::POST, |r| {
+            state_scope(QueriedState::Activate, r)
+        }).route("/{pluginName}/inactivate", http::Method::POST, |r| {
+            state_scope(QueriedState::Inactivate, r)
+        }).route("/{pluginName}/{fileName:.*}", http::Method::GET, file_scope)
 }
 
 fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
@@ -66,6 +74,17 @@ fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
 enum ContentType {
     JavaScript,
     Html,
+    NotSupported,
+}
+
+impl<'a> From<&'a str> for ContentType {
+    fn from(s: &'a str) -> Self {
+        match s {
+            "js" => ContentType::JavaScript,
+            "html" => ContentType::Html,
+            _ => ContentType::NotSupported,
+        }
+    }
 }
 
 impl ToString for ContentType {
@@ -73,36 +92,8 @@ impl ToString for ContentType {
         match self {
             ContentType::JavaScript => "application/javascript".to_string(),
             ContentType::Html => "text/html".to_string(),
+            ContentType::NotSupported => "Content type not supported".to_string(),
         }
-    }
-}
-
-fn valid_path_part(part: &Path) -> bool {
-    let mut pos = 0;
-    let lambda = |c: char| {
-        pos += 1;
-        c.is_alphanumeric() || c.is_whitespace() || (c == '.' && pos != 0)
-    };
-
-    match part.to_str() {
-        Some(x) => x.chars().all(lambda),
-        None => false,
-    }
-}
-
-fn valid_path(path: &String) -> Result<ContentType, String> {
-    let buf = PathBuf::from(path);
-    if buf.ancestors().all(|x| valid_path_part(x)) {
-        buf.file_name()
-            .and_then(|a| Path::new(a).extension())
-            .and_then(|ext| ext.to_str())
-            .and_then(|ext| match ext {
-                "js" => Some(ContentType::JavaScript),
-                "html" => Some(ContentType::Html),
-                _ => None,
-            }).ok_or(format!("Unsupported file extension: {:?}", buf.file_name()).to_string())
-    } else {
-        Err("Invalid file path".to_string())
     }
 }
 
@@ -110,49 +101,63 @@ fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
     let manager = PluginManager::from_registry();
     let match_info = r.match_info();
 
-    let file = PluginFile {
-        plugin: match_info
-            .get("pluginName")
-            .expect("Can't get plugin name from query")
-            .to_string(),
-        path: match_info
+    let path = PathBuf::from(
+        match_info
             .get("fileName")
-            .expect("Can't get filename from query")
-            .to_string(),
-    };
+            .expect("Can't get filename from query"),
+    );
 
-    match valid_path(&file.path) {
-        Ok(content_type) => manager
-            .send(file)
+    let plugin = match_info
+        .get("pluginName")
+        .expect("Can't get plugin name from query")
+        .to_string();
+
+    let b = path.extension()
+        .and_then(|e| e.to_str())
+        .map(|a| ContentType::from(a));
+
+    match b {
+        None => future::err(ErrorBadRequest("Cannot parse file extension")).responder(),
+        Some(ContentType::NotSupported) =>
+            future::err(ErrorBadRequest(ContentType::NotSupported.to_string())).responder(),
+        Some(content) => manager
+            .send(PluginFile { plugin, path })
             .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
             .and_then(|res| res.map_err(|e| ErrorInternalServerError(format!("err: {}", e))))
             .and_then(move |res| {
                 Ok(HttpResponse::Ok()
-                    .content_type(content_type.to_string())
+                    .content_type(content.to_string())
                     .body(res))
             }).responder(),
-        Err(e) => future::err(ErrorBadRequest(e)).responder(),
     }
 }
 
 fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
-    use bytes::buf::IntoBuf;
-    use std::io::Cursor;
-    use bytes::Bytes;
     let manager = PluginManager::from_registry();
-
-    //r.multipart().for_each(|a| Ok(a));
 
     r.payload()
         .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
         .concat2()
         .and_then(|a| Ok(a.into_buf()))
-        .and_then(move |a: Cursor<Bytes>| manager.send(InstallPlugin{ bytes: a })
-            .map_err(|e| ErrorInternalServerError(format!("{:?}", e))))
-        .and_then(|res| {
-            Ok(HttpResponse::Ok())
-        }).map_err(|e| {
-        println!("{:?}", e);
-        e
-    }).responder()
+        .and_then(move |a: Cursor<Bytes>| {
+            manager
+                .send(InstallPlugin { bytes: a })
+                .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
+        }).and_then(|_| Ok(HttpResponse::Ok()))
+        .responder()
+}
+
+fn state_scope<S>(state: QueriedState, r: HttpRequest<S>) -> impl Responder {
+    let manager = PluginManager::from_registry();
+    let match_info = r.match_info();
+
+    let plugin = match_info
+        .get("pluginName")
+        .expect("Can't get plugin name from query")
+        .to_string();
+
+    manager
+        .send(ChangePluginState { plugin, state })
+        .and_then(move |res| Ok(HttpResponse::Ok()))
+        .responder()
 }
