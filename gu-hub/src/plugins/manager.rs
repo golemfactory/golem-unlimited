@@ -23,12 +23,12 @@ use plugins::plugin::ZipHandler;
 use semver::Version;
 use std::collections::HashMap;
 use std::fs;
+use std::fs::remove_file;
 use std::fs::DirBuilder;
+use std::fs::File;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::path::PathBuf;
-use std::fs::File;
-use std::fs::remove_file;
 
 #[derive(Debug)]
 pub struct PluginManager {
