@@ -16,16 +16,22 @@ use std::path::{Path, PathBuf};
 #[serde(rename_all = "kebab-case")]
 pub struct PluginMetadata {
     /// plugin name
+    #[serde(default = "PluginMetadata::default_name")]
     name: String,
     /// plugin version
+    #[serde(default = "PluginMetadata::default_version")]
     version: Version,
     /// vendor
+    #[serde(default)]
     author: String,
     /// optional plugin description
-    description: Vec<String>,
+    #[serde(default)]
+    description: String,
     /// minimal required app version
+    #[serde(default = "VersionReq::any")]
     gu_version_req: VersionReq,
     /// scripts to load on startup
+    #[serde(default)]
     load: Vec<String>,
 }
 
@@ -41,12 +47,20 @@ impl PluginMetadata {
     pub fn name(&self) -> &str {
         self.name.as_ref()
     }
+
+    fn default_name() -> String {
+        "plugin".to_string()
+    }
+
+    fn default_version() -> Version {
+        Version::new(0, 0, 1)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginInfo {
-    name: String,
-    version: Version,
+    #[serde(flatten)]
+    metadata: PluginMetadata,
     status: PluginStatus,
 }
 
@@ -69,8 +83,8 @@ pub fn format_plugins_table(plugins: Vec<PluginInfo>) {
         || "No plugins installed",
         plugins.iter().map(|plugin| {
             row![
-                plugin.name,
-                plugin.version.to_string(),
+                plugin.metadata.name,
+                plugin.metadata.version.to_string(),
                 plugin.status.to_string(),
             ]
         }),
@@ -90,17 +104,25 @@ pub struct DirectoryHandler {
 }
 
 impl DirectoryHandler {
-    pub fn new(path: PathBuf) -> Self {
-        Self { directory: path }
+    pub fn new(path: PathBuf) -> Result<Self, String> {
+        Self::inner_metadata(path.clone())?;
+
+        Ok(Self { directory: path })
+    }
+}
+
+impl DirectoryHandler {
+    fn inner_metadata(path: PathBuf) -> Result<PluginMetadata, String> {
+        let metadata_file = File::open(path.join("gu-plugin.json"))
+            .map_err(|_| "Couldn't read metadata file".to_string())?;
+
+        parser::parse_metadata(metadata_file)
     }
 }
 
 impl PluginHandler for DirectoryHandler {
     fn metadata(&self) -> Result<PluginMetadata, String> {
-        let metadata_file = File::open(self.directory.join("gu-plugin.json"))
-            .map_err(|_| "Couldn't read metadata file".to_string())?;
-
-        parser::parse_metadata(metadata_file)
+        Self::inner_metadata(self.directory.clone())
     }
 
     fn file(&self, path: &Path) -> Result<Vec<u8>, String> {
@@ -178,8 +200,7 @@ impl Plugin {
         let meta = self.handler.metadata()?;
 
         Ok(PluginInfo {
-            name: meta.name().to_string(),
-            version: meta.version(),
+            metadata: meta.clone(),
             status: self.status(),
         })
     }

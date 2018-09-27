@@ -23,7 +23,7 @@
                 <tbody>
                     <tr ng-repeat="peer in peers track by peer.nodeId">
                         <td>
-                            <code><a href="#" ng-click="show(peer)">{{peer.nodeId}}</a></code>
+                            <code><a href="#" ng-click="show(peer)">{{peer.nodeId | limitTo:11}}</a></code>
                             <span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">{{peer.os}}</span>
                         </td>
                         <td>

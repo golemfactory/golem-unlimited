@@ -40,7 +40,7 @@
                         <ul class="nav nav-pills nav-stacked">
                             <li ng-repeat="tab in tabs" ng-class="{active: tab == activeTab}">
                                 <a href="#" ng-click="openTab(tab)">
-                                    <img src="{{tab.icon}}" width="30" height="30" ng-if="!!tab.icon">
+                                    <img ng-src="{{tab.icon}}" width="30" height="30" ng-if="!!tab.icon">
                                     {{tab.name}}
                                 </a>
                             </li>
@@ -56,7 +56,7 @@
                     <div class="panel-body">
                         <ul class="nav nav-pills nav-stacked">
                             <li ng-repeat="tab in pluginTabs" ng-class="{active: tab == activeTab}">
-                                <a href="#" ng-click="openTab(tab)"><img src="{{tab.icon}}" width="30" height="30" ng-if="!!tab.icon">
+                                <a href="#" ng-click="openTab(tab)"><img ng-src="{{tab.icon}}" width="30" height="30" ng-if="!!tab.icon">
                                     {{tab.name}}
                                 </a>
                             </li>
@@ -76,6 +76,4 @@
 </div>
 <script src="ui-bootstrap-tpls-2.5.0.min.js"></script>
 <script src="app.js"></script>
-<script src="plug/Mining/app.js"></script>
-<script>angular.bootstrap(document, ['gu']);</script>
 </body>

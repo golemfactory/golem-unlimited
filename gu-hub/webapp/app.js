@@ -362,3 +362,19 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
 
         return { peer: peer }
   });
+
+fetch('/plug')
+.then(b => b.json())
+.then(plugins => {
+    var body = $('body');
+
+    angular.forEach(plugins, plugin => {
+        if (plugin.status === 'Active') {
+            angular.forEach(plugin.load, loadSrc => {
+                var script = $('<script></script>').attr('src', '/plug/' + plugin.name + '/' + loadSrc);
+                body.append(script);
+            });
+        }
+    })
+    $('<script>angular.bootstrap(document, [\'gu\']);</script>').appendTo(body);
+})
