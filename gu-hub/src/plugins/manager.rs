@@ -179,7 +179,7 @@ impl Handler<PluginFile> for PluginManager {
     ) -> <Self as Handler<PluginFile>>::Result {
         MessageResult(self.plugin(&msg.plugin).and_then(|plug| {
             plug.file(&msg.path)
-                .map_err(|_| format!("Cannot find {:?} file", msg.path))
+                .map_err(|e| format!("Cannot find {}, {:?} file", e, msg.path))
         }))
     }
 }

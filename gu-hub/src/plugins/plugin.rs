@@ -126,8 +126,9 @@ impl PluginHandler for DirectoryHandler {
     }
 
     fn file(&self, path: &Path) -> Result<Vec<u8>, String> {
-        let mut file = File::open(self.directory.join(path))
-            .map_err(|e| format!("Cannot open file: {:?}", e))?;
+        let path = self.directory.join(self.metadata()?.name).join(path);
+        let mut file = File::open(path.clone())
+            .map_err(|e| format!("Cannot open file: {:?}, {:?}", e, path))?;
 
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)
