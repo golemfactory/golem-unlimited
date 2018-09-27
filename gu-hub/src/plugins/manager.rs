@@ -55,6 +55,8 @@ impl PluginManager {
         let mut plugin = Plugin::new(handler);
         plugin.activate();
 
+        println!("{:?}", plugin.metadata());
+
         plugin.metadata().and_then(|meta| {
             match self.plugins.insert(meta.name().to_string(), plugin) {
                 None => Ok(()),
@@ -261,6 +263,7 @@ impl Handler<InstallDevPlugin> for PluginManager {
         msg: InstallDevPlugin,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<InstallDevPlugin>>::Result {
+        println!("{:?}", msg.path.clone());
         let handler = DirectoryHandler::new(msg.path);
         let plugin = self.install_plugin(handler);
 

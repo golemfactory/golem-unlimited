@@ -14,6 +14,7 @@ enum Command {
     None,
     List,
     Install(PathBuf),
+    Dev(PathBuf),
     Uninstall,
 }
 
@@ -37,6 +38,15 @@ impl Module for PluginModule {
                     .required(true)
             ),
 
+            SubCommand::with_name("dev").arg(
+                Arg::with_name("dir")
+                    .takes_value(true)
+                    .short("d")
+                    .long("dir-path")
+                    .help("specifies path to plugin directory")
+                    .required(true)
+            ),
+
             SubCommand::with_name("list"),
 
             SubCommand::with_name("uninstall"),
@@ -54,6 +64,13 @@ impl Module for PluginModule {
                     );
                     Command::Install(tar_path)
                 }
+                ("dev", Some(m)) => {
+                    let dir_path = PathBuf::from(
+                        m.value_of("dir")
+                            .expect("Lack of required `dir-path` argument"),
+                    );
+                    Command::Dev(dir_path)
+                }
                 ("uninstall", Some(_)) => Command::Uninstall,
                 ("", None) => Command::None,
                 _ => return false,
@@ -69,6 +86,7 @@ impl Module for PluginModule {
             Command::None => (),
             Command::List => plugins::rest::list_query(),
             Command::Install(ref path) => plugins::rest::install_query(path),
+            Command::Dev(ref path) => plugins::rest::dev_query(path.to_path_buf()),
             Command::Uninstall => {}
         }
     }

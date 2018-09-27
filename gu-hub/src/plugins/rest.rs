@@ -16,6 +16,7 @@ use futures::future;
 use futures::future::Future;
 use futures::stream::Stream;
 use plugins::manager::ChangePluginState;
+use plugins::manager::InstallDevPlugin;
 use plugins::manager::InstallPlugin;
 use plugins::manager::ListPlugins;
 use plugins::manager::PluginFile;
@@ -39,10 +40,28 @@ pub fn list_query() {
 }
 
 pub fn install_query(_path: &Path) {
-    System::run(|| {
+    /*  System::run(|| {
         Arbiter::spawn(
-            ServerClient::get("/plug")
+            ServerClient::post("/plug")
                 .and_then(|r: Vec<PluginInfo>| Ok(format_plugins_table(r)))
+                .map_err(|e| error!("{}", e))
+                .then(|_r| Ok(System::current().stop())),
+        )
+    });*/
+}
+
+pub fn dev_query(path: PathBuf) {
+    let path = path
+        .canonicalize()
+        .expect("Cannot canonicalize dir path")
+        .to_str()
+        .expect("Cannot parse filepath to str")
+        .to_string();
+
+    System::run(move || {
+        Arbiter::spawn(
+            ServerClient::get(format!("/plug/dev{}", path))
+                .and_then(|r: ()| Ok(()))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
@@ -53,6 +72,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .route("", http::Method::GET, list_scope)
         .route("", http::Method::POST, install_scope)
+        .route("/dev/{pluginPath:.*}", http::Method::POST, dev_scope)
         .route("/{pluginName}/activate", http::Method::POST, |r| {
             state_scope(QueriedState::Activate, r)
         }).route("/{pluginName}/inactivate", http::Method::POST, |r| {
@@ -112,14 +132,16 @@ fn file_scope<S>(r: HttpRequest<S>) -> impl Responder {
         .expect("Can't get plugin name from query")
         .to_string();
 
-    let b = path.extension()
+    let b = path
+        .extension()
         .and_then(|e| e.to_str())
         .map(|a| ContentType::from(a));
 
     match b {
         None => future::err(ErrorBadRequest("Cannot parse file extension")).responder(),
-        Some(ContentType::NotSupported) =>
-            future::err(ErrorBadRequest(ContentType::NotSupported.to_string())).responder(),
+        Some(ContentType::NotSupported) => {
+            future::err(ErrorBadRequest(ContentType::NotSupported.to_string())).responder()
+        }
         Some(content) => manager
             .send(PluginFile { plugin, path })
             .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
@@ -158,6 +180,23 @@ fn state_scope<S>(state: QueriedState, r: HttpRequest<S>) -> impl Responder {
 
     manager
         .send(ChangePluginState { plugin, state })
+        .and_then(move |res| Ok(HttpResponse::Ok()))
+        .responder()
+}
+
+fn dev_scope<S>(r: HttpRequest<S>) -> impl Responder {
+    let manager = PluginManager::from_registry();
+    let match_info = r.match_info();
+
+    let path = PathBuf::from(format!(
+        "/{}",
+        match_info
+            .get("pluginPath")
+            .expect("Can't get plugin name from query")
+    ));
+
+    manager
+        .send(InstallDevPlugin { path })
         .and_then(move |res| Ok(HttpResponse::Ok()))
         .responder()
 }
