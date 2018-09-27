@@ -27,6 +27,8 @@ use std::fs::DirBuilder;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::fs::File;
+use std::fs::remove_file;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -73,6 +75,11 @@ impl PluginManager {
 
     fn uninstall_plugin(&mut self, name: &String) {
         self.plugins.remove(name);
+
+        // TODO: I would prefer some clear function in Plugin trait instead of this
+        let mut zip = self.directory.clone();
+        zip.push(".zip");
+        remove_file(zip);
     }
 
     fn load_zip(&mut self, name: &str) -> Result<(), String> {
