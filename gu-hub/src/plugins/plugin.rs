@@ -59,8 +59,8 @@ impl PluginMetadata {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginInfo {
-    name: String,
-    version: Version,
+    #[serde(flatten)]
+    metadata: PluginMetadata,
     status: PluginStatus,
 }
 
@@ -83,8 +83,8 @@ pub fn format_plugins_table(plugins: Vec<PluginInfo>) {
         || "No plugins installed",
         plugins.iter().map(|plugin| {
             row![
-                plugin.name,
-                plugin.version.to_string(),
+                plugin.metadata.name,
+                plugin.metadata.version.to_string(),
                 plugin.status.to_string(),
             ]
         }),
@@ -192,8 +192,7 @@ impl Plugin {
         let meta = self.handler.metadata()?;
 
         Ok(PluginInfo {
-            name: meta.name().to_string(),
-            version: meta.version(),
+            metadata: meta.clone(),
             status: self.status(),
         })
     }
