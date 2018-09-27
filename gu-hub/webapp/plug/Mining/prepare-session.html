@@ -36,7 +36,7 @@
                 <tbody>
                 <tr ng-repeat="peer in peers track by peer.nodeId">
                     <td>
-                        <code>{{peer.nodeId}}</code>
+                        <code>{{peer.nodeId | limitTo:11}}</code>
                         <span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">{{peer.os}}</span>
                     </td>
                     <td>{{(peer.nodeName || peer.hostname)}}</td>
