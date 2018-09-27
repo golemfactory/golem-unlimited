@@ -94,6 +94,7 @@ fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
 enum ContentType {
     JavaScript,
     Html,
+    Svg,
     NotSupported,
 }
 
@@ -102,6 +103,7 @@ impl<'a> From<&'a str> for ContentType {
         match s {
             "js" => ContentType::JavaScript,
             "html" => ContentType::Html,
+            "svg" => ContentType::Svg,
             _ => ContentType::NotSupported,
         }
     }
@@ -112,6 +114,7 @@ impl ToString for ContentType {
         match self {
             ContentType::JavaScript => "application/javascript".to_string(),
             ContentType::Html => "text/html".to_string(),
+            ContentType::Svg => "image/svg+xml".to_string(),
             ContentType::NotSupported => "Content type not supported".to_string(),
         }
     }
