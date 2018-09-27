@@ -27,7 +27,7 @@ pub trait PluginParser: Debug {
         let metadata = self.load_metadata()?;
 
         validate_gu_version(&metadata.gu_version_req(), &gu_version)?;
-        self.contains_app_js(&metadata.name())?;
+        self.contains_files(metadata.load())?;
 
         Ok(metadata)
     }
@@ -38,8 +38,22 @@ pub trait PluginParser: Debug {
     /// Parses gu-plugin.json file
     fn load_metadata(&mut self) -> Result<PluginMetadata, String>;
 
-    /// Checks if plugin source contains app.js file
-    fn contains_app_js(&mut self, app_name: &str) -> Result<(), String>;
+    /// Checks if plugin source contains files from metadata load field
+    fn contains_files(&mut self, files: &Vec<String>) -> Result<(), String> {
+        let meta = self.load_metadata()?;
+        let mut app_name = meta.name();
+
+        files.into_iter().fold(Ok(()), |init, name| {
+            init.and_then(|()| {
+                let mut path = PathBuf::from(app_name.clone());
+                path.push(name);
+                self.contains_file(path)
+            }).and_then(|_| Ok(()))
+        })
+    }
+
+    /// Checks if plugin source contains file on relative `path`
+    fn contains_file(&mut self, path: PathBuf) -> Result<(), String>;
 }
 
 pub fn parse_metadata(metadata_file: impl Read) -> Result<PluginMetadata, String> {
@@ -139,15 +153,13 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
         parse_metadata(metadata_file)
     }
 
-    fn contains_app_js(&mut self, app_name: &str) -> Result<(), String> {
-        let mut app_name = app_name.to_string();
-        app_name.push_str("/app.js");
-
+    fn contains_file(&mut self, path: PathBuf) -> Result<(), String> {
         self.archive
-            .by_name(app_name.as_ref())
-            .map_err(|e| format!("Cannot read {} file: {:?}", app_name, e))?;
-
-        Ok(())
+            .by_name(
+                path.to_str()
+                    .ok_or("Cannot cast PathBuf to str".to_string())?,
+            ).map_err(|_| "".to_string())
+            .and_then(|_| Ok(()))
     }
 }
 
@@ -208,10 +220,9 @@ impl PluginParser for DirectoryParser {
         parse_metadata(metadata_file)
     }
 
-    fn contains_app_js(&mut self, name: &str) -> Result<(), String> {
-        File::open(self.path.to_path_buf().join(name).join("app.js"))
-            .map_err(|_| "Couldn't read app.js file".to_string())?;
-
-        Ok(())
+    fn contains_file(&mut self, path: PathBuf) -> Result<(), String> {
+        File::open(self.path.to_path_buf().join(path).join("app.js"))
+            .map_err(|_| "Cannot read {} file".to_string())
+            .and_then(|_| Ok(()))
     }
 }

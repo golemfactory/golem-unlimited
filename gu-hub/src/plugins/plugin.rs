@@ -48,6 +48,10 @@ impl PluginMetadata {
         self.name.as_ref()
     }
 
+    pub fn load(&self) -> &Vec<String> {
+        self.load.as_ref()
+    }
+
     fn default_name() -> String {
         "plugin".to_string()
     }

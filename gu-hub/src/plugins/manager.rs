@@ -23,6 +23,7 @@ use plugins::plugin::ZipHandler;
 use semver::Version;
 use std::collections::HashMap;
 use std::fs;
+use std::fs::DirBuilder;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::path::PathBuf;
@@ -128,6 +129,11 @@ impl Actor for PluginManager {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
+        DirBuilder::new()
+            .recursive(true)
+            .create(&self.directory)
+            .unwrap();
+
         let _ = self.reload_plugins().map_err(|e| error!("{:?}", e));
     }
 }
@@ -246,16 +252,19 @@ impl Handler<ChangePluginState> for PluginManager {
         msg: ChangePluginState,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<ChangePluginState>>::Result {
-        let mut previous: Option<PluginStatus> = self.plugin(&msg.plugin).map(|plug| plug.status()).ok();
+        let mut previous: Option<PluginStatus> =
+            self.plugin(&msg.plugin).map(|plug| plug.status()).ok();
         match msg.state.clone() {
             QueriedStatus::Uninstall => Ok(self.uninstall_plugin(&msg.plugin)),
 
-            o => self.plugin_mut(&msg.plugin).map(|plug| match msg.state.clone() {
-                QueriedStatus::Activate => plug.activate(),
-                QueriedStatus::Inactivate => plug.inactivate(),
-                QueriedStatus::LogError(s) => plug.log_error(s),
-                _ => unreachable!(),
-            })
+            o => self
+                .plugin_mut(&msg.plugin)
+                .map(|plug| match msg.state.clone() {
+                    QueriedStatus::Activate => plug.activate(),
+                    QueriedStatus::Inactivate => plug.inactivate(),
+                    QueriedStatus::LogError(s) => plug.log_error(s),
+                    _ => unreachable!(),
+                }),
         };
 
         Ok(previous)
