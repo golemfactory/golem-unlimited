@@ -15,7 +15,7 @@ enum Command {
     List,
     Install(PathBuf),
     Dev(PathBuf),
-    Uninstall,
+    Uninstall(String),
 }
 
 impl PluginModule {
@@ -71,7 +71,13 @@ impl Module for PluginModule {
                     );
                     Command::Dev(dir_path)
                 }
-                ("uninstall", Some(_)) => Command::Uninstall,
+                ("uninstall", Some(m)) => {
+                    let name = String::from(
+                        m.value_of("name")
+                            .expect("Lack of required `name` argument"),
+                    );
+                    Command::Uninstall(name)
+                }
                 ("", None) => Command::None,
                 _ => return false,
             };
@@ -87,7 +93,7 @@ impl Module for PluginModule {
             Command::List => plugins::rest::list_query(),
             Command::Install(ref path) => plugins::rest::install_query(path),
             Command::Dev(ref path) => plugins::rest::dev_query(path.to_path_buf()),
-            Command::Uninstall => {}
+            Command::Uninstall(ref name) => {}
         }
     }
 

@@ -5,6 +5,10 @@ use actix::Message;
 use actix::MessageResult;
 use actix::Supervised;
 use actix::SystemService;
+use actix_web::dev::HttpResponseBuilder;
+use actix_web::http::StatusCode;
+use actix_web::HttpResponse;
+use actix_web::Responder;
 use bytes::Bytes;
 use gu_persist::config::ConfigModule;
 use plugins::parser::BytesPluginParser;
@@ -14,6 +18,7 @@ use plugins::plugin::DirectoryHandler;
 use plugins::plugin::Plugin;
 use plugins::plugin::PluginHandler;
 use plugins::plugin::PluginInfo;
+use plugins::plugin::PluginStatus;
 use plugins::plugin::ZipHandler;
 use semver::Version;
 use std::collections::HashMap;
@@ -65,6 +70,10 @@ impl PluginManager {
         })
     }
 
+    fn uninstall_plugin(&mut self, name: &String) {
+        self.plugins.remove(name);
+    }
+
     fn load_zip(&mut self, name: &str) -> Result<(), String> {
         let path = self.directory.join(name.to_string());
         let handler = ZipHandler::new(&path, self.gu_version.clone())?;
@@ -88,7 +97,12 @@ impl PluginManager {
                 .map_err(|e| e.to_string())
                 .and_then(|pack| ZipHandler::new(&pack.path(), self.gu_version.clone()))
                 .and_then(|handler| self.install_plugin(handler))
-                .map_err(|e| warn!("Cannot read file in plugins directory as zip archive: {:?}", e));
+                .map_err(|e| {
+                    warn!(
+                        "Cannot read file in plugins directory as zip archive: {:?}",
+                        e
+                    )
+                });
         }
 
         Ok(())
@@ -206,42 +220,45 @@ impl Handler<InstallPlugin> for PluginManager {
 }
 
 /// (IN)ACTIVATE PLUGIN
-#[derive(Debug)]
-pub enum QueriedState {
+#[derive(Debug, Clone)]
+pub enum QueriedStatus {
     Activate,
     Inactivate,
     Uninstall,
-    Error(String),
+    LogError(String),
 }
 
 #[derive(Debug)]
 pub struct ChangePluginState {
     pub plugin: String,
-    pub state: QueriedState,
+    pub state: QueriedStatus,
 }
 
 impl Message for ChangePluginState {
-    type Result = Result<(), String>;
+    type Result = Result<Option<PluginStatus>, String>;
 }
 
 impl Handler<ChangePluginState> for PluginManager {
-    type Result = MessageResult<ChangePluginState>;
+    type Result = Result<Option<PluginStatus>, String>;
 
     fn handle(
         &mut self,
         msg: ChangePluginState,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<ChangePluginState>>::Result {
-        let res = self
-            .plugin_mut(&msg.plugin)
-            .map(|mut plug| match msg.state {
-                QueriedState::Activate => plug.activate(),
-                QueriedState::Inactivate => plug.inactivate(),
-                QueriedState::Uninstall => unimplemented!(),
-                QueriedState::Error(s) => plug.log_error(s),
-            });
+        let mut previous: Option<PluginStatus> = self.plugin(&msg.plugin).map(|plug| plug.status()).ok();
+        match msg.state.clone() {
+            QueriedStatus::Uninstall => Ok(self.uninstall_plugin(&msg.plugin)),
 
-        MessageResult(res)
+            o => self.plugin_mut(&msg.plugin).map(|plug| match msg.state.clone() {
+                QueriedStatus::Activate => plug.activate(),
+                QueriedStatus::Inactivate => plug.inactivate(),
+                QueriedStatus::LogError(s) => plug.log_error(s),
+                _ => unreachable!(),
+            })
+        };
+
+        Ok(previous)
     }
 }
 
@@ -264,8 +281,8 @@ impl Handler<InstallDevPlugin> for PluginManager {
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<InstallDevPlugin>>::Result {
         println!("{:?}", msg.path.clone());
-        let plugin = DirectoryHandler::new(msg.path)
-            .and_then(|handler| self.install_plugin(handler));
+        let plugin =
+            DirectoryHandler::new(msg.path).and_then(|handler| self.install_plugin(handler));
 
         MessageResult(plugin.and_then(|_| Ok(())))
     }

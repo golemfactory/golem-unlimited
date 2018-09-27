@@ -21,7 +21,7 @@ use plugins::manager::InstallPlugin;
 use plugins::manager::ListPlugins;
 use plugins::manager::PluginFile;
 use plugins::manager::PluginManager;
-use plugins::manager::QueriedState;
+use plugins::manager::QueriedStatus;
 use plugins::plugin::format_plugins_table;
 use plugins::plugin::PluginInfo;
 use server::ServerClient;
@@ -74,9 +74,9 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .route("", http::Method::POST, install_scope)
         .route("/dev/{pluginPath:.*}", http::Method::POST, dev_scope)
         .route("/{pluginName}/activate", http::Method::POST, |r| {
-            state_scope(QueriedState::Activate, r)
+            state_scope(QueriedStatus::Activate, r)
         }).route("/{pluginName}/inactivate", http::Method::POST, |r| {
-            state_scope(QueriedState::Inactivate, r)
+            state_scope(QueriedStatus::Inactivate, r)
         }).route("/{pluginName}/{fileName:.*}", http::Method::GET, file_scope)
 }
 
@@ -169,7 +169,7 @@ fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
         .responder()
 }
 
-fn state_scope<S>(state: QueriedState, r: HttpRequest<S>) -> impl Responder {
+fn state_scope<S>(state: QueriedStatus, r: HttpRequest<S>) -> impl Responder {
     let manager = PluginManager::from_registry();
     let match_info = r.match_info();
 
