@@ -37,12 +37,13 @@
                         Panels
                     </div>
                     <div class="panel-body">
-
                         <ul class="nav nav-pills nav-stacked">
-                            <li ng-repeat="tab in tabs" ng-class="{active: tab == activeTab}"><a href="#" ng-click="openTab(tab)">
-                                <i class="{{tab.icon}}" ng-if="!!tab.icon"></i>
-                                {{tab.name}}
-                            </a></li>
+                            <li ng-repeat="tab in tabs" ng-class="{active: tab == activeTab}">
+                                <a href="#" ng-click="openTab(tab)">
+                                    <img src="{{tab.icon}}" width="30" height="30" ng-if="!!tab.icon">
+                                    {{tab.name}}
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -54,7 +55,11 @@
                     </div>
                     <div class="panel-body">
                         <ul class="nav nav-pills nav-stacked">
-                            <li ng-repeat="tab in pluginTabs" ng-class="{active: tab == activeTab}"><a href="#" ng-click="openTab(tab)">{{tab.name}}</a></li>
+                            <li ng-repeat="tab in pluginTabs" ng-class="{active: tab == activeTab}">
+                                <a href="#" ng-click="openTab(tab)"><img src="{{tab.icon}}" width="30" height="30" ng-if="!!tab.icon">
+                                    {{tab.name}}
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </div>

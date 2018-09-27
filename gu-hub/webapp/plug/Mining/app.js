@@ -12,7 +12,7 @@ var images = {
 
 angular.module('gu')
 .run(function(pluginManager) {
-    pluginManager.addTab({name: '💎 Mining', page: 'plug/Mining/base.html'})
+    pluginManager.addTab({name: 'Mining', icon: 'plug/Mining/mining.svg', page: 'plug/Mining/base.html'})
 })
 .controller('MiningController', function($scope) {
     var myStorage = window.localStorage;
