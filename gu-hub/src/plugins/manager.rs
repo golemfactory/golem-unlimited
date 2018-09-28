@@ -19,6 +19,7 @@ use plugins::plugin::PluginHandler;
 use plugins::plugin::PluginInfo;
 use plugins::plugin::PluginStatus;
 use plugins::plugin::ZipHandler;
+use plugins::rest_result::InstallQueryResult;
 use semver::Version;
 use std::collections::HashMap;
 use std::fmt;
@@ -29,7 +30,6 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::path::PathBuf;
-use plugins::rest_result::InstallQueryResult;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -95,9 +95,11 @@ impl PluginManager {
 
     fn save_plugin_file(&self, name: &str, bytes: &[u8]) -> Result<(), InstallQueryResult> {
         use self::InstallQueryResult::*;
+        use std::path::Path;
 
-        let path = self.directory.with_file_name(zip_name(name.to_string()));
-        if fs::File::open(path.clone()).is_ok() {
+        let path = self.directory.join(name.to_string());
+        println!("{:?}", &path);
+        if Path::new(&path).exists() {
             return Err(FileAlreadyExists);
         }
 
@@ -242,7 +244,7 @@ impl Handler<InstallPlugin> for PluginManager {
                 }).and_then(|metadata| {
                     let name = metadata.name();
                     self.save_plugin_file(name, msg.bytes.into_inner().as_ref())
-                        .map(|_| self.load_zip(&zip_name(name.to_string())))
+                        .map(|_| self.load_zip(&name.to_string()))
                 }).unwrap_or_else(|a| a),
         )
     }

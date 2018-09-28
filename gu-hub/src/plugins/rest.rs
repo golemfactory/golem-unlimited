@@ -24,15 +24,15 @@ use plugins::manager::PluginManager;
 use plugins::manager::QueriedStatus;
 use plugins::plugin::format_plugins_table;
 use plugins::plugin::PluginInfo;
+use plugins::rest_result::InstallQueryResult;
+use plugins::rest_result::RestResponse;
+use plugins::rest_result::ToHttpResponse;
 use server::ClientError;
 use server::ServerClient;
 use std::fs::File;
 use std::io::Cursor;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use plugins::rest_result::ToHttpResponse;
-use plugins::rest_result::InstallQueryResult;
-use plugins::rest_result::RestResponse;
 
 pub fn list_query() {
     System::run(|| {
@@ -50,24 +50,24 @@ pub fn install_query(path: &Path) {
         .map_err(|e| {
             error!("Cannot open {:?} file", path.clone());
             debug!("Error details: {:?}", e)
-        })
-        .and_then(|mut file| {
+        }).and_then(|mut file| {
             let mut buf = Vec::new();
-            file.read_to_end(&mut buf)
-                .map(|_| buf)
-                .map_err(|e| {
-                    error!("Cannot read {:?} file", path.clone());
-                    debug!("Error details: {:?}", e)
-                })
-        })
-        .and_then(|buf| {
-            System::run(|| Arbiter::spawn(ServerClient::post("/plug", buf)
-                .and_then(|r: RestResponse<InstallQueryResult>| Ok(println!("{:?}", r.message.message())))
-                .map_err(|e| {
-                    error!("Error on server connection");
-                    debug!("Error details: {:?}", e)
-                })
-                .then(|_r| Ok(System::current().stop()))));
+            file.read_to_end(&mut buf).map(|_| buf).map_err(|e| {
+                error!("Cannot read {:?} file", path.clone());
+                debug!("Error details: {:?}", e)
+            })
+        }).and_then(|buf| {
+            System::run(|| {
+                Arbiter::spawn(
+                    ServerClient::post("/plug", buf)
+                        .and_then(|r: RestResponse<InstallQueryResult>| {
+                            Ok(println!("{}", r.message.message()))
+                        }).map_err(|e| {
+                            error!("Error on server connection");
+                            debug!("Error details: {:?}", e)
+                        }).then(|_r| Ok(System::current().stop())),
+                )
+            });
             Ok(())
         });
 }
@@ -105,8 +105,9 @@ pub fn dev_query(path: PathBuf) {
     System::run(move || {
         Arbiter::spawn(
             ServerClient::empty_post(format!("/plug/dev{}", path))
-                .and_then(|r: RestResponse<InstallQueryResult>| Ok(println!("{:?}", r.message.message())))
-                .map_err(|e| error!("{}", e))
+                .and_then(|r: RestResponse<InstallQueryResult>| {
+                    Ok(println!("{}", r.message.message()))
+                }).map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
     });

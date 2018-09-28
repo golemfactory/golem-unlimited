@@ -1,14 +1,13 @@
-use actix_web::HttpResponse;
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::http::StatusCode;
-use serde_json;
-use std::fmt::Debug;
+use actix_web::HttpResponse;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde_json;
+use std::fmt::Debug;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RestResponse<T>
-{
+pub struct RestResponse<T> {
     pub message: T,
     pub status: u16,
     // TODO: anything more here?
@@ -46,7 +45,7 @@ pub enum InstallQueryResult {
     InvalidFile(String),
 }
 
-impl ToHttpResponse for InstallQueryResult  {
+impl ToHttpResponse for InstallQueryResult {
     fn message(&self) -> String {
         use self::InstallQueryResult::*;
 
