@@ -30,6 +30,9 @@ use std::fs::File;
 use std::io::Cursor;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use plugins::rest_result::ToHttpResponse;
+use plugins::rest_result::InstallQueryResult;
+use plugins::rest_result::RestResponse;
 
 pub fn list_query() {
     System::run(|| {
@@ -43,19 +46,30 @@ pub fn list_query() {
 }
 
 pub fn install_query(path: &Path) {
-    let mut buf = Vec::new();
-    let file = File::open(path)
-        .expect(&format!("Cannot open {:?} file", path))
-        .read_to_end(&mut buf);
-
-    System::run(|| {
-        Arbiter::spawn(
-            ServerClient::post("/plug", buf)
-                .and_then(|r: ()| Ok(()))
-                .map_err(|e| error!("{}", e))
-                .then(|_r| Ok(System::current().stop())),
-        )
-    });
+    File::open(path)
+        .map_err(|e| {
+            error!("Cannot open {:?} file", path.clone());
+            debug!("Error details: {:?}", e)
+        })
+        .and_then(|mut file| {
+            let mut buf = Vec::new();
+            file.read_to_end(&mut buf)
+                .map(|_| buf)
+                .map_err(|e| {
+                    error!("Cannot read {:?} file", path.clone());
+                    debug!("Error details: {:?}", e)
+                })
+        })
+        .and_then(|buf| {
+            System::run(|| Arbiter::spawn(ServerClient::post("/plug", buf)
+                .and_then(|r: RestResponse<InstallQueryResult>| Ok(println!("{:?}", r.message.message())))
+                .map_err(|e| {
+                    error!("Error on server connection");
+                    debug!("Error details: {:?}", e)
+                })
+                .then(|_r| Ok(System::current().stop()))));
+            Ok(())
+        });
 }
 
 pub fn uninstall_query(plugin: String) {
@@ -91,7 +105,7 @@ pub fn dev_query(path: PathBuf) {
     System::run(move || {
         Arbiter::spawn(
             ServerClient::empty_post(format!("/plug/dev{}", path))
-                .and_then(|r: Option<()>| Ok(()))
+                .and_then(|r: RestResponse<InstallQueryResult>| Ok(println!("{:?}", r.message.message())))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
@@ -200,7 +214,7 @@ fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
             manager
                 .send(InstallPlugin { bytes: a })
                 .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
-        }).and_then(|_| Ok(HttpResponse::Ok().content_type("application/json").body("null")))
+        }).and_then(|result| Ok(result.to_http_response()))
         .responder()
 }
 
@@ -215,8 +229,11 @@ fn state_scope<S>(state: QueriedStatus, r: HttpRequest<S>) -> impl Responder {
 
     manager
         .send(ChangePluginState { plugin, state })
-        .and_then(move |res| Ok(HttpResponse::Ok().content_type("application/json").body("null")))
-        .responder()
+        .and_then(move |res| {
+            Ok(HttpResponse::Ok()
+                .content_type("application/json")
+                .body("null"))
+        }).responder()
 }
 
 fn dev_scope<S>(r: HttpRequest<S>) -> impl Responder {
@@ -232,6 +249,6 @@ fn dev_scope<S>(r: HttpRequest<S>) -> impl Responder {
 
     manager
         .send(InstallDevPlugin { path })
-        .and_then(move |res| Ok(HttpResponse::Ok().content_type("application/json").body("null")))
+        .and_then(|result| Ok(result.to_http_response()))
         .responder()
 }
