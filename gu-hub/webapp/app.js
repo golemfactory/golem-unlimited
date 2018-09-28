@@ -269,11 +269,11 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
 
             sessionsFast() {
             // TODO: FIXME
-//                if (this.nodeId in cache) {
-//                    $log.debug("sessionFast: cache used", $q.when(cache[this.nodeId]), this.sessions())
-//                    return $q.when(cache[this.nodeId]);
-//                }
-//                $log.debug("sessionFast: cache not used", this.sessions())
+                if (this.nodeId in cache) {
+                    $log.debug("sessionFast: cache used", $q.when(cache[this.nodeId]), this.sessions())
+                    return $q.when(cache[this.nodeId]);
+                }
+                $log.debug("sessionFast: cache not used", this.sessions())
                 return this.sessions();
             }
         }
