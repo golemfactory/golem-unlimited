@@ -30,6 +30,8 @@ use serde::ser;
 use serde_json;
 use std::marker::PhantomData;
 use bytes::Bytes;
+use serde::Serialize;
+use futures::future;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -231,6 +233,8 @@ pub enum ClientError {
     SendRequestError(#[cause] actix_web::client::SendRequestError),
     #[fail(display = "{}", _0)]
     Json(#[cause] JsonPayloadError),
+    #[fail(display = "{}", _0)]
+    SerdeJson(#[cause] serde_json::Error),
     #[fail(display = "config")]
     ConfigError,
 }
@@ -260,6 +264,7 @@ impl ServerClient {
     pub fn get<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
         path: IntoStr,
     ) -> impl Future<Item = T, Error = ClientError> {
+
         ServerClient::from_registry()
             .send(ResourceGet::new(path.into()))
             .flatten_fut()
@@ -268,6 +273,7 @@ impl ServerClient {
     pub fn delete<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
         path: IntoStr,
     ) -> impl Future<Item = T, Error = ClientError> {
+
         ServerClient::from_registry()
             .send(ResourceDelete::new(path.into()))
             .flatten_fut()
@@ -277,9 +283,22 @@ impl ServerClient {
         path: IntoStr,
         body: IntoBody,
     ) -> impl Future<Item = T, Error = ClientError> {
+
         ServerClient::from_registry()
             .send(ResourcePost::new(path.into(), body.into()))
             .flatten_fut()
+    }
+
+    pub fn post_json<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>, Ser: Serialize>(
+        path: IntoStr,
+        body: Ser,
+    ) -> impl Future<Item = T, Error = ClientError> {
+
+        future::result(serde_json::to_string(&body))
+            .map_err(|e| ClientError::SerdeJson(e))
+            .and_then(|body|
+                Self::post::<T, _, _>(path, body)
+            )
     }
 }
 
@@ -291,8 +310,6 @@ impl Supervised for ServerClient {}
 impl ArbiterService for ServerClient {}
 
 pub trait IntoRequest {
-    type Result;
-
     fn into_request(self, url : &str) -> Result<ClientRequest, actix_web::Error>;
 
     fn path(&self) -> &str;
@@ -307,8 +324,6 @@ impl<T> ResourceGet<T> {
 }
 
 impl<T> IntoRequest for ResourceGet<T> {
-    type Result = T;
-
     fn into_request(self, url : &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::get(url)
             .header("Accept", "application/json")
@@ -324,13 +339,11 @@ struct ResourceDelete<T>(String, PhantomData<T>);
 
 impl<T> ResourceDelete<T> {
     fn new(path:String) -> Self {
-        ResourceDelete::<T>(path, PhantomData)
+        ResourceDelete(path, PhantomData)
     }
 }
 
 impl<T> IntoRequest for ResourceDelete<T> {
-    type Result = T;
-
     fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::delete(url)
             .header("Accept", "application/json")
@@ -346,13 +359,11 @@ struct ResourcePost<T>(String, Bytes, PhantomData<T>);
 
 impl<T> ResourcePost<T> {
     fn new(path:String, body: Bytes) -> Self {
-        ResourcePost::<T>(path, body, PhantomData)
+        ResourcePost(path, body, PhantomData)
     }
 }
 
 impl<T> IntoRequest for ResourcePost<T> {
-    type Result = T;
-
     fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::post(url)
             .header("Accept", "application/json")
@@ -377,7 +388,7 @@ impl<T: de::DeserializeOwned + 'static> Message for ResourcePost<T> {
     type Result = Result<T, ClientError>;
 }
 
-impl<T: de::DeserializeOwned + 'static, M : IntoRequest<Result=T> + Message> Handler<M> for ServerClient
+impl<T: de::DeserializeOwned + 'static, M : IntoRequest + Message> Handler<M> for ServerClient
 where M : Message<Result = Result<T, ClientError>> + 'static
 {
     type Result = ActorResponse<ServerClient, T, ClientError>;
@@ -406,43 +417,4 @@ where M : Message<Result = Result<T, ClientError>> + 'static
                 }).into_actor(self),
         )
     }
-}
-
-pub trait ToRequestBuilder {
-    fn request_builder(self, url: String) -> Result<ClientRequest, actix_web::Error>;
-
-    fn path(&self) -> String;
-}
-
-pub struct GetRequest(String);
-
-impl ToRequestBuilder for GetRequest {
-    fn request_builder(self, url: String) -> Result<ClientRequest, actix_web::Error> {
-        client::ClientRequest::get(url)
-            .header("Accept", "application/json")
-            .finish()
-    }
-
-    fn path(&self) -> String {
-        self.0.clone()
-    }
-}
-
-pub struct PostRequest(String, Body);
-
-impl ToRequestBuilder for PostRequest {
-    fn request_builder(self, url: String) -> Result<ClientRequest, actix_web::Error> {
-        client::ClientRequest::post(url)
-            .header("Accept", "application/json")
-            .body::<Body>(self.1)
-    }
-
-    fn path(&self) -> String {
-        self.0.clone()
-    }
-}
-
-pub struct RequestCreator<Req, Res> {
-    r: Req,
-    _p: PhantomData<Res>,
 }
