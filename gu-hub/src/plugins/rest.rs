@@ -91,7 +91,7 @@ pub fn dev_query(path: PathBuf) {
     System::run(move || {
         Arbiter::spawn(
             ServerClient::empty_post(format!("/plug/dev{}", path))
-                .and_then(|r: ()| Ok(()))
+                .and_then(|r: Option<()>| Ok(()))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
@@ -200,7 +200,7 @@ fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
             manager
                 .send(InstallPlugin { bytes: a })
                 .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
-        }).and_then(|_| Ok(HttpResponse::Ok()))
+        }).and_then(|_| Ok(HttpResponse::Ok().content_type("application/json").body("null")))
         .responder()
 }
 
@@ -215,7 +215,7 @@ fn state_scope<S>(state: QueriedStatus, r: HttpRequest<S>) -> impl Responder {
 
     manager
         .send(ChangePluginState { plugin, state })
-        .and_then(move |res| Ok(HttpResponse::Ok()))
+        .and_then(move |res| Ok(HttpResponse::Ok().content_type("application/json").body("null")))
         .responder()
 }
 
@@ -232,6 +232,6 @@ fn dev_scope<S>(r: HttpRequest<S>) -> impl Responder {
 
     manager
         .send(InstallDevPlugin { path })
-        .and_then(move |res| Ok(HttpResponse::Ok()))
+        .and_then(move |res| Ok(HttpResponse::Ok().content_type("application/json").body("null")))
         .responder()
 }

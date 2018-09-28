@@ -336,6 +336,7 @@ impl<T> ResourceGet<T> {
 impl<T> IntoRequest for ResourceGet<T> {
     fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::get(url)
+            .header("Accept", "application/json")
             .finish()
     }
 
@@ -355,6 +356,7 @@ impl<T> ResourceDelete<T> {
 impl<T> IntoRequest for ResourceDelete<T> {
     fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::delete(url)
+            .header("Accept", "application/json")
             .finish()
     }
 
@@ -374,6 +376,7 @@ impl<T> ResourcePost<T> {
 impl<T> IntoRequest for ResourcePost<T> {
     fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::post(url)
+            .header("Accept", "application/json")
             .body::<Body>(Body::from(self.1))
     }
 
