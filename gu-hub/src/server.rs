@@ -16,6 +16,8 @@ use actix_web::client::ClientRequest;
 use actix_web::client::ClientRequestBuilder;
 use actix_web::error::JsonPayloadError;
 use actix_web::Body;
+use bytes::Bytes;
+use futures::future;
 use gu_base::{Decorator, Module};
 use gu_lan::server;
 use gu_p2p::rpc;
@@ -27,11 +29,9 @@ use mdns::Responder;
 use mdns::Service;
 use serde::de;
 use serde::ser;
+use serde::Serialize;
 use serde_json;
 use std::marker::PhantomData;
-use bytes::Bytes;
-use serde::Serialize;
-use futures::future;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -264,7 +264,6 @@ impl ServerClient {
     pub fn get<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
         path: IntoStr,
     ) -> impl Future<Item = T, Error = ClientError> {
-
         ServerClient::from_registry()
             .send(ResourceGet::new(path.into()))
             .flatten_fut()
@@ -273,32 +272,43 @@ impl ServerClient {
     pub fn delete<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
         path: IntoStr,
     ) -> impl Future<Item = T, Error = ClientError> {
-
         ServerClient::from_registry()
             .send(ResourceDelete::new(path.into()))
             .flatten_fut()
     }
 
-    pub fn post<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>, IntoBody: Into<Bytes>>(
+    pub fn post<
+        T: de::DeserializeOwned + Send + 'static,
+        IntoStr: Into<String>,
+        IntoBody: Into<Bytes>,
+    >(
         path: IntoStr,
         body: IntoBody,
     ) -> impl Future<Item = T, Error = ClientError> {
-
         ServerClient::from_registry()
             .send(ResourcePost::new(path.into(), body.into()))
             .flatten_fut()
     }
 
-    pub fn post_json<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>, Ser: Serialize>(
+    pub fn post_json<
+        T: de::DeserializeOwned + Send + 'static,
+        IntoStr: Into<String>,
+        Ser: Serialize,
+    >(
         path: IntoStr,
         body: Ser,
     ) -> impl Future<Item = T, Error = ClientError> {
-
         future::result(serde_json::to_string(&body))
             .map_err(|e| ClientError::SerdeJson(e))
-            .and_then(|body|
-                Self::post::<T, _, _>(path, body)
-            )
+            .and_then(|body| Self::post::<T, _, _>(path, body))
+    }
+
+    pub fn empty_post<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
+        path: IntoStr,
+    ) -> impl Future<Item = T, Error = ClientError> {
+        ServerClient::from_registry()
+            .send(ResourcePost::new(path.into(), "null".into()))
+            .flatten_fut()
     }
 }
 
@@ -310,7 +320,7 @@ impl Supervised for ServerClient {}
 impl ArbiterService for ServerClient {}
 
 pub trait IntoRequest {
-    fn into_request(self, url : &str) -> Result<ClientRequest, actix_web::Error>;
+    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error>;
 
     fn path(&self) -> &str;
 }
@@ -318,15 +328,14 @@ pub trait IntoRequest {
 struct ResourceGet<T>(String, PhantomData<T>);
 
 impl<T> ResourceGet<T> {
-    fn new(path:String) -> Self {
+    fn new(path: String) -> Self {
         ResourceGet::<T>(path, PhantomData)
     }
 }
 
 impl<T> IntoRequest for ResourceGet<T> {
-    fn into_request(self, url : &str) -> Result<ClientRequest, actix_web::Error> {
+    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::get(url)
-            .header("Accept", "application/json")
             .finish()
     }
 
@@ -338,7 +347,7 @@ impl<T> IntoRequest for ResourceGet<T> {
 struct ResourceDelete<T>(String, PhantomData<T>);
 
 impl<T> ResourceDelete<T> {
-    fn new(path:String) -> Self {
+    fn new(path: String) -> Self {
         ResourceDelete(path, PhantomData)
     }
 }
@@ -346,7 +355,6 @@ impl<T> ResourceDelete<T> {
 impl<T> IntoRequest for ResourceDelete<T> {
     fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::delete(url)
-            .header("Accept", "application/json")
             .finish()
     }
 
@@ -358,7 +366,7 @@ impl<T> IntoRequest for ResourceDelete<T> {
 struct ResourcePost<T>(String, Bytes, PhantomData<T>);
 
 impl<T> ResourcePost<T> {
-    fn new(path:String, body: Bytes) -> Self {
+    fn new(path: String, body: Bytes) -> Self {
         ResourcePost(path, body, PhantomData)
     }
 }
@@ -366,7 +374,6 @@ impl<T> ResourcePost<T> {
 impl<T> IntoRequest for ResourcePost<T> {
     fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         client::ClientRequest::post(url)
-            .header("Accept", "application/json")
             .body::<Body>(Body::from(self.1))
     }
 
@@ -374,7 +381,6 @@ impl<T> IntoRequest for ResourcePost<T> {
         self.0.as_ref()
     }
 }
-
 
 impl<T: de::DeserializeOwned + 'static> Message for ResourceGet<T> {
     type Result = Result<T, ClientError>;
@@ -388,8 +394,9 @@ impl<T: de::DeserializeOwned + 'static> Message for ResourcePost<T> {
     type Result = Result<T, ClientError>;
 }
 
-impl<T: de::DeserializeOwned + 'static, M : IntoRequest + Message> Handler<M> for ServerClient
-where M : Message<Result = Result<T, ClientError>> + 'static
+impl<T: de::DeserializeOwned + 'static, M: IntoRequest + Message> Handler<M> for ServerClient
+where
+    M: Message<Result = Result<T, ClientError>> + 'static,
 {
     type Result = ActorResponse<ServerClient, T, ClientError>;
 

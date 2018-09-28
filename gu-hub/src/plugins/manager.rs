@@ -29,6 +29,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::fmt;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -239,6 +240,13 @@ pub enum QueriedStatus {
     Inactivate,
     Uninstall,
     LogError(String),
+}
+
+impl fmt::Display for QueriedStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let lowercase = format!("{:?}", self).to_ascii_lowercase();
+        write!(f, "{}", lowercase)
+    }
 }
 
 #[derive(Debug)]

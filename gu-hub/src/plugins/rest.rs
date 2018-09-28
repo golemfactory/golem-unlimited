@@ -24,8 +24,11 @@ use plugins::manager::PluginManager;
 use plugins::manager::QueriedStatus;
 use plugins::plugin::format_plugins_table;
 use plugins::plugin::PluginInfo;
+use server::ClientError;
 use server::ServerClient;
+use std::fs::File;
 use std::io::Cursor;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 pub fn list_query() {
@@ -39,15 +42,42 @@ pub fn list_query() {
     });
 }
 
-pub fn install_query(_path: &Path) {
-    /*  System::run(|| {
+pub fn install_query(path: &Path) {
+    let mut buf = Vec::new();
+    let file = File::open(path)
+        .expect(&format!("Cannot open {:?} file", path))
+        .read_to_end(&mut buf);
+
+    System::run(|| {
         Arbiter::spawn(
-            ServerClient::post("/plug")
-                .and_then(|r: Vec<PluginInfo>| Ok(format_plugins_table(r)))
+            ServerClient::post("/plug", buf)
+                .and_then(|r: ()| Ok(()))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
-    });*/
+    });
+}
+
+pub fn uninstall_query(plugin: String) {
+    System::run(move || {
+        Arbiter::spawn(
+            ServerClient::delete(format!("/plug/{}/uninstall", plugin))
+                .and_then(|r: ()| Ok(()))
+                .map_err(|e| error!("{}", e))
+                .then(|_r| Ok(System::current().stop())),
+        )
+    });
+}
+
+pub fn post_status_query(plugin: String, status: QueriedStatus) {
+    System::run(move || {
+        Arbiter::spawn(
+            ServerClient::empty_post(format!("/plug/{}/{}", plugin, status))
+                .and_then(|r: ()| Ok(()))
+                .map_err(|e| error!("{}", e))
+                .then(|_r| Ok(System::current().stop())),
+        )
+    });
 }
 
 pub fn dev_query(path: PathBuf) {
@@ -60,7 +90,7 @@ pub fn dev_query(path: PathBuf) {
 
     System::run(move || {
         Arbiter::spawn(
-            ServerClient::get(format!("/plug/dev{}", path))
+            ServerClient::empty_post(format!("/plug/dev{}", path))
                 .and_then(|r: ()| Ok(()))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
@@ -73,7 +103,9 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .route("", http::Method::GET, list_scope)
         .route("", http::Method::POST, install_scope)
         .route("/dev/{pluginPath:.*}", http::Method::POST, dev_scope)
-        .route("/{pluginName}/activate", http::Method::POST, |r| {
+        .route("/{pluginName}/uninstall", http::Method::DELETE, |r| {
+            state_scope(QueriedStatus::Uninstall, r)
+        }).route("/{pluginName}/activate", http::Method::POST, |r| {
             state_scope(QueriedStatus::Activate, r)
         }).route("/{pluginName}/inactivate", http::Method::POST, |r| {
             state_scope(QueriedStatus::Inactivate, r)
