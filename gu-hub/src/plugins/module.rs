@@ -36,29 +36,32 @@ impl Module for PluginModule {
             .required(true)
             .index(1);
 
+        let dir = Arg::with_name("DIR")
+            .help("Specifies path to the plugin directory")
+            .required(true)
+            .index(1);
+
+        let path = Arg::with_name("PATH")
+            .help("path to the package")
+            .required(true)
+            .index(1);
+
         app.subcommand(SubCommand::with_name("plugin").subcommands(vec![
-            SubCommand::with_name("install").arg(
-                Arg::with_name("PATH")
-                    .help("Specifies path to zip archive")
-                    .required(true)
-                    .index(1)
-            ),
-
-            SubCommand::with_name("dev").arg(
-                Arg::with_name("DIR")
-                        .help("Specifies path to plugin directory")
-                        .required(true)
-                        .index(1)
-            ),
-
-            SubCommand::with_name("list"),
-
-            SubCommand::with_name("activate").arg(Arg::from(&plugin)),
-
-            SubCommand::with_name("inactivate").arg(Arg::from(&plugin)),
-
-            SubCommand::with_name("uninstall").arg(Arg::from(&plugin)),
-        ]))
+                SubCommand::with_name("install")
+                    .about("Installs the plugin from the package").arg(path),
+                SubCommand::with_name("dev")
+                    .about("Installs the plugin in a dev mode").arg(dir),
+                SubCommand::with_name("list").about("Lists currently installed plugins"),
+                SubCommand::with_name("start")
+                    .about("Starts serving files by the plugin")
+                    .arg(Arg::from(&plugin)),
+                SubCommand::with_name("stop")
+                    .about("Stops serving files by the plugin")
+                    .arg(Arg::from(&plugin)),
+                SubCommand::with_name("uninstall")
+                    .about("Uninstalls the plugin")
+                    .arg(Arg::from(&plugin)),
+            ]))
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {

@@ -5,7 +5,6 @@ use actix::Message;
 use actix::MessageResult;
 use actix::Supervised;
 use actix::SystemService;
-use actix_web::dev::HttpResponseBuilder;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::Responder;
@@ -20,8 +19,10 @@ use plugins::plugin::PluginHandler;
 use plugins::plugin::PluginInfo;
 use plugins::plugin::PluginStatus;
 use plugins::plugin::ZipHandler;
+use plugins::rest_result::InstallQueryResult;
 use semver::Version;
 use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 use std::fs::remove_file;
 use std::fs::DirBuilder;
@@ -29,7 +30,6 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::path::PathBuf;
-use std::fmt;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -60,61 +60,72 @@ impl Default for PluginManager {
 }
 
 impl PluginManager {
-    fn install_plugin<T: 'static + PluginHandler>(&mut self, handler: T) -> Result<(), String> {
+    fn install_plugin<T: 'static + PluginHandler>(&mut self, handler: T) -> InstallQueryResult {
+        use plugins::rest_result::InstallQueryResult::*;
+
         let mut plugin = Plugin::new(handler);
         plugin.activate();
 
-        println!("{:?}", plugin.metadata());
-
-        plugin.metadata().and_then(|meta| {
-            match self.plugins.insert(meta.name().to_string(), plugin) {
-                None => Ok(()),
-                Some(a) => Err(format!("Overwritten old ({:?}) module", a)),
-            }
-        })
+        plugin
+            .metadata()
+            .map_err(|a| InvalidMetadata(a))
+            .map(
+                |meta| match self.plugins.insert(meta.name().to_string(), plugin) {
+                    None => Installed,
+                    Some(a) => Overwritten,
+                },
+            ).unwrap_or_else(|e| e)
     }
 
     fn uninstall_plugin(&mut self, name: &String) {
         self.plugins.remove(name);
 
         // TODO: I would prefer some clear function in Plugin trait instead of this
-        let mut zip = self.directory.clone();
-        zip.push(".zip");
-        remove_file(zip);
+        let mut file = self.directory.clone();
+        remove_file(file);
     }
 
-    fn load_zip(&mut self, name: &str) -> Result<(), String> {
+    fn load_zip(&mut self, name: &str) -> InstallQueryResult {
         let path = self.directory.join(name.to_string());
-        let handler = ZipHandler::new(&path, self.gu_version.clone())?;
-        self.install_plugin(handler)
+        ZipHandler::new(&path, self.gu_version.clone())
+            .map_err(|e| InstallQueryResult::InvalidFile(e))
+            .map(|handler| self.install_plugin(handler))
+            .unwrap_or_else(|e| e)
     }
 
-    fn save_bytes_in_dir(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
-        fs::write(self.directory.join(zip_name(name.to_string())), bytes)
-            .and_then(|_| Ok(()))
-            .map_err(|e| format!("Cannot save file: {:?}", e))
-    }
+    fn save_plugin_file(&self, name: &str, bytes: &[u8]) -> Result<(), InstallQueryResult> {
+        use self::InstallQueryResult::*;
+        use std::path::Path;
 
-    fn reload_plugins(&mut self) -> Result<(), String> {
-        self.plugins.clear();
-
-        let dir = fs::read_dir(&self.directory)
-            .map_err(|e| format!("Cannot read plugins directory: {:?}", e))?;
-
-        for plug_pack in dir {
-            plug_pack
-                .map_err(|e| e.to_string())
-                .and_then(|pack| ZipHandler::new(&pack.path(), self.gu_version.clone()))
-                .and_then(|handler| self.install_plugin(handler))
-                .map_err(|e| {
-                    warn!(
-                        "Cannot read file in plugins directory as zip archive: {:?}",
-                        e
-                    )
-                });
+        let path = self.directory.join(name.to_string());
+        println!("{:?}", &path);
+        if Path::new(&path).exists() {
+            return Err(FileAlreadyExists);
         }
 
-        Ok(())
+        fs::write(path, bytes)
+            .map(|_| ())
+            .map_err(|e| InvalidFile(e.to_string()))
+    }
+
+    /// Startup-only function for plugins loading
+    fn reload_plugins(&mut self) {
+        self.plugins.clear();
+
+        let dir = fs::read_dir(&self.directory).expect(&format!(
+            "Cannot read plugins directory: {:?}",
+            self.directory
+        ));
+
+        for plug_pack in dir {
+            let res = plug_pack
+                .map_err(|e| e.to_string())
+                .map(|pack| self.load_zip(pack.path().to_str().expect("Invalid path of plugin")))
+                .map(|a| format!("{:?}", a))
+                .unwrap_or_else(|e| e);
+
+            warn!("{:?}", res);
+        }
     }
 
     fn plugin(&self, name: &str) -> Result<&Plugin, String> {
@@ -142,7 +153,7 @@ impl Actor for PluginManager {
             .create(&self.directory)
             .unwrap();
 
-        let _ = self.reload_plugins().map_err(|e| error!("{:?}", e));
+        self.reload_plugins();
     }
 }
 
@@ -205,7 +216,7 @@ pub struct InstallPlugin {
 }
 
 impl Message for InstallPlugin {
-    type Result = Result<(), String>;
+    type Result = InstallQueryResult;
 }
 
 fn zip_name(mut s: String) -> String {
@@ -221,14 +232,20 @@ impl Handler<InstallPlugin> for PluginManager {
         msg: InstallPlugin,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<InstallPlugin>>::Result {
+        use self::InstallQueryResult::*;
+
         MessageResult(
             ZipParser::<BufReader<Cursor<Bytes>>>::from_bytes(msg.bytes.clone())
-                .and_then(|mut parser| parser.validate_and_load_metadata(self.gu_version.clone()))
-                .and_then(|metadata| {
+                .map_err(|a| InvalidFile(a))
+                .and_then(|mut parser| {
+                    parser
+                        .validate_and_load_metadata(self.gu_version.clone())
+                        .map_err(|e| InvalidMetadata(e))
+                }).and_then(|metadata| {
                     let name = metadata.name();
-                    self.save_bytes_in_dir(name, msg.bytes.into_inner().as_ref())
-                        .and_then(|_| self.load_zip(&zip_name(name.to_string())))
-                }).and_then(|_| Ok(())),
+                    self.save_plugin_file(name, msg.bytes.into_inner().as_ref())
+                        .map(|_| self.load_zip(&name.to_string()))
+                }).unwrap_or_else(|a| a),
         )
     }
 }
@@ -293,7 +310,7 @@ pub struct InstallDevPlugin {
 }
 
 impl Message for InstallDevPlugin {
-    type Result = Result<(), String>;
+    type Result = InstallQueryResult;
 }
 
 impl Handler<InstallDevPlugin> for PluginManager {
@@ -304,10 +321,13 @@ impl Handler<InstallDevPlugin> for PluginManager {
         msg: InstallDevPlugin,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<InstallDevPlugin>>::Result {
-        println!("{:?}", msg.path.clone());
-        let plugin =
-            DirectoryHandler::new(msg.path).and_then(|handler| self.install_plugin(handler));
+        use self::InstallQueryResult::*;
 
-        MessageResult(plugin.and_then(|_| Ok(())))
+        let res = DirectoryHandler::new(msg.path)
+            .map_err(|_| InvalidPath)
+            .map(|handler| self.install_plugin(handler))
+            .unwrap_or_else(|e| e);
+
+        MessageResult(res)
     }
 }
