@@ -1,0 +1,12 @@
+[package]
+name = "gu-factor"
+version = "0.1.0"
+authors = ["Piotr Chromiec <tworec@golem.network>"]
+
+[dependencies]
+num-bigint = "0.2"
+num-traits = "0.2.1"
+clap = "2.32"
+
+[dependencies.num_cpus]
+version = "1.0"
