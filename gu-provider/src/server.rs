@@ -111,6 +111,7 @@ impl Module for ServerModule {
             config_path: self.config_path.clone(),
             node_id: get_node_id(keys),
             hub_addr: self.hub_addr,
+            decorator: decorator.clone()
         }.start();
 
         let _ = HdMan::start(config_module);
@@ -137,13 +138,14 @@ fn run_mdns_publisher(port: u16) {
     let _ = Box::leak(svc);
 }
 
-struct ServerConfigurer {
+struct ServerConfigurer<D> {
+    decorator: D,
     config_path: Option<String>,
     node_id: NodeId,
     hub_addr: Option<SocketAddr>,
 }
 
-impl Actor for ServerConfigurer {
+impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
@@ -157,6 +159,7 @@ impl Actor for ServerConfigurer {
         let node_id = self.node_id.clone();
         let hub_addr = self.hub_addr.clone();
 
+        let decorator = self.decorator.clone();
         ctx.spawn(
             config
                 .send(GetConfig::new())
@@ -164,10 +167,10 @@ impl Actor for ServerConfigurer {
                 .and_then(|r| r)
                 .map_err(|e| println!("error ! {}", e))
                 .and_then(move |c: Arc<ServerConfig>| {
+                    let decorator = decorator.clone();
                     let server = server::new(move || {
-                        App::new()
-                            .handler("/p2p", p2p_server)
-                            .scope("/m", rpc::mock::scope)
+                        decorator.decorate_webapp(App::new()
+                            .scope("/m", rpc::mock::scope))
                     });
                     let _ = server.bind(c.p2p_addr()).unwrap().start();
 
@@ -192,7 +195,7 @@ impl Actor for ServerConfigurer {
     }
 }
 
-impl Drop for ServerConfigurer {
+impl<D> Drop for ServerConfigurer<D> {
     fn drop(&mut self) {
         println!("provider server configured")
     }

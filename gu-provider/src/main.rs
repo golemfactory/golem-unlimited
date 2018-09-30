@@ -36,6 +36,7 @@ mod provision;
 mod server;
 mod sync_exec;
 mod write_to;
+mod status;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -46,6 +47,7 @@ fn main() {
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::rest_client::LanModule)
             .chain(gu_hardware::module())
+            .chain(status::module())
             .chain(server::ServerModule::new()),
     );
 }

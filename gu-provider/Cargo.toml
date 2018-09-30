@@ -1,6 +1,9 @@
 [package]
 name = "gu-provider"
 version = "0.1.1"
+license = "MIT"
+publish=false
+authors=["golemfactory"]
 
 [features]
 default=[]
@@ -39,4 +42,13 @@ gu-lan = { path = "../gu-lan"}
 gu-ethkey = { path = "../gu-ethkey"}
 gu-hardware = { path = "../gu-hardware"}
 
+[package.metadata.deb]
+depends = "$auto, systemd"
+assets = [
+    ["target/release/gu-provider", "usr/bin/", "755"],
+    ["deployment/gu-provider.service", "lib/systemd/system/", "644"],
+]
+#conf-files=["etc/golem-monitor-replicator"]
+
+maintainer-scripts="deployment/deb"
 

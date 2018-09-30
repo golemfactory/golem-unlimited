@@ -11,6 +11,7 @@ use provision::{download, untgz};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{fmt, fs, io, process, result, time};
+use super::status;
 
 /// Host direct manager
 pub struct HdMan {
@@ -27,6 +28,8 @@ impl Actor for HdMan {
         ctx.bind::<SessionUpdate>(SessionUpdate::ID);
         ctx.bind::<GetSessions>(GetSessions::ID);
         ctx.bind::<DestroySession>(DestroySession::ID);
+
+        status::StatusManager::from_registry().do_send(status::AddProvider::new("hostDirect", ctx.address().recipient()));
 
         ctx.run_interval(time::Duration::from_secs(10), |act, _| {
             act.scan_for_processes()
@@ -550,5 +553,24 @@ impl fmt::Display for Error {
 impl From<String> for Error {
     fn from(msg: String) -> Self {
         Error::Error(msg)
+    }
+}
+
+
+impl Handler<status::GetEnvStatus> for HdMan {
+    type Result = MessageResult<status::GetEnvStatus>;
+
+    fn handle(&mut self, msg: status::GetEnvStatus, ctx: &mut Self::Context) -> <Self as Handler<status::GetEnvStatus>>::Result {
+        let mut num_proc = 0;
+        for session in self.sessions.values() {
+            debug!("session statuc = {:?}", session.status);
+            num_proc += session.processes.len();
+        }
+        debug!("result = {}", num_proc);
+        MessageResult(
+            match num_proc {
+                0 => status::EnvStatus::Ready,
+                _ => status::EnvStatus::Working
+        })
     }
 }
