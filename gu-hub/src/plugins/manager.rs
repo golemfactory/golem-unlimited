@@ -81,7 +81,7 @@ impl PluginManager {
         self.plugins.remove(name);
 
         // TODO: I would prefer some clear function in Plugin trait instead of this
-        let file = self.directory.clone();
+        let file = self.directory.join(name);
         remove_file(file);
     }
 
