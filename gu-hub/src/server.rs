@@ -32,6 +32,8 @@ use serde::ser;
 use serde::Serialize;
 use serde_json;
 use std::marker::PhantomData;
+use actix_web::http::HeaderMap;
+use actix_web::http;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -277,6 +279,14 @@ impl ServerClient {
             .flatten_fut()
     }
 
+    pub fn patch<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
+        path: IntoStr,
+    ) -> impl Future<Item = T, Error = ClientError> {
+        ServerClient::from_registry()
+            .send(ResourcePatch::new(path.into()))
+            .flatten_fut()
+    }
+
     pub fn post<
         T: de::DeserializeOwned + Send + 'static,
         IntoStr: Into<String>,
@@ -365,6 +375,27 @@ impl<T> IntoRequest for ResourceDelete<T> {
     }
 }
 
+struct ResourcePatch<T>(String, PhantomData<T>);
+
+impl<T> ResourcePatch<T> {
+    fn new(path: String) -> Self {
+        ResourcePatch(path, PhantomData)
+    }
+}
+
+impl<T> IntoRequest for ResourcePatch<T> {
+    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
+        let mut builder = ClientRequest::build();
+        builder.method(http::Method::PATCH).uri(url);
+        builder.header("Accept", "application/json")
+            .finish()
+    }
+
+    fn path(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
 struct ResourcePost<T>(String, Bytes, PhantomData<T>);
 
 impl<T> ResourcePost<T> {
@@ -396,6 +427,11 @@ impl<T: de::DeserializeOwned + 'static> Message for ResourceDelete<T> {
 impl<T: de::DeserializeOwned + 'static> Message for ResourcePost<T> {
     type Result = Result<T, ClientError>;
 }
+
+impl<T: de::DeserializeOwned + 'static> Message for ResourcePatch<T> {
+    type Result = Result<T, ClientError>;
+}
+
 
 impl<T: de::DeserializeOwned + 'static, M: IntoRequest + Message> Handler<M> for ServerClient
 where

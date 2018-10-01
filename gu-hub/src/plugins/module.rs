@@ -93,14 +93,14 @@ impl Module for PluginModule {
                     );
                     Command::Uninstall(name)
                 }
-                ("activate", Some(m)) => {
+                ("start", Some(m)) => {
                     let name = String::from(
                         m.value_of("PLUGIN")
                             .expect("Lack of required `plugin` argument"),
                     );
                     Command::Activate(name)
                 }
-                ("inactivate", Some(m)) => {
+                ("stop", Some(m)) => {
                     let name = String::from(
                         m.value_of("PLUGIN")
                             .expect("Lack of required `plugin` argument"),
@@ -125,10 +125,10 @@ impl Module for PluginModule {
             Command::Dev(ref path) => plugins::rest::dev_query(path.to_path_buf()),
             Command::Uninstall(ref name) => plugins::rest::uninstall_query(name.to_string()),
             Command::Activate(ref name) => {
-                plugins::rest::post_status_query(name.to_string(), QueriedStatus::Activate)
+                plugins::rest::status_query(name.to_string(), QueriedStatus::Activate)
             }
             Command::Inactivate(ref name) => {
-                plugins::rest::post_status_query(name.to_string(), QueriedStatus::Inactivate)
+                plugins::rest::status_query(name.to_string(), QueriedStatus::Inactivate)
             }
             Command::Build(ref obj) => plugins::builder::build_query(obj),
         }

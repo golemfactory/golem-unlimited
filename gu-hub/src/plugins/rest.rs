@@ -73,14 +73,17 @@ pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
 
 pub fn install_query(path: PathBuf) {
     System::run(move || {
-        Arbiter::spawn(future::result(read_file(&path)).and_then(|buf| install_query_inner(buf)))
+        Arbiter::spawn(future::result(read_file(&path)).and_then(|buf| install_query_inner(buf))
+            .then(|_r| {
+                Ok(System::current().stop())
+            }))
     });
 }
 
 pub fn uninstall_query(plugin: String) {
     System::run(move || {
         Arbiter::spawn(
-            ServerClient::delete(format!("/plug/{}/uninstall", plugin))
+            ServerClient::delete(format!("/plug/{}", plugin))
                 .and_then(|r: ()| Ok(()))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
@@ -88,10 +91,10 @@ pub fn uninstall_query(plugin: String) {
     });
 }
 
-pub fn post_status_query(plugin: String, status: QueriedStatus) {
+pub fn status_query(plugin: String, status: QueriedStatus) {
     System::run(move || {
         Arbiter::spawn(
-            ServerClient::empty_post(format!("/plug/{}/{}", plugin, status))
+            ServerClient::patch(format!("/plug/{}/{}", plugin, status))
                 .and_then(|r: ()| Ok(()))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
@@ -123,11 +126,11 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .route("", http::Method::GET, list_scope)
         .route("", http::Method::POST, install_scope)
         .route("/dev/{pluginPath:.*}", http::Method::POST, dev_scope)
-        .route("/{pluginName}/uninstall", http::Method::DELETE, |r| {
+        .route("/{pluginName}", http::Method::DELETE, |r| {
             state_scope(QueriedStatus::Uninstall, r)
-        }).route("/{pluginName}/activate", http::Method::POST, |r| {
+        }).route("/{pluginName}/activate", http::Method::PATCH, |r| {
             state_scope(QueriedStatus::Activate, r)
-        }).route("/{pluginName}/inactivate", http::Method::POST, |r| {
+        }).route("/{pluginName}/inactivate/inactivate", http::Method::PATCH, |r| {
             state_scope(QueriedStatus::Inactivate, r)
         }).route("/{pluginName}/{fileName:.*}", http::Method::GET, file_scope)
 }
