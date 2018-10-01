@@ -81,7 +81,7 @@ impl PluginManager {
         self.plugins.remove(name);
 
         // TODO: I would prefer some clear function in Plugin trait instead of this
-        let mut file = self.directory.clone();
+        let file = self.directory.clone();
         remove_file(file);
     }
 
@@ -219,11 +219,6 @@ impl Message for InstallPlugin {
     type Result = InstallQueryResult;
 }
 
-fn zip_name(mut s: String) -> String {
-    s.push_str(".zip");
-    s
-}
-
 impl Handler<InstallPlugin> for PluginManager {
     type Result = MessageResult<InstallPlugin>;
 
@@ -250,7 +245,7 @@ impl Handler<InstallPlugin> for PluginManager {
     }
 }
 
-/// (IN)ACTIVATE PLUGIN
+/// CHANGE STATE
 #[derive(Debug, Clone)]
 pub enum QueriedStatus {
     Activate,

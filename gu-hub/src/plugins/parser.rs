@@ -163,6 +163,7 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
     }
 }
 
+/*
 #[derive(Debug)]
 pub struct DirectoryParser {
     path: Path,
@@ -226,3 +227,4 @@ impl PluginParser for DirectoryParser {
             .and_then(|_| Ok(()))
     }
 }
+*/

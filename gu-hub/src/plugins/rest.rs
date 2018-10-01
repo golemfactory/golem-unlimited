@@ -45,7 +45,7 @@ pub fn list_query() {
     });
 }
 
-pub fn install_query(path: &Path) {
+pub fn read_file(path: &Path) -> Result<Vec<u8>, ()> {
     File::open(path)
         .map_err(|e| {
             error!("Cannot open {:?} file", path.clone());
@@ -56,20 +56,22 @@ pub fn install_query(path: &Path) {
                 error!("Cannot read {:?} file", path.clone());
                 debug!("Error details: {:?}", e)
             })
-        }).and_then(|buf| {
-            System::run(|| {
-                Arbiter::spawn(
-                    ServerClient::post("/plug", buf)
-                        .and_then(|r: RestResponse<InstallQueryResult>| {
-                            Ok(println!("{}", r.message.message()))
-                        }).map_err(|e| {
-                            error!("Error on server connection");
-                            debug!("Error details: {:?}", e)
-                        }).then(|_r| Ok(System::current().stop())),
-                )
-            });
-            Ok(())
-        });
+        })
+}
+
+pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
+    ServerClient::post("/plug", buf)
+        .and_then(|r: RestResponse<InstallQueryResult>| Ok(println!("{}", r.message.message())))
+        .map_err(|e| {
+            error!("Error on server connection");
+            debug!("Error details: {:?}", e)
+        }).then(|_r| Ok(System::current().stop()))
+}
+
+pub fn install_query(path: PathBuf) {
+    System::run(move || {
+        Arbiter::spawn(future::result(read_file(&path)).and_then(|buf| install_query_inner(buf)))
+    });
 }
 
 pub fn uninstall_query(plugin: String) {

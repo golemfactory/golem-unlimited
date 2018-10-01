@@ -1,3 +1,4 @@
+mod builder;
 mod manager;
 pub mod module;
 mod parser;
