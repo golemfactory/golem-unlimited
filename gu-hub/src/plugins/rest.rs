@@ -65,7 +65,10 @@ pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
         .map_err(|e| {
             error!("Error on server connection");
             debug!("Error details: {:?}", e)
-        }).then(|_r| Ok(System::current().stop()))
+        })
+        .then(|_r| {
+            Ok(System::current().stop())
+        })
 }
 
 pub fn install_query(path: PathBuf) {

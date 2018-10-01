@@ -1,30 +1,21 @@
-use actix::Actor;
-use actix::Arbiter;
-use actix::ArbiterService;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::Supervised;
-use actix::System;
-use actix::SystemService;
+use actix::{
+    Actor, Arbiter, ArbiterService, Context, Handler, Message, Supervised, System, SystemService,
+};
 use bytes::Bytes;
 use futures::future;
 use futures::future::Future;
 use gu_actix::flatten::FlattenFuture;
-use gu_base::ArgMatches;
-use gu_base::{App, Arg, SubCommand};
-use plugins::manager;
+use gu_base::{App, Arg, ArgMatches, SubCommand};
 use plugins::plugin::DirectoryHandler;
 use plugins::plugin::PluginHandler;
-use plugins::rest;
-use std::fs;
-use std::fs::{DirEntry, File};
-use std::io::Cursor;
-use std::io::Read;
-use std::io::Write;
-use std::path::Path;
-use std::path::PathBuf;
+use plugins::{manager, plugin, rest};
+use std::fs::{self, DirEntry, File};
+use std::io::{Cursor, Read, Write};
+use std::path::{Path, PathBuf};
 use zip::{write::FileOptions, ZipWriter};
+use actix::ActorFuture;
+use actix::ActorResponse;
+use actix::fut::WrapFuture;
 
 #[derive(Debug, Clone, Default)]
 pub struct PluginBuilder;
@@ -48,7 +39,7 @@ pub struct BuildPluginQuery {
 }
 
 impl Message for BuildPluginQuery {
-    type Result = Result<PathBuf, String>;
+    type Result = Result<(), ()>;
 }
 
 impl<'a> From<ArgMatches<'a>> for BuildPluginQuery {
@@ -139,53 +130,69 @@ fn add_directory_recursive(
     Ok(())
 }
 
+fn build_plugin(msg: BuildPluginQuery) -> Result<PathBuf, String> {
+    let source = PathBuf::from(msg.source);
+    let parser = DirectoryHandler::new(source.clone())?;
+    let metadata = parser.metadata()?;
+
+    let mut target_file = PathBuf::from(msg.target.clone());
+    target_file.push(metadata.name());
+
+    if target_file.exists() && !msg.overwrite {
+        return Err("File exists in target directory".to_string());
+    }
+
+    let mut app_dir = source.clone();
+    app_dir.push(metadata.name());
+
+    let file = File::create(&target_file).map_err(|_| "Cannot create target file")?;
+
+    let mut writer = ZipWriter::new(file);
+    zip_file(&mut writer, &source.join("gu-plugin.json"), &source);
+
+    add_directory_recursive(&mut writer, &app_dir, &source)?;
+
+    Ok(target_file)
+}
+
+fn install_plugin(path: &PathBuf, install: bool) -> impl Future<Item=(), Error=()> {
+    if install {
+        future::Either::A(
+            future::result(rest::read_file(path))
+                .and_then(|buf| {
+                    rest::install_query_inner(buf)
+                })
+        )
+    } else {
+        future::Either::B(future::ok(()))
+    }
+}
+
 impl Handler<BuildPluginQuery> for PluginBuilder {
-    type Result = Result<PathBuf, String>;
+    type Result = ActorResponse<PluginBuilder, (), ()>;
 
     fn handle(
         &mut self,
         msg: BuildPluginQuery,
         ctx: &mut Context<Self>,
     ) -> <Self as Handler<BuildPluginQuery>>::Result {
-        let source = PathBuf::from(msg.source);
-        let parser = DirectoryHandler::new(source.clone())?;
-        let metadata = parser.metadata()?;
-
-        let mut target_file = PathBuf::from(msg.target.clone());
-        target_file.push(metadata.name());
-
-        if target_file.exists() && !msg.overwrite {
-            return Err("File exists in target directory".to_string());
-        }
-
-        let mut app_dir = source.clone();
-        app_dir.push(metadata.name());
-
-        let file = File::create(&target_file).map_err(|_| "Cannot create target file")?;
-
-        let mut writer = ZipWriter::new(file);
-        zip_file(&mut writer, &source.join("gu-plugin.json"), &source);
-
-        add_directory_recursive(&mut writer, &app_dir, &source)?;
-
-        Ok(target_file)
+        ActorResponse::async(
+            future::result(build_plugin(msg.clone()))
+                .map_err(|e| error!("{}", e))
+                .and_then(move |file| install_plugin(&file, msg.install))
+                .into_actor(self)
+        )
     }
 }
 
 pub fn build_query(msg: &BuildPluginQuery) {
     let msg = msg.clone();
 
-    System::run(|| {
-        Arbiter::spawn(
-            PluginBuilder::from_registry()
-                .send(msg)
-                .then(|a| a.unwrap_or(Err("Mailbox error".to_string())))
-                .and_then(|a| {
-                    future::result(rest::read_file(&a))
-                        .and_then(|buf| rest::install_query_inner(buf))
-                        .then(|e| Ok(()))
-                }).map_err(|e| error!("{}", e))
-                .then(|_r| Ok(System::current().stop())),
-        )
-    });
+    System::run(|| { Arbiter::spawn(
+        PluginBuilder::from_registry()
+            .send(msg)
+            .then(|a| a.unwrap_or_else(|_| Err(error!("Mailbox error"))))
+            .map_err(|e| error!("{:?}", e))
+            .then(|_r| Ok(System::current().stop()))
+    )});
 }
