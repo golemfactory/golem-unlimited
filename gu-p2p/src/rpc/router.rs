@@ -2,6 +2,7 @@ use super::error;
 use super::message::*;
 use super::util::*;
 use actix::prelude::*;
+use actix::fut;
 use futures::prelude::*;
 use std::collections::HashMap;
 use std::io::{self, Write};
@@ -98,6 +99,7 @@ impl Handler<EmitMessage<String>> for MessageRouter {
     type Result = ActorResponse<MessageRouter, MessageId, error::Error>;
 
     fn handle(&mut self, msg: EmitMessage<String>, ctx: &mut Self::Context) -> Self::Result {
+        let dest_node = msg.dest_node.clone();
         let f = if let Some(v) = self.remotes.get_mut(&msg.dest_node) {
             v.send(msg).then(|r| match r {
                 Err(e) => {
@@ -111,7 +113,17 @@ impl Handler<EmitMessage<String>> for MessageRouter {
             return ActorResponse::reply(Err(error::ErrorKind::NotConnected.into()));
         };
 
-        ActorResponse::async(f.into_actor(self))
+        ActorResponse::async(f.into_actor(self).map_err( move |e : error::Error, act, ctx| {
+            match e.kind() {
+                error::ErrorKind::MailBox(MailboxError::Closed) => {
+                    error!("removing invalid destination node {:?}", &dest_node);
+                    act.remotes.remove(&dest_node);
+                }
+                _ => ()
+            }
+
+            e
+        }))
     }
 }
 

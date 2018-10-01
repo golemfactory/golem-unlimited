@@ -18,7 +18,7 @@ mod error {
 
         errors {
             NotConnected
-            MailBox
+            MailBox(e : MailboxError)
             Canceled
             NoDestination
             BadFormat(s : String)
@@ -31,7 +31,7 @@ mod error {
 
     impl From<MailboxError> for Error {
         fn from(e: MailboxError) -> Self {
-            ErrorKind::MailBox.into()
+            ErrorKind::MailBox(e).into()
         }
     }
 
