@@ -1,38 +1,37 @@
-use actix::Arbiter;
-use actix::System;
-use actix::SystemService;
-use actix_web::error::ErrorBadRequest;
-use actix_web::error::ErrorInternalServerError;
-use actix_web::http;
-use actix_web::AsyncResponder;
-use actix_web::HttpMessage;
-use actix_web::HttpRequest;
-use actix_web::HttpResponse;
-use actix_web::Responder;
-use actix_web::Scope;
-use bytes::buf::IntoBuf;
-use bytes::Bytes;
-use futures::future;
-use futures::future::Future;
-use futures::stream::Stream;
-use plugins::manager::ChangePluginState;
-use plugins::manager::InstallDevPlugin;
-use plugins::manager::InstallPlugin;
-use plugins::manager::ListPlugins;
-use plugins::manager::PluginFile;
-use plugins::manager::PluginManager;
-use plugins::manager::QueriedStatus;
+use actix::prelude::*;
+use actix_web::{
+    error::{ErrorBadRequest, ErrorInternalServerError},
+    http, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Responder, Scope,
+};
+use bytes::{Bytes, IntoBuf};
+use futures::{future, prelude::*};
+use plugins::manager::{
+    ChangePluginState, InstallDevPlugin, InstallPlugin, ListPlugins, PluginFile, PluginManager,
+    QueriedStatus,
+};
 use plugins::plugin::format_plugins_table;
 use plugins::plugin::PluginInfo;
 use plugins::rest_result::InstallQueryResult;
 use plugins::rest_result::RestResponse;
 use plugins::rest_result::ToHttpResponse;
-use server::ClientError;
-use server::ServerClient;
+use server::{ClientError, ServerClient};
 use std::fs::File;
-use std::io::Cursor;
-use std::io::Read;
+use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
+
+pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
+    scope
+        .route("", http::Method::GET, list_scope)
+        .route("", http::Method::POST, install_scope)
+        .route("/dev/{pluginPath:.*}", http::Method::POST, dev_scope)
+        .route("/{pluginName}/uninstall", http::Method::DELETE, |r| {
+            state_scope(QueriedStatus::Uninstall, r)
+        }).route("/{pluginName}/activate", http::Method::POST, |r| {
+            state_scope(QueriedStatus::Activate, r)
+        }).route("/{pluginName}/inactivate", http::Method::POST, |r| {
+            state_scope(QueriedStatus::Inactivate, r)
+        }).route("/{pluginName}/{fileName:.*}", http::Method::GET, file_scope)
+}
 
 pub fn list_query() {
     System::run(|| {
@@ -111,20 +110,6 @@ pub fn dev_query(path: PathBuf) {
                 .then(|_r| Ok(System::current().stop())),
         )
     });
-}
-
-pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
-    scope
-        .route("", http::Method::GET, list_scope)
-        .route("", http::Method::POST, install_scope)
-        .route("/dev/{pluginPath:.*}", http::Method::POST, dev_scope)
-        .route("/{pluginName}/uninstall", http::Method::DELETE, |r| {
-            state_scope(QueriedStatus::Uninstall, r)
-        }).route("/{pluginName}/activate", http::Method::POST, |r| {
-            state_scope(QueriedStatus::Activate, r)
-        }).route("/{pluginName}/inactivate", http::Method::POST, |r| {
-            state_scope(QueriedStatus::Inactivate, r)
-        }).route("/{pluginName}/{fileName:.*}", http::Method::GET, file_scope)
 }
 
 fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
