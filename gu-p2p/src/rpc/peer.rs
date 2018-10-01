@@ -1,6 +1,6 @@
 use super::super::NodeId;
 use actix::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -46,6 +46,8 @@ pub struct PeerSessionInfo {
     pub status: PeerSessionStatus,
     pub tags: Vec<String>,
     pub note: Option<String>,
+    pub processes: HashSet<String>
+
 }
 
 #[derive(Serialize, Deserialize)]

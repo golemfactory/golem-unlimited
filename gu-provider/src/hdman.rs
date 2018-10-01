@@ -489,6 +489,7 @@ impl Handler<GetSessions> for HdMan {
                 status: session.status.clone(),
                 tags: session.tags.clone(),
                 note: session.note.clone(),
+                processes: session.processes.keys().cloned().collect()
             }).collect())
     }
 }
