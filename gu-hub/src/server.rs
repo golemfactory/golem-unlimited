@@ -145,7 +145,7 @@ fn mdns_publisher(run: bool, port: u16) {
 fn mdns_querier(run: bool) {
     if run {
         // TODO: add it to endpoint
-        start_actor(server::LanInfo());
+        start_actor(server::LanServer);
     }
 }
 

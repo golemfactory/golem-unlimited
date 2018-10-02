@@ -220,11 +220,11 @@ impl Handler<ServicesDescription> for MdnsActor<OneShot> {
 
 #[cfg(test)]
 mod tests {
-    use actor::MdnsActor;
+    use actor::{MdnsActor, OneShot};
 
     #[test]
     fn create_mdns_socket() {
-        let socket = MdnsActor::create_mdns_socket();
+        let socket = MdnsActor::<OneShot>::create_mdns_socket();
 
         assert!(socket.is_ok());
     }
