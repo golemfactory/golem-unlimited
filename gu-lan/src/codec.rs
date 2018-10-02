@@ -11,7 +11,8 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::str::from_utf8;
 
-pub(crate) struct ParsedPacket {
+#[derive(Clone, Debug)]
+pub struct ParsedPacket {
     pub id: u16,
     pub instances: Vec<ServiceInstance>,
 }

@@ -22,23 +22,58 @@ use std::net::SocketAddr::{self, V4};
 use std::time::Duration;
 use tokio::net::{UdpFramed, UdpSocket};
 use tokio::reactor::Handle;
+use std::marker::PhantomData;
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]
-pub struct ResolveActor {
+pub struct MdnsActor<T: MdnsConnection> {
     /// Interior, indirect responder sink
     sender: Option<sync::mpsc::Sender<((ServicesDescription, u16), SocketAddr)>>,
+    data: Box<T>,
+}
+
+pub trait MdnsConnection: 'static + Default + Sized {
+    fn port() -> u16;
+
+    fn handle_packet(
+        &mut self,
+        packet: ParsedPacket,
+        src: SocketAddr,
+    );
+}
+
+pub type Response<T> = ActorResponse<MdnsActor<T>, HashSet<ServiceInstance>, Error>;
+
+#[derive(Debug, Default)]
+pub struct OneShot {
     /// Next id for mDNS query
     next_id: u16,
     /// Services for given id
     map: HashMap<u16, Services>,
 }
 
-pub type Response = ActorResponse<ResolveActor, HashSet<ServiceInstance>, Error>;
+impl MdnsConnection for OneShot {
+    fn port() -> u16 {
+        0
+    }
 
-impl ResolveActor {
+    fn handle_packet(&mut self, packet: ParsedPacket, src: SocketAddr) {
+        if let Some(services) = self.map.get_mut(&packet.id) {
+            for mut service in packet.instances {
+                match src {
+                    V4(sock) => service.addrs_v4 = biggest_mask_ipv4(&service.addrs_v4, sock.ip()),
+                    _ => (),
+                }
+
+                services.add_instance(service);
+            }
+        }
+    }
+}
+
+impl<T: MdnsConnection> MdnsActor<T> {
     pub fn new() -> Self {
-        ResolveActor::default()
+        MdnsActor::default()
     }
 
     fn create_mdns_socket() -> Result<UdpSocket> {
@@ -47,7 +82,7 @@ impl ResolveActor {
         let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
         let any_ip = Ipv4Addr::new(0, 0, 0, 0);
 
-        let socket_address = SocketAddrV4::new(any_ip, 0);
+        let socket_address = SocketAddrV4::new(any_ip, OneShot::port());
 
         socket.set_reuse_address(true)?;
         socket.set_multicast_loop_v4(true)?;
@@ -56,15 +91,17 @@ impl ResolveActor {
 
         UdpSocket::from_std(socket.into_udp_socket(), &Handle::current()).map_err(Error::from)
     }
+}
 
+impl MdnsActor<OneShot> {
     fn retrieve_services(&mut self, id: u16) -> Result<HashSet<ServiceInstance>> {
-        self.map
+        self.data.map
             .remove(&id)
             .ok_or(ErrorKind::MissingKey.into())
             .and_then(|a| Ok(a.collect()))
     }
 
-    fn build_response<F>(&mut self, fut: F, _ctx: &mut Context<Self>, id: u16) -> Response
+    fn build_response<F>(&mut self, fut: F, _ctx: &mut Context<Self>, id: u16) -> Response<OneShot>
     where
         F: Future<Item = (), Error = Error> + 'static,
     {
@@ -116,26 +153,19 @@ fn biggest_mask_ipv4(vec: &Vec<Ipv4Addr>, src: &Ipv4Addr) -> Vec<Ipv4Addr> {
     vec![*best_instance.unwrap_or(src)]
 }
 
-impl StreamHandler<(ParsedPacket, SocketAddr), Error> for ResolveActor {
+
+
+impl<T: MdnsConnection> StreamHandler<(ParsedPacket, SocketAddr), Error> for MdnsActor<T> {
     fn handle(
         &mut self,
         (packet, src): (ParsedPacket, SocketAddr),
-        _ctx: &mut Context<ResolveActor>,
+        _ctx: &mut Context<MdnsActor<T>>,
     ) {
-        if let Some(services) = self.map.get_mut(&packet.id) {
-            for mut service in packet.instances {
-                match src {
-                    V4(sock) => service.addrs_v4 = biggest_mask_ipv4(&service.addrs_v4, sock.ip()),
-                    _ => (),
-                }
-
-                services.add_instance(service);
-            }
-        }
+        T::handle_packet(&mut self.data, packet, src);
     }
 }
 
-impl Actor for ResolveActor {
+impl<T: MdnsConnection> Actor for MdnsActor<T> {
     type Context = Context<Self>;
 
     /// Creates stream handler for incoming mDNS packets
@@ -156,21 +186,21 @@ impl Actor for ResolveActor {
     }
 }
 
-impl Supervised for ResolveActor {}
+impl<T: MdnsConnection> Supervised for MdnsActor<T> {}
 
-impl ArbiterService for ResolveActor {}
+impl<T: MdnsConnection> ArbiterService for MdnsActor<T> {}
 
-impl Handler<ServicesDescription> for ResolveActor {
-    type Result = Response;
+impl Handler<ServicesDescription> for MdnsActor<OneShot> {
+    type Result = Response<OneShot>;
 
-    fn handle(&mut self, msg: ServicesDescription, ctx: &mut Self::Context) -> Response {
+    fn handle(&mut self, msg: ServicesDescription, ctx: &mut Self::Context) -> Response<OneShot> {
         let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
         let addr = SocketAddrV4::new(multicast_ip, 5353).into();
 
-        let id = self.next_id;
-        self.next_id = id.wrapping_add(1);
+        let id = self.data.next_id;
+        self.data.next_id = id.wrapping_add(1);
 
-        self.map.insert(id, msg.to_services());
+        self.data.map.insert(id, msg.to_services());
         let message = ((msg, id), addr);
         let sender = self.sender.clone();
 
@@ -190,11 +220,11 @@ impl Handler<ServicesDescription> for ResolveActor {
 
 #[cfg(test)]
 mod tests {
-    use actor::ResolveActor;
+    use actor::MdnsActor;
 
     #[test]
     fn create_mdns_socket() {
-        let socket = ResolveActor::create_mdns_socket();
+        let socket = MdnsActor::create_mdns_socket();
 
         assert!(socket.is_ok());
     }

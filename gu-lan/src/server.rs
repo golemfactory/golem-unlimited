@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use actor::ResolveActor;
+use actor::{MdnsActor, OneShot};
 use futures::Future;
 use gu_actix::flatten::FlattenFuture;
 use gu_p2p::rpc::*;
@@ -8,11 +8,13 @@ use service::ServiceDescription;
 use service::ServiceInstance;
 use service::ServicesDescription;
 use std::collections::HashSet;
+use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
 /// Actix-web actor for mDNS service discovery
-pub struct LanInfo();
+pub struct LanServer;
 
-impl Actor for LanInfo {
+impl Actor for LanServer {
     type Context = RemotingContext<Self>;
 
     fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
@@ -22,16 +24,16 @@ impl Actor for LanInfo {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct QueryLan {
+pub struct LanQuery {
     /// Eg. 'gu-provider' 'gu-hub'
-    #[serde(default = "QueryLan::instances")]
+    #[serde(default = "LanQuery::instances")]
     pub(crate) instances: Vec<String>,
     /// Eg. '_unlimited._tcp'
-    #[serde(default = "QueryLan::service")]
+    #[serde(default = "LanQuery::service")]
     pub(crate) service: String,
 }
 
-impl QueryLan {
+impl LanQuery {
     fn instances() -> Vec<String> {
         let mut vec = Vec::new();
         vec.push("gu-hub".to_string());
@@ -44,14 +46,14 @@ impl QueryLan {
     }
 
     pub fn single(s: String) -> Self {
-        QueryLan {
+        LanQuery {
             instances: vec![s],
             service: Self::service(),
         }
     }
 
     pub fn new(vec: Vec<String>) -> Self {
-        QueryLan {
+        LanQuery {
             instances: vec,
             service: Self::service(),
         }
@@ -62,18 +64,18 @@ impl QueryLan {
     }
 }
 
-impl Message for QueryLan {
+impl Message for LanQuery {
     type Result = Result<HashSet<ServiceInstance>, ()>;
 }
 
-impl Handler<QueryLan> for LanInfo {
-    type Result = ActorResponse<LanInfo, HashSet<ServiceInstance>, ()>;
+impl Handler<LanQuery> for LanServer {
+    type Result = ActorResponse<LanServer, HashSet<ServiceInstance>, ()>;
 
     fn handle(
         &mut self,
-        msg: QueryLan,
+        msg: LanQuery,
         _ctx: &mut Self::Context,
-    ) -> ActorResponse<LanInfo, HashSet<ServiceInstance>, ()> {
+    ) -> ActorResponse<LanServer, HashSet<ServiceInstance>, ()> {
         info!("Handle lan query");
         let mut vec = Vec::new();
         for instance in msg.instances {
@@ -82,7 +84,7 @@ impl Handler<QueryLan> for LanInfo {
         let services_desc = ServicesDescription::new(vec);
 
         ActorResponse::async({
-            ResolveActor::from_registry()
+            MdnsActor::<OneShot>::from_registry()
                 .send(services_desc)
                 .flatten_fut()
                 .map_err(|e| error!("err: {}", e))

@@ -10,6 +10,7 @@ use futures::future;
 use futures::Future;
 use gu_lan::service::ServicesDescription;
 use log::LevelFilter;
+use gu_lan::actor::OneShot;
 
 fn main() {
     Builder::from_default_env()
@@ -17,7 +18,7 @@ fn main() {
         .init();
 
     let sys = actix::System::new("none_example");
-    let actor = gu_lan::actor::ResolveActor::new();
+    let actor = gu_lan::actor::MdnsActor::<OneShot>::new();
     let address = actor.start();
     let res = address.send(gu_lan::service::ServicesDescription::single(
         "gu-hub",

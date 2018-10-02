@@ -74,7 +74,7 @@ impl Message for ServicesDescription {
 }
 
 /// Contains information about single service in a network
-#[derive(Debug, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct ServiceInstance {
     pub name: String,
     pub host: String,
@@ -84,7 +84,7 @@ pub struct ServiceInstance {
 }
 
 #[derive(Debug, Serialize, Default)]
-pub(crate) struct Services {
+pub struct Services {
     map: HashMap<String, HashSet<ServiceInstance>>,
 }
 
