@@ -23,7 +23,7 @@ pub fn gpu_count() -> error::Result<GpuCount> {
     Ok(pci_devices()?
         .filter_map(|device_ref| device_ref.ok())
         .filter(|device| match device.class_code() {
-            Ok(code) => code == CLASS_CODE_VGA,
+            Ok(code) => code == CL_DEVICE_TYPE_GPU || code == CL_DEVICE_TYPE_ACCELERATOR,
             Err(_) => false,
         }).fold(GpuCount::default(), |gpu, device| {
             match device.vendor_code() {
