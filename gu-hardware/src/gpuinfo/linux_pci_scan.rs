@@ -7,7 +7,8 @@ pub type VendorCode = u16;
 pub const VENDOR_CODE_AMD: VendorCode = 0x1002;
 pub const VENDOR_CODE_NVIDIA: VendorCode = 0x10de;
 pub const VENDOR_CODE_INTEL: VendorCode = 0x8086;
-pub const CLASS_CODE_VGA: u32 = 0x030000;
+pub const CL_DEVICE_TYPE_GPU: u32 = 0x030000;
+pub const CL_DEVICE_TYPE_ACCELERATOR: u32 = 0x030200;
 
 pub struct PciDevices {
     inner: ReadDir,
