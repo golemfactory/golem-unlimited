@@ -7,4 +7,5 @@ mod rest;
 mod rest_result;
 
 pub use self::module::PluginModule;
-pub use self::plugin::{PluginMetadata, PluginEvent};
+pub use self::plugin::{PluginMetadata, PluginEvent, PluginStatus};
+pub use self::manager::{ListPlugins, PluginManager};

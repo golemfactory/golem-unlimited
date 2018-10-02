@@ -88,6 +88,19 @@ pub struct PluginInfo {
     status: PluginStatus,
 }
 
+impl PluginInfo {
+
+    #[inline]
+    pub fn status(&self) -> PluginStatus {
+        self.status.clone()
+    }
+
+    #[inline]
+    pub fn metadata(&self) -> &PluginMetadata {
+        &self.metadata
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PluginStatus {
     Active,

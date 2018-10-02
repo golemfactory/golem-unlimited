@@ -47,6 +47,8 @@ prettytable-rs="0.7"
 [build-dependencies]
 flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
 
+[features]
+default=["actix-web/rust-tls"]
 
 [package.metadata.deb]
 assets=[
