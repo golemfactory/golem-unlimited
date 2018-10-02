@@ -136,7 +136,7 @@ fn build_plugin(msg: BuildPluginQuery) -> Result<PathBuf, String> {
     let metadata = parser.metadata()?;
 
     let mut target_file = PathBuf::from(msg.target.clone());
-    target_file.push(metadata.name());
+    target_file.push(format!("{}.gu-plugin", metadata.name()));
 
     if target_file.exists() && !msg.overwrite {
         return Err("File exists in target directory".to_string());
