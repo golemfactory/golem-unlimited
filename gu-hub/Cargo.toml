@@ -65,5 +65,6 @@ assets=[
     ["webapp/app.js","usr/lib/golemu/webapp/","644"],
     ["target/release/gu-hub", "usr/bin/", "755"],
     ["deployment/gu-hub.service", "lib/systemd/system/", "644"],
-
 ]
+
+maintainer-scripts="deployment/deb"

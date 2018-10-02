@@ -48,9 +48,7 @@ impl Actor for ProxyManager {
             .and_then(|id| Ok(debug!("id={}", id)))
             .map_err(|_| ())
             .into_actor(self);
-        eprintln!("ProxyManager [STARTING]");
         ctx.wait(f);
-        eprintln!("ProxyManager [STARTED]")
     }
 }
 
@@ -58,7 +56,6 @@ impl Handler<gu_event_bus::Event<PluginEvent>> for ProxyManager {
     type Result = ();
 
     fn handle(&mut self, msg: gu_event_bus::Event<PluginEvent>, ctx: &mut Self::Context) -> Self::Result {
-        eprintln!("got event: {:?}", msg.data());
         match msg.data() {
             PluginEvent::New(plugin_meta) => {
                 let config : Vec<ServiceConfig> = plugin_meta.service("gu-proxy");
