@@ -1,6 +1,8 @@
 use actix_web;
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use plugins;
+use plugins::builder::BuildPluginQuery;
+use plugins::builder::PluginBuilder;
 use plugins::manager::QueriedStatus;
 use plugins::rest::scope;
 use std::path::PathBuf;
@@ -19,6 +21,7 @@ enum Command {
     Uninstall(String),
     Activate(String),
     Inactivate(String),
+    Build(BuildPluginQuery),
 }
 
 impl PluginModule {
@@ -61,6 +64,7 @@ impl Module for PluginModule {
                 SubCommand::with_name("uninstall")
                     .about("Uninstalls the plugin")
                     .arg(Arg::from(&plugin)),
+                plugins::builder::subcommand()
             ]))
     }
 
@@ -89,20 +93,21 @@ impl Module for PluginModule {
                     );
                     Command::Uninstall(name)
                 }
-                ("activate", Some(m)) => {
+                ("start", Some(m)) => {
                     let name = String::from(
                         m.value_of("PLUGIN")
                             .expect("Lack of required `plugin` argument"),
                     );
                     Command::Activate(name)
                 }
-                ("inactivate", Some(m)) => {
+                ("stop", Some(m)) => {
                     let name = String::from(
                         m.value_of("PLUGIN")
                             .expect("Lack of required `plugin` argument"),
                     );
                     Command::Inactivate(name)
                 }
+                ("build", Some(m)) => Command::Build(m.to_owned().into()),
                 ("", None) => Command::None,
                 _ => return false,
             };
@@ -116,15 +121,16 @@ impl Module for PluginModule {
         match self.command {
             Command::None => (),
             Command::List => plugins::rest::list_query(),
-            Command::Install(ref path) => plugins::rest::install_query(path),
+            Command::Install(ref path) => plugins::rest::install_query(path.into()),
             Command::Dev(ref path) => plugins::rest::dev_query(path.to_path_buf()),
             Command::Uninstall(ref name) => plugins::rest::uninstall_query(name.to_string()),
             Command::Activate(ref name) => {
-                plugins::rest::post_status_query(name.to_string(), QueriedStatus::Activate)
+                plugins::rest::status_query(name.to_string(), QueriedStatus::Activate)
             }
             Command::Inactivate(ref name) => {
-                plugins::rest::post_status_query(name.to_string(), QueriedStatus::Inactivate)
+                plugins::rest::status_query(name.to_string(), QueriedStatus::Inactivate)
             }
+            Command::Build(ref obj) => plugins::builder::build_query(obj),
         }
     }
 
