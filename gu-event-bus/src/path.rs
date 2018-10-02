@@ -63,4 +63,19 @@ mod test {
         assert_eq!(pl.len(), 3);
     }
 
+    #[test]
+    fn test_path2() {
+        let p1: EventPath = "/plugins/Mining".into();
+
+        let pl: Vec<&str> = p1.iter().collect();
+        assert_eq!(pl[0], "");
+        assert_eq!(pl[1], "/plugins");
+        assert_eq!(pl[2], "/plugins/Mining");
+        assert_eq!(pl.len(), 3);
+
+        for it in p1.iter() {
+            println!("it={}", it)
+        }
+    }
+
 }

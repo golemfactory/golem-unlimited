@@ -11,6 +11,7 @@ extern crate log;
 
 use actix::{ArbiterService, Message};
 use std::sync::Arc;
+use std::fmt::Debug;
 
 /// Empty event
 pub struct Event<T> {
@@ -38,8 +39,10 @@ impl<T> Message for Event<T> {
     type Result = ();
 }
 
-pub fn post_event<T: 'static + Send + Sync>(path: &str, event_data: T) {
-    let inner = Arc::new((path.to_string(), event_data));
+pub fn post_event<T: 'static + Send + Sync + Debug>(path: String, event_data: T) {
+    debug!("sending event: {} => {:?}", &path, &event_data);
+
+    let inner = Arc::new((path, event_data));
 
     actor::EventHubWorker::from_registry().do_send(Event { inner });
 }

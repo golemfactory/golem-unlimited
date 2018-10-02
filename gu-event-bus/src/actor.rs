@@ -188,10 +188,14 @@ impl<T: 'static + Send + Sync> Handler<Event<T>> for EventHubWorker<T> {
         msg: Event<T>,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<Event<T>>>::Result {
+
+        debug!("processing event worker_id={}, keys={:?}, path={}", self.worker_id.unwrap(), self.subscribers.keys(), msg.path());
+
         let path: EventPath = msg.path().into();
+
         for path_part in path.iter() {
             let subscribers = match self.subscribers.get_mut(path_part) {
-                None => return (),
+                None => continue,
                 Some(v) => v,
             };
             subscribers.retain(|(id, sub)| match sub.try_send(msg.clone()) {
@@ -204,7 +208,7 @@ impl<T: 'static + Send + Sync> Handler<Event<T>> for EventHubWorker<T> {
                     true
                 }
                 Ok(()) => true,
-            })
+            });
         }
     }
 }
