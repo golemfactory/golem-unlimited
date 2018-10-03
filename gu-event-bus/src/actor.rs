@@ -11,7 +11,7 @@ use super::path::EventPath;
 use super::Event;
 use std::cmp;
 
-/* TODO: Auto unscbscribe
+/* TODO: Auto unsubscribe
 struct Subscription {
     subscription_id : u64
 }
