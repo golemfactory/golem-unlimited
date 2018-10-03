@@ -1,0 +1,5 @@
+
+systemctl stop gu-hub
+systemctl disable gu-hub
+
+
