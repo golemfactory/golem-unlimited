@@ -32,24 +32,14 @@ fn main() {
         .filter_level(LevelFilter::Off)
         .init();
 
-    let sys = actix::System::new("none_example");
-    let actor = gu_lan::actor::MdnsActor::<Continuous>::new();
-    let address = actor.start();
-    let receiver = Receiver.start();
 
-    let res = address.send(SubscribeInstance {
-        service: gu_lan::service::ServiceDescription::new("gu-hub", "_unlimited._tcp"),
-        rec: receiver.recipient(),
+    System::run(move || {
+        let cont = gu_lan::actor::MdnsActor::<Continuous>::from_registry();
+        let receiver = Receiver.start();
+        Arbiter::spawn(
+            cont.send(SubscribeInstance {
+                service: gu_lan::service::ServiceDescription::new("gu-provider", "_unlimited._tcp"),
+                rec: receiver.recipient(),
+        }).then(|_| Ok(())))
     });
-
-    Arbiter::spawn(res.then(|res| {
-        match res {
-            Ok(result) => println!("Received result: {:?}", result),
-            _ => println!("Something went wrong"),
-        }
-
-        future::result(Ok(()))
-    }));
-
-    let _ = sys.run();
 }

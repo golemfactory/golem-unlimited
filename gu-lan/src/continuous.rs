@@ -23,10 +23,10 @@ use std::time::Instant;
 
 static SKIP_INTERVAL_PERCENTAGE: u64 = 80;
 static INTERVAL_MULTIPLIER: u32 = 10;
-static MAX_INTERVAL: Duration = Duration::from_secs(50);
-static START_INTERVAL: Duration = Duration::from_secs(2);
+static MAX_INTERVAL: Duration = Duration::from_secs(200);
+static START_INTERVAL: Duration = Duration::from_secs(200);
 static CLEAR_MEMORY_PERIOD: u64 = 1;
-static SERVICE_TTL: u64 = 60;
+static SERVICE_TTL: u64 = 6;
 
 struct ExponentialNotify {
     interval: Duration,
@@ -256,23 +256,21 @@ impl Actor for ContinuousInstancesList {
                     .map_err(|e, _, _| error!("mDNS query error: {:?}", e)),
             );
             let dur = act.notifier.query_time().unwrap_or(Duration::from_secs(0));
-            println!("{:?}", dur);
 
             ctx.run_later(dur, query_loop);
         };
 
         let dur = self.notifier.query_time().unwrap_or(Duration::from_secs(0));
-        println!("{:?}", dur);
         ctx.run_later(dur, query_loop);
 
-        ctx.run_interval(Duration::from_secs(1), |act, _ctx| {
-            act.memory
-                .memory()
-                .into_iter()
-                .map(|a| a.host)
-                .for_each(|a| println!("{:?}", a));
-            println!();
-        });
+//        ctx.run_interval(Duration::from_secs(1), |act, _ctx| {
+//            act.memory
+//                .memory()
+//                .into_iter()
+//                .map(|a| a.host)
+//                .for_each(|a| println!("{:?}", a));
+//            println!();
+//        });
     }
 }
 
