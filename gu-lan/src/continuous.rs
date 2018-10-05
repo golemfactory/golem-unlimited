@@ -22,11 +22,11 @@ use std::time::Duration;
 use std::time::Instant;
 
 static SKIP_INTERVAL_PERCENTAGE: u64 = 80;
-static INTERVAL_MULTIPLIER: u32 = 10;
-static MAX_INTERVAL: Duration = Duration::from_secs(200);
-static START_INTERVAL: Duration = Duration::from_secs(200);
+static INTERVAL_MULTIPLIER: u32 = 3;
+static MAX_INTERVAL: Duration = Duration::from_secs(50);
+static START_INTERVAL: Duration = Duration::from_secs(1);
 static CLEAR_MEMORY_PERIOD: u64 = 1;
-static SERVICE_TTL: u64 = 6;
+static SERVICE_TTL: u64 = 60;
 
 struct ExponentialNotify {
     interval: Duration,
