@@ -13,16 +13,20 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 
 use actix::AsyncContext;
 use codec::ParsedPacket;
+use continuous::ContinuousInstancesList;
+use continuous::{ForeignMdnsQueryInfo, ReceivedMdnsInstance};
 use futures::sync;
 use futures::sync::mpsc;
 use gu_actix::FlattenFuture;
+use service::ServiceDescription;
 use service::Services;
 use std::collections::HashSet;
 use std::net::SocketAddr::{self, V4};
 use std::time::Duration;
 use tokio::net::{UdpFramed, UdpSocket};
 use tokio::reactor::Handle;
-use std::marker::PhantomData;
+use continuous::NewInstance;
+use continuous::Subscribe;
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]
@@ -35,14 +39,13 @@ pub struct MdnsActor<T: MdnsConnection> {
 pub trait MdnsConnection: 'static + Default + Sized {
     fn port() -> u16;
 
-    fn handle_packet(
-        &mut self,
-        packet: ParsedPacket,
-        src: SocketAddr,
-    );
+    fn unicast_query() -> bool;
+
+    fn handle_packet(&mut self, packet: ParsedPacket, src: SocketAddr);
 }
 
-pub type Response<T> = ActorResponse<MdnsActor<T>, HashSet<ServiceInstance>, Error>;
+pub type OneShotResponse<T> = ActorResponse<MdnsActor<T>, HashSet<ServiceInstance>, Error>;
+pub type ContinuousResponse<T> = ActorResponse<MdnsActor<T>, (), Error>;
 
 #[derive(Debug, Default)]
 pub struct OneShot {
@@ -52,9 +55,19 @@ pub struct OneShot {
     map: HashMap<u16, Services>,
 }
 
+#[derive(Default)]
+pub struct Continuous {
+    /// Services for given id
+    map: HashMap<String, Addr<ContinuousInstancesList>>,
+}
+
 impl MdnsConnection for OneShot {
     fn port() -> u16 {
         0
+    }
+
+    fn unicast_query() -> bool {
+        true
     }
 
     fn handle_packet(&mut self, packet: ParsedPacket, src: SocketAddr) {
@@ -71,6 +84,30 @@ impl MdnsConnection for OneShot {
     }
 }
 
+impl MdnsConnection for Continuous {
+    fn port() -> u16 {
+        5353
+    }
+
+    fn unicast_query() -> bool {
+        false
+    }
+
+    fn handle_packet(&mut self, packet: ParsedPacket, _src: SocketAddr) {
+        for name in packet.questions {
+            self.map
+                .get(&name)
+                .map(|list| list.do_send(ForeignMdnsQueryInfo));
+        }
+
+        for instance in packet.instances {
+            self.map
+                .get(&instance.name)
+                .map(|list| list.do_send(ReceivedMdnsInstance::new(instance)));
+        }
+    }
+}
+
 impl<T: MdnsConnection> MdnsActor<T> {
     pub fn new() -> Self {
         MdnsActor::default()
@@ -82,7 +119,7 @@ impl<T: MdnsConnection> MdnsActor<T> {
         let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
         let any_ip = Ipv4Addr::new(0, 0, 0, 0);
 
-        let socket_address = SocketAddrV4::new(any_ip, OneShot::port());
+        let socket_address = SocketAddrV4::new(any_ip, T::port());
 
         socket.set_reuse_address(true)?;
         socket.set_multicast_loop_v4(true)?;
@@ -93,15 +130,37 @@ impl<T: MdnsConnection> MdnsActor<T> {
     }
 }
 
+pub fn send_mdns_query(
+    sender: Option<sync::mpsc::Sender<((ServicesDescription, u16), SocketAddr)>>,
+    services: ServicesDescription,
+    id: u16,
+) -> impl Future<Item = (), Error = Error> {
+    let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
+    let addr = SocketAddrV4::new(multicast_ip, 5353).into();
+
+    let message = ((services, id), addr);
+
+    match sender {
+        Some(a) => future::Either::A(
+            a.send(message)
+                .and_then(|sender| Ok(sender.flush()))
+                .and_then(|_| Ok(()))
+                .map_err(|_| ErrorKind::FutureSendError.into()),
+        ),
+        None => future::Either::B(future::err(ErrorKind::ActorNotInitialized.into())),
+    }
+}
+
 impl MdnsActor<OneShot> {
     fn retrieve_services(&mut self, id: u16) -> Result<HashSet<ServiceInstance>> {
-        self.data.map
+        self.data
+            .map
             .remove(&id)
             .ok_or(ErrorKind::MissingKey.into())
             .and_then(|a| Ok(a.collect()))
     }
 
-    fn build_response<F>(&mut self, fut: F, _ctx: &mut Context<Self>, id: u16) -> Response<OneShot>
+    fn build_response<F>(&mut self, fut: F, _ctx: &mut Context<Self>, id: u16) -> OneShotResponse<OneShot>
     where
         F: Future<Item = (), Error = Error> + 'static,
     {
@@ -153,8 +212,6 @@ fn biggest_mask_ipv4(vec: &Vec<Ipv4Addr>, src: &Ipv4Addr) -> Vec<Ipv4Addr> {
     vec![*best_instance.unwrap_or(src)]
 }
 
-
-
 impl<T: MdnsConnection> StreamHandler<(ParsedPacket, SocketAddr), Error> for MdnsActor<T> {
     fn handle(
         &mut self,
@@ -171,7 +228,7 @@ impl<T: MdnsConnection> Actor for MdnsActor<T> {
     /// Creates stream handler for incoming mDNS packets
     fn started(&mut self, ctx: &mut Self::Context) {
         let socket = Self::create_mdns_socket().expect("Creation of mDNS socket failed");
-        let (sink, stream) = UdpFramed::new(socket, MdnsCodec {}).split();
+        let (sink, stream) = UdpFramed::new(socket, MdnsCodec(T::unicast_query())).split();
 
         Self::add_stream(stream, ctx);
 
@@ -191,30 +248,58 @@ impl<T: MdnsConnection> Supervised for MdnsActor<T> {}
 impl<T: MdnsConnection> ArbiterService for MdnsActor<T> {}
 
 impl Handler<ServicesDescription> for MdnsActor<OneShot> {
-    type Result = Response<OneShot>;
+    type Result = OneShotResponse<OneShot>;
 
-    fn handle(&mut self, msg: ServicesDescription, ctx: &mut Self::Context) -> Response<OneShot> {
-        let multicast_ip = Ipv4Addr::new(224, 0, 0, 251);
-        let addr = SocketAddrV4::new(multicast_ip, 5353).into();
-
+    fn handle(&mut self, msg: ServicesDescription, ctx: &mut Self::Context) -> OneShotResponse<OneShot> {
         let id = self.data.next_id;
         self.data.next_id = id.wrapping_add(1);
 
-        self.data.map.insert(id, msg.to_services());
-        let message = ((msg, id), addr);
-        let sender = self.sender.clone();
-
-        let future = match sender {
-            Some(a) => future::Either::A(
-                a.send(message)
-                    .and_then(|sender| Ok(sender.flush()))
-                    .and_then(|_| Ok(()))
-                    .map_err(|_| ErrorKind::FutureSendError.into()),
-            ),
-            None => future::Either::B(future::err(ErrorKind::ActorNotInitialized.into())),
-        };
+        let future = send_mdns_query(self.sender.clone(), msg, id);
 
         self.build_response(future, ctx, id)
+    }
+}
+
+pub struct SubscribeInstance {
+    pub service: ServiceDescription,
+    pub rec: Recipient<NewInstance>
+}
+
+impl Message for SubscribeInstance {
+    type Result = Result<()>;
+}
+
+pub struct UnsubscribeInstance {
+    pub service: ServiceInstance,
+}
+
+impl Handler<SubscribeInstance> for MdnsActor<Continuous> {
+    type Result = ContinuousResponse<Continuous>;
+
+    fn handle(&mut self, msg: SubscribeInstance, ctx: &mut Self::Context) -> ContinuousResponse<Continuous> {
+        use std::collections::hash_map::Entry;
+
+        let res = match self.data.map.entry(msg.service.to_string()) {
+            Entry::Vacant(a) => {
+                let service =
+                    ContinuousInstancesList::new(msg.service.clone(), self.sender.clone().unwrap()).start();
+                a.insert(service.clone().into());
+                service.send(Subscribe { rec: msg.rec })
+            }
+            Entry::Occupied(ref mut b) => {
+
+
+                if b.get().connected() {
+                    b.get_mut().send(Subscribe { rec: msg.rec })
+                } else {
+                    b.insert({
+                        ContinuousInstancesList::new(msg.service.clone(), self.sender.clone().unwrap()).start()
+                    }).send(Subscribe { rec: msg.rec })
+                }
+            }
+        };
+
+        ActorResponse::async(res.map_err(|_| ErrorKind::Mailbox.into()).into_actor(self))
     }
 }
 

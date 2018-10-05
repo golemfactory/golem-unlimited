@@ -1,9 +1,8 @@
-use actix::Message;
+use actix::prelude::*;
 use errors::Result;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::net::IpAddr;
 use std::net::Ipv4Addr;
 
 /// Struct describing single service in .local domain's network

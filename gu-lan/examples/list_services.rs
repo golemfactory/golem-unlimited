@@ -8,9 +8,24 @@ use actix::prelude::*;
 use env_logger::Builder;
 use futures::future;
 use futures::Future;
-use gu_lan::service::ServicesDescription;
+use gu_lan::actor::Continuous;
+use gu_lan::actor::SubscribeInstance;
 use log::LevelFilter;
-use gu_lan::actor::OneShot;
+use gu_lan::continuous::NewInstance;
+
+struct Receiver;
+
+impl Actor for Receiver {
+    type Context = Context<Self>;
+}
+
+impl Handler<NewInstance> for Receiver {
+    type Result = ();
+
+    fn handle(&mut self, msg: NewInstance, ctx: &mut Context<Self>) -> () {
+        println!("{:?}", msg.data);
+    }
+}
 
 fn main() {
     Builder::from_default_env()
@@ -18,12 +33,14 @@ fn main() {
         .init();
 
     let sys = actix::System::new("none_example");
-    let actor = gu_lan::actor::MdnsActor::<OneShot>::new();
+    let actor = gu_lan::actor::MdnsActor::<Continuous>::new();
     let address = actor.start();
-    let res = address.send(gu_lan::service::ServicesDescription::single(
-        "gu-hub",
-        "_unlimited._tcp",
-    ));
+    let receiver = Receiver.start();
+
+    let res = address.send(SubscribeInstance {
+        service: gu_lan::service::ServiceDescription::new("gu-hub", "_unlimited._tcp"),
+        rec: receiver.recipient(),
+    });
 
     Arbiter::spawn(res.then(|res| {
         match res {

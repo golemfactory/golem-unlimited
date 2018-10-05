@@ -4,10 +4,11 @@ use tokio_codec::{Decoder, Encoder};
 
 use dns_parser::rdata::a::Record;
 use dns_parser::rdata::RData::{A, SRV, TXT};
+use dns_parser::Question;
 use dns_parser::{Builder, Packet, QueryClass, QueryType, ResourceRecord};
 use service::{ServiceInstance, ServicesDescription};
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::collections::HashSet;
 use std::net::Ipv4Addr;
 use std::str::from_utf8;
 
@@ -15,12 +16,38 @@ use std::str::from_utf8;
 pub struct ParsedPacket {
     pub id: u16,
     pub instances: Vec<ServiceInstance>,
+    pub questions: Vec<String>,
 }
 
 #[derive(Debug)]
-pub(crate) struct MdnsCodec;
+pub(crate) struct MdnsCodec(pub bool);
 
-fn parse_answer(answer: ResourceRecord, parse_maps: &mut ParseMaps) {
+fn parse_question(question: Question, parse_sets: &mut QuestionParseSets) {
+    if question.prefer_unicast || question.qclass != QueryClass::IN {
+        return;
+    }
+    let name = question.qname.to_string();
+
+    match question.qtype {
+        QueryType::SRV => {
+            parse_sets.srv.insert(name);
+        }
+        QueryType::TXT => {
+            parse_sets.srv.insert(name);
+        }
+        _ => (),
+    };
+}
+
+fn combine_questions(mut parse_sets: QuestionParseSets, questions: &mut Vec<String>) {
+    for name in parse_sets.srv {
+        if parse_sets.txt.remove(&name) {
+            questions.push(name)
+        }
+    }
+}
+
+fn parse_answer(answer: ResourceRecord, parse_maps: &mut ResponseParseMaps) {
     match answer.data {
         SRV(data) => {
             let key = (answer.name.to_string(), data.target.clone().to_string());
@@ -46,7 +73,7 @@ fn parse_answer(answer: ResourceRecord, parse_maps: &mut ParseMaps) {
     }
 }
 
-fn build_response(parse_maps: ParseMaps, services: &mut Vec<ServiceInstance>) {
+fn combine_answers(parse_maps: ResponseParseMaps, services: &mut Vec<ServiceInstance>) {
     let srv = parse_maps.srv;
     let a = parse_maps.a;
     let txt = parse_maps.txt;
@@ -70,7 +97,7 @@ fn build_response(parse_maps: ParseMaps, services: &mut Vec<ServiceInstance>) {
 }
 
 #[derive(Default)]
-struct ParseMaps {
+struct ResponseParseMaps {
     // (service, host) -> ports
     pub srv: HashMap<(String, String), Vec<u16>>,
     // service -> description
@@ -79,16 +106,27 @@ struct ParseMaps {
     pub a: HashMap<String, Vec<Ipv4Addr>>,
 }
 
+#[derive(Default, Debug)]
+struct QuestionParseSets {
+    pub srv: HashSet<String>,
+    pub txt: HashSet<String>,
+}
+
 impl Decoder for MdnsCodec {
     type Item = ParsedPacket;
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ParsedPacket>> {
         let packet = Packet::parse(src.as_ref())?;
-        info!("Received packet: {:?}", packet);
+        debug!("Received packet: {:?}", packet);
         let id = packet.header.id;
 
-        let mut parse_maps = ParseMaps::default();
+        let mut parse_maps = ResponseParseMaps::default();
+        let mut parse_sets = QuestionParseSets::default();
+
+        for question in packet.questions {
+            parse_question(question, &mut parse_sets)
+        }
 
         for answer in packet.answers {
             parse_answer(answer, &mut parse_maps);
@@ -99,10 +137,15 @@ impl Decoder for MdnsCodec {
         }
 
         let mut services: Vec<ServiceInstance> = Vec::new();
-        build_response(parse_maps, &mut services);
+        let mut questions: Vec<String> = Vec::new();
+
+        combine_answers(parse_maps, &mut services);
+        combine_questions(parse_sets, &mut questions);
+
         Ok(Some(ParsedPacket {
             id,
             instances: services,
+            questions,
         }))
     }
 }
@@ -116,19 +159,19 @@ impl Encoder for MdnsCodec {
         for service in item.0.services().iter() {
             builder.add_question(
                 service.to_string().as_ref(),
-                true,
+                self.0,
                 QueryType::SRV,
                 QueryClass::IN,
             );
             builder.add_question(
                 service.to_string().as_ref(),
-                true,
+                self.0,
                 QueryType::TXT,
                 QueryClass::IN,
             );
         }
         let packet = builder.build().map_err(ErrorKind::DnsPacketBuildError)?;
-        info!("Encoded packet to send: {:?}", packet);
+        debug!("Encoded packet to send: {:?}", packet);
 
         dst.extend_from_slice(packet.as_ref());
         Ok(())

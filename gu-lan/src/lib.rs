@@ -25,6 +25,7 @@ extern crate tokio_codec;
 
 pub mod actor;
 mod codec;
+pub mod continuous;
 mod errors;
 pub mod rest_client;
 pub mod server;
