@@ -14,6 +14,8 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 use actix::AsyncContext;
 use codec::ParsedPacket;
 use continuous::ContinuousInstancesList;
+use continuous::NewInstance;
+use continuous::Subscribe;
 use continuous::{ForeignMdnsQueryInfo, ReceivedMdnsInstance};
 use futures::sync;
 use futures::sync::mpsc;
@@ -25,8 +27,6 @@ use std::net::SocketAddr::{self, V4};
 use std::time::Duration;
 use tokio::net::{UdpFramed, UdpSocket};
 use tokio::reactor::Handle;
-use continuous::NewInstance;
-use continuous::Subscribe;
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]
@@ -160,7 +160,12 @@ impl MdnsActor<OneShot> {
             .and_then(|a| Ok(a.collect()))
     }
 
-    fn build_response<F>(&mut self, fut: F, _ctx: &mut Context<Self>, id: u16) -> OneShotResponse<OneShot>
+    fn build_response<F>(
+        &mut self,
+        fut: F,
+        _ctx: &mut Context<Self>,
+        id: u16,
+    ) -> OneShotResponse<OneShot>
     where
         F: Future<Item = (), Error = Error> + 'static,
     {
@@ -250,7 +255,11 @@ impl<T: MdnsConnection> ArbiterService for MdnsActor<T> {}
 impl Handler<ServicesDescription> for MdnsActor<OneShot> {
     type Result = OneShotResponse<OneShot>;
 
-    fn handle(&mut self, msg: ServicesDescription, ctx: &mut Self::Context) -> OneShotResponse<OneShot> {
+    fn handle(
+        &mut self,
+        msg: ServicesDescription,
+        ctx: &mut Self::Context,
+    ) -> OneShotResponse<OneShot> {
         let id = self.data.next_id;
         self.data.next_id = id.wrapping_add(1);
 
@@ -262,7 +271,7 @@ impl Handler<ServicesDescription> for MdnsActor<OneShot> {
 
 pub struct SubscribeInstance {
     pub service: ServiceDescription,
-    pub rec: Recipient<NewInstance>
+    pub rec: Recipient<NewInstance>,
 }
 
 impl Message for SubscribeInstance {
@@ -276,24 +285,30 @@ pub struct UnsubscribeInstance {
 impl Handler<SubscribeInstance> for MdnsActor<Continuous> {
     type Result = ContinuousResponse<Continuous>;
 
-    fn handle(&mut self, msg: SubscribeInstance, ctx: &mut Self::Context) -> ContinuousResponse<Continuous> {
+    fn handle(
+        &mut self,
+        msg: SubscribeInstance,
+        _ctx: &mut Self::Context,
+    ) -> ContinuousResponse<Continuous> {
         use std::collections::hash_map::Entry;
 
         let res = match self.data.map.entry(msg.service.to_string()) {
             Entry::Vacant(a) => {
                 let service =
-                    ContinuousInstancesList::new(msg.service.clone(), self.sender.clone().unwrap()).start();
+                    ContinuousInstancesList::new(msg.service.clone(), self.sender.clone().unwrap())
+                        .start();
                 a.insert(service.clone().into());
                 service.send(Subscribe { rec: msg.rec })
             }
             Entry::Occupied(ref mut b) => {
-
-
                 if b.get().connected() {
                     b.get_mut().send(Subscribe { rec: msg.rec })
                 } else {
                     b.insert({
-                        ContinuousInstancesList::new(msg.service.clone(), self.sender.clone().unwrap()).start()
+                        ContinuousInstancesList::new(
+                            msg.service.clone(),
+                            self.sender.clone().unwrap(),
+                        ).start()
                     }).send(Subscribe { rec: msg.rec })
                 }
             }

@@ -12,6 +12,7 @@ extern crate gu_base;
 extern crate gu_p2p;
 
 extern crate bytes;
+extern crate rand;
 extern crate serde_json;
 extern crate socket2;
 

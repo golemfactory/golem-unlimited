@@ -7,7 +7,6 @@ use serde_json;
 use service::ServiceDescription;
 use service::ServiceInstance;
 use service::ServicesDescription;
-use std::collections::HashMap;
 use std::collections::HashSet;
 
 /// Actix-web actor for mDNS service discovery

@@ -10,8 +10,8 @@ use futures::future;
 use futures::Future;
 use gu_lan::actor::Continuous;
 use gu_lan::actor::SubscribeInstance;
-use log::LevelFilter;
 use gu_lan::continuous::NewInstance;
+use log::LevelFilter;
 
 struct Receiver;
 
@@ -22,7 +22,7 @@ impl Actor for Receiver {
 impl Handler<NewInstance> for Receiver {
     type Result = ();
 
-    fn handle(&mut self, msg: NewInstance, ctx: &mut Context<Self>) -> () {
+    fn handle(&mut self, msg: NewInstance, _ctx: &mut Context<Self>) -> () {
         println!("{:?}", msg.data);
     }
 }

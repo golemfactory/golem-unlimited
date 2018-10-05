@@ -7,29 +7,33 @@ use actix::Recipient;
 use actor;
 use actor::send_mdns_query;
 use futures::sync::mpsc;
+use rand::thread_rng;
+use rand::Rng;
+use rand::ThreadRng;
 use service::ServiceDescription;
 use service::ServiceInstance;
 use service::ServicesDescription;
+use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::time::Duration;
 use std::time::Instant;
-use std::cmp::Ordering;
-use std::collections::HashMap;
 
 static SKIP_INTERVAL_PERCENTAGE: u64 = 80;
-static INTERVAL_MULTIPLIER: u32 = 5;
-static MAX_INTERVAL: Duration = Duration::from_secs(2);
-static START_INTERVAL: Duration = Duration::from_secs(1);
-static CLEAR_MEMORY_PERIOD: u64 = 4;
-static SERVICE_TTL: u64 = 4;
+static INTERVAL_MULTIPLIER: u32 = 10;
+static MAX_INTERVAL: Duration = Duration::from_secs(50);
+static START_INTERVAL: Duration = Duration::from_secs(2);
+static CLEAR_MEMORY_PERIOD: u64 = 1;
+static SERVICE_TTL: u64 = 60;
 
 struct ExponentialNotify {
     interval: Duration,
     max_interval: Duration,
     last_query: Instant,
     own_last_query: Instant,
+    rng: Option<ThreadRng>,
 }
 
 impl ExponentialNotify {
@@ -40,6 +44,7 @@ impl ExponentialNotify {
             max_interval: MAX_INTERVAL,
             last_query: now,
             own_last_query: now,
+            rng: None,
         }
     }
 }
@@ -48,7 +53,14 @@ impl ExponentialNotify {
     /// Returns None if it is time to send query,
     /// Otherwise it gives time interval after which querying should be considered
     fn query_time(&mut self) -> Option<Duration> {
-        use std::ops::Mul;
+        use std::ops::{Div, Mul};
+
+        if self.rng.is_none() {
+            self.rng = Some(thread_rng());
+
+            let ms = self.rng.clone().unwrap().gen_range(20, 120);
+            return Some(Duration::from_millis(ms));
+        }
 
         let percent =
             100 * (self.last_query - self.own_last_query).as_secs() / self.interval.as_secs();
@@ -61,7 +73,9 @@ impl ExponentialNotify {
         self.interval = self
             .interval
             .mul(INTERVAL_MULTIPLIER)
-            .min(self.max_interval);
+            .min(self.max_interval)
+            .mul(1000)
+            .div(self.rng.clone().unwrap().gen_range(970, 1030));
 
         if percent > SKIP_INTERVAL_PERCENTAGE {
             None
@@ -129,8 +143,8 @@ impl MemoryManager {
 
         self.queue.push((now, id.clone()).into());
         let result = match self.time_map.insert(id.clone(), now) {
-            Some(a) => None,
-            None => Some(data.clone())
+            Some(_) => None,
+            None => Some(data.clone()),
         };
         self.data_map.insert(id, data);
 
@@ -144,10 +158,7 @@ impl MemoryManager {
 
         match self.queue.peek_mut() {
             Some(top) => {
-                let heap_top = top.0;
-
-                if top.0.add(self.ttl) < time
-                {
+                if top.0.add(self.ttl) < time {
                     match self.time_map.entry(top.1.clone()) {
                         Entry::Occupied(a) => {
                             if *a.get() == top.0 {
@@ -194,7 +205,7 @@ impl Message for ForeignMdnsQueryInfo {
 impl Handler<ForeignMdnsQueryInfo> for ContinuousInstancesList {
     type Result = ();
 
-    fn handle(&mut self, msg: ForeignMdnsQueryInfo, _ctx: &mut Context<Self>) -> () {
+    fn handle(&mut self, _msg: ForeignMdnsQueryInfo, _ctx: &mut Context<Self>) -> () {
         self.notifier.query_on_the_web();
     }
 }
@@ -221,7 +232,7 @@ impl ContinuousInstancesList {
         }
     }
 
-    fn services(&self) -> ServicesDescription {
+    fn service(&self) -> ServicesDescription {
         ServicesDescription::new(vec![self.name.clone()])
     }
 }
@@ -238,20 +249,28 @@ impl Actor for ContinuousInstancesList {
             act: &mut ContinuousInstancesList,
             ctx: &mut Context<ContinuousInstancesList>,
         ) {
-            let vec = act.services();
+            let vec = act.service();
             ctx.spawn(
                 send_mdns_query(Some(act.sender.clone()), vec, 0)
                     .into_actor(act)
                     .map_err(|e, _, _| error!("mDNS query error: {:?}", e)),
             );
             let dur = act.notifier.query_time().unwrap_or(Duration::from_secs(0));
+            println!("{:?}", dur);
 
             ctx.run_later(dur, query_loop);
         };
 
-        query_loop(self, ctx);
+        let dur = self.notifier.query_time().unwrap_or(Duration::from_secs(0));
+        println!("{:?}", dur);
+        ctx.run_later(dur, query_loop);
+
         ctx.run_interval(Duration::from_secs(1), |act, _ctx| {
-            act.memory.memory().into_iter().map(|a| a.host).for_each(|a| println!("{:?}", a));
+            act.memory
+                .memory()
+                .into_iter()
+                .map(|a| a.host)
+                .for_each(|a| println!("{:?}", a));
             println!();
         });
     }
@@ -299,7 +318,6 @@ impl Handler<ReceivedMdnsInstance> for ContinuousInstancesList {
     fn handle(&mut self, msg: ReceivedMdnsInstance, _ctx: &mut Context<Self>) -> () {
         let msg = msg.0;
         if let Some(inst) = self.memory.update(msg) {
-            println!("SEND");
             for s in self.subscribers.clone() {
                 s.do_send(NewInstance { data: inst.clone() });
             }
@@ -318,7 +336,7 @@ impl Message for Subscribe {
 impl Handler<Subscribe> for ContinuousInstancesList {
     type Result = ();
 
-    fn handle(&mut self, msg: Subscribe, ctx: &mut Context<Self>) -> () {
+    fn handle(&mut self, msg: Subscribe, _ctx: &mut Context<Self>) -> () {
         self.subscribers.insert(msg.rec.clone());
         for inst in self.memory.memory() {
             msg.rec.do_send(NewInstance { data: inst.clone() });
