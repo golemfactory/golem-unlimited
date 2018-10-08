@@ -1,9 +1,8 @@
-use actix::Message;
+use actix::prelude::*;
 use errors::Result;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::net::IpAddr;
 use std::net::Ipv4Addr;
 
 /// Struct describing single service in .local domain's network
@@ -61,7 +60,7 @@ impl ServicesDescription {
     }
 
     pub(crate) fn to_services(&self) -> Services {
-        let mut services = Services::new();
+        let mut services = Services::default();
         for i in self.services.clone() {
             services.add_service(i.to_string())
         }
@@ -74,7 +73,7 @@ impl Message for ServicesDescription {
 }
 
 /// Contains information about single service in a network
-#[derive(Debug, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct ServiceInstance {
     pub name: String,
     pub host: String,
@@ -84,15 +83,11 @@ pub struct ServiceInstance {
 }
 
 #[derive(Debug, Serialize, Default)]
-pub(crate) struct Services {
+pub struct Services {
     map: HashMap<String, HashSet<ServiceInstance>>,
 }
 
 impl Services {
-    pub(crate) fn new() -> Self {
-        Services::default()
-    }
-
     pub(crate) fn add_service(&mut self, s: String) {
         self.map.insert(s, HashSet::new());
     }

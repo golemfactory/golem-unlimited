@@ -21,6 +21,7 @@ bytes = "0.4"
 dns-parser = "0.8"
 socket2 = { version = "0.3", features = ["reuseport"] }
 prettytable-rs = "0.7"
+rand = "0.5.5"
 
 futures = "0.1"
 tokio = "0.1"

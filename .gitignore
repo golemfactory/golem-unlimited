@@ -2,3 +2,7 @@
 *.iml
 target/**
 Cagrgo.lock
+/.vs
+/.vscode
+/Cargo.lock
+/cargo-count.dot

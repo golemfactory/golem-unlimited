@@ -12,6 +12,7 @@ extern crate gu_base;
 extern crate gu_p2p;
 
 extern crate bytes;
+extern crate rand;
 extern crate serde_json;
 extern crate socket2;
 
@@ -25,6 +26,7 @@ extern crate tokio_codec;
 
 pub mod actor;
 mod codec;
+pub mod continuous;
 mod errors;
 pub mod rest_client;
 pub mod server;

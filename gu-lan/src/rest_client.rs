@@ -1,10 +1,12 @@
+//! Command line module for one-shot service discovery
+
 use actix::{Arbiter, System};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Module};
 use gu_p2p::rpc::start_actor;
 use prettytable::Table;
-use server::{self, QueryLan};
+use server::{self, LanQuery};
 use service::ServiceInstance;
 use std::collections::HashSet;
 use std::net::Ipv4Addr;
@@ -53,8 +55,8 @@ fn run_client(m: &ArgMatches) {
     let sys = actix::System::new("gu-lan");
 
     let instance = m.value_of("instance").expect("default value not set");
-    let query = QueryLan::single(instance.to_string());
-    let addr = start_actor(server::LanInfo());
+    let query = LanQuery::single(instance.to_string());
+    let addr = start_actor(server::LanServer);
 
     Arbiter::spawn(
         addr.send(query)
@@ -93,7 +95,6 @@ impl Module for LanModule {
 
 fn clap_match_lan(m: &ArgMatches) {
     if let Some(m) = m.subcommand_matches("list") {
-        debug!("lan list");
         run_client(m);
     } else {
         println!("{}", m.usage())

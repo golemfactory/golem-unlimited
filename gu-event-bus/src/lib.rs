@@ -1,4 +1,4 @@
-//! Aplication event bus.
+//! Application event bus.
 //!
 
 extern crate actix;

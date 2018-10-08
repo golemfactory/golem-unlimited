@@ -5,7 +5,7 @@ pub struct EventPath {
 }
 
 impl EventPath {
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a str> {
+    pub fn iter(&self) -> impl Iterator<Item=&str> {
         let path = self.path_chars.as_ref();
         let offset = 0;
 

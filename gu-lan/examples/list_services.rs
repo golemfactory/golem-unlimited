@@ -6,32 +6,47 @@ extern crate log;
 
 use actix::prelude::*;
 use env_logger::Builder;
-use futures::future;
 use futures::Future;
-use gu_lan::service::ServicesDescription;
+use gu_lan::actor::Continuous;
+use gu_lan::actor::SubscribeInstance;
+use gu_lan::continuous::NewInstance;
 use log::LevelFilter;
+
+struct Receiver;
+
+impl Actor for Receiver {
+    type Context = Context<Self>;
+}
+
+impl Handler<NewInstance> for Receiver {
+    type Result = ();
+
+    fn handle(&mut self, msg: NewInstance, _ctx: &mut Context<Self>) -> () {
+        println!("- {} {}", msg.data.name, msg.data.host);
+    }
+}
 
 fn main() {
     Builder::from_default_env()
-        .filter_level(LevelFilter::Off)
+        .filter_level(LevelFilter::Error)
         .init();
 
-    let sys = actix::System::new("none_example");
-    let actor = gu_lan::actor::ResolveActor::new();
-    let address = actor.start();
-    let res = address.send(gu_lan::service::ServicesDescription::single(
-        "gu-hub",
-        "_unlimited._tcp",
-    ));
 
-    Arbiter::spawn(res.then(|res| {
-        match res {
-            Ok(result) => println!("Received result: {:?}", result),
-            _ => println!("Something went wrong"),
-        }
+    System::run(move || {
+        let cont = gu_lan::actor::MdnsActor::<Continuous>::from_registry();
+        let receiver = Receiver.start();
 
-        future::result(Ok(()))
-    }));
+        Arbiter::spawn(
+            cont.send(SubscribeInstance {
+                service: gu_lan::service::ServiceDescription::new("gu-provider", "_unlimited._tcp"),
+                rec: receiver.recipient(),
+        }).then(|_| Ok(())));
 
-    let _ = sys.run();
+        let receiver2 = Receiver.start();
+        Arbiter::spawn(
+            cont.send(SubscribeInstance {
+                service: gu_lan::service::ServiceDescription::new("gu-hub", "_unlimited._tcp"),
+                rec: receiver2.recipient(),
+            }).then(|_| Ok(())));
+    });
 }
