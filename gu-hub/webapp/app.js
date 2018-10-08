@@ -11,8 +11,8 @@ function guid() {
 var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
   .controller('AppController', function($scope, pluginManager) {
       $scope.tabs = [
-        {icon: 'icons/status.svg', name: 'Status', page: 'status.html'},
-        {icon: 'icons/providers.svg', name: 'Providers', page: 'providers.html'}
+        {iconClass: 'gu-status-icon', name: 'Status', page: 'status.html'},
+        {iconClass: 'gu-providers-icon', name: 'Providers', page: 'providers.html'}
       ];
       $scope.pluginTabs = pluginManager.getTabs();
       $scope.activeTab =  $scope.tabs[0];
