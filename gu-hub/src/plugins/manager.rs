@@ -20,6 +20,7 @@ use plugins::plugin::PluginInfo;
 use plugins::plugin::PluginStatus;
 use plugins::plugin::ZipHandler;
 use plugins::rest_result::InstallQueryResult;
+use plugins::plugin::PluginEvent;
 use semver::Version;
 use std::collections::HashMap;
 use std::fmt;
@@ -30,6 +31,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::path::PathBuf;
+use gu_event_bus::post_event;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -66,19 +68,29 @@ impl PluginManager {
         let mut plugin = Plugin::new(handler);
         plugin.activate();
 
+
+
         plugin
             .metadata()
             .map_err(|a| InvalidMetadata(a))
             .map(
-                |meta| match self.plugins.insert(meta.name().to_string(), plugin) {
-                    None => Installed,
-                    Some(a) => Overwritten,
-                },
-            ).unwrap_or_else(|e| e)
+                |meta| {
+                    let event_path = format!("/plugins/{}", meta.name());
+                    post_event(event_path, PluginEvent::New(meta.clone()));
+                    match self.plugins.insert(meta.name().to_string(), plugin) {
+                        None => Installed,
+                        Some(a) => Overwritten,
+                    }
+                })
+            .unwrap_or_else(|e| e)
     }
 
     fn uninstall_plugin(&mut self, name: &String) {
-        self.plugins.remove(name);
+        let prev = self.plugins.remove(name);
+        if prev.is_some() {
+            let event_path = format!("/plugins/{}", name);
+            post_event(event_path, PluginEvent::Drop(name.clone()));
+        }
 
         // TODO: I would prefer some clear function in Plugin trait instead of this
         let file = self.directory.join(name);

@@ -34,9 +34,9 @@ mod hdman;
 mod id;
 mod provision;
 mod server;
+mod status;
 mod sync_exec;
 mod write_to;
-mod status;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

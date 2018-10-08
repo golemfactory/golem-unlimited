@@ -26,10 +26,15 @@ impl Module for LogModule {
             match matches.occurrences_of("v") {
                 0 => env::set_var("RUST_LOG", "error"),
                 1 => env::set_var("RUST_LOG", "info"),
+                2 => env::set_var(
+                    "RUST_LOG",
+                    "info,gu_p2p=debug,gu_provider=debug,gu_hub=debug,gu_event_bus=debug",
+                ),
                 _ => env::set_var(
                     "RUST_LOG",
-                    "info,gu_p2p=debug,gu_provider=debug,gu_hub=debug",
+                    "debug",
                 ),
+
             }
         }
         env_logger::init();

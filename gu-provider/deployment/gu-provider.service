@@ -1,0 +1,16 @@
+[Unit]                                                                                                                                                                          
+Description=gu-provider
+After=network.target
+
+[Service]
+User=golemu
+ExecStart=/usr/bin/gu-provider server connect 10.30.8.179:61622
+
+LimitNOFILE=150000
+StandardOutput=syslog+console
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+

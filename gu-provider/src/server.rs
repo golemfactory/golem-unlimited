@@ -111,7 +111,7 @@ impl Module for ServerModule {
             config_path: self.config_path.clone(),
             node_id: get_node_id(keys),
             hub_addr: self.hub_addr,
-            decorator: decorator.clone()
+            decorator: decorator.clone(),
         }.start();
 
         let _ = HdMan::start(config_module);
@@ -169,8 +169,7 @@ impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
                 .and_then(move |c: Arc<ServerConfig>| {
                     let decorator = decorator.clone();
                     let server = server::new(move || {
-                        decorator.decorate_webapp(App::new()
-                            .scope("/m", rpc::mock::scope))
+                        decorator.decorate_webapp(App::new().scope("/m", rpc::mock::scope))
                     });
                     let _ = server.bind(c.p2p_addr()).unwrap().start();
 

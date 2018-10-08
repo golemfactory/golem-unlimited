@@ -40,7 +40,7 @@ pub fn gpu_count() -> error::Result<GpuCount> {
                     ..gpu
                 },
                 Ok(_) => GpuCount {
-                    amd: gpu.amd + 1,
+                    other: gpu.other + 1,
                     ..gpu
                 },
                 Err(_) => unimplemented!(),
