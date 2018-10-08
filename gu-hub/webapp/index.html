@@ -6,28 +6,10 @@
     <title>Golem Unlimited - Panel</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-    <!--script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script-->
     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.7.2/angular.min.js"></script>
     <script src="https://underscorejs.org/underscore-min.js"></script>
     <script src="https://unpkg.com/angularjs-gauge@2.2.0/dist/angularjs-gauge.min.js"></script>
-    <style>
-        body {
-            padding: 6px;
-            font-family: 'Roboto', sans-serif;
-        }
-        .text-monospace {
-            font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-        }
-        .progress-label {
-                position: relative;
-                top: -40px;
-                text-align: center;
-                width: 100%;
-                display: block;
-                height: 0px;
-        }
-    </style>
-    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="container-fluid" ng-controller="AppController">
@@ -42,8 +24,9 @@
                         <ul class="nav nav-pills nav-stacked">
                             <li ng-repeat="tab in tabs" ng-class="{active: tab == activeTab}">
                                 <a href="#" ng-click="openTab(tab)">
-                                    <img ng-src="{{tab.icon}}" width="30" height="30" ng-if="!!tab.icon">
-                                    {{tab.name}}
+                                    <span ng-if="!!tab.iconClass" style="font-size: 30px;" class="{{tab.iconClass}}"></span>
+                                    <img ng-if="!!tab.iconImg" ng-src="{{tab.iconImg}}" width="30" height="30">
+                                    <span>{{tab.name}}</span>
                                 </a>
                             </li>
                         </ul>
@@ -58,7 +41,9 @@
                     <div class="panel-body">
                         <ul class="nav nav-pills nav-stacked">
                             <li ng-repeat="tab in pluginTabs" ng-class="{active: tab == activeTab}">
-                                <a href="#" ng-click="openTab(tab)"><img ng-src="{{tab.icon}}" width="30" height="30" ng-if="!!tab.icon">
+                                <a href="#" ng-click="openTab(tab)">
+                                    <span ng-if="!!tab.iconClass" style="font-size: 30px;" class="{{tab.iconClass}}"></span>
+                                    <img ng-if="!!tab.iconImg" ng-src="{{tab.iconImg}}" width="30" height="30">
                                     {{tab.name}}
                                 </a>
                             </li>
@@ -70,8 +55,7 @@
         </div>
         <div class="col-md-10">
             <div class="row" ng-include="activeTab.page">
-            ala {{activeTab | json }}
-                / {{tab.name }}
+             {{activeTab | json }} / {{tab.name }}
             </div>
         </div>
     </div>

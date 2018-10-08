@@ -1,0 +1,65 @@
+@import url(http://fonts.googleapis.com/css?family=Roboto);
+
+body {
+    padding: 6px;
+    font-family: 'Roboto', sans-serif;
+}
+
+.text-monospace {
+    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+.progress-label {
+    position: relative;
+    top: -40px;
+    text-align: center;
+    width: 100%;
+    display: block;
+    height: 0px;
+}
+
+@font-face {
+  font-family: 'golem-unlimited';
+  src:  url('fonts/golem-unlimited.eot?3o99p9');
+  src:  url('fonts/golem-unlimited.eot?3o99p9#iefix') format('embedded-opentype'),
+    url('fonts/golem-unlimited.ttf?3o99p9') format('truetype'),
+    url('fonts/golem-unlimited.woff?3o99p9') format('woff'),
+    url('fonts/golem-unlimited.svg?3o99p9#golem-unlimited') format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+
+[class^="gu-"], [class*=" gu-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'golem-unlimited' !important;
+  speak: none;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  vertical-align:middle;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.gu-mining-icon:before {
+  content: "\e900";
+}
+.gu-factorization-icon:before {
+  content: "\e901";
+}
+.gu-status-icon:before {
+  content: "\e902";
+}
+.gu-rendering-icon:before {
+  content: "\e903";
+}
+.gu-providers-icon:before {
+  content: "\e904";
+}
+.gu-refresh-icon:before {
+  content: "\e905";
+}
