@@ -82,7 +82,6 @@ impl MdnsConnection for OneShot {
                     _ => (),
                 }
 
-                println!("123");
                 services.add_instance(service);
             }
         }

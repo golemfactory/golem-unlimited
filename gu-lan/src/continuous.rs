@@ -69,13 +69,10 @@ impl ExponentialNotify {
             .div(self.rng.clone().unwrap().gen_range(900, 1100));
 
         if percent > SKIP_INTERVAL_PERCENTAGE {
-            //println!("Less: {:?}", self.interval);
-
             self.last_query = now;
 
             (Some(()), self.interval)
         } else {
-            //println!("Greater: {:?}", self.interval);
             (None, self.interval - diff)
         }
     }
@@ -357,7 +354,6 @@ impl Handler<Unsubscribe> for ContinuousInstancesList {
 
 impl Drop for Subscription {
     fn drop(&mut self) {
-        println!("droppy");
         self.list.do_send(Unsubscribe {
             rec: self.subscriber.clone(),
         });
