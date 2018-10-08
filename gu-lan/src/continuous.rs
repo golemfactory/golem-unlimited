@@ -233,7 +233,7 @@ impl ContinuousInstancesList {
         rec: &Recipient<NewInstance>,
         inst: ServiceInstance,
     ) -> Result<()> {
-        rec.do_send(NewInstance { data: inst }).map_err(|e| {
+        rec.do_send(NewInstance { data: inst }).map_err(|_e| {
             self.subscribers.remove(rec);
             ErrorKind::DoSendError.into()
         })
@@ -357,6 +357,7 @@ impl Handler<Unsubscribe> for ContinuousInstancesList {
 
 impl Drop for Subscription {
     fn drop(&mut self) {
+        println!("droppy");
         self.list.do_send(Unsubscribe {
             rec: self.subscriber.clone(),
         });

@@ -285,6 +285,8 @@ impl Handler<ServicesDescription> for MdnsActor<OneShot> {
         let id = self.data.next_id;
         self.data.next_id = id.wrapping_add(1);
 
+
+        self.data.map.insert(id, Services::from(&msg));
         let future = send_mdns_query(self.sender.clone(), msg, id);
 
         self.build_response(future, ctx, id)
