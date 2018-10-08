@@ -1,0 +1,5 @@
+
+systemctl stop gu-provider
+systemctl disable gu-provider
+
+

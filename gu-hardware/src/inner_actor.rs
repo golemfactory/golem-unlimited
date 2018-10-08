@@ -1,13 +1,18 @@
 use actix::MessageResult;
 use actix::{Actor, ArbiterService, Context, Handler, Supervised};
-use sysinfo::{self, SystemExt};
+use sysinfo::{self, System, SystemExt};
 
 use disk::{disk_info, DiskQuery};
 use ram::{ram_info, RamQuery};
 
-#[derive(Default)]
 pub struct InnerActor {
-    sys: sysinfo::System,
+    sys: System,
+}
+
+impl Default for InnerActor {
+    fn default() -> InnerActor {
+        InnerActor{ sys: sysinfo::System::new() }
+    }
 }
 
 impl Actor for InnerActor {

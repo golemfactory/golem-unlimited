@@ -11,6 +11,15 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use serde_json::Value as JsonValue;
+use serde_json;
+use serde::de::DeserializeOwned;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PluginEvent {
+    New(PluginMetadata),
+    Drop(String)
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -33,6 +42,9 @@ pub struct PluginMetadata {
     /// scripts to load on startup
     #[serde(default)]
     load: Vec<String>,
+
+    #[serde(default)]
+    required_services: Vec<JsonValue>
 }
 
 impl PluginMetadata {
@@ -59,6 +71,14 @@ impl PluginMetadata {
     fn default_version() -> Version {
         Version::new(0, 0, 1)
     }
+
+    pub fn service<T : DeserializeOwned>(&self, key : &str) -> Vec<T> {
+        self.required_services.iter().filter_map(|json_value| match json_value {
+            JsonValue::Object(ht) => ht.get(key),
+            _ => None
+        }).filter_map(|cfg_value| serde_json::from_value(cfg_value.clone()).ok())
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +86,19 @@ pub struct PluginInfo {
     #[serde(flatten)]
     metadata: PluginMetadata,
     status: PluginStatus,
+}
+
+impl PluginInfo {
+
+    #[inline]
+    pub fn status(&self) -> PluginStatus {
+        self.status.clone()
+    }
+
+    #[inline]
+    pub fn metadata(&self) -> &PluginMetadata {
+        &self.metadata
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

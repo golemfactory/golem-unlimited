@@ -46,8 +46,7 @@ pub struct PeerSessionInfo {
     pub status: PeerSessionStatus,
     pub tags: Vec<String>,
     pub note: Option<String>,
-    pub processes: HashSet<String>
-
+    pub processes: HashSet<String>,
 }
 
 #[derive(Serialize, Deserialize)]

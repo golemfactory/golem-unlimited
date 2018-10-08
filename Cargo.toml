@@ -11,6 +11,7 @@ members= [
 	'gu-persist',
 	'gu-lan',
 	'gu-hardware',
+	'gu-event-bus',
 ]
 
 [dependencies]

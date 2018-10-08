@@ -1,8 +1,8 @@
 use super::error;
 use super::message::*;
 use super::util::*;
-use actix::prelude::*;
 use actix::fut;
+use actix::prelude::*;
 use futures::prelude::*;
 use std::collections::HashMap;
 use std::io::{self, Write};
@@ -113,17 +113,20 @@ impl Handler<EmitMessage<String>> for MessageRouter {
             return ActorResponse::reply(Err(error::ErrorKind::NotConnected.into()));
         };
 
-        ActorResponse::async(f.into_actor(self).map_err( move |e : error::Error, act, ctx| {
-            match e.kind() {
-                error::ErrorKind::MailBox(MailboxError::Closed) => {
-                    error!("removing invalid destination node {:?}", &dest_node);
-                    act.remotes.remove(&dest_node);
-                }
-                _ => ()
-            }
+        ActorResponse::async(
+            f.into_actor(self)
+                .map_err(move |e: error::Error, act, ctx| {
+                    match e.kind() {
+                        error::ErrorKind::MailBox(MailboxError::Closed) => {
+                            error!("removing invalid destination node {:?}", &dest_node);
+                            act.remotes.remove(&dest_node);
+                        }
+                        _ => (),
+                    }
 
-            e
-        }))
+                    e
+                }),
+        )
     }
 }
 

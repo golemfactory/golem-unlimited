@@ -1,2 +1,2 @@
-//! Automatically generated mod.rs
+//! Automatically generated lib.rs
 pub mod wire;
