@@ -17,7 +17,6 @@ use continuous::ContinuousInstancesList;
 use continuous::NewInstance;
 use continuous::Subscribe;
 use continuous::{ForeignMdnsQueryInfo, ReceivedMdnsInstance};
-use futures::sync;
 use futures::sync::mpsc;
 use gu_actix::FlattenFuture;
 use service::ServiceDescription;
@@ -32,7 +31,7 @@ use tokio::reactor::Handle;
 #[derive(Debug, Default)]
 pub struct MdnsActor<T: MdnsConnection> {
     /// Interior, indirect responder sink
-    sender: Option<sync::mpsc::Sender<((ServicesDescription, u16), SocketAddr)>>,
+    sender: Option<mpsc::Sender<((ServicesDescription, u16), SocketAddr)>>,
     data: Box<T>,
 }
 
@@ -131,7 +130,7 @@ impl<T: MdnsConnection> MdnsActor<T> {
 }
 
 pub fn send_mdns_query(
-    sender: Option<sync::mpsc::Sender<((ServicesDescription, u16), SocketAddr)>>,
+    sender: Option<mpsc::Sender<((ServicesDescription, u16), SocketAddr)>>,
     services: ServicesDescription,
     id: u16,
 ) -> impl Future<Item = (), Error = Error> {
@@ -145,7 +144,10 @@ pub fn send_mdns_query(
             a.send(message)
                 .and_then(|sender| Ok(sender.flush()))
                 .and_then(|_| Ok(()))
-                .map_err(|_| ErrorKind::FutureSendError.into()),
+                .map_err(|e| {
+                    println!("{}", e);
+                    ErrorKind::FutureSendError.into()
+                }),
         ),
         None => future::Either::B(future::err(ErrorKind::ActorNotInitialized.into())),
     }
@@ -217,13 +219,20 @@ fn biggest_mask_ipv4(vec: &Vec<Ipv4Addr>, src: &Ipv4Addr) -> Vec<Ipv4Addr> {
     vec![*best_instance.unwrap_or(src)]
 }
 
-impl<T: MdnsConnection> StreamHandler<(ParsedPacket, SocketAddr), Error> for MdnsActor<T> {
-    fn handle(
-        &mut self,
-        (packet, src): (ParsedPacket, SocketAddr),
-        _ctx: &mut Context<MdnsActor<T>>,
-    ) {
-        T::handle_packet(&mut self.data, packet, src);
+struct PacketPair {
+    pub packet: ParsedPacket,
+    pub socket: SocketAddr,
+}
+
+impl Message for PacketPair {
+    type Result = ();
+}
+
+impl<T: MdnsConnection> Handler<PacketPair> for MdnsActor<T> {
+    type Result = ();
+
+    fn handle(&mut self, msg: PacketPair, _ctx: &mut Context<MdnsActor<T>>) -> () {
+        T::handle_packet(&mut self.data, msg.packet, msg.socket)
     }
 }
 
@@ -232,16 +241,19 @@ impl<T: MdnsConnection> Actor for MdnsActor<T> {
 
     /// Creates stream handler for incoming mDNS packets
     fn started(&mut self, ctx: &mut Self::Context) {
+        use futures::Stream;
+
         let socket = Self::create_mdns_socket().expect("Creation of mDNS socket failed");
         let (sink, stream) = UdpFramed::new(socket, MdnsCodec(T::unicast_query())).split();
 
-        Self::add_stream(stream, ctx);
+        ctx.add_message_stream(stream.map(|(packet, socket)| PacketPair { packet, socket }).map_err(|_| ()));
 
         let (tx, rx) = mpsc::channel(16);
         ctx.spawn(
-            sink.send_all(rx.map_err(|_| ErrorKind::UninitializedChannelReceiver))
-                .then(|_| Ok(()))
-                .into_actor(self),
+            rx.map_err(|_| ErrorKind::UninitializedChannelReceiver).forward(sink)
+                .map_err(|e| error!("{:?}", e))
+                .and_then(|_| Ok(()))
+                .into_actor(self)
         );
 
         self.sender = Some(tx);
@@ -250,7 +262,7 @@ impl<T: MdnsConnection> Actor for MdnsActor<T> {
 
 impl<T: MdnsConnection> Supervised for MdnsActor<T> {}
 
-impl<T: MdnsConnection> ArbiterService for MdnsActor<T> {}
+impl<T: MdnsConnection> SystemService for MdnsActor<T> {}
 
 impl Handler<ServicesDescription> for MdnsActor<OneShot> {
     type Result = OneShotResponse<OneShot>;

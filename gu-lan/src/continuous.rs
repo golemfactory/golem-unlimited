@@ -23,7 +23,7 @@ use futures::Future;
 
 static SKIP_INTERVAL_PERCENTAGE: u64 = 80;
 static INTERVAL_MULTIPLIER: u32 = 3;
-static MAX_INTERVAL: Duration = Duration::from_secs(10);
+static MAX_INTERVAL: Duration = Duration::from_secs(50);
 static START_INTERVAL: Duration = Duration::from_secs(1);
 static CLEAR_MEMORY_PERIOD: u64 = 1;
 static SERVICE_TTL: u64 = 60;
@@ -146,7 +146,7 @@ impl MemoryManager {
     }
 
     pub fn update(&mut self, data: ServiceInstance) -> Option<ServiceInstance> {
-        println!("Update: {:?}", data.name);
+        //println!("Update: {:?}", data.name);
         let now = Instant::now();
         let id: ServiceInstanceId = data.clone().into();
 
@@ -258,9 +258,6 @@ impl Actor for ContinuousInstancesList {
 
             match time.0 {
                  Some(_) => {
-                    println!("Query: {:?}", vec);
-                    //println!("Sender: {:?}", act.sender.clone());
-
                     ctx.spawn(
                         send_mdns_query(Some(act.sender.clone()), vec.clone(), 0)
                             .map_err(|e| error!("mDNS query error: {:?}", e))
@@ -347,5 +344,11 @@ impl Handler<Unsubscribe> for ContinuousInstancesList {
         if self.subscribers.is_empty() {
             ctx.stop()
         }
+    }
+}
+
+impl Drop for ContinuousInstancesList {
+    fn drop(&mut self) {
+        unimplemented!()
     }
 }
