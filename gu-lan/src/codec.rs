@@ -33,7 +33,7 @@ fn parse_question(question: Question, parse_sets: &mut QuestionParseSets) {
             parse_sets.srv.insert(name);
         }
         QueryType::TXT => {
-            parse_sets.srv.insert(name);
+            parse_sets.txt.insert(name);
         }
         _ => (),
     };

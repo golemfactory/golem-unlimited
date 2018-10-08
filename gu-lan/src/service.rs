@@ -60,7 +60,7 @@ impl ServicesDescription {
     }
 
     pub(crate) fn to_services(&self) -> Services {
-        let mut services = Services::new();
+        let mut services = Services::default();
         for i in self.services.clone() {
             services.add_service(i.to_string())
         }
@@ -88,10 +88,6 @@ pub struct Services {
 }
 
 impl Services {
-    pub(crate) fn new() -> Self {
-        Services::default()
-    }
-
     pub(crate) fn add_service(&mut self, s: String) {
         self.map.insert(s, HashSet::new());
     }

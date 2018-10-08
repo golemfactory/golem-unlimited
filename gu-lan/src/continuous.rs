@@ -4,7 +4,6 @@ use actix::Context;
 use actix::Handler;
 use actix::Message;
 use actix::Recipient;
-use actor;
 use actor::send_mdns_query;
 use futures::sync::mpsc;
 use rand::thread_rng;
@@ -20,10 +19,11 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::time::Duration;
 use std::time::Instant;
+use futures::Future;
 
 static SKIP_INTERVAL_PERCENTAGE: u64 = 80;
 static INTERVAL_MULTIPLIER: u32 = 3;
-static MAX_INTERVAL: Duration = Duration::from_secs(50);
+static MAX_INTERVAL: Duration = Duration::from_secs(10);
 static START_INTERVAL: Duration = Duration::from_secs(1);
 static CLEAR_MEMORY_PERIOD: u64 = 1;
 static SERVICE_TTL: u64 = 60;
@@ -32,7 +32,6 @@ struct ExponentialNotify {
     interval: Duration,
     max_interval: Duration,
     last_query: Instant,
-    own_last_query: Instant,
     rng: Option<ThreadRng>,
 }
 
@@ -43,44 +42,53 @@ impl ExponentialNotify {
             interval: START_INTERVAL,
             max_interval: MAX_INTERVAL,
             last_query: now,
-            own_last_query: now,
             rng: None,
         }
     }
 }
 
 impl ExponentialNotify {
-    /// Returns None if it is time to send query,
-    /// Otherwise it gives time interval after which querying should be considered
-    fn query_time(&mut self) -> Option<Duration> {
+    /// Returns Some(()) in first element if it is time to send query,
+    /// Second parameter informs about time when this method should be called again
+    fn query_time(&mut self) -> (Option<()>, Duration) {
         use std::ops::{Div, Mul};
 
+        // initial wait
         if self.rng.is_none() {
             self.rng = Some(thread_rng());
 
-            let ms = self.rng.clone().unwrap().gen_range(20, 120);
-            return Some(Duration::from_millis(ms));
+            self.interval = Duration::from_millis(self.rng.clone().unwrap().gen_range(20, 120));
+
+
+            return (None, self.interval);
         }
 
-        let percent =
-            100 * (self.last_query - self.own_last_query).as_secs() / self.interval.as_secs();
-
         let now = Instant::now();
-        self.last_query = now;
-        self.own_last_query = now;
+        let diff = now - self.last_query;
 
-        let interval = self.interval;
+        let interval_ms = self.interval.subsec_millis() as u64 + 1000 * self.interval.as_secs();
+        let diff_ms = diff.subsec_millis() as u64 + 1000 * diff.as_secs();
+
+        let percent =
+            100 * diff_ms / interval_ms;
+
+        // increase interval
         self.interval = self
             .interval
             .mul(INTERVAL_MULTIPLIER)
             .min(self.max_interval)
             .mul(1000)
-            .div(self.rng.clone().unwrap().gen_range(970, 1030));
+            .div(self.rng.clone().unwrap().gen_range(900, 1100));
 
         if percent > SKIP_INTERVAL_PERCENTAGE {
-            None
+            //println!("Less: {:?}", self.interval);
+
+            self.last_query = now;
+
+            (Some(()), self.interval)
         } else {
-            Some(interval)
+            //println!("Greater: {:?}", self.interval);
+            (None, self.interval - diff)
         }
     }
 
@@ -138,6 +146,7 @@ impl MemoryManager {
     }
 
     pub fn update(&mut self, data: ServiceInstance) -> Option<ServiceInstance> {
+        println!("Update: {:?}", data.name);
         let now = Instant::now();
         let id: ServiceInstanceId = data.clone().into();
 
@@ -190,13 +199,7 @@ impl MemoryManager {
     }
 }
 
-struct RequestForMdnsQuery;
-
 pub struct ForeignMdnsQueryInfo;
-
-impl Message for RequestForMdnsQuery {
-    type Result = ();
-}
 
 impl Message for ForeignMdnsQueryInfo {
     type Result = ();
@@ -250,43 +253,28 @@ impl Actor for ContinuousInstancesList {
             ctx: &mut Context<ContinuousInstancesList>,
         ) {
             let vec = act.service();
-            ctx.spawn(
-                send_mdns_query(Some(act.sender.clone()), vec, 0)
-                    .into_actor(act)
-                    .map_err(|e, _, _| error!("mDNS query error: {:?}", e)),
-            );
-            let dur = act.notifier.query_time().unwrap_or(Duration::from_secs(0));
+            let time = act.notifier.query_time();
 
-            ctx.run_later(dur, query_loop);
+
+            match time.0 {
+                 Some(_) => {
+                    println!("Query: {:?}", vec);
+                    //println!("Sender: {:?}", act.sender.clone());
+
+                    ctx.spawn(
+                        send_mdns_query(Some(act.sender.clone()), vec.clone(), 0)
+                            .map_err(|e| error!("mDNS query error: {:?}", e))
+                            .into_actor(act)
+                    );
+                }
+                _ => (),
+
+            };
+
+            ctx.run_later(time.1, query_loop);
         };
 
-        let dur = self.notifier.query_time().unwrap_or(Duration::from_secs(0));
-        ctx.run_later(dur, query_loop);
-
-//        ctx.run_interval(Duration::from_secs(1), |act, _ctx| {
-//            act.memory
-//                .memory()
-//                .into_iter()
-//                .map(|a| a.host)
-//                .for_each(|a| println!("{:?}", a));
-//            println!();
-//        });
-    }
-}
-
-impl Handler<RequestForMdnsQuery> for ContinuousInstancesList {
-    type Result = ();
-
-    fn handle(&mut self, _msg: RequestForMdnsQuery, ctx: &mut Context<Self>) -> () {
-        use futures::Future;
-        ctx.spawn(
-            actor::send_mdns_query(
-                Some(self.sender.clone()),
-                ServicesDescription::new(vec![self.name.clone()]),
-                0,
-            ).map_err(|_| ())
-            .into_actor(self),
-        );
+        query_loop(self, ctx);
     }
 }
 
@@ -317,7 +305,7 @@ impl Handler<ReceivedMdnsInstance> for ContinuousInstancesList {
         let msg = msg.0;
         if let Some(inst) = self.memory.update(msg) {
             for s in self.subscribers.clone() {
-                s.do_send(NewInstance { data: inst.clone() });
+                let _ = s.do_send(NewInstance { data: inst.clone() }).map_err(|e| error!("error: {:?}", e));
             }
         }
     }
@@ -337,7 +325,7 @@ impl Handler<Subscribe> for ContinuousInstancesList {
     fn handle(&mut self, msg: Subscribe, _ctx: &mut Context<Self>) -> () {
         self.subscribers.insert(msg.rec.clone());
         for inst in self.memory.memory() {
-            msg.rec.do_send(NewInstance { data: inst.clone() });
+            let _ = msg.rec.do_send(NewInstance { data: inst.clone() }).map_err(|e| error!("error: {:?}", e));
         }
     }
 }
