@@ -88,6 +88,17 @@ pub struct Services {
     map: HashMap<String, HashSet<ServiceInstance>>,
 }
 
+impl<'a> From<&'a ServicesDescription> for Services {
+    fn from(s: &'a ServicesDescription) -> Self {
+        let mut res = Services::default();
+        for service in s.services() {
+            res.add_service(service.to_string());
+        }
+
+        res
+    }
+}
+
 impl Services {
     pub(crate) fn add_service(&mut self, s: String) {
         self.map.insert(s, HashSet::new());
