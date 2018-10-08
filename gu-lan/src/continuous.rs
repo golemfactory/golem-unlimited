@@ -1,26 +1,15 @@
-use actix::prelude::*;
-use actix::Actor;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::Recipient;
+use actix::{prelude::*, Actor, Context, Handler, Message, Recipient};
 use actor::send_mdns_query;
 use errors::{ErrorKind, Result};
-use futures::sync::mpsc;
-use futures::Future;
-use rand::thread_rng;
-use rand::Rng;
-use rand::ThreadRng;
-use service::ServiceDescription;
-use service::ServiceInstance;
-use service::ServicesDescription;
-use std::cmp::Ordering;
-use std::collections::BinaryHeap;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::net::SocketAddr;
-use std::time::Duration;
-use std::time::Instant;
+use futures::{sync::mpsc, Future};
+use rand::{thread_rng, Rng, ThreadRng};
+use service::{ServiceDescription, ServiceInstance, ServicesDescription};
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap, HashSet},
+    net::SocketAddr,
+    time::{Duration, Instant},
+};
 
 static SKIP_INTERVAL_PERCENTAGE: u64 = 80;
 static INTERVAL_MULTIPLIER: u32 = 3;
@@ -160,9 +149,10 @@ impl MemoryManager {
     }
 
     fn conditionally_destroy_instance(&mut self, time: Instant) -> bool {
-        use std::collections::binary_heap::PeekMut;
-        use std::collections::hash_map::Entry;
-        use std::ops::Add;
+        use std::{
+            collections::{binary_heap::PeekMut, hash_map::Entry},
+            ops::Add,
+        };
 
         match self.queue.peek_mut() {
             Some(top) => {

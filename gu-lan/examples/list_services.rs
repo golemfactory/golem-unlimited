@@ -5,16 +5,15 @@ extern crate gu_actix;
 extern crate gu_lan;
 extern crate log;
 
-use actix::fut;
-use actix::prelude::*;
+use actix::{fut, prelude::*};
 use env_logger::Builder;
 use futures::Future;
 use gu_actix::flatten::FlattenFuture;
-use gu_lan::actor::Continuous;
-use gu_lan::actor::SubscribeInstance;
-use gu_lan::continuous::NewInstance;
-use gu_lan::continuous::Subscription;
-use gu_lan::service::ServiceDescription;
+use gu_lan::{
+    actor::{Continuous, SubscribeInstance},
+    continuous::{NewInstance, Subscription},
+    service::ServiceDescription,
+};
 use log::LevelFilter;
 
 #[derive(Default)]

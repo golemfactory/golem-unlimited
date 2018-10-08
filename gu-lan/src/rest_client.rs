@@ -8,8 +8,7 @@ use gu_p2p::rpc::start_actor;
 use prettytable::Table;
 use server::{self, LanQuery};
 use service::ServiceInstance;
-use std::collections::HashSet;
-use std::net::Ipv4Addr;
+use std::{collections::HashSet, net::Ipv4Addr};
 
 fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
     let mut res = String::new();

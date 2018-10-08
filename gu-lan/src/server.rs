@@ -4,9 +4,7 @@ use futures::Future;
 use gu_actix::flatten::FlattenFuture;
 use gu_p2p::rpc::*;
 use serde_json;
-use service::ServiceDescription;
-use service::ServiceInstance;
-use service::ServicesDescription;
+use service::{ServiceDescription, ServiceInstance, ServicesDescription};
 use std::collections::HashSet;
 
 /// Actix-web actor for mDNS service discovery

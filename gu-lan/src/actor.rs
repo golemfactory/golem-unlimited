@@ -8,25 +8,29 @@ use futures::sync::oneshot;
 use service::{ServiceInstance, ServicesDescription};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::{
+    collections::HashMap,
+    net::{Ipv4Addr, SocketAddrV4},
+};
 
 use actix::AsyncContext;
 use codec::ParsedPacket;
-use continuous::ContinuousInstancesList;
-use continuous::NewInstance;
-use continuous::Subscribe;
-use continuous::Subscription;
-use continuous::{ForeignMdnsQueryInfo, ReceivedMdnsInstance};
+use continuous::{
+    ContinuousInstancesList, ForeignMdnsQueryInfo, NewInstance, ReceivedMdnsInstance, Subscribe,
+    Subscription,
+};
 use futures::sync::mpsc;
 use gu_actix::FlattenFuture;
-use service::ServiceDescription;
-use service::Services;
-use std::collections::HashSet;
-use std::net::SocketAddr::{self, V4};
-use std::time::Duration;
-use tokio::net::{UdpFramed, UdpSocket};
-use tokio::reactor::Handle;
+use service::{ServiceDescription, Services};
+use std::{
+    collections::HashSet,
+    net::SocketAddr::{self, V4},
+    time::Duration,
+};
+use tokio::{
+    net::{UdpFramed, UdpSocket},
+    reactor::Handle,
+};
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]

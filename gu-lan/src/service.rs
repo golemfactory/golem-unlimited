@@ -1,9 +1,10 @@
 use actix::prelude::*;
 use errors::Result;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::net::Ipv4Addr;
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    net::Ipv4Addr,
+};
 
 /// Struct describing single service in .local domain's network
 ///
