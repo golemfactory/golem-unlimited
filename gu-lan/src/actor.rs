@@ -16,6 +16,7 @@ use codec::ParsedPacket;
 use continuous::ContinuousInstancesList;
 use continuous::NewInstance;
 use continuous::Subscribe;
+use continuous::Subscription;
 use continuous::{ForeignMdnsQueryInfo, ReceivedMdnsInstance};
 use futures::sync::mpsc;
 use gu_actix::FlattenFuture;
@@ -44,7 +45,7 @@ pub trait MdnsConnection: 'static + Default + Sized {
 }
 
 pub type OneShotResponse<T> = ActorResponse<MdnsActor<T>, HashSet<ServiceInstance>, Error>;
-pub type ContinuousResponse<T> = ActorResponse<MdnsActor<T>, (), Error>;
+pub type ContinuousResponse<T> = ActorResponse<MdnsActor<T>, Subscription, Error>;
 
 #[derive(Debug, Default)]
 pub struct OneShot {
@@ -246,14 +247,19 @@ impl<T: MdnsConnection> Actor for MdnsActor<T> {
         let socket = Self::create_mdns_socket().expect("Creation of mDNS socket failed");
         let (sink, stream) = UdpFramed::new(socket, MdnsCodec(T::unicast_query())).split();
 
-        ctx.add_message_stream(stream.map(|(packet, socket)| PacketPair { packet, socket }).map_err(|_| ()));
+        ctx.add_message_stream(
+            stream
+                .map(|(packet, socket)| PacketPair { packet, socket })
+                .map_err(|_| ()),
+        );
 
         let (tx, rx) = mpsc::channel(16);
         ctx.spawn(
-            rx.map_err(|_| ErrorKind::UninitializedChannelReceiver).forward(sink)
+            rx.map_err(|_| ErrorKind::UninitializedChannelReceiver)
+                .forward(sink)
                 .map_err(|e| error!("{:?}", e))
                 .and_then(|_| Ok(()))
-                .into_actor(self)
+                .into_actor(self),
         );
 
         self.sender = Some(tx);
@@ -287,11 +293,7 @@ pub struct SubscribeInstance {
 }
 
 impl Message for SubscribeInstance {
-    type Result = Result<()>;
-}
-
-pub struct UnsubscribeInstance {
-    pub service: ServiceInstance,
+    type Result = Result<Subscription>;
 }
 
 impl Handler<SubscribeInstance> for MdnsActor<Continuous> {

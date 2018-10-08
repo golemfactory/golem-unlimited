@@ -31,6 +31,11 @@ error_chain! {
             display("there is no such key")
         }
 
+        DoSendError {
+            description("cannot send message by do_send")
+            display("cannot send message by do_send")
+        }
+
         Mailbox
     }
 }
