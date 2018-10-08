@@ -6,14 +6,8 @@ extern crate sha1;
 extern crate mime;
 extern crate regex;
 
-use actix::prelude::*;
-
-use actix_web::{dev,HttpRequest, Responder, AsyncResponder, HttpResponse, HttpMessage, Error};
-use std::borrow::Cow;
+use actix_web::{dev,HttpRequest, Responder, HttpResponse, Error};
 use std::collections::HashMap;
-use digest::Digest;
-use sha1::Sha1;
-
 
 pub struct WebApp {
     elements: HashMap<String, WebContent>,

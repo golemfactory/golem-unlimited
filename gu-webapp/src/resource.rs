@@ -1,6 +1,5 @@
 
-use std::borrow::Cow;
-use actix_web::{http, http::header, Responder, HttpRequest, HttpResponse, HttpMessage, Error, http::StatusCode};
+use actix_web::{http::header, Responder, HttpRequest, HttpResponse, HttpMessage, Error, http::StatusCode};
 use sha1::{Digest, Sha1};
 use mime::{TEXT_HTML_UTF_8, Mime};
 
