@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use actix::fut;
 use actix::prelude::*;
 use futures::prelude::*;
@@ -13,8 +15,8 @@ use std::sync::Arc;
 
 use actix_web::client;
 use actix_web::client::ClientRequest;
-use actix_web::client::ClientRequestBuilder;
 use actix_web::error::JsonPayloadError;
+use actix_web::http;
 use actix_web::Body;
 use bytes::Bytes;
 use futures::future;
@@ -28,12 +30,9 @@ use gu_persist::config::ConfigManager;
 use mdns::Responder;
 use mdns::Service;
 use serde::de;
-use serde::ser;
 use serde::Serialize;
 use serde_json;
 use std::marker::PhantomData;
-use actix_web::http::HeaderMap;
-use actix_web::http;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -212,7 +211,9 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
                 .map_err(|e| println!("error ! {}", e))
                 .into_actor(self)
                 .and_then(move |config, act, ctx| {
-                    act.hub_configuration(config, node_id);
+                    let _ = act
+                        .hub_configuration(config, node_id)
+                        .map_err(|e| error!("Hub configuration error {:?}", e));
                     fut::ok(ctx.stop())
                 }),
         );
@@ -387,8 +388,7 @@ impl<T> IntoRequest for ResourcePatch<T> {
     fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
         let mut builder = ClientRequest::build();
         builder.method(http::Method::PATCH).uri(url);
-        builder.header("Accept", "application/json")
-            .finish()
+        builder.header("Accept", "application/json").finish()
     }
 
     fn path(&self) -> &str {
@@ -432,7 +432,6 @@ impl<T: de::DeserializeOwned + 'static> Message for ResourcePatch<T> {
     type Result = Result<T, ClientError>;
 }
 
-
 impl<T: de::DeserializeOwned + 'static, M: IntoRequest + Message> Handler<M> for ServerClient
 where
     M: Message<Result = Result<T, ClientError>> + 'static,
@@ -440,7 +439,7 @@ where
     type Result = ActorResponse<ServerClient, T, ClientError>;
 
     fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
-        use actix_web::{client, HttpMessage};
+        use actix_web::HttpMessage;
         use futures::future;
 
         ActorResponse::async(

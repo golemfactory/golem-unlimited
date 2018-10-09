@@ -565,8 +565,8 @@ impl Handler<status::GetEnvStatus> for HdMan {
 
     fn handle(
         &mut self,
-        msg: status::GetEnvStatus,
-        ctx: &mut Self::Context,
+        _msg: status::GetEnvStatus,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<status::GetEnvStatus>>::Result {
         let mut num_proc = 0;
         for session in self.sessions.values() {

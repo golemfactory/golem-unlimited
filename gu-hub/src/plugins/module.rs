@@ -2,7 +2,6 @@ use actix_web;
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use plugins;
 use plugins::builder::BuildPluginQuery;
-use plugins::builder::PluginBuilder;
 use plugins::manager::QueriedStatus;
 use plugins::rest::scope;
 use std::path::PathBuf;

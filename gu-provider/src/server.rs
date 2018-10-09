@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use actix::fut;
 use actix::prelude::*;
 use actix_web::*;
@@ -8,9 +10,9 @@ use gu_base::Module;
 use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
 use gu_p2p::{rpc, NodeId};
 use gu_persist::config::{
-    ConfigManager, ConfigModule, Error as ConfigError, GetConfig, HasSectionId, SetConfig,
-    SetConfigPath,
+    ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath,
 };
+use gu_persist::error::Error as ConfigError;
 use hdman::HdMan;
 use mdns::Responder;
 use std::borrow::Cow;

@@ -1,5 +1,5 @@
 use super::Module;
-use clap::{App, Arg, ArgMatches, Shell, SubCommand};
+use clap::{App, Arg, ArgMatches, SubCommand};
 use env_logger;
 use std::env;
 
@@ -30,11 +30,7 @@ impl Module for LogModule {
                     "RUST_LOG",
                     "info,gu_p2p=debug,gu_provider=debug,gu_hub=debug,gu_event_bus=debug",
                 ),
-                _ => env::set_var(
-                    "RUST_LOG",
-                    "debug",
-                ),
-
+                _ => env::set_var("RUST_LOG", "debug"),
             }
         }
         env_logger::init();

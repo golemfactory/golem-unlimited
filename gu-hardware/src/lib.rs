@@ -24,10 +24,8 @@ extern crate cl_sys;
 #[cfg(feature = "clinfo")]
 extern crate smallvec;
 
-use futures::future;
-use futures::prelude::*;
 use gu_base::Module;
-use gu_p2p::rpc::{start_actor, RemotingSystemService};
+use gu_p2p::rpc::RemotingSystemService;
 
 pub mod actor;
 mod cli;

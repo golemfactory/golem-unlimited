@@ -5,7 +5,6 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Module};
 use gu_p2p::rpc::start_actor;
-use prettytable::Table;
 use server::{self, LanQuery};
 use service::ServiceInstance;
 use std::{collections::HashSet, net::Ipv4Addr};
@@ -29,7 +28,7 @@ fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
 
 pub fn format_instances_table(instances: &HashSet<ServiceInstance>) {
     cli::format_table(
-        row!["Service type","Host name","Addresses","Description"],
+        row!["Service type", "Host name", "Addresses", "Description"],
         || "No instances found",
         instances.iter().map(|instance| {
             row![
@@ -47,7 +46,12 @@ fn run_client(m: &ArgMatches) {
 
     let sys = actix::System::new("gu-lan");
 
-    let instances = m.value_of("instance").expect("default value not set").split(',').map(|s| s.to_string()).collect();
+    let instances = m
+        .value_of("instance")
+        .expect("default value not set")
+        .split(',')
+        .map(|s| s.to_string())
+        .collect();
     let query = LanQuery::new(instances);
     let addr = start_actor(server::LanServer);
 

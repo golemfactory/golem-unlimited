@@ -5,10 +5,10 @@ extern crate actix;
 extern crate actix_web;
 extern crate clap;
 extern crate gu_actix;
+extern crate gu_event_bus;
 extern crate gu_lan;
 extern crate gu_p2p;
 extern crate gu_persist;
-extern crate gu_event_bus;
 extern crate tokio_uds;
 
 extern crate serde;
@@ -46,8 +46,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod peer;
 mod plugins;
-mod server;
 mod proxy_service;
+mod server;
 
 fn main() {
     GuApp(|| App::new("Golem Unlimited").version(VERSION)).run(

@@ -83,7 +83,7 @@ pub enum TransportResult<B> {
 }
 
 impl<B> TransportResult<B> {
-    pub const NoDestination: Self = TransportResult::Err(TransportError::NoDestination);
+    pub const NO_DESTINATION: Self = TransportResult::Err(TransportError::NoDestination);
 
     pub fn bad_request<T: Into<String>>(msg: T) -> Self {
         TransportResult::Err(TransportError::BadFormat(msg.into()))

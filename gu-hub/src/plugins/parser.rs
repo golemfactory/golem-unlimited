@@ -5,11 +5,7 @@ use semver::VersionReq;
 use serde_json;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fs::read_dir;
-use std::fs::DirEntry;
 use std::fs::File;
-use std::fs::FileType;
-use std::fs::ReadDir;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::io::Read;
@@ -41,7 +37,7 @@ pub trait PluginParser: Debug {
     /// Checks if plugin source contains files from metadata load field
     fn contains_files(&mut self, files: &Vec<String>) -> Result<(), String> {
         let meta = self.load_metadata()?;
-        let mut app_name = meta.name();
+        let app_name = meta.name();
 
         files.into_iter().fold(Ok(()), |init, name| {
             init.and_then(|()| {
@@ -129,7 +125,7 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
             let mut file = file.unwrap();
 
             match file.sanitized_name().strip_prefix(app_name) {
-                Err(e) => (),
+                Err(_e) => (),
                 Ok(path) => {
                     let _ = read_file(&mut file)
                         .and_then(|x| {

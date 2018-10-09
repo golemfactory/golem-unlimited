@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use actix::Message;
 use error::{ErrorKind, Result};
 use gu_persist::config::ConfigModule;

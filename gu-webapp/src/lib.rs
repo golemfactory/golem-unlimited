@@ -1,9 +1,10 @@
+#![allow(dead_code)]
+
 extern crate actix;
 extern crate actix_web;
 extern crate flate2;
 extern crate sha1;
 
-use actix::prelude::*;
 use std::borrow::Cow;
 use std::collections::HashMap;
 

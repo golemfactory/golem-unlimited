@@ -3,7 +3,6 @@ use super::storage::{Fetch, Put};
 use actix::{fut, prelude::*};
 use directories::ProjectDirs;
 use gu_actix::*;
-use gu_base::*;
 use gu_base::{App, Arg, Module};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value as JsonValue};

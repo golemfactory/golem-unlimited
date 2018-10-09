@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use actix::Actor;
 use actix::Context;
 use actix::Handler;
@@ -5,33 +7,29 @@ use actix::Message;
 use actix::MessageResult;
 use actix::Supervised;
 use actix::SystemService;
-use actix_web::http::StatusCode;
-use actix_web::HttpResponse;
-use actix_web::Responder;
 use bytes::Bytes;
+use gu_event_bus::post_event;
 use gu_persist::config::ConfigModule;
 use plugins::parser::BytesPluginParser;
 use plugins::parser::PluginParser;
 use plugins::parser::ZipParser;
 use plugins::plugin::DirectoryHandler;
 use plugins::plugin::Plugin;
+use plugins::plugin::PluginEvent;
 use plugins::plugin::PluginHandler;
 use plugins::plugin::PluginInfo;
 use plugins::plugin::PluginStatus;
 use plugins::plugin::ZipHandler;
 use plugins::rest_result::InstallQueryResult;
-use plugins::plugin::PluginEvent;
 use semver::Version;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::fs::remove_file;
 use std::fs::DirBuilder;
-use std::fs::File;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::path::PathBuf;
-use gu_event_bus::post_event;
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -68,21 +66,17 @@ impl PluginManager {
         let mut plugin = Plugin::new(handler);
         plugin.activate();
 
-
-
         plugin
             .metadata()
             .map_err(|a| InvalidMetadata(a))
-            .map(
-                |meta| {
-                    let event_path = format!("/plugins/{}", meta.name());
-                    post_event(event_path, PluginEvent::New(meta.clone()));
-                    match self.plugins.insert(meta.name().to_string(), plugin) {
-                        None => Installed,
-                        Some(a) => Overwritten,
-                    }
-                })
-            .unwrap_or_else(|e| e)
+            .map(|meta| {
+                let event_path = format!("/plugins/{}", meta.name());
+                post_event(event_path, PluginEvent::New(meta.clone()));
+                match self.plugins.insert(meta.name().to_string(), plugin) {
+                    None => Installed,
+                    Some(_a) => Overwritten,
+                }
+            }).unwrap_or_else(|e| e)
     }
 
     fn uninstall_plugin(&mut self, name: &String) {
@@ -94,7 +88,7 @@ impl PluginManager {
 
         // TODO: I would prefer some clear function in Plugin trait instead of this
         let file = self.directory.join(name);
-        remove_file(file);
+        let _ = remove_file(file).map_err(|_| format!("Cannot remove plugin file {:?}", name));
     }
 
     fn load_zip(&mut self, name: &str) -> InstallQueryResult {
@@ -291,12 +285,13 @@ impl Handler<ChangePluginState> for PluginManager {
         msg: ChangePluginState,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<ChangePluginState>>::Result {
-        let mut previous: Option<PluginStatus> =
+        let previous: Option<PluginStatus> =
             self.plugin(&msg.plugin).map(|plug| plug.status()).ok();
-        match msg.state.clone() {
+
+        let _ = match msg.state.clone() {
             QueriedStatus::Uninstall => Ok(self.uninstall_plugin(&msg.plugin)),
 
-            o => self
+            _ => self
                 .plugin_mut(&msg.plugin)
                 .map(|plug| match msg.state.clone() {
                     QueriedStatus::Activate => plug.activate(),

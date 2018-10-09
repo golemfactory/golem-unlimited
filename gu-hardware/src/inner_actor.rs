@@ -11,7 +11,9 @@ pub struct InnerActor {
 
 impl Default for InnerActor {
     fn default() -> InnerActor {
-        InnerActor{ sys: sysinfo::System::new() }
+        InnerActor {
+            sys: sysinfo::System::new(),
+        }
     }
 }
 

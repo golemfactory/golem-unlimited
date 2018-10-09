@@ -1,6 +1,6 @@
 use actix::{prelude::*, Actor, Context, Handler, Message, Recipient};
 use actor::send_mdns_query;
-use errors::{ErrorKind, Result};
+use errors::ErrorKind;
 use futures::{sync::mpsc, Future};
 use rand::{thread_rng, Rng, ThreadRng};
 use service::{ServiceDescription, ServiceInstance, ServicesDescription};
@@ -225,15 +225,13 @@ impl ContinuousInstancesList {
         ServicesDescription::new(vec![self.name.clone()])
     }
 
-    fn new_instance_info(
-        &mut self,
-        rec: &Recipient<NewInstance>,
-        inst: ServiceInstance,
-    ) -> Result<()> {
-        rec.do_send(NewInstance { data: inst }).map_err(|_e| {
-            self.subscribers.remove(rec);
-            ErrorKind::DoSendError.into()
-        })
+    fn new_instance_info(&mut self, rec: &Recipient<NewInstance>, inst: ServiceInstance) {
+        let _ = rec
+            .do_send(NewInstance { data: inst })
+            .map_err(|_| {
+                self.subscribers.remove(rec);
+                ErrorKind::DoSendError.into()
+            }).map_err(|e: ErrorKind| warn!("Cannot send message to subscriber - {:?}", e));
     }
 }
 
@@ -354,7 +352,7 @@ impl Handler<Unsubscribe> for ContinuousInstancesList {
 
 impl Drop for Subscription {
     fn drop(&mut self) {
-        self.list.do_send(Unsubscribe {
+        let _ = self.list.do_send(Unsubscribe {
             rec: self.subscriber.clone(),
         });
     }

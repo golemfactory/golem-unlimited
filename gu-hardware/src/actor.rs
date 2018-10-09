@@ -1,11 +1,6 @@
-use actix::{
-    Actor, ActorFuture, ActorResponse, Addr, ArbiterService, Handler, Message, WrapFuture,
-};
-use actix_web::Error;
-use futures::future;
+use actix::{Actor, ActorResponse, Addr, ArbiterService, Handler, Message, WrapFuture};
 use futures::Future;
 use hostname::get_hostname;
-use sysinfo::SystemExt;
 
 use disk::{DiskInfo, DiskQuery};
 use gu_actix::flatten::FlattenFuture;

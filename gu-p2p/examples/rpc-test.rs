@@ -16,12 +16,7 @@ extern crate log;
 extern crate serde_derive;
 
 use actix::prelude::*;
-use futures::unsync::oneshot;
-use futures::{future, prelude::*};
-use gu_actix::*;
 use gu_p2p::rpc::*;
-use gu_p2p::NodeId;
-use std::collections::HashMap;
 
 use actix_web::*;
 

@@ -59,14 +59,6 @@ impl ServicesDescription {
     pub(crate) fn services(&self) -> &Vec<ServiceDescription> {
         &self.services
     }
-
-    pub(crate) fn to_services(&self) -> Services {
-        let mut services = Services::default();
-        for i in self.services.clone() {
-            services.add_service(i.to_string())
-        }
-        services
-    }
 }
 
 impl Message for ServicesDescription {

@@ -24,11 +24,8 @@ extern crate tokio_io;
 
 pub mod error {
     use actix::MailboxError;
-    use futures::future;
-    use futures::Async;
     use serde_json;
     use std::io;
-    use std::result as r;
 
     error_chain!(
 

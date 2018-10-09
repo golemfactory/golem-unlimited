@@ -1,6 +1,6 @@
 use std::fs::ReadDir;
 use std::io::Read;
-use std::{fmt, fs, io, path, str};
+use std::{fs, io, path, str};
 
 pub type VendorCode = u16;
 

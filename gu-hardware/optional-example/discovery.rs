@@ -7,7 +7,6 @@ extern crate serde_json;
 extern crate sysinfo;
 
 use actix::prelude::*;
-use gu_actix::prelude::*;
 use gu_p2p::rpc::start_actor;
 
 //use std::path::PathBuf;
