@@ -5,11 +5,11 @@ use actor::MdnsActor;
 use actor::OneShot;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
+use gu_base::Decorator;
 use gu_base::{cli, Module};
 use service::ServiceInstance;
 use service::ServicesDescription;
 use std::{collections::HashSet, net::Ipv4Addr};
-use gu_base::Decorator;
 
 fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
     let mut res = String::new();
@@ -47,10 +47,7 @@ fn run_client(instances: &String) {
     use actix::SystemService;
 
     let sys = actix::System::new("gu-lan");
-    let instances = instances
-        .split(',')
-        .map(|s| s.to_string().into())
-        .collect();
+    let instances = instances.split(',').map(|s| s.to_string().into()).collect();
 
     let mdns_actor = MdnsActor::<OneShot>::from_registry();
     let query = ServicesDescription::new(instances);
@@ -72,7 +69,6 @@ enum LanCommand {
     None,
     List(String),
 }
-
 
 pub struct LanModule {
     command: LanCommand,
@@ -107,12 +103,13 @@ impl Module for LanModule {
         if let Some(m) = matches.subcommand_matches("lan") {
             self.command = match m.subcommand() {
                 ("list", Some(m)) => {
-                    let instance = m.value_of("instance")
+                    let instance = m
+                        .value_of("instance")
                         .expect("Lack of required `instance` argument")
                         .to_string();
                     LanCommand::List(instance)
-                },
-                _ => return false
+                }
+                _ => return false,
             };
             true
         } else {

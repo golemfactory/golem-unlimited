@@ -18,6 +18,7 @@ use mdns::Responder;
 use std::borrow::Cow;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
+use mdns::Service;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -27,6 +28,7 @@ struct ServerConfig {
     control_socket: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hub_addr: Option<SocketAddr>,
+    pub(crate) publish_service: bool,
 }
 
 impl Default for ServerConfig {
@@ -35,6 +37,7 @@ impl Default for ServerConfig {
             p2p_port: 61621,
             control_socket: None,
             hub_addr: None,
+            publish_service: true,
         }
     }
 }
@@ -127,17 +130,15 @@ fn p2p_server(_r: &HttpRequest) -> &'static str {
     "ok"
 }
 
-fn run_mdns_publisher(port: u16) {
+fn mdns_publisher(port: u16) -> Service {
     let responder = Responder::new().expect("Failed to run mDNS publisher");
 
-    let svc = Box::new(responder.register(
+    responder.register(
         "_unlimited._tcp".to_owned(),
         "gu-provider".to_owned(),
         port,
         &["path=/", ""],
-    ));
-
-    let _ = Box::leak(svc);
+    )
 }
 
 struct ServerConfigurer<D> {
@@ -175,7 +176,9 @@ impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
                     });
                     let _ = server.bind(c.p2p_addr()).unwrap().start();
 
-                    run_mdns_publisher(c.p2p_port);
+                    if c.publish_service {
+                        Box::leak(Box::new(mdns_publisher(c.p2p_port)));
+                    }
 
                     if let Some(hub_addr) = hub_addr {
                         config.do_send(SetConfig::new(ServerConfig {
