@@ -39,6 +39,7 @@ fn print_instances_table(instances: &HashSet<ServiceInstance>) {
         table.add_row(row![
             instance.name,
             instance.host,
+            instance.host,
             format_addresses(&instance.addrs_v4, &instance.ports),
             instance.txt.join(", "),
         ]);
@@ -53,8 +54,8 @@ fn run_client(m: &ArgMatches) {
 
     let sys = actix::System::new("gu-lan");
 
-    let instance = m.value_of("instance").expect("default value not set");
-    let query = LanQuery::single(instance.to_string());
+    let instances = m.value_of("instance").expect("default value not set").split(',').map(|s| s.to_string()).collect();
+    let query = LanQuery::new(instances);
     let addr = start_actor(server::LanServer);
 
     Arbiter::spawn(
@@ -76,7 +77,7 @@ impl Module for LanModule {
         let instance = Arg::with_name("instance")
             .short("I")
             .help("queries mDNS server about some instance")
-            .default_value("gu-hub");
+            .default_value("gu-hub,gu-provider");
 
         app.subcommand(
             SubCommand::with_name("lan").subcommand(SubCommand::with_name("list").arg(instance)),
