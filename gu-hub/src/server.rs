@@ -21,10 +21,8 @@ use actix_web::Body;
 use bytes::Bytes;
 use futures::future;
 use gu_base::{Decorator, Module};
-use gu_lan::server;
 use gu_p2p::rpc;
 use gu_p2p::rpc::mock;
-use gu_p2p::rpc::start_actor;
 use gu_p2p::NodeId;
 use gu_persist::config::ConfigManager;
 use mdns::Responder;
@@ -59,7 +57,12 @@ impl ServerConfig {
     fn default_p2p_port() -> u16 {
         61622
     }
+
     fn publish_service() -> bool {
+        true
+    }
+
+    fn discover_service() -> bool {
         true
     }
 
@@ -126,26 +129,15 @@ fn p2p_server<S>(_r: &actix_web::HttpRequest<S>) -> &'static str {
     "ok"
 }
 
-fn mdns_publisher(run: bool, port: u16) {
-    if run {
-        let responder = Responder::new().expect("Failed to run mDNS publisher");
+fn mdns_publisher(port: u16) -> Service {
+    let responder = Responder::new().expect("Failed to run mDNS publisher");
 
-        let svc = Box::new(responder.register(
-            "_unlimited._tcp".to_owned(),
-            "gu-hub".to_owned(),
-            port,
-            &["path=/", ""],
-        ));
-
-        let _svc: &'static mut Service = Box::leak(svc);
-    }
-}
-
-fn mdns_querier(run: bool) {
-    if run {
-        // TODO: add it to endpoint
-        start_actor(server::LanServer);
-    }
+    responder.register(
+        "_unlimited._tcp".to_owned(),
+        "gu-hub".to_owned(),
+        port,
+        &["path=/", ""],
+    )
 }
 
 fn chat_route(
@@ -188,8 +180,10 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
             )
         });
         let _ = server.bind(c.p2p_addr()).unwrap().start();
-        mdns_querier(c.publish_service);
-        mdns_publisher(c.publish_service, c.p2p_port);
+
+        if c.publish_service {
+            Box::leak(Box::new(mdns_publisher(c.p2p_port)));
+        }
 
         Ok(())
     }

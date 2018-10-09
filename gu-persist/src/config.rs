@@ -1,3 +1,5 @@
+#![allow(proc_macro_derive_resolution_fallback)]
+
 pub use super::error::*;
 use super::storage::{Fetch, Put};
 use actix::{fut, prelude::*};

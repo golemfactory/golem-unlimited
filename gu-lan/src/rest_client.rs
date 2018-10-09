@@ -4,10 +4,11 @@ use actix::{Arbiter, System};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Module};
-use gu_p2p::rpc::start_actor;
-use server::{self, LanQuery};
 use service::ServiceInstance;
 use std::{collections::HashSet, net::Ipv4Addr};
+use actor::OneShot;
+use actor::MdnsActor;
+use service::ServicesDescription;
 
 fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
     let mut res = String::new();
@@ -43,6 +44,7 @@ pub fn format_instances_table(instances: &HashSet<ServiceInstance>) {
 
 fn run_client(m: &ArgMatches) {
     use actix;
+    use actix::SystemService;
 
     let sys = actix::System::new("gu-lan");
 
@@ -50,15 +52,16 @@ fn run_client(m: &ArgMatches) {
         .value_of("instance")
         .expect("default value not set")
         .split(',')
-        .map(|s| s.to_string())
+        .map(|s| s.to_string().into())
         .collect();
-    let query = LanQuery::new(instances);
-    let addr = start_actor(server::LanServer);
+
+    let mdns_actor = MdnsActor::<OneShot>::from_registry();
+    let query = ServicesDescription::new(instances);
 
     Arbiter::spawn(
-        addr.send(query)
+        mdns_actor.send(query)
             .map_err(|e| error!("error! {}", e))
-            .and_then(|r| r)
+            .and_then(|r| r.map_err(|e| error!("error! {}", e)))
             .and_then(|r| Ok(format_instances_table(&r)))
             .map_err(|e| error!("error! {:?}", e))
             .then(|_| Ok(System::current().stop())),

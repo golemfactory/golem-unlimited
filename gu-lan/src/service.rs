@@ -34,6 +34,15 @@ impl ServiceDescription {
     }
 }
 
+impl From<String> for ServiceDescription {
+    fn from(s: String) -> Self {
+        ServiceDescription {
+            instance: s.into(),
+            service: "_unlimited._tcp".into(),
+        }
+    }
+}
+
 impl Message for ServiceDescription {
     type Result = Result<HashSet<ServiceInstance>>;
 }

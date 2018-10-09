@@ -24,12 +24,14 @@ extern crate futures;
 extern crate tokio;
 extern crate tokio_codec;
 
+pub use continuous::{NewInstance, Subscription};
+pub use service::ServiceDescription;
+
 pub mod actor;
 mod codec;
-pub mod continuous;
+mod continuous;
 pub mod errors;
 pub mod rest_client;
-pub mod server;
-pub mod service;
+mod service;
 
 pub const LAN_ENDPOINT: u32 = 576411;
