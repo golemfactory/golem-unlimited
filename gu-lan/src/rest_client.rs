@@ -27,26 +27,19 @@ fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
     res
 }
 
-fn print_instances_table(instances: &HashSet<ServiceInstance>) {
-    let mut table = Table::new();
-    table.set_titles(row![
-        "Service type",
-        "Host name",
-        "Addresses",
-        "Description"
-    ]);
-    for instance in instances {
-        table.add_row(row![
-            instance.name,
-            instance.host,
-            instance.host,
-            format_addresses(&instance.addrs_v4, &instance.ports),
-            instance.txt.join(", "),
-        ]);
-    }
-
-    table.set_format(*cli::FORMAT_BASIC);
-    table.printstd()
+pub fn format_instances_table(instances: &HashSet<ServiceInstance>) {
+    cli::format_table(
+        row!["Service type","Host name","Addresses","Description"],
+        || "No instances found",
+        instances.iter().map(|instance| {
+            row![
+                instance.name,
+                instance.host,
+                format_addresses(&instance.addrs_v4, &instance.ports),
+                instance.txt.join(""),
+            ]
+        }),
+    )
 }
 
 fn run_client(m: &ArgMatches) {
@@ -62,7 +55,7 @@ fn run_client(m: &ArgMatches) {
         addr.send(query)
             .map_err(|e| error!("error! {}", e))
             .and_then(|r| r)
-            .and_then(|r| Ok(print_instances_table(&r)))
+            .and_then(|r| Ok(format_instances_table(&r)))
             .map_err(|e| error!("error! {:?}", e))
             .then(|_| Ok(System::current().stop())),
     );
