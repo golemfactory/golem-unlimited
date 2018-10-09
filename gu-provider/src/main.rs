@@ -45,7 +45,7 @@ fn main() {
         LogModule
             .chain(AutocompleteModule::new())
             .chain(gu_persist::config::ConfigModule::new())
-            .chain(gu_lan::module::LanModule)
+            .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(status::module())
             .chain(server::ServerModule::new()),

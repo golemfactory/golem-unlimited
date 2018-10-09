@@ -9,6 +9,7 @@ use gu_base::{cli, Module};
 use service::ServiceInstance;
 use service::ServicesDescription;
 use std::{collections::HashSet, net::Ipv4Addr};
+use gu_base::Decorator;
 
 fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
     let mut res = String::new();
@@ -41,15 +42,12 @@ pub fn format_instances_table(instances: &HashSet<ServiceInstance>) {
     )
 }
 
-fn run_client(m: &ArgMatches) {
+fn run_client(instances: &String) {
     use actix;
     use actix::SystemService;
 
     let sys = actix::System::new("gu-lan");
-
-    let instances = m
-        .value_of("instance")
-        .expect("default value not set")
+    let instances = instances
         .split(',')
         .map(|s| s.to_string().into())
         .collect();
@@ -70,7 +68,23 @@ fn run_client(m: &ArgMatches) {
     let _ = sys.run();
 }
 
-pub struct LanModule;
+enum LanCommand {
+    None,
+    List(String),
+}
+
+
+pub struct LanModule {
+    command: LanCommand,
+}
+
+impl LanModule {
+    pub fn module() -> LanModule {
+        Self {
+            command: LanCommand::None,
+        }
+    }
+}
 
 impl Module for LanModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
@@ -91,17 +105,25 @@ impl Module for LanModule {
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         if let Some(m) = matches.subcommand_matches("lan") {
-            clap_match_lan(m);
-            return true;
+            self.command = match m.subcommand() {
+                ("list", Some(m)) => {
+                    let instance = m.value_of("instance")
+                        .expect("Lack of required `instance` argument")
+                        .to_string();
+                    LanCommand::List(instance)
+                },
+                _ => return false
+            };
+            true
+        } else {
+            false
         }
-        false
     }
-}
 
-fn clap_match_lan(m: &ArgMatches) {
-    if let Some(m) = m.subcommand_matches("list") {
-        run_client(m);
-    } else {
-        println!("{}", m.usage())
+    fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
+        match self.command {
+            LanCommand::List(ref s) => run_client(s),
+            _ => (),
+        }
     }
 }
