@@ -11,8 +11,7 @@ use futures::Future;
 use gu_actix::flatten::FlattenFuture;
 use gu_lan::{
     actor::{Continuous, SubscribeInstance},
-    continuous::{NewInstance, Subscription},
-    service::ServiceDescription,
+    NewInstance, ServiceDescription, Subscription,
 };
 use log::LevelFilter;
 
@@ -85,17 +84,14 @@ fn main() {
         Arbiter::spawn(
             receiver
                 .send(SubMessage {
-                    service: gu_lan::service::ServiceDescription::new(
-                        "gu-provider",
-                        "_unlimited._tcp",
-                    ),
+                    service: gu_lan::ServiceDescription::new("gu-provider", "_unlimited._tcp"),
                 }).then(|_| Ok(())),
         );
 
         Arbiter::spawn(
             receiver
                 .send(SubMessage {
-                    service: gu_lan::service::ServiceDescription::new("gu-hub", "_unlimited._tcp"),
+                    service: gu_lan::ServiceDescription::new("gu-hub", "_unlimited._tcp"),
                 }).then(|_| Ok(())),
         );
     });

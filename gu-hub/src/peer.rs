@@ -28,7 +28,11 @@ impl PeerModule {
 
 impl Module for PeerModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-        app.subcommand(SubCommand::with_name("peer").subcommand(SubCommand::with_name("list")))
+        app.subcommand(
+            SubCommand::with_name("peer")
+                .about("Peers management")
+                .subcommand(SubCommand::with_name("list").about("Lists available peers")),
+        )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {

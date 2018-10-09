@@ -75,7 +75,7 @@ impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
         app.subcommand(
             SubCommand::with_name("server")
-                .about("provider server management")
+                .about("Provider server management")
                 .subcommand(SubCommand::with_name("connect").arg(Arg::with_name("hub_addr"))),
         )
     }

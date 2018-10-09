@@ -1,14 +1,14 @@
 //! Command line module for one-shot service discovery
 
 use actix::{Arbiter, System};
+use actor::MdnsActor;
+use actor::OneShot;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Module};
 use service::ServiceInstance;
-use std::{collections::HashSet, net::Ipv4Addr};
-use actor::OneShot;
-use actor::MdnsActor;
 use service::ServicesDescription;
+use std::{collections::HashSet, net::Ipv4Addr};
 
 fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
     let mut res = String::new();
@@ -21,7 +21,6 @@ fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
         res.push_str(addr.as_ref());
         res.push(':');
         res.push_str(&format!("{}", &port));
-        res.push('\n');
     }
 
     res
@@ -59,7 +58,8 @@ fn run_client(m: &ArgMatches) {
     let query = ServicesDescription::new(instances);
 
     Arbiter::spawn(
-        mdns_actor.send(query)
+        mdns_actor
+            .send(query)
             .map_err(|e| error!("error! {}", e))
             .and_then(|r| r.map_err(|e| error!("error! {}", e)))
             .and_then(|r| Ok(format_instances_table(&r)))
@@ -80,7 +80,12 @@ impl Module for LanModule {
             .default_value("gu-hub,gu-provider");
 
         app.subcommand(
-            SubCommand::with_name("lan").subcommand(SubCommand::with_name("list").arg(instance)),
+            SubCommand::with_name("lan")
+                .subcommand(
+                    SubCommand::with_name("list")
+                        .about("Lists available instances")
+                        .arg(instance),
+                ).about("Lan services"),
         )
     }
 

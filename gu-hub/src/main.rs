@@ -54,7 +54,7 @@ fn main() {
         LogModule
             .chain(AutocompleteModule::new())
             .chain(gu_persist::config::ConfigModule::new())
-            .chain(gu_lan::rest_client::LanModule)
+            .chain(gu_lan::module::LanModule)
             .chain(plugins::PluginModule::new())
             .chain(proxy_service::module())
             .chain(peer::PeerModule::new())

@@ -31,7 +31,7 @@ pub mod actor;
 mod codec;
 mod continuous;
 pub mod errors;
-pub mod rest_client;
+pub mod module;
 mod service;
 
 pub const LAN_ENDPOINT: u32 = 576411;

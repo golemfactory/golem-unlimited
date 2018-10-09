@@ -95,7 +95,7 @@ impl ServerModule {
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-        app.subcommand(SubCommand::with_name("server").about("hub server management"))
+        app.subcommand(SubCommand::with_name("server").about("Hub server management"))
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
