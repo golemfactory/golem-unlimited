@@ -62,6 +62,7 @@ impl HdMan {
         );
         fs::create_dir_all(&cache_dir)
             .and_then(|_| fs::create_dir_all(&sessions_dir))
+            .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
             .unwrap();
 
         start_actor(HdMan {
@@ -159,17 +160,16 @@ impl SessionInfo {
 
     fn destroy(&mut self) -> Result<(), Error> {
         debug!("killing all running child processes");
-        let mut _x = Vec::new();
-        _x = self
+        let _ = self
             .processes
             .values_mut()
             .map(|child| child.kill())
-            .collect();
-        _x = self
+            .collect::<Vec<_>>();
+        let _ = self
             .processes
             .values_mut()
-            .map(|child| child.wait().map(|_| ()))
-            .collect();
+            .map(|child| child.wait())
+            .collect::<Vec<_>>();
         debug!("cleaning session dir {:?}", self.work_dir);
         fs::remove_dir_all(&self.work_dir).map_err(From::from)
     }
@@ -570,7 +570,7 @@ impl Handler<status::GetEnvStatus> for HdMan {
     ) -> <Self as Handler<status::GetEnvStatus>>::Result {
         let mut num_proc = 0;
         for session in self.sessions.values() {
-            debug!("session statuc = {:?}", session.status);
+            debug!("session status = {:?}", session.status);
             num_proc += session.processes.len();
         }
         debug!("result = {}", num_proc);

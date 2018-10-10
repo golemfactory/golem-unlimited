@@ -15,10 +15,10 @@ use gu_persist::config::{
 use gu_persist::error::Error as ConfigError;
 use hdman::HdMan;
 use mdns::Responder;
+use mdns::Service;
 use std::borrow::Cow;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
-use mdns::Service;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

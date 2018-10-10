@@ -26,6 +26,8 @@ extern crate serde_json;
 extern crate tar;
 extern crate tokio;
 extern crate uuid;
+extern crate futures_cpupool;
+extern crate tokio_timer;
 
 use clap::App;
 use gu_base::*;
