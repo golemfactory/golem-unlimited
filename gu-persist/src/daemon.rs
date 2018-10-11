@@ -1,10 +1,8 @@
+#![allow(dead_code)]
 use config::ConfigModule;
 use daemonize::Daemonize;
-use daemonize::DaemonizeError;
-use futures::future;
-use futures::future::Future;
 use libc::{
-    dup, fcntl, flock, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
+    dup, flock, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
 };
 use std::fs::File;
 use std::io::Read;
@@ -74,7 +72,7 @@ where
     daemonize
         .start()
         .map(|_| {
-            out.write("Daemon started successfully\n".as_ref());
+            let _ = out.write("Daemon started successfully\n".as_ref());
             true
         }).map_err(|e| format!("Daemon creation error: {}", e))
 }
