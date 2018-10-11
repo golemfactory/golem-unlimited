@@ -16,9 +16,11 @@ extern crate serde_derive;
 extern crate error_chain;
 extern crate directories;
 
+extern crate daemonize;
 extern crate futures;
 extern crate gu_actix;
 extern crate gu_base;
+extern crate libc;
 extern crate tokio_fs;
 extern crate tokio_io;
 
@@ -28,19 +30,15 @@ pub mod error {
     use std::io;
 
     error_chain!(
+        foreign_links {
+            Json(serde_json::Error);
+            Io(io::Error);
+        }
 
-    //
-    foreign_links {
-        Json(serde_json::Error);
-        Io(io::Error);
-    }
-
-    errors {
-        MailboxError(e : MailboxError){}
-        ConcurrentChange{}
-    }
-
-
+        errors {
+            MailboxError(e : MailboxError){}
+            ConcurrentChange{}
+        }
     );
 
     impl From<MailboxError> for Error {
@@ -52,5 +50,7 @@ pub mod error {
 }
 
 pub mod config;
+#[cfg(unix)]
+pub mod daemon;
 pub mod file_storage;
 pub mod storage;
