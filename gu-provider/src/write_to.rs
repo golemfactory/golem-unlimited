@@ -1,15 +1,15 @@
-use futures_cpupool::CpuPool;
+use actix::{Actor, Context, Handler, Message, Supervised, SystemService};
 use bytes::Bytes;
+use futures::future;
 use futures::prelude::*;
 use futures::Async;
+use futures_cpupool::CpuPool;
 use std::fs::File;
-use std::path::Path;
-use futures::future;
-use actix::{Actor, Context, Message, Handler, SystemService, Supervised};
 use std::io::{self, Seek, SeekFrom, Write};
+use std::path::Path;
 
 struct FileWriter {
-    pool: CpuPool
+    pool: CpuPool,
 }
 
 impl Default for FileWriter {
@@ -45,26 +45,26 @@ impl Handler<WriteToFile> for FileWriter {
         use actix::AsyncContext;
         use actix::WrapFuture;
 
-        ctx.spawn(write_chunk(msg.file, msg.x, msg.pos, self.pool.clone()).map_err(|_| ()).into_actor(self));
+        ctx.spawn(
+            write_chunk(msg.file, msg.x, msg.pos, self.pool.clone())
+                .map_err(|_| ())
+                .into_actor(self),
+        );
     }
 }
 
-struct WithPositions<S: Stream<Item=Bytes, Error=()>> {
+struct WithPositions<S: Stream<Item = Bytes, Error = ()>> {
     stream: S,
     pos: u64,
 }
 
-impl<S: Stream<Item=Bytes, Error=()>> WithPositions<S> {
+impl<S: Stream<Item = Bytes, Error = ()>> WithPositions<S> {
     pub fn new(a: S) -> WithPositions<S> {
-        Self {
-            stream: a,
-            pos: 0,
-        }
+        Self { stream: a, pos: 0 }
     }
 }
 
-impl<S: Stream<Item=Bytes, Error=()>> Stream for WithPositions<S>
-{
+impl<S: Stream<Item = Bytes, Error = ()>> Stream for WithPositions<S> {
     type Item = (Bytes, u64);
     type Error = ();
 
@@ -76,7 +76,7 @@ impl<S: Stream<Item=Bytes, Error=()>> Stream for WithPositions<S>
                 self.pos += len;
 
                 res
-            },
+            }
             Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => Err(e),
@@ -84,42 +84,47 @@ impl<S: Stream<Item=Bytes, Error=()>> Stream for WithPositions<S>
     }
 }
 
-fn write_chunk(mut file: File, x: Bytes, pos: u64, pool: CpuPool) -> impl Future<Item=(), Error=io::Error> {
+fn write_chunk(
+    mut file: File,
+    x: Bytes,
+    pos: u64,
+    pool: CpuPool,
+) -> impl Future<Item = (), Error = io::Error> {
     pool.spawn_fn(move || {
         future::result(file.seek(SeekFrom::Start(pos)))
-            .and_then(move |_| {
-                file.write(x.as_ref()).and_then(|_| Ok(()))
-            })
+            .and_then(move |_| file.write(x.as_ref()).and_then(|_| Ok(())))
     })
 }
 
 pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
     input_stream: Ins,
     path: P,
-) -> impl Future<Item=(), Error=()> {
-    future::result(File::create(path).map_err(|_| ()))
-        .and_then(|file| {
-            WithPositions::new(input_stream.map_err(|_| error!("Input stream error")))
-                .for_each(move |(x, pos)| {
-                    future::result(file.try_clone()).map_err(|e| error!("File clone error {:?}", e))
-                        .and_then(move |file| {
-                            let msg = WriteToFile { file, x, pos };
-                            FileWriter::from_registry().send(msg).map_err(|e| error!("FileWriter error: {:?}", e))
-                        })
-                })
-        })
+) -> impl Future<Item = (), Error = ()> {
+    future::result(File::create(path).map_err(|_| ())).and_then(|file| {
+        WithPositions::new(input_stream.map_err(|_| error!("Input stream error"))).for_each(
+            move |(x, pos)| {
+                future::result(file.try_clone())
+                    .map_err(|e| error!("File clone error {:?}", e))
+                    .and_then(move |file| {
+                        let msg = WriteToFile { file, x, pos };
+                        FileWriter::from_registry()
+                            .send(msg)
+                            .map_err(|e| error!("FileWriter error: {:?}", e))
+                    })
+            },
+        )
+    })
 }
-
 
 #[cfg(test)]
 mod tests {
-    use futures::stream;
-    use futures::prelude::*;
+    use actix::Arbiter;
+    use actix::System;
     use bytes::Bytes;
+    use futures::prelude::*;
+    use futures::stream;
     use std::path::PathBuf;
     use write_to::write_async;
-    use actix::System;
-    use actix::Arbiter;
 
     #[test]
     #[ignore]
@@ -127,7 +132,9 @@ mod tests {
         let stream = stream::iter_ok::<_, ()>(1..300).map(|a| Bytes::from(format!("{:?} ", a)));
 
         let _ = System::run(|| {
-            Arbiter::spawn(write_async(stream, PathBuf::from("abcd")).then(|_| Ok(System::current().stop())))
+            Arbiter::spawn(
+                write_async(stream, PathBuf::from("abcd")).then(|_| Ok(System::current().stop())),
+            )
         });
     }
 }

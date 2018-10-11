@@ -22,15 +22,16 @@ extern crate rand;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate futures_cpupool;
 extern crate serde_json;
 extern crate tar;
 extern crate tokio;
-extern crate uuid;
-extern crate futures_cpupool;
 extern crate tokio_timer;
+extern crate uuid;
 
 use clap::App;
 use gu_base::*;
+use gu_persist::daemon_module;
 
 mod hdman;
 mod id;
@@ -50,6 +51,7 @@ fn main() {
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(status::module())
+            .chain(daemon_module::DaemonModule::provider())
             .chain(server::ServerModule::new()),
     );
 }

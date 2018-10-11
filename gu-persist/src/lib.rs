@@ -51,6 +51,8 @@ pub mod error {
 
 pub mod config;
 #[cfg(unix)]
-pub mod daemon;
+mod daemon;
+#[cfg(unix)]
+pub mod daemon_module;
 pub mod file_storage;
 pub mod storage;

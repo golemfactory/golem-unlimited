@@ -1,9 +1,7 @@
 #![allow(dead_code)]
 use config::ConfigModule;
 use daemonize::Daemonize;
-use libc::{
-    dup, flock, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
-};
+use libc::{dup, flock, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO};
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
@@ -77,7 +75,7 @@ where
         }).map_err(|e| format!("Daemon creation error: {}", e))
 }
 
-fn stop_process<S>(name: S) -> Result<(), String>
+pub fn stop_process<S>(name: S) -> Result<(), String>
 where
     S: AsRef<str>,
 {

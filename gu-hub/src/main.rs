@@ -41,6 +41,7 @@ extern crate gu_hardware;
 
 use clap::App;
 use gu_base::*;
+use gu_persist::daemon_module;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -59,6 +60,7 @@ fn main() {
             .chain(proxy_service::module())
             .chain(peer::PeerModule::new())
             .chain(gu_hardware::module())
+            .chain(daemon_module::DaemonModule::hub())
             .chain(server::ServerModule::new()),
     );
 }

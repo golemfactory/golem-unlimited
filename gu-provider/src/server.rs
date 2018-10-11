@@ -19,6 +19,7 @@ use mdns::Service;
 use std::borrow::Cow;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
+use gu_persist::daemon_module::DaemonModule;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -87,7 +88,6 @@ impl Module for ServerModule {
         self.config_path = matches.value_of("config-dir").map(ToString::to_string);
 
         if let Some(m) = matches.subcommand_matches("server") {
-            println!("server");
             self.active = true;
             if let Some(mc) = m.subcommand_matches("connect") {
                 let param = mc.value_of("hub_addr");
@@ -102,13 +102,13 @@ impl Module for ServerModule {
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
-        use actix;
-
-        if !self.active {
+        let daemon_module: &DaemonModule = decorator.extract().unwrap();
+        if !daemon_module.run() {
             return;
         }
 
         let config_module: &ConfigModule = decorator.extract().unwrap();
+
         // TODO: introduce separate actor for key mgmt
         let keys = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into()).unwrap();
 
@@ -121,7 +121,7 @@ impl Module for ServerModule {
 
         let _ = HdMan::start(config_module);
 
-        let sys = actix::System::new("gu-provider");
+        let sys = System::new("gu-provider");
         let _ = sys.run();
     }
 }

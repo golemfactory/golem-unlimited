@@ -10,10 +10,10 @@ use gu_persist::config::ConfigModule;
 use id::generate_new_id;
 use provision::{download, untgz};
 use std::collections::HashMap;
-use std::path::PathBuf;
-use std::{fmt, fs, io, process, result, time};
 use std::collections::HashSet;
 use std::iter::FromIterator;
+use std::path::PathBuf;
+use std::{fmt, fs, io, process, result, time};
 
 /// Host direct manager
 pub struct HdMan {

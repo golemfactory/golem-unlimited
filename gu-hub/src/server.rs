@@ -25,6 +25,7 @@ use gu_p2p::rpc;
 use gu_p2p::rpc::mock;
 use gu_p2p::NodeId;
 use gu_persist::config::ConfigManager;
+use gu_persist::daemon_module::DaemonModule;
 use mdns::Responder;
 use mdns::Service;
 use serde::de;
@@ -113,13 +114,15 @@ impl Module for ServerModule {
     }
 
     fn run<D: Decorator + 'static + Sync + Send>(&self, decorator: D) {
-        if !self.active {
+        let daemon: &DaemonModule = decorator.extract().unwrap();
+
+        if !daemon.run() {
             return;
         }
 
         let sys = actix::System::new("gu-hub");
 
-        let _config = ServerConfigurer::new(decorator, self.config_path.clone()).start();
+        let _config = ServerConfigurer::new(decorator.clone(), self.config_path.clone()).start();
 
         let _ = sys.run();
     }
