@@ -12,6 +12,8 @@ use provision::{download, untgz};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{fmt, fs, io, process, result, time};
+use std::collections::HashSet;
+use std::iter::FromIterator;
 
 /// Host direct manager
 pub struct HdMan {
@@ -143,7 +145,7 @@ struct SessionInfo {
     status: PeerSessionStatus,
     /// used to determine proper status when last child is finished
     dirty: bool,
-    tags: Vec<String>,
+    tags: HashSet<String>,
     note: Option<String>,
     work_dir: PathBuf,
     processes: HashMap<String, process::Child>,
@@ -222,7 +224,7 @@ impl Handler<CreateSession> for HdMan {
             name: msg.name,
             status: PeerSessionStatus::PENDING,
             dirty: false,
-            tags: msg.tags,
+            tags: HashSet::from_iter(msg.tags.into_iter()),
             note: msg.note,
             work_dir: work_dir.clone(),
             processes: HashMap::new(),
@@ -418,7 +420,9 @@ impl Handler<SessionUpdate> for HdMan {
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
                         match act.get_session_mut(&session_id) {
                             Ok(session) => {
-                                session.tags.append(&mut tags);
+                                tags.into_iter().for_each(|tag| {
+                                    session.tags.insert(tag);
+                                });
                                 v.push(format!(
                                     "tags inserted. Current tags are: {:?}",
                                     &session.tags
@@ -490,7 +494,7 @@ impl Handler<GetSessions> for HdMan {
                 id: id.clone(),
                 name: session.name.clone(),
                 status: session.status.clone(),
-                tags: session.tags.clone(),
+                tags: Vec::from_iter(session.tags.clone().into_iter()),
                 note: session.note.clone(),
                 processes: session.processes.keys().cloned().collect(),
             }).collect())
