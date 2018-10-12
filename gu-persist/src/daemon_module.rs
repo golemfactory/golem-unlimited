@@ -1,3 +1,4 @@
+use daemon::run_process_normally;
 use daemon::{daemonize_process, process_status, stop_process, Process};
 use gu_base::{App, ArgMatches, Module, SubCommand};
 
@@ -89,7 +90,10 @@ impl Module for DaemonModule {
         let name = self.server.full();
 
         match self.command {
-            DaemonCommand::Run => self.run = true,
+            DaemonCommand::Run => match run_process_normally(name) {
+                Ok(()) => self.run = true,
+                Err(e) => println!("{}", e),
+            },
             DaemonCommand::Start => match daemonize_process(name) {
                 Ok(true) => self.run = true,
                 Err(e) => println!("{}", e),

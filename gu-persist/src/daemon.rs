@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 use config::ConfigModule;
 use daemonize::Daemonize;
-use libc::{dup, flock, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO};
+use libc::{
+    dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
+};
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
@@ -37,6 +39,25 @@ where
     }
 
     Ok(Process::Stopped)
+}
+
+pub fn run_process_normally<S>(name: S) -> Result<(), String>
+where
+    S: AsRef<str>,
+{
+    let name: &str = name.as_ref();
+
+    if let Process::Running(pid) = process_status(name)? {
+        Err(format!(
+            "There is already running {} process (pid: {})",
+            name, pid
+        ))
+    } else {
+        let dir = ConfigModule::new().work_dir().to_path_buf();
+        let pid_path = dir.join(format!("{}.pid", name));
+
+        write_pid_file(&pid_path)
+    }
 }
 
 pub fn daemonize_process<S>(name: S) -> Result<bool, String>
@@ -131,6 +152,23 @@ fn read_pid_file(path: &Path) -> Result<i32, String> {
             .parse()
             .map_err(|e| format!("Cannot parse .pid file - {}", e))
     })
+}
+
+fn write_pid_file(path: &Path) -> Result<(), String> {
+    let buf;
+    unsafe {
+        buf = getpid().to_string();
+    }
+
+    let mut file = File::create(path).map_err(|_| "Cannot open pid file".to_string())?;
+    if file_is_locked(&file) {
+        Err("Cannot lock newly created pid file".to_string())
+    } else {
+        file.write(buf.as_bytes())
+            .map(|_| {
+                Box::leak(Box::new(file));
+            }).map_err(|_| "Pid file write error".to_string())
+    }
 }
 
 fn file_is_locked(file: &File) -> bool {
