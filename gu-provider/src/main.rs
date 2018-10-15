@@ -2,8 +2,6 @@ extern crate actix;
 extern crate actix_web;
 extern crate bytes;
 extern crate clap;
-extern crate directories;
-extern crate env_logger;
 #[macro_use]
 extern crate error_chain;
 extern crate flate2;
@@ -18,15 +16,11 @@ extern crate gu_persist;
 #[macro_use]
 extern crate log;
 extern crate mdns;
-extern crate rand;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate futures_cpupool;
-extern crate serde_json;
 extern crate tar;
-extern crate tokio;
-extern crate tokio_timer;
 extern crate uuid;
 
 use clap::App;

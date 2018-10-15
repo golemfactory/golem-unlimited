@@ -12,6 +12,7 @@ use gu_p2p::{rpc, NodeId};
 use gu_persist::config::{
     ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath,
 };
+use gu_persist::daemon_module::DaemonModule;
 use gu_persist::error::Error as ConfigError;
 use hdman::HdMan;
 use mdns::Responder;
@@ -19,7 +20,6 @@ use mdns::Service;
 use std::borrow::Cow;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
-use gu_persist::daemon_module::DaemonModule;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
