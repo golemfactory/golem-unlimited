@@ -22,15 +22,18 @@ extern crate log;
 #[macro_use]
 extern crate failure;
 
+#[macro_use]
+extern crate actix_derive;
+
+#[macro_use]
+extern crate prettytable;
+
 extern crate bytes;
 extern crate clap;
 extern crate mdns;
 extern crate rand;
 extern crate semver;
 extern crate zip;
-
-#[macro_use]
-extern crate prettytable;
 
 use clap::App;
 use gu_base::*;
@@ -42,6 +45,7 @@ mod peer;
 mod plugins;
 mod proxy_service;
 mod server;
+mod sessions;
 
 fn main() {
     GuApp(|| App::new("Golem Unlimited").version(VERSION)).run(
@@ -50,6 +54,7 @@ fn main() {
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::module::LanModule::module())
             .chain(plugins::PluginModule::new())
+            .chain(sessions::SessionsModule::default())
             .chain(proxy_service::module())
             .chain(peer::PeerModule::new())
             .chain(gu_hardware::module())
