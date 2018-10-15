@@ -1,9 +1,7 @@
 extern crate actix;
 extern crate actix_web;
 extern crate clap;
-extern crate console;
 extern crate futures;
-extern crate indicatif;
 extern crate prettytable;
 
 #[macro_use]

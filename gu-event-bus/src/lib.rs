@@ -4,7 +4,6 @@
 extern crate actix;
 extern crate futures;
 extern crate gu_actix;
-extern crate smallvec;
 
 #[macro_use]
 extern crate log;
