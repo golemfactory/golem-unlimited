@@ -1,21 +1,14 @@
-use actix::Handler;
-use actix::MailboxError;
-use actix::Message;
-use actix::SystemService;
-use actix_web::error::{ErrorBadRequest, ErrorInternalServerError};
-use actix_web::Error as ActixError;
-use actix_web::Result as ActixResult;
+use actix::{Handler, MailboxError, Message, SystemService};
 use actix_web::{
-    http, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Responder, Scope,
+    error::{ErrorBadRequest, ErrorInternalServerError},
+    http, App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse,
+    Responder, Result as ActixResult, Scope,
 };
-use futures::future;
 use futures::future::Future;
 use gu_base::Module;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use sessions::manager::*;
-use sessions::responses::*;
-use sessions::session::SessionInfo;
+use sessions::{manager::*, responses::*, session::SessionInfo};
 
 #[derive(Default)]
 pub struct SessionsModule {}
@@ -145,31 +138,34 @@ where
         .and_then(|res: SessionResult| res)
 }
 
+fn session_future_responder<F, E, R>(fut: F) -> impl Responder
+where
+    F: Future<Item = R, Error = E> + 'static,
+    E: Into<ActixError> + 'static,
+    R: Responder + 'static,
+{
+    fut.map_err(|err| Into::<ActixError>::into(err)).responder()
+}
+
 fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let session = session_id(&r).map_err(|e| return e).unwrap();
     let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
     let manager = SessionsManager::from_registry();
 
     let blob_fut = flatten(manager.send(GetBlob { session, blob_id }));
-
-    blob_fut
+    let res_fut = blob_fut
         .and_then(move |res: SessionOk| match res {
-            SessionOk::Blob(blob) => future::Either::A({
-                blob.write(r.payload()).and_then(move |blob| {
-                    flatten(manager.send(SetBlob {
-                        session,
-                        blob_id,
-                        blob,
-                    }))
-                })
+            SessionOk::Blob(blob) => blob.write(r.payload()).and_then(move |blob| {
+                flatten(manager.send(SetBlob {
+                    session,
+                    blob_id,
+                    blob,
+                }))
             }),
-            _oth => future::Either::B(future::err(SessionErr::BlobNotFoundError)),
-        }).and_then(|res: SessionOk| Ok(Into::<HttpResponse>::into(res)))
-        .or_else(|res: SessionErr| {
-            error!("{:?}", res);
-            Ok(Into::<HttpResponse>::into(res))
-        }).map_err(|()| ErrorInternalServerError(format!("err: ")))
-        .responder()
+            _ => unreachable!(),
+        }).and_then(|result| Ok(Into::<HttpResponse>::into(result)));
+
+    session_future_responder(res_fut)
 }
 
 fn download_scope<S>(r: HttpRequest<S>) -> impl Responder {
@@ -178,11 +174,10 @@ fn download_scope<S>(r: HttpRequest<S>) -> impl Responder {
     let manager = SessionsManager::from_registry();
 
     let blob_fut = flatten(manager.send(GetBlob { session, blob_id }));
+    let res_fut = blob_fut.and_then(move |res: SessionOk| match res {
+        SessionOk::Blob(blob) => blob.read(),
+        _oth => unreachable!(),
+    });
 
-    blob_fut
-        .and_then(move |res: SessionOk| match res {
-            SessionOk::Blob(blob) => blob.read(),
-            _oth => unreachable!(),
-        }).map_err(|_| ErrorInternalServerError(format!("err: ")))
-        .responder()
+    session_future_responder(res_fut)
 }

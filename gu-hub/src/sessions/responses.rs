@@ -1,8 +1,6 @@
-use actix_web::http::StatusCode;
-use actix_web::HttpResponse;
+use actix_web::{error::InternalError, http::StatusCode, Error as ActixError, HttpResponse};
 use serde_json::Value;
-use sessions::blob::Blob;
-use sessions::session::SessionInfo;
+use sessions::{blob::Blob, session::SessionInfo};
 
 pub type SessionResult = Result<SessionOk, SessionErr>;
 
@@ -32,6 +30,7 @@ pub enum SessionErr {
     SessionNotFoundError,
     BlobNotFoundError,
     BlobLockedError,
+    DirectoryCreationError(String),
     FileError(String),
     MailboxError(String),
 }
@@ -54,6 +53,8 @@ impl Into<HttpResponse> for SessionOk {
 
 impl Into<HttpResponse> for SessionErr {
     fn into(self) -> HttpResponse {
+        error!("{:?}", &self);
+
         match self {
             SessionErr::OverwriteError => HttpResponse::InternalServerError().body("Id conflict"),
             SessionErr::SessionNotFoundError => HttpResponse::NotFound().body("Session not found"),
@@ -62,6 +63,9 @@ impl Into<HttpResponse> for SessionErr {
                 HttpResponse::build(StatusCode::from_u16(423).expect("Wrong http code - 423"))
                     .finish()
             }
+            SessionErr::DirectoryCreationError(s) => {
+                HttpResponse::InternalServerError().body(format!("Cannot create directory: {}", s))
+            }
             SessionErr::FileError(s) => {
                 HttpResponse::InternalServerError().body(format!("File related error: {}", s))
             }
@@ -69,5 +73,13 @@ impl Into<HttpResponse> for SessionErr {
                 HttpResponse::InternalServerError().body(format!("Actix mailbox error: {}", s))
             }
         }
+    }
+}
+
+impl Into<ActixError> for SessionErr {
+    fn into(self) -> ActixError {
+        error!("{:?}", &self);
+
+        InternalError::from_response("", Into::<HttpResponse>::into(self)).into()
     }
 }

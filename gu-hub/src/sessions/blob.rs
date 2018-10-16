@@ -1,11 +1,8 @@
 use super::responses::*;
-use actix_web::dev::Payload;
-use actix_web::fs::NamedFile;
-use futures::future;
-use futures::Future;
+use actix_web::{dev::Payload, fs::NamedFile};
+use futures::{future, Future};
 use gu_base::files::write_async;
-use std::fs::File;
-use std::path::PathBuf;
+use std::{fs::File, io, path::PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct Blob {
@@ -14,18 +11,17 @@ pub struct Blob {
 }
 
 impl Blob {
-    pub fn new(path: PathBuf) -> Blob {
-        // TODO:
-        let _ = File::create(&path);
+    pub fn new(path: PathBuf) -> io::Result<Blob> {
+        File::create(&path)?;
 
-        Blob { path, sent: false }
+        Ok(Blob { path, sent: false })
     }
 
     pub fn write(mut self, fut: Payload) -> impl Future<Item = Blob, Error = SessionErr> {
         future::ok(self.path.clone()).and_then(|path| {
             let path2 = path.clone();
             write_async(fut, path2)
-                .map_err(move |e| SessionErr::FileError(e))
+                .map_err(|e| SessionErr::FileError(e))
                 .and_then(move |_| {
                     self.sent = true;
                     Ok(self)

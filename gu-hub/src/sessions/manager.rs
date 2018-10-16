@@ -1,21 +1,15 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 use super::session::Session;
-use actix::Handler;
-use actix::MessageResult;
-use actix::Supervised;
-use actix::SystemService;
-use actix::{Actor, Context};
+use actix::{Actor, Context, Handler, MessageResult, Supervised, SystemService};
 use gu_persist::config::ConfigModule;
 use serde_json::Value;
-use sessions::blob::Blob;
-use sessions::responses::SessionErr;
-use sessions::responses::SessionOk;
-use sessions::responses::SessionResult;
-use sessions::session::SessionInfo;
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+use sessions::{
+    blob::Blob,
+    responses::{SessionErr, SessionOk, SessionResult},
+    session::SessionInfo,
+};
+use std::{collections::HashMap, fs, path::PathBuf};
 
 pub struct SessionsManager {
     path: PathBuf,
@@ -26,8 +20,9 @@ pub struct SessionsManager {
 impl Default for SessionsManager {
     fn default() -> Self {
         let path = ConfigModule::new().work_dir().join("sessions");
-        // TODO:
-        let _ = fs::DirBuilder::new().create(&path);
+        fs::DirBuilder::new()
+            .create(&path)
+            .expect("Cannot create sessions directory");
 
         SessionsManager {
             path,
@@ -44,24 +39,40 @@ impl SessionsManager {
         ))
     }
 
+    fn session_fn<F: FnOnce(&Session) -> SessionResult>(&self, id: u64, f: F) -> SessionResult {
+        match self.sessions.get(&id) {
+            Some(s) => f(s),
+            None => Err(SessionErr::SessionNotFoundError),
+        }
+    }
+
+    fn session_mut_fn<F: FnOnce(&mut Session) -> SessionResult>(
+        &mut self,
+        id: u64,
+        f: F,
+    ) -> SessionResult {
+        match self.sessions.get_mut(&id) {
+            Some(s) => f(s),
+            None => Err(SessionErr::SessionNotFoundError),
+        }
+    }
+
     pub fn create_session(&mut self, info: SessionInfo) -> SessionResult {
         let id = self.next_id;
         self.next_id += 1;
 
-        match self
-            .sessions
-            .insert(id, Session::new(info, self.path.join(format!("{}", id))))
-        {
+        match self.sessions.insert(
+            id,
+            Session::new(info, self.path.join(format!("{}", id)))
+                .map_err(|e| SessionErr::DirectoryCreationError(e.to_string()))?,
+        ) {
             Some(_) => Err(SessionErr::OverwriteError),
             None => Ok(SessionOk::SessionId(id)),
         }
     }
 
     pub fn session_info(&self, id: u64) -> SessionResult {
-        match self.sessions.get(&id) {
-            Some(s) => Ok(SessionOk::SessionInfo(s.info())),
-            None => Err(SessionErr::SessionNotFoundError),
-        }
+        self.session_fn(id, |s| Ok(SessionOk::SessionInfo(s.info())))
     }
 
     pub fn delete_session(&mut self, id: u64) -> SessionResult {
@@ -72,45 +83,27 @@ impl SessionsManager {
     }
 
     pub fn get_config(&self, id: u64) -> SessionResult {
-        match self.sessions.get(&id) {
-            Some(s) => s.metadata(),
-            None => Err(SessionErr::SessionNotFoundError),
-        }
+        self.session_fn(id, |s| s.metadata())
     }
 
     pub fn set_config(&mut self, id: u64, val: Value) -> SessionResult {
-        match self.sessions.get_mut(&id) {
-            Some(s) => s.set_metadata(val),
-            None => Err(SessionErr::SessionNotFoundError),
-        }
+        self.session_mut_fn(id, |s| s.set_metadata(val))
     }
 
     pub fn create_blob(&mut self, id: u64) -> SessionResult {
-        match self.sessions.get_mut(&id) {
-            Some(s) => s.new_blob(),
-            None => Err(SessionErr::SessionNotFoundError),
-        }
+        self.session_mut_fn(id, |s| s.new_blob())
     }
 
     pub fn set_blob(&mut self, id: u64, b_id: u64, blob: Blob) -> SessionResult {
-        match self.sessions.get_mut(&id) {
-            Some(s) => s.set_blob(b_id, blob),
-            None => Err(SessionErr::SessionNotFoundError),
-        }
+        self.session_mut_fn(id, |s| s.set_blob(b_id, blob))
     }
 
     pub fn get_blob(&self, id: u64, b_id: u64) -> SessionResult {
-        match self.sessions.get(&id) {
-            Some(s) => s.get_blob(b_id),
-            None => Err(SessionErr::SessionNotFoundError),
-        }
+        self.session_fn(id, |s| s.get_blob(b_id))
     }
 
     pub fn delete_blob(&mut self, id: u64, b_id: u64) -> SessionResult {
-        match self.sessions.get_mut(&id) {
-            Some(s) => s.delete_blob(b_id),
-            None => Err(SessionErr::SessionNotFoundError),
-        }
+        self.session_mut_fn(id, |s| s.delete_blob(b_id))
     }
 }
 

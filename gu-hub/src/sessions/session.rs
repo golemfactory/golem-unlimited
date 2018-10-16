@@ -1,11 +1,9 @@
 use serde_json::Value;
-use sessions::blob::Blob;
-use sessions::responses::SessionErr;
-use sessions::responses::SessionOk;
-use sessions::responses::SessionResult;
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+use sessions::{
+    blob::Blob,
+    responses::{SessionErr, SessionOk, SessionResult},
+};
+use std::{collections::HashMap, fs, io, path::PathBuf};
 
 pub struct Session {
     info: SessionInfo,
@@ -22,17 +20,16 @@ pub struct SessionInfo {
 }
 
 impl Session {
-    pub fn new(info: SessionInfo, path: PathBuf) -> Self {
-        // TODO:
-        let _ = fs::DirBuilder::new().create(&path);
+    pub fn new(info: SessionInfo, path: PathBuf) -> io::Result<Self> {
+        fs::DirBuilder::new().create(&path)?;
 
-        Session {
+        Ok(Session {
             info,
             state: Value::Null,
             path,
             next_id: 0,
             storage: HashMap::new(),
-        }
+        })
     }
 
     pub fn info(&self) -> SessionInfo {
@@ -52,10 +49,11 @@ impl Session {
         let id = self.next_id;
         self.next_id += 1;
 
-        match self
-            .storage
-            .insert(id, Blob::new(self.path.join(format!("{}", id))))
-        {
+        match self.storage.insert(
+            id,
+            Blob::new(self.path.join(format!("{}", id)))
+                .map_err(|e| SessionErr::FileError(e.to_string()))?,
+        ) {
             Some(_) => Err(SessionErr::OverwriteError),
             None => Ok(SessionOk::BlobId(id)),
         }
