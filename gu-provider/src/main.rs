@@ -19,7 +19,6 @@ extern crate mdns;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate futures_cpupool;
 extern crate tar;
 extern crate uuid;
 
@@ -33,7 +32,6 @@ mod provision;
 mod server;
 mod status;
 mod sync_exec;
-mod write_to;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

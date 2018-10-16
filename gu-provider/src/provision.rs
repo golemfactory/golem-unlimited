@@ -1,6 +1,7 @@
 use actix_web::HttpMessage;
 use futures::future;
 use futures::prelude::*;
+use gu_base::files::write_async;
 use std::path::{Path, PathBuf};
 use std::time;
 
@@ -9,7 +10,6 @@ use std::time;
 pub fn download(url: &str, output_path: PathBuf) -> Box<Future<Item = (), Error = String>> {
     info!("downloading from {} to {:?}", url, &output_path);
     use actix_web::client;
-    use write_to::write_async;
 
     if output_path.exists() {
         info!("using cached file {:?}", &output_path);

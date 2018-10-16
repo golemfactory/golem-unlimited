@@ -1,7 +1,9 @@
 extern crate actix;
 extern crate actix_web;
+extern crate bytes;
 extern crate clap;
 extern crate futures;
+extern crate futures_cpupool;
 extern crate prettytable;
 
 #[macro_use]
@@ -9,6 +11,7 @@ extern crate lazy_static;
 extern crate env_logger;
 
 pub mod cli;
+pub mod files;
 mod output;
 mod run_once;
 

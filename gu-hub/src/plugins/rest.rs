@@ -60,7 +60,7 @@ pub fn read_file(path: &Path) -> Result<Vec<u8>, ()> {
 
 pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
     ServerClient::post("/plug", buf)
-        .and_then(|r: RestResponse<InstallQueryResult>| Ok(println!("{}", r.message.message())))
+        .and_then(|r: RestResponse<InstallQueryResult>| Ok(debug!("{}", r.message.message())))
         .map_err(|e| {
             error!("Error on server connection");
             debug!("Error details: {:?}", e)
@@ -111,7 +111,7 @@ pub fn dev_query(path: PathBuf) {
         Arbiter::spawn(
             ServerClient::empty_post(format!("/plug/dev{}", path))
                 .and_then(|r: RestResponse<InstallQueryResult>| {
-                    Ok(println!("{}", r.message.message()))
+                    Ok(debug!("{}", r.message.message()))
                 }).map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )

@@ -53,22 +53,22 @@ impl Handler<WriteToFile> for FileWriter {
     }
 }
 
-struct WithPositions<S: Stream<Item = Bytes, Error = ()>> {
+struct WithPositions<S: Stream<Item = Bytes, Error = String>> {
     stream: S,
     pos: u64,
 }
 
-impl<S: Stream<Item = Bytes, Error = ()>> WithPositions<S> {
+impl<S: Stream<Item = Bytes, Error = String>> WithPositions<S> {
     pub fn new(a: S) -> WithPositions<S> {
         Self { stream: a, pos: 0 }
     }
 }
 
-impl<S: Stream<Item = Bytes, Error = ()>> Stream for WithPositions<S> {
+impl<S: Stream<Item = Bytes, Error = String>> Stream for WithPositions<S> {
     type Item = (Bytes, u64);
-    type Error = ();
+    type Error = String;
 
-    fn poll(&mut self) -> Result<Async<Option<(Bytes, u64)>>, ()> {
+    fn poll(&mut self) -> Result<Async<Option<(Bytes, u64)>>, String> {
         match self.stream.poll() {
             Ok(Async::Ready(Some(x))) => {
                 let len = x.len() as u64;
@@ -99,21 +99,22 @@ fn write_chunk(
 pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
     input_stream: Ins,
     path: P,
-) -> impl Future<Item = (), Error = ()> {
-    future::result(File::create(path).map_err(|_| ())).and_then(|file| {
-        WithPositions::new(input_stream.map_err(|_| error!("Input stream error"))).for_each(
-            move |(x, pos)| {
-                future::result(file.try_clone())
-                    .map_err(|e| error!("File clone error {:?}", e))
-                    .and_then(move |file| {
-                        let msg = WriteToFile { file, x, pos };
-                        FileWriter::from_registry()
-                            .send(msg)
-                            .map_err(|e| error!("FileWriter error: {:?}", e))
-                    })
-            },
-        )
-    })
+) -> impl Future<Item = (), Error = String> {
+    future::result(File::create(path).map_err(|e| format!("File creation error: {:?}", e)))
+        .and_then(|file| {
+            WithPositions::new(input_stream.map_err(|_| format!("Input stream error"))).for_each(
+                move |(x, pos)| {
+                    future::result(file.try_clone())
+                        .map_err(|e| format!("File clone error {:?}", e))
+                        .and_then(move |file| {
+                            let msg = WriteToFile { file, x, pos };
+                            FileWriter::from_registry()
+                                .send(msg)
+                                .map_err(|e| format!("FileWriter error: {:?}", e))
+                        })
+                },
+            )
+        })
 }
 
 #[cfg(test)]
@@ -121,10 +122,10 @@ mod tests {
     use actix::Arbiter;
     use actix::System;
     use bytes::Bytes;
+    use files::write_async;
     use futures::prelude::*;
     use futures::stream;
     use std::path::PathBuf;
-    use write_to::write_async;
 
     #[test]
     #[ignore]

@@ -205,7 +205,7 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
             self.config()
                 .send(config::GetConfig::new())
                 .flatten_fut()
-                .map_err(|e| println!("error ! {}", e))
+                .map_err(|e| error!("error ! {}", e))
                 .into_actor(self)
                 .and_then(move |config, act, ctx| {
                     let _ = act
