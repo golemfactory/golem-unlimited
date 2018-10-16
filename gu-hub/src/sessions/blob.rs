@@ -1,6 +1,6 @@
 use super::responses::*;
 use actix_web::{dev::Payload, fs::NamedFile};
-use futures::{future, Future};
+use futures::Future;
 use gu_base::files::write_async;
 use std::{fs::File, io, path::PathBuf};
 
@@ -18,15 +18,12 @@ impl Blob {
     }
 
     pub fn write(mut self, fut: Payload) -> impl Future<Item = Blob, Error = SessionErr> {
-        future::ok(self.path.clone()).and_then(|path| {
-            let path2 = path.clone();
-            write_async(fut, path2)
-                .map_err(|e| SessionErr::FileError(e))
-                .and_then(move |_| {
-                    self.sent = true;
-                    Ok(self)
-                })
-        })
+        write_async(fut, self.path.clone())
+            .map_err(|e| SessionErr::FileError(e))
+            .and_then(move |_| {
+                self.sent = true;
+                Ok(self)
+            })
     }
 
     pub fn read(self) -> Result<NamedFile, SessionErr> {
