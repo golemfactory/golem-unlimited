@@ -76,8 +76,9 @@ impl SessionsManager {
     }
 
     pub fn delete_session(&mut self, id: u64) -> SessionResult {
-        match self.sessions.remove(&id) {
-            Some(_) => Ok(SessionOk::Ok),
+        match self.sessions.remove(&id).map(|s| s.clean_directory()) {
+            Some(Ok(())) => Ok(SessionOk::Ok),
+            Some(Err(e)) => Err(SessionErr::FileError(e.to_string())),
             None => Ok(SessionOk::SessionAlreadyDeleted),
         }
     }

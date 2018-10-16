@@ -74,9 +74,17 @@ impl Session {
     }
 
     pub fn delete_blob(&mut self, id: u64) -> SessionResult {
-        match self.storage.remove(&id) {
-            Some(_) => Ok(SessionOk::Ok),
+        match self.storage.remove(&id).map(|b| b.clean_file()) {
+            Some(Ok(())) => Ok(SessionOk::Ok),
+            Some(Err(e)) => Err(SessionErr::FileError(e.to_string())),
             None => Ok(SessionOk::BlobAlreadyDeleted),
+        }
+    }
+
+    pub fn clean_directory(&self) -> io::Result<()> {
+        match (&self.path).exists() {
+            true => fs::remove_dir_all(&self.path),
+            false => Ok(()),
         }
     }
 }

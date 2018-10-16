@@ -3,6 +3,7 @@ use actix_web::{dev::Payload, fs::NamedFile};
 use futures::Future;
 use gu_base::files::write_async;
 use std::{fs::File, io, path::PathBuf};
+use std::fs;
 
 #[derive(Clone, Debug)]
 pub struct Blob {
@@ -32,5 +33,12 @@ impl Blob {
         }
 
         NamedFile::open(&self.path).map_err(|e| SessionErr::FileError(e.to_string()))
+    }
+
+    pub fn clean_file(&self) -> io::Result<()> {
+        match (&self.path).exists() {
+            true => fs::remove_file(&self.path),
+            false => Ok(()),
+        }
     }
 }
