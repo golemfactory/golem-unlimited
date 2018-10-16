@@ -204,7 +204,7 @@ fn kill_with_waiting(pid: i32, lock: &File, sig: c_int) -> bool {
 
         sleep(Duration::from_millis(50));
 
-        if file_is_locked(&lock) {
+        if !file_is_locked(&lock) {
             return true;
         }
     }
