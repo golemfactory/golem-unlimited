@@ -11,6 +11,7 @@ pub struct Session {
     path: PathBuf,
     next_id: u64,
     storage: HashMap<u64, Blob>,
+    version: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -29,6 +30,7 @@ impl Session {
             path,
             next_id: 0,
             storage: HashMap::new(),
+            version: 0,
         })
     }
 
@@ -41,6 +43,7 @@ impl Session {
     }
 
     pub fn set_metadata(&mut self, val: Value) -> SessionResult {
+        self.version += 1;
         self.state = val;
         Ok(SessionOk::Ok)
     }
@@ -48,6 +51,7 @@ impl Session {
     pub fn new_blob(&mut self) -> SessionResult {
         let id = self.next_id;
         self.next_id += 1;
+        self.version += 1;
 
         match self.storage.insert(
             id,
@@ -60,6 +64,7 @@ impl Session {
     }
 
     pub fn set_blob(&mut self, id: u64, blob: Blob) -> SessionResult {
+        self.version += 1;
         match self.storage.insert(id, blob) {
             Some(_) => Ok(SessionOk::Ok),
             None => Ok(SessionOk::Ok),
@@ -74,6 +79,7 @@ impl Session {
     }
 
     pub fn delete_blob(&mut self, id: u64) -> SessionResult {
+        self.version += 1;
         match self.storage.remove(&id).map(|b| b.clean_file()) {
             Some(Ok(())) => Ok(SessionOk::Ok),
             Some(Err(e)) => Err(SessionErr::FileError(e.to_string())),
@@ -81,7 +87,8 @@ impl Session {
         }
     }
 
-    pub fn clean_directory(&self) -> io::Result<()> {
+    pub fn clean_directory(&mut self) -> io::Result<()> {
+        self.version += 1;
         match (&self.path).exists() {
             true => fs::remove_dir_all(&self.path),
             false => Ok(()),

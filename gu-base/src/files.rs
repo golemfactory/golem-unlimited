@@ -117,11 +117,11 @@ fn stream_with_positions<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
 pub fn write_async_with_sha1<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
     input_stream: Ins,
     path: P,
-) -> impl Future<Item = Sha1, Error = String> {
+) -> impl Future<Item = String, Error = String> {
     stream_with_positions(input_stream, path).fold(Sha1::new(), move |mut sha, (x, pos, file)| {
         sha.update(x.as_ref());
         write_bytes(x, pos, file).and_then(|_| Ok(sha))
-    })
+    }).and_then(|sha| Ok(sha.digest().to_string()))
 }
 
 pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
@@ -156,7 +156,7 @@ mod tests {
         let _ = System::run(|| {
             Arbiter::spawn(
                 write_async_with_sha1(stream, PathBuf::from("Hello World!")).then(|r| {
-                    println!("{:?}", r.map(|a| a.digest()));
+                    println!("{:?}", r);
                     Ok(System::current().stop())
                 }),
             )

@@ -15,12 +15,14 @@ pub struct SessionsManager {
     path: PathBuf,
     next_id: u64,
     sessions: HashMap<u64, Session>,
+    version: u64,
 }
 
 impl Default for SessionsManager {
     fn default() -> Self {
         let path = ConfigModule::new().work_dir().join("sessions");
         fs::DirBuilder::new()
+            .recursive(true)
             .create(&path)
             .expect("Cannot create sessions directory");
 
@@ -28,6 +30,7 @@ impl Default for SessionsManager {
             path,
             next_id: 0,
             sessions: HashMap::new(),
+            version: 0,
         }
     }
 }
@@ -35,7 +38,8 @@ impl Default for SessionsManager {
 impl SessionsManager {
     pub fn list_sessions(&self) -> SessionResult {
         Ok(SessionOk::SessionsList(
-            self.sessions.values().map(|s| s.info()).collect(),
+            self.sessions.iter().map(|(id, s)| EnumeratedSessionInfo { id: *id, info: s.info() }).collect(),
+            self.version,
         ))
     }
 
@@ -51,6 +55,7 @@ impl SessionsManager {
         id: u64,
         f: F,
     ) -> SessionResult {
+        self.version += 1;
         match self.sessions.get_mut(&id) {
             Some(s) => f(s),
             None => Err(SessionErr::SessionNotFoundError),
@@ -60,6 +65,7 @@ impl SessionsManager {
     pub fn create_session(&mut self, info: SessionInfo) -> SessionResult {
         let id = self.next_id;
         self.next_id += 1;
+        self.version += 1;
 
         match self.sessions.insert(
             id,
@@ -72,11 +78,12 @@ impl SessionsManager {
     }
 
     pub fn session_info(&self, id: u64) -> SessionResult {
-        self.session_fn(id, |s| Ok(SessionOk::SessionInfo(s.info())))
+        self.session_fn(id, |s| Ok(SessionOk::SessionInfo(s.info(), self.version)))
     }
 
     pub fn delete_session(&mut self, id: u64) -> SessionResult {
-        match self.sessions.remove(&id).map(|s| s.clean_directory()) {
+        self.version += 1;
+        match self.sessions.remove(&id).map(|mut s| s.clean_directory()) {
             Some(Ok(())) => Ok(SessionOk::Ok),
             Some(Err(e)) => Err(SessionErr::FileError(e.to_string())),
             None => Ok(SessionOk::SessionAlreadyDeleted),
@@ -106,6 +113,13 @@ impl SessionsManager {
     pub fn delete_blob(&mut self, id: u64, b_id: u64) -> SessionResult {
         self.session_mut_fn(id, |s| s.delete_blob(b_id))
     }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct EnumeratedSessionInfo {
+    id: u64,
+    #[serde(flatten)]
+    info: SessionInfo,
 }
 
 impl Actor for SessionsManager {
