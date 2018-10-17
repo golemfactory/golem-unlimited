@@ -6,7 +6,6 @@ authors = ["Przemysław K. Rekucki <przemyslaw.rekucki@golem.network>"]
 [dependencies]
 actix = "0.7.4"
 futures = "0.1.24"
-smallvec = "0.6.5"
 log = "0.4.5"
 
 gu-actix = { path = "../gu-actix" }

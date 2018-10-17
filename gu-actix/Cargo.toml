@@ -5,7 +5,4 @@ version = "0.1.0"
 [dependencies]
 
 futures = "0.1"
-tokio="0.1"
-actix = "0.7"
-actix-web = {version= "0.7"}
 
