@@ -23,6 +23,14 @@ impl Blob {
         })
     }
 
+    pub fn from_existing(path: PathBuf) -> Blob {
+        Blob {
+            path,
+            sent: true,
+            etag: HeaderValue::from_static(""),
+        }
+    }
+
     pub fn write(mut self, fut: Payload) -> impl Future<Item = Blob, Error = SessionErr> {
         write_async_with_sha1(fut, self.path.clone())
             .map_err(|e| SessionErr::FileError(e))
