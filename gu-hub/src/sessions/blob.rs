@@ -1,9 +1,9 @@
 use super::responses::*;
+use actix_web::http::header::HeaderValue;
 use actix_web::{dev::Payload, fs::NamedFile};
 use futures::Future;
-use std::{fs, fs::File, io, path::PathBuf};
 use gu_base::files::write_async_with_sha1;
-use actix_web::http::header::HeaderValue;
+use std::{fs, fs::File, io, path::PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct Blob {
@@ -16,14 +16,20 @@ impl Blob {
     pub fn new(path: PathBuf) -> io::Result<Blob> {
         File::create(&path)?;
 
-        Ok(Blob { path, sent: false, etag: HeaderValue::from_static("") })
+        Ok(Blob {
+            path,
+            sent: false,
+            etag: HeaderValue::from_static(""),
+        })
     }
 
     pub fn write(mut self, fut: Payload) -> impl Future<Item = Blob, Error = SessionErr> {
         write_async_with_sha1(fut, self.path.clone())
             .map_err(|e| SessionErr::FileError(e))
             .and_then(move |sha| {
-                self.etag = HeaderValue::from_str(&sha).map_err(|_| SessionErr::FileError(format!("Invalid file sha1 checksum: {}", sha)))?;
+                self.etag = HeaderValue::from_str(&sha).map_err(|_| {
+                    SessionErr::FileError(format!("Invalid file sha1 checksum: {}", sha))
+                })?;
                 self.sent = true;
                 Ok(self)
             })

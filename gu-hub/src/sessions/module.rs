@@ -176,16 +176,17 @@ fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let manager = SessionsManager::from_registry();
 
     let blob_fut = flatten(manager.send(GetBlob { session, blob_id }));
-    let res_fut = blob_fut.and_then(move |res: SessionOk| match res {
-        SessionOk::Blob(blob) => blob.read(),
-        _oth => unreachable!(),
-    }).and_then(move |(n, sha)| n.respond_to(&r)
-        .and_then(|mut r| {
-            r.headers_mut().insert(ETAG, sha);
-            Ok(r)
-        })
-        .map_err(|e| SessionErr::FileError(e.to_string()))
-    );
+    let res_fut = blob_fut
+        .and_then(move |res: SessionOk| match res {
+            SessionOk::Blob(blob) => blob.read(),
+            _oth => unreachable!(),
+        }).and_then(move |(n, sha)| {
+            n.respond_to(&r)
+                .and_then(|mut r| {
+                    r.headers_mut().insert(ETAG, sha);
+                    Ok(r)
+                }).map_err(|e| SessionErr::FileError(e.to_string()))
+        });
 
     session_future_responder(res_fut)
 }

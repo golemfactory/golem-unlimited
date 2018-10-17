@@ -38,7 +38,12 @@ impl Default for SessionsManager {
 impl SessionsManager {
     pub fn list_sessions(&self) -> SessionResult {
         Ok(SessionOk::SessionsList(
-            self.sessions.iter().map(|(id, s)| EnumeratedSessionInfo { id: *id, info: s.info() }).collect(),
+            self.sessions
+                .iter()
+                .map(|(id, s)| EnumeratedSessionInfo {
+                    id: *id,
+                    info: s.info(),
+                }).collect(),
             self.version,
         ))
     }
