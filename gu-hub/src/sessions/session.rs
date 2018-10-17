@@ -37,11 +37,13 @@ pub(crate) fn entries_id_iter(path: &PathBuf) -> impl Iterator<Item = u64> {
                 .and_then(|e| {
                     e.file_name()
                         .to_str()
-                        .ok_or_else(|| error!("Invalid session filename?"))
+                        .ok_or_else(|| error!("Invalid session filename"))
                         .and_then(|s| {
-                            s.clone()
-                                .parse::<u64>()
-                                .map_err(|e| error!("Invalid session filename: {}", e))
+                            s.clone().parse::<u64>().map_err(|e| {
+                                if !s.starts_with('.') {
+                                    error!("Invalid session filename: {}", e)
+                                }
+                            })
                         })
                 })
         }).filter(|res| res.is_ok())
@@ -80,7 +82,6 @@ impl Session {
     }
 
     pub fn from_existing(path: PathBuf) -> Self {
-        println!("session");
         let mut s = Session {
             info: SessionInfo::default(),
             state: Value::Null,
@@ -92,12 +93,8 @@ impl Session {
 
         entries_id_iter(&path).for_each(|id| {
             let _ = s
-                .new_blob(Some(id))
-                .map_err(|e| error!("{:?}", e))
-                .and_then(|_| {
-                    s.set_blob(id, Blob::from_existing(path.join(format!("{}", id))))
-                        .map_err(|e| error!("{:?}", e))
-                });
+                .new_blob_inner(Blob::from_existing(path.join(format!("{}", id))), Some(id))
+                .map_err(|e| error!("{:?}", e));
         });
 
         s
@@ -125,7 +122,7 @@ impl Session {
         .and_then(|_| Ok(SessionOk::Ok))
     }
 
-    pub fn new_blob(&mut self, id: Option<u64>) -> SessionResult {
+    fn new_blob_inner(&mut self, blob: Blob, id: Option<u64>) -> SessionResult {
         let id = match id {
             None => self.next_id,
             Some(v) => v,
@@ -133,14 +130,16 @@ impl Session {
         self.next_id = cmp::max(id, self.next_id) + 1;
         self.version += 1;
 
-        match self.storage.insert(
-            id,
-            Blob::new(self.path.join(format!("{}", id)))
-                .map_err(|e| SessionErr::FileError(e.to_string()))?,
-        ) {
+        match self.storage.insert(id, blob) {
             Some(_) => Err(SessionErr::OverwriteError),
             None => Ok(SessionOk::BlobId(id)),
         }
+    }
+
+    pub fn new_blob(&mut self) -> SessionResult {
+        let blob = Blob::new(self.path.join(format!("{}", self.next_id)))
+            .map_err(|e| SessionErr::FileError(e.to_string()))?;
+        self.new_blob_inner(blob, None)
     }
 
     pub fn set_blob(&mut self, id: u64, blob: Blob) -> SessionResult {

@@ -105,8 +105,7 @@ impl SessionsManager {
 
         self.create_session_inner(session, None)
             .into_future()
-            .and_then(|_| fut)
-            .and_then(|()| Ok(SessionOk::Ok))
+            .and_then(|res| fut.and_then(|()| Ok(res)))
     }
 
     pub fn session_info(&self, id: u64) -> SessionResult {
@@ -139,7 +138,7 @@ impl SessionsManager {
     }
 
     pub fn create_blob(&mut self, id: u64) -> SessionResult {
-        self.session_mut_fn(id, |s| s.new_blob(None))
+        self.session_mut_fn(id, |s| s.new_blob())
     }
 
     pub fn set_blob(&mut self, id: u64, b_id: u64, blob: Blob) -> SessionResult {
