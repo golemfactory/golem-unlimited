@@ -2,8 +2,7 @@ use super::responses::*;
 use actix_web::{dev::Payload, fs::NamedFile};
 use futures::Future;
 use gu_base::files::write_async;
-use std::{fs::File, io, path::PathBuf};
-use std::fs;
+use std::{fs::File, io, path::PathBuf, fs};
 
 #[derive(Clone, Debug)]
 pub struct Blob {

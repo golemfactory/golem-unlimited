@@ -4,6 +4,7 @@ use futures::future;
 use futures::prelude::*;
 use futures::Async;
 use futures_cpupool::CpuPool;
+use sha1::Sha1;
 use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::path::Path;
@@ -46,11 +47,23 @@ impl Handler<WriteToFile> for FileWriter {
         use actix::WrapFuture;
 
         ctx.spawn(
-            write_chunk(msg.file, msg.x, msg.pos, self.pool.clone())
+            write_chunk_on_pool(msg.file, msg.x, msg.pos, self.pool.clone())
                 .map_err(|_| ())
                 .into_actor(self),
         );
     }
+}
+
+fn write_chunk_on_pool(
+    mut file: File,
+    x: Bytes,
+    pos: u64,
+    pool: CpuPool,
+) -> impl Future<Item = (), Error = io::Error> {
+    pool.spawn_fn(move || {
+        future::result(file.seek(SeekFrom::Start(pos)))
+            .and_then(move |_| file.write(x.as_ref()).and_then(|_| Ok(())))
+    })
 }
 
 struct WithPositions<S: Stream<Item = Bytes, Error = String>> {
@@ -84,15 +97,30 @@ impl<S: Stream<Item = Bytes, Error = String>> Stream for WithPositions<S> {
     }
 }
 
-fn write_chunk(
-    mut file: File,
-    x: Bytes,
-    pos: u64,
-    pool: CpuPool,
-) -> impl Future<Item = (), Error = io::Error> {
-    pool.spawn_fn(move || {
-        future::result(file.seek(SeekFrom::Start(pos)))
-            .and_then(move |_| file.write(x.as_ref()).and_then(|_| Ok(())))
+fn stream_with_positions<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
+    input_stream: Ins,
+    path: P,
+) -> impl Stream<Item = (Bytes, u64, File), Error = String> {
+    future::result(File::create(path).map_err(|e| format!("File creation error: {:?}", e)))
+        .and_then(|file| {
+            Ok(
+                WithPositions::new(input_stream.map_err(|_| format!("Input stream error")))
+                    .and_then(move |(x, pos)| {
+                        file.try_clone()
+                            .and_then(|file| Ok((x, pos, file)))
+                            .map_err(|e| format!("File clone error {:?}", e))
+                    }),
+            )
+        }).flatten_stream()
+}
+
+pub fn write_async_with_sha1<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
+    input_stream: Ins,
+    path: P,
+) -> impl Future<Item = Sha1, Error = String> {
+    stream_with_positions(input_stream, path).fold(Sha1::new(), move |mut sha, (x, pos, file)| {
+        sha.update(x.as_ref());
+        write_bytes(x, pos, file).and_then(|_| Ok(sha))
     })
 }
 
@@ -100,21 +128,14 @@ pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
     input_stream: Ins,
     path: P,
 ) -> impl Future<Item = (), Error = String> {
-    future::result(File::create(path).map_err(|e| format!("File creation error: {:?}", e)))
-        .and_then(|file| {
-            WithPositions::new(input_stream.map_err(|_| format!("Input stream error"))).for_each(
-                move |(x, pos)| {
-                    future::result(file.try_clone())
-                        .map_err(|e| format!("File clone error {:?}", e))
-                        .and_then(move |file| {
-                            let msg = WriteToFile { file, x, pos };
-                            FileWriter::from_registry()
-                                .send(msg)
-                                .map_err(|e| format!("FileWriter error: {:?}", e))
-                        })
-                },
-            )
-        })
+    stream_with_positions(input_stream, path).for_each(|(x, pos, file)| write_bytes(x, pos, file))
+}
+
+fn write_bytes(x: Bytes, pos: u64, file: File) -> impl Future<Item = (), Error = String> {
+    let msg = WriteToFile { file, x, pos };
+    FileWriter::from_registry()
+        .send(msg)
+        .map_err(|e| format!("FileWriter error: {:?}", e))
 }
 
 #[cfg(test)]
@@ -122,7 +143,7 @@ mod tests {
     use actix::Arbiter;
     use actix::System;
     use bytes::Bytes;
-    use files::write_async;
+    use files::write_async_with_sha1;
     use futures::prelude::*;
     use futures::stream;
     use std::path::PathBuf;
@@ -134,7 +155,10 @@ mod tests {
 
         let _ = System::run(|| {
             Arbiter::spawn(
-                write_async(stream, PathBuf::from("abcd")).then(|_| Ok(System::current().stop())),
+                write_async_with_sha1(stream, PathBuf::from("Hello World!")).then(|r| {
+                    println!("{:?}", r.map(|a| a.digest()));
+                    Ok(System::current().stop())
+                }),
             )
         });
     }

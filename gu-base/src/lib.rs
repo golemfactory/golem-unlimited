@@ -5,6 +5,7 @@ extern crate clap;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate prettytable;
+extern crate sha1;
 
 #[macro_use]
 extern crate lazy_static;
