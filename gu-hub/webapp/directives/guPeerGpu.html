@@ -1,0 +1,8 @@
+<span ng-if="!!peer.gpu">
+    <span class="label label-primary" ng-if="peer.gpu.amd">
+        AMD {{peer.gpu.amd > 1 ? "x"+peer.gpu.amd : ""}}
+    </span>
+    <span class="label label-danger" ng-if="peer.gpu.nvidia">
+        NVidia {{peer.gpu.nvidia > 1 ? "x"+peer.gpu.nvidia : ""}}
+    </span>
+</span>

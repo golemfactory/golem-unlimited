@@ -2,12 +2,12 @@
     <div class="panel panel-default">
         <div class="panel-heading">
             <div class="pull-right">
-                <a class="btn btn-sm btn-default" href="#" ng-click="refresh()">
-                    <span style="font-size: 40px;" class="gu-refresh-icon"></span>
+                <a class="btn btn-big btn-default" href="#" ng-click="refresh()">
+                    <span class="gu-refresh-icon"></span>
                 </a>
             </div>
             <h4>
-                <span style="font-size: 45px;" class="gu-providers-icon"></span>
+                <span class="gu-providers-icon gu-icon"></span>
                 Providers
             </h4>
         </div>
@@ -25,29 +25,10 @@
                 </thead>
                 <tbody>
                     <tr ng-repeat="peer in peers track by peer.nodeId">
-                        <td>
-                            <code><a href="#" ng-click="show(peer)">{{peer.nodeId | limitTo:11}}</a></code>
-                            <span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">{{peer.os}}</span>
-                        </td>
-                        <td>
-                            <span>{{peer.nodeName || peer.hostname}}</span>
-                        </td>
-                        <td><span ng-if="peer.ram">
-                            <uib-progress max="peer.ram.total" animate="false">
-                                <uib-bar value="peer.ram.used" type="warning" title="used: {{peer.ram.used/1000/1000 | number: 1}} GB">
-                                    <span ng-hide="peer.ram.used/peer.ram.total < 0.05">{{peer.ram.used/1000/1000 | number: 1}}</span>
-                                </uib-bar>
-                                <uib-bar value="peer.ram.free" type="success" title="free: {{peer.ram.free/1000/1000 | number: 1}} GB">
-                                    <span ng-hide="peer.ram.free/peer.ram.total < 0.05">{{peer.ram.free/1000/1000 | number: 1}} GB</span>
-                                </uib-bar>
-                            </uib-progress>
-                        </span></td>
-                        <td>
-                            <span ng-if="!!peer.gpu">
-                                <span class="label label-primary" ng-if="peer.gpu.amd">AMD {{peer.gpu.amd > 1 ? "x"+peer.gpu.amd : ""}}</span>
-                                <span class="label label-danger" ng-if="peer.gpu.nvidia">NVidia {{peer.gpu.nvidia > 1 ? "x"+peer.gpu.nvidia : ""}}</span>
-                            </span>
-                        </td>
+                        <td gu-peer-id gu-click="show(peer)" peer="peer"></td>
+                        <td gu-peer-name></td>
+                        <td gu-peer-ram></td>
+                        <td gu-peer-gpu></td>
                         <td>{{(peer.sessions.length || 0)}}</td>
                         <td>{{peer.peerAddr}}</td>
                     </tr>

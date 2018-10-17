@@ -149,6 +149,7 @@ enum ContentType {
     JavaScript,
     Html,
     Svg,
+    Wasm,
     NotSupported,
 }
 
@@ -158,6 +159,7 @@ impl<'a> From<&'a str> for ContentType {
             "js" => ContentType::JavaScript,
             "html" => ContentType::Html,
             "svg" => ContentType::Svg,
+            "wasm" => ContentType::Wasm,
             _ => ContentType::NotSupported,
         }
     }
@@ -169,6 +171,7 @@ impl ToString for ContentType {
             ContentType::JavaScript => "application/javascript".to_string(),
             ContentType::Html => "text/html".to_string(),
             ContentType::Svg => "image/svg+xml".to_string(),
+            ContentType::Wasm => "application/wasm".to_string(),
             ContentType::NotSupported => "Content type not supported".to_string(),
         }
     }
