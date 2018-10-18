@@ -10,16 +10,8 @@ use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::path::Path;
 
-static mut FILE_HANDLER: Option<FilePoolHandler> = None;
-
-fn handler() -> FilePoolHandler {
-    unsafe {
-        if FILE_HANDLER.is_none() {
-            FILE_HANDLER = Some(FilePoolHandler::default());
-        }
-
-        FILE_HANDLER.clone().unwrap()
-    }
+lazy_static! {
+    static ref FILE_HANDLER: FilePoolHandler = FilePoolHandler::default();
 }
 
 #[derive(Clone)]
@@ -139,7 +131,7 @@ pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
 
 fn write_bytes(x: Bytes, pos: u64, file: File) -> impl Future<Item = (), Error = String> {
     let msg = WriteToFile { file, x, pos };
-    handler()
+    FILE_HANDLER
         .write_to_file(msg)
         .map_err(|e| format!("FileWriter error: {}", e))
 }
@@ -150,7 +142,7 @@ pub fn read_async<P: AsRef<Path>>(path: P) -> impl Stream<Item = Bytes, Error = 
     file_fut
         .map_err(|e| e.to_string())
         .and_then(|file| Ok(ReadFile { file, range: None }))
-        .and_then(|read| Ok(handler().read_file(read)))
+        .and_then(|read| Ok(FILE_HANDLER.read_file(read)))
         .flatten_stream()
 }
 
