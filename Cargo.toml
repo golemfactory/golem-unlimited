@@ -22,10 +22,6 @@ flate2 = { version = "1.0", features = ["rust_backend"], default-features = fals
 #ethkey = { path = '../parity-ethereum/ethkey'}
 #ethstore = { path = '../parity-ethereum/ethstore'}
 
-[patch.'https://github.com/paritytech/parity-common']
-parity-crypto = { git = 'https://github.com/tworec/parity-common', branch='ring-v-upgrade'}
-#parity-crypto = { path = '../parity-common/parity-crypto'}
-
 [profile.release]
 codegen-units = 1
 lto=true
