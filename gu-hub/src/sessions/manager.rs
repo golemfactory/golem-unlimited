@@ -40,11 +40,14 @@ impl Default for SessionsManager {
         };
 
         entries_id_iter(&path).for_each(|id| {
-            let _ = m
-                .create_session_inner(
-                    Session::from_existing(path.join(format!("{}", id))),
-                    Some(id),
-                ).map_err(|e| error!("Session creation info: {:?}", e));
+            match Session::from_existing(path.join(format!("{}", id))).wait() {
+                Err(e) => error!("{}", e),
+                Ok(s) => {
+                    let _ = m
+                        .create_session_inner(s, Some(id))
+                        .map_err(|e| error!("Session creation info: {:?}", e));
+                }
+            }
         });
 
         m

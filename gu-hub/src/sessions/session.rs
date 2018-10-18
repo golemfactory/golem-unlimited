@@ -2,7 +2,8 @@ use bytes::Bytes;
 use futures::future::IntoFuture;
 use futures::stream;
 use futures::Future;
-use gu_base::files::write_async;
+use futures::Stream;
+use gu_base::files::{read_async, write_async};
 use serde_json;
 use serde_json::Value;
 use sessions::{
@@ -81,7 +82,7 @@ impl Session {
         (session, fut)
     }
 
-    pub fn from_existing(path: PathBuf) -> Self {
+    pub fn from_existing(path: PathBuf) -> impl Future<Item = Self, Error = String> {
         let mut s = Session {
             info: SessionInfo::default(),
             state: Value::Null,
@@ -97,7 +98,19 @@ impl Session {
                 .map_err(|e| error!("{:?}", e));
         });
 
-        s
+        let info_fut = read_async(path.join(".info")).concat2().and_then(|a| {
+            serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| e.to_string())
+        });
+
+        let config_fut = read_async(path.join(".json"))
+            .concat2()
+            .and_then(|a| serde_json::from_slice::<Value>(a.as_ref()).map_err(|e| e.to_string()));
+
+        info_fut.join(config_fut).and_then(|(info, state)| {
+            s.info = info;
+            s.state = state;
+            Ok(s)
+        })
     }
 
     pub fn info(&self) -> SessionInfo {

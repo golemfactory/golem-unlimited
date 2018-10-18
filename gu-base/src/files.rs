@@ -2,13 +2,13 @@ use bytes::Bytes;
 use futures::future;
 use futures::prelude::*;
 use futures::Async;
+use futures_cpupool::CpuFuture;
 use futures_cpupool::CpuPool;
 use sha1::Sha1;
+use std::cmp;
 use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::path::Path;
-use std::cmp;
-use futures_cpupool::CpuFuture;
 
 static mut FILE_HANDLER: Option<FilePoolHandler> = None;
 
@@ -42,18 +42,15 @@ struct WriteToFile {
 }
 
 impl FilePoolHandler {
-    pub fn write_to_file(&self, msg: WriteToFile) -> impl Future<Item=(), Error=String> {
-        write_chunk_on_pool(msg.file, msg.x, msg.pos, self.pool.clone())
-            .map_err(|e| e.to_string())
+    pub fn write_to_file(&self, msg: WriteToFile) -> impl Future<Item = (), Error = String> {
+        write_chunk_on_pool(msg.file, msg.x, msg.pos, self.pool.clone()).map_err(|e| e.to_string())
     }
 
-    pub fn read_file(&self, msg: ReadFile) -> impl Stream<Item=Bytes, Error=String> {
-        future::result(
-            match msg.range {
-                Some(range) => ChunkedReadFile::new_ranged(msg.file, self.pool.clone(), range),
-                None => ChunkedReadFile::new(msg.file, self.pool.clone()),
-            }
-        ).flatten_stream()
+    pub fn read_file(&self, msg: ReadFile) -> impl Stream<Item = Bytes, Error = String> {
+        future::result(match msg.range {
+            Some(range) => ChunkedReadFile::new_ranged(msg.file, self.pool.clone(), range),
+            None => ChunkedReadFile::new(msg.file, self.pool.clone()),
+        }).flatten_stream()
     }
 }
 
@@ -142,26 +139,20 @@ pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
 
 fn write_bytes(x: Bytes, pos: u64, file: File) -> impl Future<Item = (), Error = String> {
     let msg = WriteToFile { file, x, pos };
-    handler().write_to_file(msg)
+    handler()
+        .write_to_file(msg)
         .map_err(|e| format!("FileWriter error: {}", e))
 }
 
-pub fn read_async<P: AsRef<Path>>(
-    path: P,
-) -> impl Stream<Item = Bytes, Error = String> {
+pub fn read_async<P: AsRef<Path>>(path: P) -> impl Stream<Item = Bytes, Error = String> {
     let file_fut = future::result(File::open(path));
 
     file_fut
         .map_err(|e| e.to_string())
-        .and_then(|file|
-        Ok(ReadFile {
-            file,
-            range: None,
-        }))
+        .and_then(|file| Ok(ReadFile { file, range: None }))
         .and_then(|read| Ok(handler().read_file(read)))
         .flatten_stream()
 }
-
 
 /// https://actix.rs/api/actix-web/stable/src/actix_web/fs.rs.html#477-484
 pub struct ChunkedReadFile {
@@ -179,13 +170,17 @@ impl ChunkedReadFile {
             size: file.metadata().map_err(|e| e.to_string())?.len(),
             offset: 0,
             cpu_pool: pool,
-            file: None,
+            file: Some(file),
             fut: None,
             counter: 0,
         })
     }
 
-    pub fn new_ranged(file: File, pool: CpuPool, range: (u64, u64)) -> Result<ChunkedReadFile, String> {
+    pub fn new_ranged(
+        file: File,
+        pool: CpuPool,
+        range: (u64, u64),
+    ) -> Result<ChunkedReadFile, String> {
         let len = file.metadata().map_err(|e| e.to_string())?.len();
         if range.0 >= range.1 || range.1 > len {
             return Err("Invalid range".to_string());
@@ -195,7 +190,7 @@ impl ChunkedReadFile {
             size: range.1,
             offset: range.0,
             cpu_pool: pool,
-            file: None,
+            file: Some(file),
             fut: None,
             counter: 0,
         })
@@ -209,7 +204,13 @@ impl Stream for ChunkedReadFile {
     fn poll(&mut self) -> Poll<Option<Bytes>, String> {
         use std::io::Read;
         if self.fut.is_some() {
-            return match self.fut.as_mut().unwrap().poll().map_err(|e| e.to_string())? {
+            return match self
+                .fut
+                .as_mut()
+                .unwrap()
+                .poll()
+                .map_err(|e| e.to_string())?
+            {
                 Async::Ready((file, bytes)) => {
                     self.fut.take();
                     self.file = Some(file);
@@ -234,8 +235,9 @@ impl Stream for ChunkedReadFile {
                 max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
                 let mut buf = Vec::with_capacity(max_bytes);
                 file.seek(io::SeekFrom::Start(offset))?;
-                let nbytes =
-                    io::Read::by_ref(&mut file).take(max_bytes as u64).read_to_end(&mut buf)?;
+                let nbytes = io::Read::by_ref(&mut file)
+                    .take(max_bytes as u64)
+                    .read_to_end(&mut buf)?;
                 if nbytes == 0 {
                     return Err(io::ErrorKind::UnexpectedEof.into());
                 }
