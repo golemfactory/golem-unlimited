@@ -1,5 +1,5 @@
 
-angular.module('gu').service('guProgressMan',function($interval, $q) {
+angular.module('gu').service('guProgressMan',function($interval, $q, $log) {
 
     class GuProgressDomain {
 
@@ -18,8 +18,8 @@ angular.module('gu').service('guProgressMan',function($interval, $q) {
         }
 
         getTask(tag) {
-            if (tag in this.subTasks) {
-                return this.subTasks[tag];
+            if (this.subTasks.has(tag)) {
+                return this.subTasks.get(tag);
             }
             return this.createTask(tag, '', 0);
         }
@@ -31,13 +31,21 @@ angular.module('gu').service('guProgressMan',function($interval, $q) {
                 tasks.push(task.toSon());
             }
 
-            return {
+            let son = {
                 tag: this.tag,
                 total: this.total,
                 count: this.count,
-                label: this.label,
-                tasks: tasks,
             };
+
+            if (this.label) {
+                son.label = this.label;
+            }
+
+            if (tasks) {
+                son.tasks = tasks;
+            }
+
+            return son;
         }
 
         toString() {
@@ -46,7 +54,7 @@ angular.module('gu').service('guProgressMan',function($interval, $q) {
 
 
         isCompleted() {
-            return this.total === this.count;
+            return Math.abs(this.total - this.count)/Math.max(this.total, 1) < 0.001;
         }
 
         addTotal(diff) {
@@ -74,13 +82,22 @@ angular.module('gu').service('guProgressMan',function($interval, $q) {
             this.subTasks.set(tag, task);
         }
 
-        leadingTask() {
+        leadingTask(recursive = false) {
+
+            $log.info('leading', recursive, this.subTasks.size);
+            if (this.subTasks.size === 0) {
+                return this;
+            }
+
             if (this.$leading && !this.$leading.isCompleted()) {
                 return this.$leading;
             }
 
             for (let task of this.subTasks.values()) {
                 if (!task.isCompleted()) {
+                    if (recursive) {
+                        task = task.leadingTask(recursive);
+                    }
                     this.$leading = task;
                     return task;
                 }

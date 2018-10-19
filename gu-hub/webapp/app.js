@@ -1,5 +1,6 @@
 
 var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
+  .filter("prettyJSON", () => json => JSON.stringify(json, null, " "))
   .controller('AppController', function($scope, pluginManager) {
       $scope.tabs = [
         {iconClass: 'gu-status-icon', name: 'Status', page: 'status.html'},
