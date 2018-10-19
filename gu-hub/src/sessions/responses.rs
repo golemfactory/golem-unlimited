@@ -1,9 +1,14 @@
-use actix_web::dev::HttpResponseBuilder;
-use actix_web::http::header::{HeaderValue, ETAG};
-use actix_web::{error::InternalError, http::StatusCode, Error as ActixError, HttpResponse};
+use actix_web::{
+    dev::HttpResponseBuilder,
+    error::InternalError,
+    http::{
+        header::{HeaderValue, ETAG},
+        StatusCode,
+    },
+    Error as ActixError, HttpResponse,
+};
 use serde_json::Value;
-use sessions::manager::EnumeratedSessionInfo;
-use sessions::{blob::Blob, session::SessionInfo};
+use sessions::{blob::Blob, manager::EnumeratedSessionInfo, session::SessionInfo};
 
 pub type SessionResult = Result<SessionOk, SessionErr>;
 

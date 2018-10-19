@@ -1,28 +1,22 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 use super::responses::*;
-use actix::Actor;
-use actix::ActorResponse;
-use actix::Addr;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use actix::Recipient;
-use actix::WrapFuture;
-use actix_web::http::header::HeaderValue;
-use actix_web::{dev::Payload, fs::NamedFile};
-use futures::future;
-use futures::future::Shared;
-use futures::future::SharedError;
-use futures::future::SharedItem;
-use futures::sync::oneshot::{self, Sender};
-use futures::Future;
-use futures::Stream;
+use actix::{Actor, ActorResponse, Addr, AsyncContext, Context, Handler, Recipient, WrapFuture};
+use actix_web::{dev::Payload, fs::NamedFile, http::header::HeaderValue};
+use futures::{
+    future::{self, Shared, SharedError, SharedItem},
+    sync::oneshot::{self, Sender},
+    Future, Stream,
+};
 use gu_base::files::{read_async, write_async};
 use sha1::Sha1;
-use std::collections::BTreeMap;
-use std::ops::Deref;
-use std::{fs, fs::File, io, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    fs::{self, File},
+    io,
+    ops::Deref,
+    path::PathBuf,
+};
 
 struct FileLockActor {
     to_notify: Vec<Sender<()>>,
@@ -49,21 +43,6 @@ impl FileLockActor {
             sha1_fut: sha1_fut.shared(),
             ..Default::default()
         }
-    }
-
-    fn stats(&self) {
-        println!("Readers: {}", self.readers);
-        println!("Writers: {}", self.writers);
-
-        println!(
-            "Sha: {:?}",
-            self.sha1_fut
-                .clone()
-                .wait()
-                .map(|sha| sha.digest().to_string())
-        );
-        println!("Futs: {:?}", self.write_futs.keys());
-        println!();
     }
 }
 
@@ -123,7 +102,6 @@ impl Handler<WriteAccessRequest> for FileLockActor {
     type Result = ActorResponse<Self, WriteAccess, SessionErr>;
 
     fn handle(&mut self, _msg: WriteAccessRequest, ctx: &mut Context<Self>) -> Self::Result {
-        self.stats();
         self.writers += 1;
         let readers = self.readers;
         let recipient = ctx.address().recipient();

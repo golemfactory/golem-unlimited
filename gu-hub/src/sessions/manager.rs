@@ -1,12 +1,10 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 use super::session::Session;
-use actix::ActorResponse;
-use actix::WrapFuture;
-use actix::{Actor, Context, Handler, MessageResult, Supervised, SystemService};
-use futures::future;
-use futures::Future;
-use futures::IntoFuture;
+use actix::{
+    Actor, ActorResponse, Context, Handler, MessageResult, Supervised, SystemService, WrapFuture,
+};
+use futures::{future, Future, IntoFuture};
 use gu_persist::config::ConfigModule;
 use serde_json::Value;
 use sessions::{
@@ -14,8 +12,7 @@ use sessions::{
     responses::{SessionErr, SessionOk, SessionResult},
     session::{entries_id_iter, SessionInfo},
 };
-use std::cmp;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{cmp, collections::HashMap, fs, path::PathBuf};
 
 pub struct SessionsManager {
     path: PathBuf,

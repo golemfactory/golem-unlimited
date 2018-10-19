@@ -1,17 +1,12 @@
 use bytes::Bytes;
-use futures::future::IntoFuture;
-use futures::stream;
-use futures::Future;
-use futures::Stream;
+use futures::{future::IntoFuture, stream, Future, Stream};
 use gu_base::files::{read_async, write_async};
-use serde_json;
-use serde_json::Value;
+use serde_json::{self, Value};
 use sessions::{
     blob::Blob,
     responses::{SessionErr, SessionOk, SessionResult},
 };
-use std::cmp;
-use std::{collections::HashMap, fs, io, path::PathBuf};
+use std::{cmp, collections::HashMap, fs, io, path::PathBuf};
 
 pub struct Session {
     info: SessionInfo,
