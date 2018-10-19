@@ -47,7 +47,8 @@ pub(crate) fn entries_id_iter(path: &PathBuf) -> impl Iterator<Item = u64> {
                             })
                         })
                 })
-        }).filter(|res| res.is_ok())
+        })
+        .filter(|res| res.is_ok())
         .map(|id| id.unwrap())
 }
 
@@ -131,7 +132,8 @@ impl Session {
         write_async(
             stream::once::<_, ()>(Ok(Bytes::from(val.to_string()))),
             self.path.join(".json"),
-        ).map_err(|e| SessionErr::FileError(e))
+        )
+        .map_err(|e| SessionErr::FileError(e))
         .and_then(|_| Ok(SessionOk::Ok))
     }
 
