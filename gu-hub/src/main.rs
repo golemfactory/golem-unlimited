@@ -34,6 +34,7 @@ extern crate mdns;
 extern crate rand;
 extern crate semver;
 extern crate zip;
+extern crate sha1;
 
 use clap::App;
 use gu_base::*;

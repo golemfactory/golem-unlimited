@@ -155,13 +155,7 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let blob_fut = flatten(manager.send(GetBlob { session, blob_id }));
     let res_fut = blob_fut
         .and_then(move |res: SessionOk| match res {
-            SessionOk::Blob(blob) => blob.write(r.payload()).and_then(move |blob| {
-                flatten(manager.send(SetBlob {
-                    session,
-                    blob_id,
-                    blob,
-                }))
-            }),
+            SessionOk::Blob(blob) => blob.write(r.payload()),
             _ => unreachable!(),
         }).and_then(|result| Ok(Into::<HttpResponse>::into(result)));
 

@@ -37,7 +37,7 @@ pub enum SessionOk {
     BlobAlreadyDeleted,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SessionErr {
     OverwriteError,
     SessionNotFoundError,
