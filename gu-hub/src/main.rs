@@ -33,6 +33,7 @@ extern crate clap;
 extern crate mdns;
 extern crate rand;
 extern crate semver;
+extern crate sha1;
 extern crate zip;
 
 use clap::App;

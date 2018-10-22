@@ -32,11 +32,13 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             "/{sessionId}/blob/{blobId}",
             http::Method::DELETE,
             delete_blob_scope,
-        ).route(
+        )
+        .route(
             "/{sessionId}/blob/{blobId}",
             http::Method::PUT,
             upload_scope,
-        ).route(
+        )
+        .route(
             "/{sessionId}/blob/{blobId}",
             http::Method::GET,
             download_scope,
@@ -114,7 +116,8 @@ fn set_config_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     request_json(r)
         .and_then(move |metadata: Value| {
             manager_request::<SessionsManager, _>(SetMetadata { session, metadata })
-        }).responder()
+        })
+        .responder()
 }
 
 fn create_blob_scope<S>(r: HttpRequest<S>) -> impl Responder {
@@ -155,29 +158,35 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let blob_fut = flatten(manager.send(GetBlob { session, blob_id }));
     let res_fut = blob_fut
         .and_then(move |res: SessionOk| match res {
-            SessionOk::Blob(blob) => blob.write(r.payload()).and_then(move |blob| {
-                flatten(manager.send(SetBlob {
-                    session,
-                    blob_id,
-                    blob,
-                }))
-            }),
+            SessionOk::Blob(blob) => blob.write(r.payload()),
             _ => unreachable!(),
-        }).and_then(|result| Ok(Into::<HttpResponse>::into(result)));
+        })
+        .and_then(|result| Ok(Into::<HttpResponse>::into(result)));
 
     session_future_responder(res_fut)
 }
 
-fn download_scope<S>(r: HttpRequest<S>) -> impl Responder {
+fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
+    use actix_web::http::header::ETAG;
+
     let session = session_id(&r).map_err(|e| return e).unwrap();
     let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
     let manager = SessionsManager::from_registry();
 
     let blob_fut = flatten(manager.send(GetBlob { session, blob_id }));
-    let res_fut = blob_fut.and_then(move |res: SessionOk| match res {
-        SessionOk::Blob(blob) => blob.read(),
-        _oth => unreachable!(),
-    });
+    let res_fut = blob_fut
+        .and_then(move |res: SessionOk| match res {
+            SessionOk::Blob(blob) => blob.read(),
+            _oth => unreachable!(),
+        })
+        .and_then(move |(n, sha)| {
+            n.respond_to(&r)
+                .and_then(|mut r| {
+                    r.headers_mut().insert(ETAG, sha);
+                    Ok(r)
+                })
+                .map_err(|e| SessionErr::FileError(e.to_string()))
+        });
 
     session_future_responder(res_fut)
 }

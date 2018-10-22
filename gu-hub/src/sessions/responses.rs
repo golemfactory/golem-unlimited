@@ -1,30 +1,48 @@
-use actix_web::{error::InternalError, http::StatusCode, Error as ActixError, HttpResponse};
+use actix_web::{
+    dev::HttpResponseBuilder,
+    error::InternalError,
+    http::{
+        header::{HeaderValue, ETAG},
+        StatusCode,
+    },
+    Error as ActixError, HttpResponse,
+};
 use serde_json::Value;
-use sessions::{blob::Blob, session::SessionInfo};
+use sessions::{blob::Blob, manager::EnumeratedSessionInfo, session::SessionInfo};
 
 pub type SessionResult = Result<SessionOk, SessionErr>;
 
-pub fn to_response(res: Result<SessionOk, SessionErr>) -> HttpResponse {
+pub fn to_response<A, B>(res: Result<A, B>) -> HttpResponse
+where
+    A: Into<HttpResponse>,
+    B: Into<HttpResponse>,
+{
     match res {
         Ok(a) => a.into(),
         Err(e) => e.into(),
     }
 }
 
-#[derive(Debug)]
+fn include_version(mut build: HttpResponseBuilder, v: u64) -> HttpResponseBuilder {
+    let val = HeaderValue::from_str(&format!("{}", v)).expect("Invalid ETag");
+    build.header(ETAG, val);
+    build
+}
+
+//#[derive(Debug)]
 pub enum SessionOk {
     Ok,
-    SessionsList(Vec<SessionInfo>),
+    SessionsList(Vec<EnumeratedSessionInfo>, u64),
     SessionId(u64),
     BlobId(u64),
     Blob(Blob),
-    SessionInfo(SessionInfo),
+    SessionInfo(SessionInfo, u64),
     SessionJson(Value),
     SessionAlreadyDeleted,
     BlobAlreadyDeleted,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SessionErr {
     OverwriteError,
     SessionNotFoundError,
@@ -39,11 +57,11 @@ impl Into<HttpResponse> for SessionOk {
     fn into(self) -> HttpResponse {
         match self {
             SessionOk::Ok => HttpResponse::Ok().finish(),
-            SessionOk::SessionsList(list) => HttpResponse::Ok().json(list),
+            SessionOk::SessionsList(list, v) => include_version(HttpResponse::Ok(), v).json(list),
             SessionOk::SessionId(id) => HttpResponse::Created().json(id),
             SessionOk::BlobId(id) => HttpResponse::Created().json(id),
             SessionOk::Blob(_blob) => HttpResponse::Ok().finish(),
-            SessionOk::SessionInfo(info) => HttpResponse::Ok().json(info),
+            SessionOk::SessionInfo(info, v) => include_version(HttpResponse::Ok(), v).json(info),
             SessionOk::SessionJson(val) => HttpResponse::Ok().json(val),
             SessionOk::SessionAlreadyDeleted => HttpResponse::Ok().finish(),
             SessionOk::BlobAlreadyDeleted => HttpResponse::Ok().finish(),
