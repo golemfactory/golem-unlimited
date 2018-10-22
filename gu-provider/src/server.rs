@@ -29,6 +29,7 @@ struct ServerConfig {
     control_socket: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hub_addr: Option<SocketAddr>,
+    #[serde(default)]
     pub(crate) publish_service: bool,
 }
 
@@ -54,7 +55,6 @@ impl HasSectionId for ServerConfig {
 }
 
 pub struct ServerModule {
-    active: bool,
     config_path: Option<String>,
     hub_addr: Option<SocketAddr>,
 }
@@ -62,7 +62,6 @@ pub struct ServerModule {
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
-            active: false,
             config_path: None,
             hub_addr: None,
         }
@@ -77,28 +76,24 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
-        app.subcommand(
-            SubCommand::with_name("server")
-                .about("Provider server management")
-                .subcommand(SubCommand::with_name("connect").arg(Arg::with_name("hub_addr"))),
+        app.arg(
+                Arg::with_name("hub_addr")
+                   .short("a")
+                   .long("hub address")
+                   .takes_value(true)
+                   .value_name("IP:PORT")
+                   .help("IP and PORT of Hub to connect to")
         )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         self.config_path = matches.value_of("config-dir").map(ToString::to_string);
 
-        if let Some(m) = matches.subcommand_matches("server") {
-            self.active = true;
-            if let Some(mc) = m.subcommand_matches("connect") {
-                let param = mc.value_of("hub_addr");
-                info!("hub addr={:?}", &param);
-                if let Some(addr) = param {
-                    self.hub_addr = Some(addr.parse().unwrap())
-                }
-            }
-            return true;
+        if let Some(hub_addr) = matches.value_of("hub_addr") {
+            info!("hub addr={:?}", &hub_addr);
+            self.hub_addr = Some(hub_addr.parse().unwrap())
         }
-        false
+        true
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
