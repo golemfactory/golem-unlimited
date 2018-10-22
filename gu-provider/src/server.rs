@@ -3,7 +3,7 @@
 use actix::fut;
 use actix::prelude::*;
 use actix_web::*;
-use clap::{self, Arg, ArgMatches, SubCommand};
+use clap::{self, Arg, ArgMatches};
 use futures::prelude::*;
 use gu_base::Decorator;
 use gu_base::Module;
@@ -68,12 +68,6 @@ impl ServerModule {
     }
 }
 
-fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
-    let node_id = NodeId::from(keys.address().as_ref());
-    info!("node_id={:?}", node_id);
-    node_id
-}
-
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
         app.arg(
@@ -104,12 +98,12 @@ impl Module for ServerModule {
 
         let config_module: &ConfigModule = decorator.extract().unwrap();
 
-        // TODO: introduce separate actor for key mgmt
-        let keys = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into()).unwrap();
+        let keys = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
+            .expect("should load or generate eth key");
 
         let _ = ServerConfigurer {
             config_path: self.config_path.clone(),
-            node_id: get_node_id(keys),
+            node_id: NodeId::from(keys.address().as_ref()),
             hub_addr: self.hub_addr,
             decorator: decorator.clone(),
         }.start();
