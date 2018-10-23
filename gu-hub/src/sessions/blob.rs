@@ -205,7 +205,7 @@ fn recalculate_sha1(path: PathBuf) -> impl Future<Item = Sha1, Error = SessionEr
 
 // Generate future that will complete when it will be possible to write to file
 fn write_dag_future(
-    free: &mut BTreeMap<(u64, u64), Shared<Box<Future<Item = (), Error = ()> + Send>>>,
+    queue: &mut BTreeMap<(u64, u64), Shared<Box<Future<Item = (), Error = ()> + Send>>>,
 ) -> impl Future<Item = (), Error = SessionErr> + Send {
     use std::u64::{MAX, MIN};
 
@@ -214,47 +214,27 @@ fn write_dag_future(
     let mut wait_list = Vec::new();
     let mut remove_list = Vec::new();
 
-    for elt in free.range(..(write_begin, write_begin)).rev() {
-        let ((begin, end), shared) = elt;
+    for elt in queue.iter() {
+        let (&(begin, end), shared) = elt;
 
-        if *end > write_begin {
-            if shared.peek().is_some() {
-                remove_list.push((*begin, *end))
+        if (begin >= write_begin && begin < write_end) || (end > write_begin && end <= write_end) {
+            // old interval is inside of the current one or its future is completed
+            if (begin >= write_begin && end <= write_end) || shared.peek().is_some() {
+                remove_list.push((begin, end))
             } else {
                 wait_list.push(shared.clone())
             }
-        } else {
-            break;
-        }
-    }
-
-    for elt in free.range((write_begin, write_begin)..) {
-        let ((begin, end), shared) = elt;
-
-        if *begin < write_end {
-            if shared.peek().is_some() {
-                remove_list.push((*begin, *end))
-            } else {
-                wait_list.push(shared.clone())
-            }
-
-            // remove ranges contained in the new range
-            if *end <= write_end {
-                remove_list.push((*begin, *end))
-            }
-        } else {
-            break;
         }
     }
 
     for x in remove_list {
-        free.remove(&x);
+        queue.remove(&x);
     }
 
     let x: Box<Future<Item = (), Error = ()> + Send> =
         Box::new(future::join_all(wait_list).then(|_| Ok(())));
     let x: Shared<Box<_>> = x.shared();
-    free.insert((write_begin, write_end), x.clone());
+    queue.insert((write_begin, write_end), x.clone());
     x.and_then(|_| Ok(()))
         .map_err(|_| SessionErr::FileError("Lock on writer???!!!".to_string()))
 }
