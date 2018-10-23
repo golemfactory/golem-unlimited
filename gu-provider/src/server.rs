@@ -1,25 +1,24 @@
 #![allow(dead_code)]
 
-use actix::fut;
-use actix::prelude::*;
+use actix::{fut, prelude::*};
 use actix_web::*;
 use clap::{self, Arg, ArgMatches};
 use futures::prelude::*;
-use gu_base::Decorator;
-use gu_base::Module;
+use gu_base::{Decorator, Module};
 use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
 use gu_p2p::{rpc, NodeId};
-use gu_persist::config::{
-    ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath,
+use gu_persist::{
+    config::{ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath},
+    daemon_module::DaemonModule,
+    error::Error as ConfigError,
 };
-use gu_persist::daemon_module::DaemonModule;
-use gu_persist::error::Error as ConfigError;
 use hdman::HdMan;
-use mdns::Responder;
-use mdns::Service;
-use std::borrow::Cow;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::sync::Arc;
+use mdns::{Responder, Service};
+use std::{
+    borrow::Cow,
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -28,24 +27,27 @@ pub(crate) struct ServerConfig {
     p2p_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    hub_addrs: Option<Vec<SocketAddr>>,
+    #[serde(default)]
+    pub(crate) hub_addrs: Vec<SocketAddr>,
     #[serde(default)]
     publish_service: bool,
+    #[serde(default = "ServerConfig::default_connect_mode")]
+    connect_mode: ConnectMode,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
         ServerConfig {
-            p2p_port: 61621,
+            p2p_port: Self::default_p2p_port(),
             control_socket: None,
-            hub_addrs: None,
+            hub_addrs: Vec::new(),
             publish_service: true,
+            connect_mode: Self::default_connect_mode(),
         }
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub(crate) enum ConnectMode {
     Auto,
     Config,
@@ -58,6 +60,10 @@ impl ServerConfig {
 
     fn default_p2p_port() -> u16 {
         61621
+    }
+
+    fn default_connect_mode() -> ConnectMode {
+        ConnectMode::Config
     }
 }
 
@@ -123,7 +129,8 @@ impl Module for ServerModule {
             node_id: get_node_id(keys),
             hub_addrs: self.hub_addrs.clone(),
             decorator: decorator.clone(),
-        }.start();
+        }
+        .start();
 
         let _ = HdMan::start(config_module);
 
@@ -188,16 +195,17 @@ impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
 
                     if let Some(hub_addrs) = hub_addrs {
                         config.do_send(SetConfig::new(ServerConfig {
-                            hub_addrs: Some(hub_addrs.clone()),
+                            hub_addrs: hub_addrs.clone(),
                             ..(*c).clone()
                         }));
                         connect_to_multiple_hubs(node_id, &hub_addrs);
-                    } else if let Some(ref hub_addrs) = c.hub_addrs {
-                        connect_to_multiple_hubs(node_id, hub_addrs);
                     }
 
+                    connect_to_multiple_hubs(node_id, &c.hub_addrs);
+
                     Ok(())
-                }).into_actor(self)
+                })
+                .into_actor(self)
                 .and_then(|_, _, ctx| fut::ok(ctx.stop())),
         );
 

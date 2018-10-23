@@ -1,20 +1,11 @@
 use super::server::ServerConfig;
 use actix::SystemService;
-use actix_web::http;
-use actix_web::App;
-use actix_web::HttpRequest;
-use actix_web::Responder;
-use actix_web::Scope;
-use gu_base;
-use gu_base::Arg;
-use gu_base::ArgMatches;
-use gu_base::Decorator;
-use gu_base::Module;
-use gu_base::SubCommand;
-use gu_persist::config::ConfigManager;
-use gu_persist::config::SetConfig;
+use actix_web::{http, App, HttpRequest, Responder, Scope};
+use gu_actix::flatten::FlattenFuture;
+use gu_base::{self, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_persist::config::{ConfigManager, GetConfig, SetConfig};
 use server::ConnectMode;
-use std::net::SocketAddr;
+use std::{collections::HashSet, net::SocketAddr};
 
 pub struct ConnectModule {
     state: State,
@@ -108,25 +99,30 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     let list_lambda = |m: ListingType| move |x| list_scope(x, &m);
     let connect_lambda = |m: ConnectionChange| move |x| connect_scope(x, &m);
 
-    let edit_connection_scope = |scope: Scope<S>| {
-        scope
-            .route(
-                "/add",
-                http::Method::PUT,
-                connect_lambda(ConnectionChange::Add),
-            ).route(
-                "/remove",
-                http::Method::PUT,
-                connect_lambda(ConnectionChange::Remove),
-            ).route(
-                "/connect",
-                http::Method::PUT,
-                connect_lambda(ConnectionChange::Connect),
-            ).route(
-                "/disconnect",
-                http::Method::PUT,
-                connect_lambda(ConnectionChange::Disconnect),
-            )
+    let edit_connection_scope = |method: http::Method| {
+        |scope: Scope<S>| {
+            scope
+                .route(
+                    "/add",
+                    method.clone(),
+                    connect_lambda(ConnectionChange::Add),
+                )
+                .route(
+                    "/remove",
+                    method.clone(),
+                    connect_lambda(ConnectionChange::Remove),
+                )
+                .route(
+                    "/connect",
+                    method.clone(),
+                    connect_lambda(ConnectionChange::Connect),
+                )
+                .route(
+                    "/disconnect",
+                    method,
+                    connect_lambda(ConnectionChange::Disconnect),
+                )
+        }
     };
 
     scope
@@ -134,20 +130,27 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             "/config",
             http::Method::GET,
             list_lambda(ListingType::Config),
-        ).route(
+        )
+        .route(
             "/connected",
             http::Method::GET,
             list_lambda(ListingType::Connected),
-        ).route(
+        )
+        .route(
             "/mode/auto",
             http::Method::PUT,
             mode_lambda(ConnectMode::Auto),
-        ).route(
+        )
+        .route(
             "/mode/config",
             http::Method::PUT,
             mode_lambda(ConnectMode::Config),
-        ).nested("/batch", edit_connection_scope)
-        .nested("/{hostAddr:.+:.+}", edit_connection_scope)
+        )
+        .nested("/batch", edit_connection_scope(http::Method::POST))
+        .nested(
+            "/{hostAddr:.+:.+}",
+            edit_connection_scope(http::Method::PUT),
+        )
 }
 
 enum ListingType {
@@ -178,8 +181,64 @@ fn dummy_scope<S>(_r: HttpRequest<S>) -> impl Responder {
     ""
 }
 
-fn edit_config(c: ServerConfig) {
-    let config = ConfigManager::from_registry();
+fn edit_config_hosts(list: Vec<SocketAddr>, change: ConnectionChange) -> impl Responder {
+    use actix_web::{error::ErrorInternalServerError, AsyncResponder, HttpResponse};
+    use futures::{future, Future};
+    use std::{ops::Deref, sync::Arc};
+    let manager = ConfigManager::from_registry();
 
-    config.do_send(SetConfig::new(c));
+    manager
+        .send(GetConfig::new())
+        .flatten_fut()
+        .and_then(move |config: Arc<ServerConfig>| {
+            let mut config = config.deref().clone();
+            if let Some(new) = edit_config_list(config.hub_addrs.clone(), list, change) {
+                config.hub_addrs = new;
+                future::Either::A(
+                    manager
+                        .send(SetConfig::new(config))
+                        .flatten_fut()
+                        .and_then(|_| Ok(HttpResponse::Ok().finish())),
+                )
+            } else {
+                future::Either::B(
+                    future::ok(()).and_then(|_| Ok(HttpResponse::NotModified().finish())),
+                )
+            }
+        })
+        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+        .and_then(|_| Ok(HttpResponse::Ok().finish()))
+        .responder()
+}
+
+fn edit_config_list(
+    old: Vec<SocketAddr>,
+    list: Vec<SocketAddr>,
+    change: ConnectionChange,
+) -> Option<Vec<SocketAddr>> {
+    use std::iter::FromIterator;
+
+    let mut old: HashSet<_> = HashSet::from_iter(old.into_iter());
+    let len = old.len();
+
+    match change {
+        ConnectionChange::Add => {
+            list.into_iter().for_each(|sock| {
+                old.insert(sock);
+            });
+        }
+        ConnectionChange::Remove => {
+            list.into_iter().for_each(|sock| {
+                old.remove(&sock);
+            });
+        }
+        ConnectionChange::Connect => return None,
+        ConnectionChange::Disconnect => return None,
+    }
+
+    if len == old.len() {
+        None
+    } else {
+        Some(Vec::from_iter(old.into_iter()))
+    }
 }
