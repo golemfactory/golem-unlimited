@@ -26,6 +26,7 @@ use clap::App;
 use gu_base::*;
 use gu_persist::daemon_module;
 
+mod connect;
 mod hdman;
 mod id;
 mod provision;

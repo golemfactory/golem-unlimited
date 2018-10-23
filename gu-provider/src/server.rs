@@ -3,7 +3,7 @@
 use actix::fut;
 use actix::prelude::*;
 use actix_web::*;
-use clap::{self, Arg, ArgMatches, SubCommand};
+use clap::{self, Arg, ArgMatches};
 use futures::prelude::*;
 use gu_base::Decorator;
 use gu_base::Module;
@@ -23,14 +23,15 @@ use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct ServerConfig {
+pub(crate) struct ServerConfig {
+    #[serde(default = "ServerConfig::default_p2p_port")]
     p2p_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    hub_addr: Option<SocketAddr>,
+    hub_addrs: Option<Vec<SocketAddr>>,
     #[serde(default)]
-    pub(crate) publish_service: bool,
+    publish_service: bool,
 }
 
 impl Default for ServerConfig {
@@ -38,15 +39,25 @@ impl Default for ServerConfig {
         ServerConfig {
             p2p_port: 61621,
             control_socket: None,
-            hub_addr: None,
+            hub_addrs: None,
             publish_service: true,
         }
     }
 }
 
+#[derive(PartialEq)]
+pub(crate) enum ConnectMode {
+    Auto,
+    Config,
+}
+
 impl ServerConfig {
     fn p2p_addr(&self) -> impl ToSocketAddrs {
         ("0.0.0.0", self.p2p_port)
+    }
+
+    fn default_p2p_port() -> u16 {
+        61621
     }
 }
 
@@ -56,14 +67,14 @@ impl HasSectionId for ServerConfig {
 
 pub struct ServerModule {
     config_path: Option<String>,
-    hub_addr: Option<SocketAddr>,
+    hub_addrs: Option<Vec<SocketAddr>>,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
             config_path: None,
-            hub_addr: None,
+            hub_addrs: None,
         }
     }
 }
@@ -77,12 +88,12 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
         app.arg(
-                Arg::with_name("hub_addr")
-                   .short("a")
-                   .long("hub address")
-                   .takes_value(true)
-                   .value_name("IP:PORT")
-                   .help("IP and PORT of Hub to connect to")
+            Arg::with_name("hub_addr")
+                .short("a")
+                .long("hub address")
+                .takes_value(true)
+                .value_name("IP:PORT")
+                .help("IP and PORT of Hub to connect to"),
         )
     }
 
@@ -91,7 +102,7 @@ impl Module for ServerModule {
 
         if let Some(hub_addr) = matches.value_of("hub_addr") {
             info!("hub addr={:?}", &hub_addr);
-            self.hub_addr = Some(hub_addr.parse().unwrap())
+            self.hub_addrs = Some(vec![hub_addr.parse().unwrap()])
         }
         true
     }
@@ -110,7 +121,7 @@ impl Module for ServerModule {
         let _ = ServerConfigurer {
             config_path: self.config_path.clone(),
             node_id: get_node_id(keys),
-            hub_addr: self.hub_addr,
+            hub_addrs: self.hub_addrs.clone(),
             decorator: decorator.clone(),
         }.start();
 
@@ -140,7 +151,7 @@ struct ServerConfigurer<D> {
     decorator: D,
     config_path: Option<String>,
     node_id: NodeId,
-    hub_addr: Option<SocketAddr>,
+    hub_addrs: Option<Vec<SocketAddr>>,
 }
 
 impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
@@ -155,7 +166,7 @@ impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
         }
 
         let node_id = self.node_id.clone();
-        let hub_addr = self.hub_addr.clone();
+        let hub_addrs = self.hub_addrs.clone();
 
         let decorator = self.decorator.clone();
         ctx.spawn(
@@ -175,14 +186,14 @@ impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
                         Box::leak(Box::new(mdns_publisher(c.p2p_port)));
                     }
 
-                    if let Some(hub_addr) = hub_addr {
+                    if let Some(hub_addrs) = hub_addrs {
                         config.do_send(SetConfig::new(ServerConfig {
-                            hub_addr: Some(hub_addr),
+                            hub_addrs: Some(hub_addrs.clone()),
                             ..(*c).clone()
                         }));
-                        rpc::ws::start_connection(node_id, hub_addr);
-                    } else if let Some(hub_addr) = c.hub_addr {
-                        rpc::ws::start_connection(node_id, hub_addr);
+                        connect_to_multiple_hubs(node_id, &hub_addrs);
+                    } else if let Some(ref hub_addrs) = c.hub_addrs {
+                        connect_to_multiple_hubs(node_id, hub_addrs);
                     }
 
                     Ok(())
@@ -197,5 +208,11 @@ impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
 impl<D> Drop for ServerConfigurer<D> {
     fn drop(&mut self) {
         println!("provider server configured")
+    }
+}
+
+fn connect_to_multiple_hubs(id: NodeId, hubs: &Vec<SocketAddr>) {
+    for hub in hubs {
+        rpc::ws::start_connection(id, *hub);
     }
 }
