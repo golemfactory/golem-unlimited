@@ -1,7 +1,7 @@
 [package]
 publish=false
 name = "gu-hub"
-version = "0.1.0"
+version = "0.1.1"
 build = "build.rs"
 license = "MIT"
 authors=["golemfactory"]
@@ -12,6 +12,7 @@ gu-p2p= { path="../gu-p2p" }
 gu-persist = { path = "../gu-persist" }
 gu-actix = { path = "../gu-actix" }
 gu-lan = { path = "../gu-lan" }
+gu-ethkey = { path = "../gu-ethkey"}
 gu-hardware = { path = "../gu-hardware" }
 gu-event-bus = { path = "../gu-event-bus" }
 
