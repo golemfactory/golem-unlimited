@@ -1,9 +1,10 @@
 #![allow(dead_code)]
+#![allow(proc_macro_derive_resolution_fallback)]
 
 use actix::{fut, prelude::*};
 use actix_web::*;
 use clap::{self, Arg, ArgMatches};
-use connect::ListingType;
+use connect::{self, ConnectionChangeMessage, ListingType};
 use futures::prelude::*;
 use gu_base::{Decorator, Module};
 use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
@@ -48,7 +49,8 @@ impl Default for ServerConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Message)]
+#[rtype(result = "Result<Option<()>, String>")]
 pub(crate) enum ConnectMode {
     Auto,
     Config,
@@ -93,27 +95,6 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
 }
 
 impl Module for ServerModule {
-    fn args_declare<'a, 'b>(&self, app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
-        app.arg(
-            Arg::with_name("hub_addr")
-                .short("a")
-                .long("hub address")
-                .takes_value(true)
-                .value_name("IP:PORT")
-                .help("IP and PORT of Hub to connect to"),
-        )
-    }
-
-    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        self.config_path = matches.value_of("config-dir").map(ToString::to_string);
-
-        if let Some(hub_addr) = matches.value_of("hub_addr") {
-            info!("hub addr={:?}", &hub_addr);
-            self.hub_addrs = Some(vec![hub_addr.parse().unwrap()])
-        }
-        true
-    }
-
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
         let daemon_module: &DaemonModule = decorator.extract().unwrap();
         if !daemon_module.run() {
@@ -128,7 +109,7 @@ impl Module for ServerModule {
         let _ = ServerConfigurer {
             config_path: self.config_path.clone(),
             node_id: get_node_id(keys),
-            hub_addrs: self.hub_addrs.clone(),
+            hub_addrs: self.hub_addrs.clone().unwrap_or_default(),
             decorator: decorator.clone(),
         }
         .start();
@@ -159,7 +140,7 @@ struct ServerConfigurer<D> {
     decorator: D,
     config_path: Option<String>,
     node_id: NodeId,
-    hub_addrs: Option<Vec<SocketAddr>>,
+    hub_addrs: Vec<SocketAddr>,
 }
 
 impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
@@ -194,15 +175,13 @@ impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
                         Box::leak(Box::new(mdns_publisher(c.p2p_port)));
                     }
 
-                    if let Some(hub_addrs) = hub_addrs {
-                        config.do_send(SetConfig::new(ServerConfig {
-                            hub_addrs: hub_addrs.clone(),
-                            ..(*c).clone()
-                        }));
-                        connect_to_multiple_hubs(node_id, &hub_addrs);
-                    }
-
+                    config.do_send(SetConfig::new(ServerConfig {
+                        hub_addrs: hub_addrs.clone(),
+                        ..(*c).clone()
+                    }));
+                    connect_to_multiple_hubs(node_id, &hub_addrs);
                     connect_to_multiple_hubs(node_id, &c.hub_addrs);
+                    println!("{:?}", &c.hub_addrs);
 
                     Ok(())
                 })
@@ -226,14 +205,24 @@ fn connect_to_multiple_hubs(id: NodeId, hubs: &Vec<SocketAddr>) {
     }
 }
 
-//impl<D: Decorator + 'static + Sync + Send> Handler<ListingType> for ServerConfigurer<D> {
-//    type Result = ListingType;
+impl<D: Decorator + 'static> Handler<ConnectMode> for ServerConfigurer<D> {
+    type Result = ActorResponse<Self, Option<()>, String>;
+
+    fn handle(&mut self, msg: ConnectMode, ctx: &mut Context<Self>) -> Self::Result {
+        ActorResponse::async(connect::edit_config_connect_mode(msg).into_actor(self))
+    }
+}
+
+//impl<D: Decorator + 'static> Handler<ConnectionChangeMessage> for ServerConfigurer<D> {
+//    type Result = ActorResponse<Self, Option<()>, String>;
 //
-//    fn handle(
-//        &mut self,
-//        msg: ListingType,
-//        ctx: &'_ mut _,
-//    ) -> <Self as Handler<ListingType>>::Result {
-//        unimplemented!()
+//    fn handle(&mut self, msg: ConnectionChangeMessage, ctx: &mut Context<Self>,
+//    ) -> Self::Result {
+//        for host in msg.hubs.iter() {
+//            match msg.change {
+//
+//            }
+//        }
+//        ActorResponse::async(connect::edit_config_hosts(msg.hubs, msg.change).into_actor(self))
 //    }
 //}

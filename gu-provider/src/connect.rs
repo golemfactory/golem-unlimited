@@ -1,14 +1,13 @@
 use super::server::ServerConfig;
 use actix::SystemService;
-use actix_web::{http, App, HttpRequest, Responder, Scope};
+use actix_web::{http, App, Error as ActixWebError, HttpRequest, HttpResponse, Responder, Scope};
+use futures::Future;
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{self, Arg, ArgMatches, Decorator, Module, SubCommand};
-use gu_persist::config::{ConfigManager, GetConfig, SetConfig, ConfigSection};
+use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, HasSectionId, SetConfig};
+use serde::{de::DeserializeOwned, Serialize};
 use server::ConnectMode;
 use std::{collections::HashSet, net::SocketAddr};
-use gu_persist::config::HasSectionId;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 pub struct ConnectModule {
     state: State,
@@ -170,12 +169,18 @@ fn mode_scope<S>(_r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
     ""
 }
 
-#[derive(Message)]
-enum ConnectionChange {
+pub(crate) enum ConnectionChange {
     Add,
     Remove,
     Connect,
     Disconnect,
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<Option<()>, String>")]
+pub(crate) struct ConnectionChangeMessage {
+    pub change: ConnectionChange,
+    pub hubs: Vec<SocketAddr>,
 }
 
 fn connect_scope<S>(_r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
@@ -186,7 +191,9 @@ fn dummy_scope<S>(_r: HttpRequest<S>) -> impl Responder {
     ""
 }
 
-fn edit_config_connect_mode(mode: ConnectMode) -> impl Responder {
+pub(crate) fn edit_config_connect_mode(
+    mode: ConnectMode,
+) -> impl Future<Item = Option<()>, Error = String> {
     fn editor(c: &ServerConfig, data: ConnectMode) -> Option<ServerConfig> {
         use std::ops::Deref;
 
@@ -202,12 +209,15 @@ fn edit_config_connect_mode(mode: ConnectMode) -> impl Responder {
     edit_config(mode, editor)
 }
 
-fn edit_config_hosts(list: Vec<SocketAddr>, change: ConnectionChange) -> impl Responder {
+pub(crate) fn edit_config_hosts(
+    list: Vec<SocketAddr>,
+    change: ConnectionChange,
+) -> impl Future<Item = Option<()>, Error = String> {
     fn editor(c: &ServerConfig, data: (Vec<SocketAddr>, ConnectionChange)) -> Option<ServerConfig> {
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
-        edit_config_list(config.hub_addrs.clone(), data.0, data.1).map(|mut new| {
+        edit_config_list(config.hub_addrs.clone(), data.0, data.1).map(|new| {
             config.hub_addrs = new;
             config
         })
@@ -216,7 +226,7 @@ fn edit_config_hosts(list: Vec<SocketAddr>, change: ConnectionChange) -> impl Re
     edit_config((list, change), editor)
 }
 
-fn edit_config<C, A, F>(data: A, fun: F) -> impl Responder
+fn edit_config<C, A, F>(data: A, fun: F) -> impl Future<Item = Option<()>, Error = String>
 where
     C: ConfigSection + Send + Sync + Default + DeserializeOwned + Serialize + 'static,
     A: 'static,
@@ -236,16 +246,13 @@ where
                     manager
                         .send(SetConfig::new(new))
                         .flatten_fut()
-                        .and_then(|_| Ok(HttpResponse::Ok().finish())),
+                        .and_then(|_| Ok(Some(()))),
                 )
             } else {
-                future::Either::B(
-                    future::ok(()).and_then(|_| Ok(HttpResponse::NotModified().finish())),
-                )
+                future::Either::B(future::ok(None))
             }
         })
-        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
-        .responder()
+        .map_err(|e| e.to_string())
 }
 
 fn edit_config_list(
