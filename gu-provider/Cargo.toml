@@ -12,6 +12,7 @@ clinfo=["gu-hardware/clinfo"]
 [dependencies]
 futures="0.1"
 tokio-io="0.1"
+actix_derive = "0.3.0"
 actix = "0.7"
 actix-web = {version= "0.7", features = []}
 serde_derive = "1.0"

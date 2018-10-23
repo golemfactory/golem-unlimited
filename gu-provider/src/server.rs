@@ -3,6 +3,7 @@
 use actix::{fut, prelude::*};
 use actix_web::*;
 use clap::{self, Arg, ArgMatches};
+use connect::ListingType;
 use futures::prelude::*;
 use gu_base::{Decorator, Module};
 use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
@@ -32,7 +33,7 @@ pub(crate) struct ServerConfig {
     #[serde(default)]
     publish_service: bool,
     #[serde(default = "ServerConfig::default_connect_mode")]
-    connect_mode: ConnectMode,
+    pub(crate) connect_mode: ConnectMode,
 }
 
 impl Default for ServerConfig {
@@ -224,3 +225,15 @@ fn connect_to_multiple_hubs(id: NodeId, hubs: &Vec<SocketAddr>) {
         rpc::ws::start_connection(id, *hub);
     }
 }
+
+//impl<D: Decorator + 'static + Sync + Send> Handler<ListingType> for ServerConfigurer<D> {
+//    type Result = ListingType;
+//
+//    fn handle(
+//        &mut self,
+//        msg: ListingType,
+//        ctx: &'_ mut _,
+//    ) -> <Self as Handler<ListingType>>::Result {
+//        unimplemented!()
+//    }
+//}
