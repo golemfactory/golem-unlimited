@@ -7,8 +7,8 @@ use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::cli;
 use gu_base::{App, ArgMatches, Decorator, Module, SubCommand};
-use gu_p2p::rpc::peer::PeerInfo;
-use gu_p2p::NodeId;
+use gu_net::rpc::peer::PeerInfo;
+use gu_net::NodeId;
 use serde_json::Value as JsonValue;
 
 pub struct PeerModule {
@@ -80,7 +80,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
 }
 
 fn list_peers<S>(_r: HttpRequest<S>) -> impl Responder {
-    use gu_p2p::rpc::peer::*;
+    use gu_net::rpc::peer::*;
 
     PeerManager::from_registry()
         .send(ListPeers)
@@ -104,8 +104,8 @@ fn call_remote_ep(
     destination_id: u32,
     arg: JsonValue,
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
-    use gu_p2p::rpc::public_destination;
-    use gu_p2p::rpc::reply::*;
+    use gu_net::rpc::public_destination;
+    use gu_net::rpc::reply::*;
 
     ReplyRouter::from_registry()
         .send(CallRemoteUntyped(

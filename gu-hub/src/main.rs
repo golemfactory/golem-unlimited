@@ -4,7 +4,7 @@ extern crate gu_event_bus;
 extern crate gu_ethkey;
 extern crate gu_hardware;
 extern crate gu_lan;
-extern crate gu_p2p;
+extern crate gu_net;
 extern crate gu_persist;
 
 extern crate serde;
@@ -32,7 +32,6 @@ extern crate prettytable;
 extern crate bytes;
 extern crate clap;
 extern crate mdns;
-extern crate rand;
 extern crate semver;
 extern crate sha1;
 extern crate zip;

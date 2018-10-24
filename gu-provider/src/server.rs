@@ -7,8 +7,8 @@ use clap::{self, Arg, ArgMatches};
 use futures::prelude::*;
 use gu_base::Decorator;
 use gu_base::Module;
-use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
-use gu_p2p::{rpc, NodeId};
+use gu_ethkey::prelude::*;
+use gu_net::{rpc, NodeId};
 use gu_persist::config::{
     ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath,
 };
@@ -98,12 +98,12 @@ impl Module for ServerModule {
 
         let config_module: &ConfigModule = decorator.extract().unwrap();
 
-        let keys = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
+        let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
             .expect("should load or generate eth key");
 
         let _ = ServerConfigurer {
             config_path: self.config_path.clone(),
-            node_id: NodeId::from(keys.address().as_ref()),
+            node_id: NodeId::from(key.address().as_ref()),
             hub_addr: self.hub_addr,
             decorator: decorator.clone(),
         }.start();

@@ -14,10 +14,10 @@ use futures::future;
 use futures::prelude::*;
 use gu_actix::*;
 use gu_base::{Decorator, Module};
-use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
-use gu_p2p::NodeId;
-use gu_p2p::rpc;
-use gu_p2p::rpc::mock;
+use gu_ethkey::prelude::*;
+use gu_net::NodeId;
+use gu_net::rpc;
+use gu_net::rpc::mock;
 use gu_persist::config;
 use gu_persist::config::ConfigManager;
 use gu_persist::config::ConfigModule;
@@ -170,13 +170,13 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
 
     fn hub_configuration(&mut self, c: Arc<ServerConfig>) -> Result<(), ()> {
         let config_module: &ConfigModule = self.decorator.extract().unwrap();
-        let keys = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
+        let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
             .expect("should load or generate eth key");
 
         let decorator = self.decorator.clone();
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(
-                actix_web::App::with_state(NodeId::from(keys.address().as_ref()))
+                actix_web::App::with_state(NodeId::from(key.address().as_ref()))
                     .handler(
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")

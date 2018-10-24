@@ -22,9 +22,9 @@ $ gu-hub status
 
 ## HTTP Paths
 
- * ```/gu-p2p``` - p2p base path
- * ```/gu-p2p/ws``` - main websocket
- * ```/gu-p2p/c/{resource-id}``` - path for static resources transmision.
+ * ```/gu-net``` - net base path
+ * ```/gu-net/ws``` - main websocket
+ * ```/gu-net/c/{resource-id}``` - path for static resources transmision.
  
  
  Reservations:
