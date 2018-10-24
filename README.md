@@ -1,12 +1,12 @@
 # Golem Unlimited
 
-Put your idle resources into use to perform computations you need, both for internal or public usage, by renting your computing power for a fee in the wider Golem Network.
+Golem is a network of heterogeneous computing resources where each resource may be represented by either a single machine or a more complex component, such as a whole subnetwork in a data-center like setting.
 
-Golem Unlimited features a [hub](gu-hub) acting as a requestor and computers in the hub’s trusted network being [providers](gu-provider).
+Golem Unlimited is a framework used to manage such setups, and it features the hub acting as a requestor and additional worker nodes in the hub’s trusted network acting as providers.
 
-It is meant for data center-like (render farms, or desktops within organization LAN) where network participants trust each other. This allows eliminating the economic layer, reputation, verification, and sandboxing (in contrast to the public Golem Network).
+It is meant for data center-like setup (render farms, or desktops within organization LAN) where network participants trust each other. This assumption allows simplifying the design and taking care of only the computation layer. Other components such as economic layers, reputation systems, verification algorithms, and sandboxing (in contrast to the public Golem Network) can be skipped altogether or implemented optionally.
 
-Golem Unlimited is a part of the broader Golem ecosystem. The hub will be able to expose the whole subnetwork by acting as a [Golem](../../../golem) Network provider and earn GNTs.
+Golem Unlimited is a part of the broader [Golem](../../../golem) ecosystem. The hub will be able to expose the whole subnetwork by acting as a Golem Network provider and earn GNTs.
 
 # Use cases
 So far we have prepared plugins for two use cases:
