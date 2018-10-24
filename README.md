@@ -2,7 +2,7 @@
 
 Golem is a network of heterogeneous computing resources where each resource may be represented by either a single machine or a more complex component, such as a whole subnetwork in a data-center like setting.
 
-Golem Unlimited is a framework used to manage such setups, and it features the hub acting as a requestor and additional worker nodes in the hub’s trusted network acting as providers.
+Golem Unlimited is a framework used to manage such setups, and it features the [hub](gu-hub) acting as a requestor and additional worker nodes in the hub’s trusted network acting as [providers](gu-provider).
 
 It is meant for data center-like setup (render farms, or desktops within organization LAN) where network participants trust each other. This assumption allows simplifying the design and taking care of only the computation layer. Other components such as economic layers, reputation systems, verification algorithms, and sandboxing (in contrast to the public Golem Network) can be skipped altogether or implemented optionally.
 
