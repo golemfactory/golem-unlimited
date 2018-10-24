@@ -32,11 +32,16 @@ extern crate ethstore;
 #[macro_use]
 extern crate log;
 extern crate parity_crypto;
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
+extern crate rand;
 extern crate rustc_hex;
 
 use ethkey::crypto::ecies::{decrypt, encrypt};
-use ethkey::{sign, verify_public, Generator, KeyPair, Password, Random};
-use ethkey::{Address, Message, Public, Signature};
+use ethkey::{
+    sign, verify_public, Address, Generator, KeyPair, Message, Password, Public, Random, Signature,
+};
 use ethstore::accounts_dir::{DiskKeyFileManager, KeyFileManager, RootDiskDirectory};
 use ethstore::SafeAccount;
 use rustc_hex::ToHex;
@@ -117,7 +122,7 @@ impl EthKey for SafeEthKey {
 fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
     SafeAccount::create(
         key_pair,
-        [0u8; 16], // TODO: use uuid4 or random
+        rand::random(),
         pwd,
         KEY_ITERATIONS,
         "".to_owned(),
@@ -251,16 +256,19 @@ pub mod prelude {
 mod tests {
     extern crate env_logger;
     extern crate log;
+    extern crate rand;
+    extern crate serde_json;
     extern crate tempfile;
 
+
     use self::tempfile::tempdir;
-    use super::{EthKey, EthKeyStore, Message, SafeEthKey};
+    use super::prelude::*;
     use std::env;
     use std::fs;
     use std::io::prelude::*;
     use std::path::PathBuf;
 
-    fn temp_keystore_path() -> PathBuf {
+    fn tmp_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();
         dir.push("keystore.json");
         dir
@@ -280,19 +288,45 @@ mod tests {
 
     #[test]
     fn test_generate() {
-        // given
-        let path = temp_keystore_path();
-        let pwd = "zimko".into();
         // when
-        let key = SafeEthKey::load_or_generate(path, &pwd);
+        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into());
+
         // then
         assert!(key.is_ok());
     }
 
     #[test]
+    fn test_serialize_with_proper_id_and_address() {
+        use std::fs;
+        // given
+        let path = tmp_path();
+
+        // when
+        let key = SafeEthKey::load_or_generate(&path, &"pwd".into());
+
+        // then
+        assert!(key.is_ok());
+
+        let file = fs::File::open(path).unwrap();
+        let json : serde_json::Value = serde_json::from_reader(file).unwrap();
+        // println!("{:#}", json);
+        let id = json.get("id").unwrap();
+        assert!(id.is_string());
+        assert_eq!(id.as_str().unwrap().len(), 36);
+        assert_ne!(
+            format!("{}", id.as_str().unwrap()),
+            "00000000-0000-0000-0000-000000000000"
+        );
+        assert_eq!(
+            format!("{:?}", key.unwrap().address()),
+            format!("0x{}", json.get("address").unwrap().as_str().unwrap())
+        );
+    }
+
+    #[test]
     fn test_read_keystore_generated_by_pyethereum() {
         // given
-        let path = temp_keystore_path();
+        let path = tmp_path();
         let mut file = fs::File::create(&path).unwrap();
         let _ = file.write_all(b" \
         { \
@@ -315,8 +349,10 @@ mod tests {
              \"version\": 3\
         }");
         let pwd = "hekloo".into();
+
         // when
         let key = SafeEthKey::load_or_generate(path, &pwd);
+
         // then
         assert!(key.is_ok());
     }
@@ -324,8 +360,9 @@ mod tests {
     #[test]
     fn test_generate_change_pass_and_reload_with_old_pass_should_fail() {
         // given
-        let path = temp_keystore_path();
+        let path = tmp_path();
         let pwd = "zimko".into();
+
         // when
         let key = SafeEthKey::load_or_generate(&path, &pwd);
         assert!(key.is_ok());
@@ -339,12 +376,12 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_change_pass_and_reload_with_now_pass_should_pass() {
+    fn test_generate_change_pass_and_reload_with_new_pass_should_pass() {
         // given
-        let path = temp_keystore_path();
-        let pwd = "zimko".into();
+        let path = tmp_path();
+
         // when
-        let key = SafeEthKey::load_or_generate(&path, &pwd);
+        let key = SafeEthKey::load_or_generate(&path, &"pwd".into());
         assert!(key.is_ok());
 
         // change pass
@@ -358,15 +395,10 @@ mod tests {
     #[test]
     fn test_sign_verify() {
         // given
-        let path = temp_keystore_path();
-        let pwd = "zimko".into();
-        let mut v = [0u8; 32];
-        v[0] = 39u8;
-        v[1] = 50u8;
-        let msg: Message = Message::from(v);
+        let msg: super::Message = rand::random::<[u8; 32]>().into();
 
         // when
-        let key = SafeEthKey::load_or_generate(&path, &pwd).unwrap();
+        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into()).unwrap();
         let sig = key.sign(&msg);
 
         // then
@@ -377,21 +409,17 @@ mod tests {
     #[test]
     fn test_encrypt_decrypt() {
         // given
-        let path = temp_keystore_path();
-        let pwd = "zimko".into();
-        let mut v = [0u8; 32];
-        v[0] = 39u8;
-        v[1] = 50u8;
+        let plain : [u8; 32] = rand::random();
 
         // when
-        let key = SafeEthKey::load_or_generate(&path, &pwd).unwrap();
-        let encv = key.encrypt(&v);
+        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into()).unwrap();
+        let encv = key.encrypt(&plain);
 
         // then
         assert!(encv.is_ok());
         assert!(eq(
             key.decrypt(&encv.unwrap().as_slice()).unwrap().as_slice(),
-            &v,
+            &plain,
         ));
     }
 }

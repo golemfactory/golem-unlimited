@@ -32,7 +32,6 @@ extern crate prettytable;
 extern crate bytes;
 extern crate clap;
 extern crate mdns;
-extern crate rand;
 extern crate semver;
 extern crate sha1;
 extern crate zip;
