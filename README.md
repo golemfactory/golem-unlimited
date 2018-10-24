@@ -1,28 +1,28 @@
 # Golem Unlimited
 
-Put your idle resources into use to perform computations you need internally or publicly rent your joint computing power for a fee.
+Put your idle resources into use to perform computations you need, both for internal or public usage, by renting your computing power for a fee in the wider Golem Network.
 
 Golem Unlimited features a [hub](gu-hub) acting as a requestor and computers in the hub’s trusted network being [providers](gu-provider).
 
-It is meant for data center-like (render farms, or desktops within organization LAN) where network participants trust each other. This allows eliminating the economic layer, reputation, verification, and sandboxing (in contrast to public Golem Network).
+It is meant for data center-like (render farms, or desktops within organization LAN) where network participants trust each other. This allows eliminating the economic layer, reputation, verification, and sandboxing (in contrast to the public Golem Network).
 
-Golem Unlimited is a part of the broader Golem ecosystem. The hub will be able to expose whole subnetwork acting as a [Golem](../../../golem) Network provider and earn GNTs.
+Golem Unlimited is a part of the broader Golem ecosystem. The hub will be able to expose the whole subnetwork by acting as a [Golem](../../../golem) Network provider and earn GNTs.
 
 # Use cases
-So far we’ve prepared plugins for two use cases
+So far we have prepared plugins for two use cases:
 * Integer factorization
 * Mining 
 
-We will open source for those plugins soon.
+We will open source those plugins soon.
 
 # Installing and testing
 
-Please bear in mind that Golem Unlimited is in  [Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) stage.
+Please bear in mind that Golem Unlimited is in its [Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) stage.
 
 ## binary
-To install you can use [released](../../releases) Ubuntu `deb` and MacOs `dmg` binary packages.
+To install you can use the [released](../../releases) Ubuntu `deb` and MacOs `dmg` binary packages.
 
-Detailed steps can be found in our demo https://youtu.be/J0LBdg2j6Tk
+The detailed steps can be found in our demo https://youtu.be/J0LBdg2j6Tk
 
 ## from source
 To run the hub, go to the `gu-hub` subdir and perform `cargo run -- -vv server run’
@@ -62,5 +62,5 @@ https://youtu.be/J0LBdg2j6Tk
 [`gu-webapp`]: gu-webapp
 
 
-# Contact and Contributing
-[Here](../../wiki/Contributing) you can find information about giving us a feedback and contributing to the project.
+# How to Contribute to Unlimited
+[Here](../../wiki/Contributing) you can find information in order to give us feedback  and contribute to the project.
