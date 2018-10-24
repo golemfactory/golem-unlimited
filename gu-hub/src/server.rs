@@ -3,11 +3,11 @@
 use actix::fut;
 use actix::prelude::*;
 use actix_web;
-use actix_web::Body;
 use actix_web::client;
 use actix_web::client::ClientRequest;
 use actix_web::error::JsonPayloadError;
 use actix_web::http;
+use actix_web::Body;
 use bytes::Bytes;
 use clap::{App, ArgMatches, SubCommand};
 use futures::future;
@@ -15,9 +15,9 @@ use futures::prelude::*;
 use gu_actix::*;
 use gu_base::{Decorator, Module};
 use gu_ethkey::prelude::*;
-use gu_net::NodeId;
 use gu_net::rpc;
 use gu_net::rpc::mock;
+use gu_net::NodeId;
 use gu_persist::config;
 use gu_persist::config::ConfigManager;
 use gu_persist::config::ConfigModule;
@@ -127,18 +127,15 @@ impl Module for ServerModule {
     }
 }
 
-fn p2p_server<S>(_r: &actix_web::HttpRequest<S>) -> &'static str {
-    "ok"
-}
-
-fn mdns_publisher(port: u16) -> Service {
+fn mdns_publisher(port: u16, node_id: NodeId) -> Service {
     let responder = Responder::new().expect("Failed to run mDNS publisher");
+    let node_txt_record = format!("node_id={:?}", node_id);
 
     responder.register(
         "_unlimited._tcp".to_owned(),
         "gu-hub".to_owned(),
         port,
-        &["path=/", ""],
+        &[node_txt_record.as_ref()],
     )
 }
 
@@ -173,10 +170,12 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
             .expect("should load or generate eth key");
 
+        let node_id: NodeId = NodeId::from(key.address().as_ref());
+
         let decorator = self.decorator.clone();
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(
-                actix_web::App::with_state(NodeId::from(key.address().as_ref()))
+                actix_web::App::with_state(node_id.clone())
                     .handler(
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")
@@ -188,7 +187,7 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         let _ = server.bind(c.p2p_addr()).unwrap().start();
 
         if c.publish_service {
-            Box::leak(Box::new(mdns_publisher(c.p2p_port)));
+            Box::leak(Box::new(mdns_publisher(c.p2p_port, node_id)));
         }
 
         Ok(())
@@ -199,7 +198,6 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-
         ctx.spawn(
             self.config()
                 .send(config::GetConfig::new())
