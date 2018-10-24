@@ -4,7 +4,7 @@ extern crate gu_event_bus;
 extern crate gu_ethkey;
 extern crate gu_hardware;
 extern crate gu_lan;
-extern crate gu_p2p;
+extern crate gu_net;
 extern crate gu_persist;
 
 extern crate serde;

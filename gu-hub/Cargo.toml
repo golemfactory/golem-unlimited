@@ -8,7 +8,7 @@ authors=["golemfactory"]
 
 [dependencies]
 gu-base= { path="../gu-base" }
-gu-p2p= { path="../gu-p2p" }
+gu-net= { path="../gu-net" }
 gu-persist = { path = "../gu-persist" }
 gu-actix = { path = "../gu-actix" }
 gu-lan = { path = "../gu-lan" }

@@ -4,7 +4,7 @@ use hostname::get_hostname;
 
 use disk::{DiskInfo, DiskQuery};
 use gu_actix::flatten::FlattenFuture;
-use gu_p2p::rpc::{RemotingContext, RemotingSystemService};
+use gu_net::rpc::{RemotingContext, RemotingSystemService};
 use inner_actor::InnerActor;
 use ram::{RamInfo, RamQuery};
 

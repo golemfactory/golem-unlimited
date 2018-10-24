@@ -30,7 +30,7 @@ mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
 
 gu-base= { path="../gu-base" }
 gu-actix = { path = "../gu-actix" }
-gu-p2p = { path = "../gu-p2p" }
+gu-net = { path = "../gu-net" }
 gu-persist = { path = "../gu-persist" }
 gu-lan = { path = "../gu-lan"}
 gu-ethkey = { path = "../gu-ethkey"}
