@@ -1,24 +1,42 @@
 
 # gu-hub
 
+Golem Unlimited management node.
+
 ## Command line options
 
-Start server 
+Run server
 ```
-$ gu-hub server
+$ gu-hub server run
 ```
 
-List lan peers
+Start server as daemon
+```
+$ gu-hub server start
+```
+
+Check server status
+```
+$ gu-hub server status
+```
+
+Stop server daemon
+```
+$ gu-hub server stop
+```
+
+List connected peers
+
+```
+$ gu-hub peer list
+```
+
+List available peers
 
 ```
 $ gu-hub lan list
 ```
 
-Check status
-
-```
-$ gu-hub status
-```
 
 ## HTTP Paths
 
