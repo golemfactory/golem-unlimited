@@ -1,5 +1,5 @@
 extern crate gu_actix;
-extern crate gu_p2p;
+extern crate gu_net;
 
 extern crate actix;
 extern crate actix_web;
@@ -16,7 +16,7 @@ extern crate log;
 extern crate serde_derive;
 
 use actix::prelude::*;
-use gu_p2p::rpc::*;
+use gu_net::rpc::*;
 
 use actix_web::*;
 
@@ -68,7 +68,7 @@ impl Handler<Echo> for Test {
 
 fn main() {
     if ::std::env::var("RUST_LOG").is_err() {
-        ::std::env::set_var("RUST_LOG", "info,gu_p2p=debug")
+        ::std::env::set_var("RUST_LOG", "info,gu_net=debug")
     }
     env_logger::init();
 

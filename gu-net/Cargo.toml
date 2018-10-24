@@ -1,5 +1,5 @@
 [package]
-name = "gu-p2p"
+name = "gu-net"
 version = "0.1.0"
 
 [dependencies]

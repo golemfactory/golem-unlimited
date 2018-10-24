@@ -6,7 +6,7 @@ authors = ["Hubert Banaszewski <hubert.banaszewski@golem.network>"]
 
 [dependencies]
 gu-actix = { path = "../gu-actix" }
-gu-p2p = { path = "../gu-p2p" }
+gu-net = { path = "../gu-net" }
 gu-base = { path = "../gu-base" }
 
 serde = "1.0"

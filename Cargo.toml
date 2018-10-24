@@ -7,7 +7,7 @@ members= [
 	'gu-provider',
 	'gu-hub',
 	'gu-ethkey',
-	'gu-p2p',
+	'gu-net',
 	'gu-persist',
 	'gu-lan',
 	'gu-hardware',

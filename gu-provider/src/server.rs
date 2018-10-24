@@ -8,7 +8,7 @@ use futures::prelude::*;
 use gu_base::Decorator;
 use gu_base::Module;
 use gu_ethkey::prelude::*;
-use gu_p2p::{rpc, NodeId};
+use gu_net::{rpc, NodeId};
 use gu_persist::config::{
     ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath,
 };
