@@ -1,35 +1,24 @@
 #![allow(dead_code)]
 
-use actix::Actor;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::MessageResult;
-use actix::Supervised;
-use actix::SystemService;
+use actix::{Actor, Context, Handler, Message, MessageResult, Supervised, SystemService};
 use bytes::Bytes;
 use gu_event_bus::post_event;
 use gu_persist::config::ConfigModule;
-use plugins::parser::BytesPluginParser;
-use plugins::parser::PluginParser;
-use plugins::parser::ZipParser;
-use plugins::plugin::DirectoryHandler;
-use plugins::plugin::Plugin;
-use plugins::plugin::PluginEvent;
-use plugins::plugin::PluginHandler;
-use plugins::plugin::PluginInfo;
-use plugins::plugin::PluginStatus;
-use plugins::plugin::ZipHandler;
-use plugins::rest_result::InstallQueryResult;
+use plugins::{
+    parser::{BytesPluginParser, PluginParser, ZipParser},
+    plugin::{
+        DirectoryHandler, Plugin, PluginEvent, PluginHandler, PluginInfo, PluginStatus, ZipHandler,
+    },
+    rest_result::InstallQueryResult,
+};
 use semver::Version;
-use std::collections::HashMap;
-use std::fmt;
-use std::fs;
-use std::fs::remove_file;
-use std::fs::DirBuilder;
-use std::io::BufReader;
-use std::io::Cursor;
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    fmt,
+    fs::{self, remove_file, DirBuilder},
+    io::{BufReader, Cursor},
+    path::PathBuf,
+};
 
 #[derive(Debug)]
 pub struct PluginManager {
@@ -76,7 +65,8 @@ impl PluginManager {
                     None => Installed,
                     Some(_a) => Overwritten,
                 }
-            }).unwrap_or_else(|e| e)
+            })
+            .unwrap_or_else(|e| e)
     }
 
     fn uninstall_plugin(&mut self, name: &String) {
@@ -242,11 +232,13 @@ impl Handler<InstallPlugin> for PluginManager {
                     parser
                         .validate_and_load_metadata(self.gu_version.clone())
                         .map_err(|e| InvalidMetadata(e))
-                }).and_then(|metadata| {
+                })
+                .and_then(|metadata| {
                     let name = metadata.name();
                     self.save_plugin_file(name, msg.bytes.into_inner().as_ref())
                         .map(|_| self.load_zip(&name.to_string()))
-                }).unwrap_or_else(|a| a),
+                })
+                .unwrap_or_else(|a| a),
         )
     }
 }

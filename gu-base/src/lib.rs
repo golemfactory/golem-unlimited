@@ -17,10 +17,8 @@ mod output;
 mod run_once;
 
 pub use clap::{App, Arg, ArgMatches, SubCommand};
-use futures::future;
-use futures::prelude::*;
-use std::any::Any;
-use std::sync::Arc;
+use futures::{future, prelude::*};
+use std::{any::Any, sync::Arc};
 
 pub use output::{AutocompleteModule, LogModule};
 

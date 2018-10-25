@@ -1,15 +1,13 @@
-use super::error::{Error, ErrorKind};
-use super::message::{self, public_destination, DestinationId};
-use super::router::{self, MessageRouter};
-use actix::dev::*;
-use actix::prelude::*;
-use futures::sync::oneshot::Sender;
-use futures::{future, prelude::*};
+use super::{
+    error::{Error, ErrorKind},
+    message::{self, public_destination, DestinationId},
+    router::{self, MessageRouter},
+};
+use actix::{dev::*, prelude::*};
+use futures::{future, prelude::*, sync::oneshot::Sender};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
-use std::any;
-use std::collections::HashMap;
-use std::marker::PhantomData;
+use std::{any, collections::HashMap, marker::PhantomData};
 
 pub struct RemotingContext<A>
 where
@@ -172,7 +170,8 @@ where
     A: Actor + Handler<T>,
     T: Message + DeserializeOwned,
     T::Result: Serialize,
-{}
+{
+}
 
 impl<A, T> router::LocalEndpoint for AddrWrapper<A, T>
 where
@@ -205,10 +204,12 @@ where
                     .then(move |r, act, ctx| match r {
                         Ok(b) => fut::ok(serde_json::to_string(&b).unwrap()),
                         Err(e) => fut::err(()),
-                    }).and_then(move |r, act, ctx: &mut <MessageRouter as Actor>::Context| {
+                    })
+                    .and_then(move |r, act, ctx: &mut <MessageRouter as Actor>::Context| {
                         m.do_reply(r, |reply| ctx.notify(reply));
                         fut::ok(())
-                    }).map_err(|e, act, ctx| println!("error: {:?}", e));
+                    })
+                    .map_err(|e, act, ctx| println!("error: {:?}", e));
                 ctx.spawn(f);
                 //ctx.spawn(f.into_actor(self));
             }

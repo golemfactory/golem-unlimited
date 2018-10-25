@@ -1,17 +1,14 @@
 use bytes::Bytes;
 use plugins::plugin::PluginMetadata;
-use semver::Version;
-use semver::VersionReq;
+use semver::{Version, VersionReq};
 use serde_json;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fs::File;
-use std::io::BufReader;
-use std::io::Cursor;
-use std::io::Read;
-use std::io::Seek;
-use std::path::Path;
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    fs::File,
+    io::{BufReader, Cursor, Read, Seek},
+    path::{Path, PathBuf},
+};
 use zip::ZipArchive;
 
 pub trait PluginParser: Debug {
@@ -44,7 +41,8 @@ pub trait PluginParser: Debug {
                 let mut path = PathBuf::from(app_name.clone());
                 path.push(name);
                 self.contains_file(path)
-            }).and_then(|_| Ok(()))
+            })
+            .and_then(|_| Ok(()))
         })
     }
 
@@ -101,7 +99,8 @@ impl PathPluginParser for ZipParser<File> {
             .map_err(|e| format!("Cannot open file: {:?}", e))
             .and_then(|f| {
                 ZipArchive::new(f).map_err(|e| format!("Cannot open file as zip: {:?}", e))
-            }).map(|zip| Self::inner_new(zip))
+            })
+            .map(|zip| Self::inner_new(zip))
     }
 }
 
@@ -132,7 +131,8 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
                             map.insert(path.to_path_buf(), x)
                                 .map(|_| warn!("File overwritten: {:?}", path));
                             Ok(())
-                        }).map_err(|e| warn!("{:?}", e));
+                        })
+                        .map_err(|e| warn!("{:?}", e));
                 }
             }
         }
@@ -154,7 +154,8 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
             .by_name(
                 path.to_str()
                     .ok_or("Cannot cast PathBuf to str".to_string())?,
-            ).map_err(|_| "".to_string())
+            )
+            .map_err(|_| "".to_string())
             .and_then(|_| Ok(()))
     }
 }

@@ -50,11 +50,13 @@ mod error {
     }
 }
 
-pub use self::context::{start_actor, RemotingContext};
-pub use self::error::Error as RpcError;
-pub use self::message::{
-    gen_destination_id, public_destination, DestinationId, EmitMessage, MessageId, RouteMessage,
+pub use self::{
+    context::{start_actor, RemotingContext},
+    error::Error as RpcError,
+    message::{
+        gen_destination_id, public_destination, DestinationId, EmitMessage, MessageId, RouteMessage,
+    },
+    registry::RemotingSystemService,
+    reply::ReplyRouter,
+    router::MessageRouter,
 };
-pub use self::registry::RemotingSystemService;
-pub use self::reply::ReplyRouter;
-pub use self::router::MessageRouter;

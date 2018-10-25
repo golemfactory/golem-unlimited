@@ -4,15 +4,15 @@ use daemonize::Daemonize;
 use libc::{
     dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
 };
-use std::fs::File;
-use std::io::Read;
-use std::io::Write;
-use std::os::raw::c_int;
-use std::os::unix::prelude::*;
-use std::path::Path;
-use std::str;
-use std::thread::sleep;
-use std::time::Duration;
+use std::{
+    fs::File,
+    io::{Read, Write},
+    os::{raw::c_int, unix::prelude::*},
+    path::Path,
+    str,
+    thread::sleep,
+    time::Duration,
+};
 
 pub enum Process {
     Running(i32),
@@ -93,7 +93,8 @@ where
         .map(|_| {
             let _ = out.write("Daemon started successfully\n".as_ref());
             true
-        }).map_err(|e| format!("Daemon creation error: {}", e))
+        })
+        .map_err(|e| format!("Daemon creation error: {}", e))
 }
 
 pub fn stop_process<S>(name: S) -> Result<(), String>
@@ -167,7 +168,8 @@ fn write_pid_file(path: &Path) -> Result<(), String> {
         file.write(buf.as_bytes())
             .map(|_| {
                 Box::leak(Box::new(file));
-            }).map_err(|_| "Pid file write error".to_string())
+            })
+            .map_err(|_| "Pid file write error".to_string())
     }
 }
 

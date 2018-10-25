@@ -2,22 +2,20 @@
  * Websocket interface for message router
  */
 
-use super::super::proto::wire;
-use super::error;
-use super::message::{
-    EmitMessage, MessageId, NodeId, RouteMessage, TransportError, TransportResult,
+use super::{
+    super::proto::wire,
+    error,
+    message::{EmitMessage, MessageId, NodeId, RouteMessage, TransportError, TransportResult},
+    monitor,
+    peer::{self, PeerManager},
+    router::{AddEndpoint, DelEndpoint, MessageRouter},
 };
-use super::monitor;
-use super::peer::{self, PeerManager};
-use super::router::{AddEndpoint, DelEndpoint, MessageRouter};
 use actix::prelude::*;
 use actix_web::{self, ws, HttpRequest, HttpResponse};
-use futures::prelude::*;
+use futures::{future, prelude::*};
+use gu_actix::flatten::FlattenFuture;
 use quick_protobuf::serialize_into_vec;
-use std::borrow::Cow;
-use std::marker::PhantomData;
-use std::ops::Add;
-use std::{net, time};
+use std::{borrow::Cow, marker::PhantomData, net, ops::Add, time};
 
 fn rpc_to_route<T>(peer_node_id: NodeId, rpc: wire::RpcMessage, body: T) -> RouteMessage<T> {
     RouteMessage {
@@ -135,36 +133,38 @@ impl<S> StreamHandler<ws::Message, ws::ProtocolError> for Worker<S> {
         use quick_protobuf::{deserialize_from_slice, BytesReader, MessageRead};
 
         match item {
-            ws::Message::Binary(b) => if self.peer_node_id.is_none() {
-                //let mut reader = BytesReader::from_bytes(b.as_ref());
-                match deserialize_from_slice::<wire::Hello>(b.as_ref()) {
-                    //wire::Hello::from_reader(&mut reader, b.as_ref()) {
-                    Ok(hello) => {
-                        info!("handshake for: {:?}", hello);
-                        let mut peer_node_id: NodeId = hello.node_id.into();
-                        self.peer_node_id = Some(peer_node_id);
-                        self.reply_init(ctx);
-                        self.add_endpoint(ctx);
+            ws::Message::Binary(b) => {
+                if self.peer_node_id.is_none() {
+                    //let mut reader = BytesReader::from_bytes(b.as_ref());
+                    match deserialize_from_slice::<wire::Hello>(b.as_ref()) {
+                        //wire::Hello::from_reader(&mut reader, b.as_ref()) {
+                        Ok(hello) => {
+                            info!("handshake for: {:?}", hello);
+                            let mut peer_node_id: NodeId = hello.node_id.into();
+                            self.peer_node_id = Some(peer_node_id);
+                            self.reply_init(ctx);
+                            self.add_endpoint(ctx);
+                        }
+                        Err(e) => {
+                            ctx.close(Some(ws::CloseReason {
+                                code: ws::CloseCode::Protocol,
+                                description: Some(format!("{}", e)),
+                            }));
+                        }
                     }
-                    Err(e) => {
-                        ctx.close(Some(ws::CloseReason {
-                            code: ws::CloseCode::Protocol,
-                            description: Some(format!("{}", e)),
-                        }));
+                } else {
+                    debug!("got slice: {:?}", b);
+                    match deserialize_from_slice(b.as_ref()) {
+                        Ok(rpc) => route_rpc_message(self.peer_node_id.clone().unwrap(), rpc),
+                        Err(e) => {
+                            ctx.close(Some(ws::CloseReason {
+                                code: ws::CloseCode::Protocol,
+                                description: Some(format!("{}", e)),
+                            }));
+                        }
                     }
                 }
-            } else {
-                debug!("got slice: {:?}", b);
-                match deserialize_from_slice(b.as_ref()) {
-                    Ok(rpc) => route_rpc_message(self.peer_node_id.clone().unwrap(), rpc),
-                    Err(e) => {
-                        ctx.close(Some(ws::CloseReason {
-                            code: ws::CloseCode::Protocol,
-                            description: Some(format!("{}", e)),
-                        }));
-                    }
-                }
-            },
+            }
             ws::Message::Pong(_) => {
                 self.pong_ts = None;
             }
@@ -248,7 +248,8 @@ impl Client {
             .map_err(|e| {
                 error!("connect: {}", e);
                 ()
-            }).map(move |(reader, writer)| {
+            })
+            .map(move |(reader, writer)| {
                 let addr = Client::create(move |ctx| {
                     Client::add_stream(reader, ctx);
                     info!("connected");
@@ -297,41 +298,55 @@ impl Actor for Client {
     }
 }
 
+#[derive(Message)]
+#[rtype(result = "()")]
+struct StopClient;
+
+impl Handler<StopClient> for Client {
+    type Result = ();
+
+    fn handle(&mut self, _msg: StopClient, ctx: &mut Context<Self>) -> () {
+        ctx.stop()
+    }
+}
+
 impl StreamHandler<ws::Message, ws::ProtocolError> for Client {
     fn handle(&mut self, item: ws::Message, ctx: &mut Self::Context) {
         use quick_protobuf::{deserialize_from_slice, BytesReader, MessageRead};
 
         match item {
-            ws::Message::Binary(b) => if self.peer_node_id.is_none() {
-                self.monitor.interaction();
+            ws::Message::Binary(b) => {
+                if self.peer_node_id.is_none() {
+                    self.monitor.interaction();
 
-                match deserialize_from_slice::<wire::HelloReply>(b.as_ref()) {
-                    Ok(hello) => {
-                        info!("handshake for: {:?}", hello);
-                        self.peer_node_id = Some(hello.node_id.into());
-                        self.add_endpoint(ctx);
+                    match deserialize_from_slice::<wire::HelloReply>(b.as_ref()) {
+                        Ok(hello) => {
+                            info!("handshake for: {:?}", hello);
+                            self.peer_node_id = Some(hello.node_id.into());
+                            self.add_endpoint(ctx);
+                        }
+                        Err(e) => {
+                            warn!("invalid message: {}", e);
+                            self.writer.close(Some(ws::CloseReason {
+                                code: ws::CloseCode::Protocol,
+                                description: Some(format!("{}", e)),
+                            }));
+                        }
                     }
-                    Err(e) => {
-                        warn!("invalid message: {}", e);
-                        self.writer.close(Some(ws::CloseReason {
-                            code: ws::CloseCode::Protocol,
-                            description: Some(format!("{}", e)),
-                        }));
+                } else {
+                    match deserialize_from_slice::<wire::RpcMessage>(b.as_ref()) {
+                        Ok(rpc) => route_rpc_message(self.peer_node_id.clone().unwrap(), rpc),
+                        Err(e) => {
+                            error!("rpc format error: {}", e);
+                            self.writer.close(Some(ws::CloseReason {
+                                code: ws::CloseCode::Protocol,
+                                description: Some(format!("{}", e)),
+                            }));
+                            ctx.stop()
+                        }
                     }
                 }
-            } else {
-                match deserialize_from_slice::<wire::RpcMessage>(b.as_ref()) {
-                    Ok(rpc) => route_rpc_message(self.peer_node_id.clone().unwrap(), rpc),
-                    Err(e) => {
-                        error!("rpc format error: {}", e);
-                        self.writer.close(Some(ws::CloseReason {
-                            code: ws::CloseCode::Protocol,
-                            description: Some(format!("{}", e)),
-                        }));
-                        ctx.stop()
-                    }
-                }
-            },
+            }
             ws::Message::Ping(m) => {
                 self.monitor.interaction();
                 self.writer.pong(m.as_ref());
@@ -407,18 +422,21 @@ pub fn start_connection(
         node_id,
         peer_address,
         connection: None,
-    }.start()
+    }
+    .start()
 }
 
 impl ConnectionSupervisor {
     fn check(&mut self, ctx: &mut <Self as Actor>::Context) {
         self.connection = match self.connection.take() {
-            Some(addr) => if addr.connected() {
-                Some(addr)
-            } else {
-                warn!("actor is down");
-                None
-            },
+            Some(addr) => {
+                if addr.connected() {
+                    Some(addr)
+                } else {
+                    warn!("actor is down");
+                    None
+                }
+            }
             None => None,
         };
 
@@ -432,7 +450,8 @@ impl ConnectionSupervisor {
                 .map(|r, act: &mut ConnectionSupervisor, ctx| {
                     debug!("set connection!");
                     act.connection = Some(r);
-                }).map_err(|err, act, ctx| {
+                })
+                .map_err(|err, act, ctx| {
                     error!("fatal, restart, {:?}", &err);
                 }),
         );
@@ -443,7 +462,36 @@ impl Actor for ConnectionSupervisor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        let _ = ctx.run_interval(time::Duration::from_secs(1), |act, ctx| act.check(ctx));
+        println!("a");
+        let _ = ctx.run_interval(time::Duration::from_secs(1), |act, ctx| {
+            act.check(ctx);
+            println!("a");
+        });
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<(), ()>")]
+pub struct StopSupervisor;
+
+impl Handler<StopSupervisor> for ConnectionSupervisor {
+    type Result = ActorResponse<Self, (), ()>;
+
+    fn handle(&mut self, _msg: StopSupervisor, ctx: &mut Context<Self>) -> Self::Result {
+        if let Some(ref client) = self.connection {
+            ActorResponse::async(
+                client
+                    .send(StopClient)
+                    .map_err(|e| error!("{}", e))
+                    .into_actor(self)
+                    .and_then(|_, act, ctx| {
+                        ctx.stop();
+                        future::ok(()).into_actor(act)
+                    }),
+            )
+        } else {
+            ActorResponse::reply(Ok(()))
+        }
     }
 }
 
@@ -480,7 +528,7 @@ mod test {
 
         let buf = serialize_into_vec(&rpc).unwrap();
 
-        assert!(deserialize_from_slice::<RpcMessage>(&buf).unwrap() == rpc)
+        assert!(deserialize_from_slice::<RpcMessage>(&buf).unwrap(), rpc)
     }
 
 }

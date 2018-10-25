@@ -1,15 +1,18 @@
-use actix::fut::WrapFuture;
-use actix::ActorResponse;
-use actix::{Actor, Arbiter, ArbiterService, Context, Handler, Message, Supervised, System};
-use futures::future;
-use futures::future::Future;
+use actix::{
+    fut::WrapFuture, Actor, ActorResponse, Arbiter, ArbiterService, Context, Handler, Message,
+    Supervised, System,
+};
+use futures::future::{self, Future};
 use gu_base::{App, Arg, ArgMatches, SubCommand};
-use plugins::plugin::DirectoryHandler;
-use plugins::plugin::PluginHandler;
-use plugins::rest;
-use std::fs::{self, File};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use plugins::{
+    plugin::{DirectoryHandler, PluginHandler},
+    rest,
+};
+use std::{
+    fs::{self, File},
+    io::{Read, Write},
+    path::{Path, PathBuf},
+};
 use zip::{write::FileOptions, ZipWriter};
 
 #[derive(Debug, Clone, Default)]
@@ -56,16 +59,19 @@ pub fn subcommand<'a, 'b>() -> App<'a, 'b> {
                 .index(1)
                 .help("Path to the app directory")
                 .default_value("."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("TARGET")
                 .index(2)
                 .help("Path to the target directory")
                 .default_value("."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("replace")
                 .short("r")
                 .help("Overwrite previous plugin in target directory"),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("install")
                 .short("i")
                 .help("Install the plugin in the gu-hub after build"),
@@ -80,7 +86,8 @@ fn relative_path(filename: &Path, base: &Path) -> Result<String, String> {
         .ok_or(format!(
             "Cannot translate relative {:?} path to str",
             filename
-        )).map(|s| s.to_string())
+        ))
+        .map(|s| s.to_string())
 }
 
 fn zip_file(zip: &mut ZipWriter<File>, filename: &Path, base: &Path) -> Result<(), String> {

@@ -2,20 +2,20 @@ use actix::prelude::*;
 use futures::prelude::*;
 use gu_actix::prelude::*;
 
-use super::super::NodeId;
-use super::context::RemotingContext;
-use super::gen_destination_id;
-use super::message::{
-    DestinationId, EmitMessage, MessageId, RouteMessage, TransportError, TransportResult,
+use super::{
+    super::NodeId,
+    context::RemotingContext,
+    gen_destination_id,
+    message::{
+        DestinationId, EmitMessage, MessageId, RouteMessage, TransportError, TransportResult,
+    },
+    router::{BindReplyDestination, LocalReplyEndpoint, MessageRouter},
 };
-use super::router::{BindReplyDestination, LocalReplyEndpoint, MessageRouter};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
 
 use futures::unsync::oneshot;
-use std::collections::HashMap;
-use std::error::Error;
-use std::{fmt, io};
+use std::{collections::HashMap, error::Error, fmt, io};
 
 #[derive(Debug)]
 pub enum SendError {
@@ -196,7 +196,8 @@ where
                     reply_to: Some(self.destination_id.clone()),
                     expires: None,
                     body: TransportResult::Request(body),
-                }).flatten_fut()
+                })
+                .flatten_fut()
                 .map_err(|e| SendError::body(e))
                 .into_actor(self)
                 .and_then(|msg_id, act, ctx| {
@@ -207,7 +208,8 @@ where
                     rx.map_err(|_| SendError::Canceled)
                         .and_then(|route_msg: RouteMessage<Result<String, TransportError>>| {
                             parse_body(route_msg.body)
-                        }).flatten_fut()
+                        })
+                        .flatten_fut()
                         .into_actor(act)
                 }),
         )
@@ -247,7 +249,8 @@ impl Handler<CallRemoteUntyped> for ReplyRouter {
                     ts: 0,
                     expires: None,
                     body: TransportResult::Request(body),
-                }).flatten_fut()
+                })
+                .flatten_fut()
                 .map_err(|e| SendError::body(e))
                 .into_actor(self)
                 .and_then(move |msg_id, act, ctx| {

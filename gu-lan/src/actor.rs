@@ -327,8 +327,10 @@ impl Handler<SubscribeInstance> for MdnsActor<Continuous> {
                         ContinuousInstancesList::new(
                             msg.service.clone(),
                             self.sender.clone().unwrap(),
-                        ).start()
-                    }).send(Subscribe { rec: msg.rec })
+                        )
+                        .start()
+                    })
+                    .send(Subscribe { rec: msg.rec })
                 }
             }
         };

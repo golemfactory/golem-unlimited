@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
 use super::plugins::{self, ListPlugins, PluginEvent, PluginManager, PluginStatus};
-use actix::fut;
-use actix::prelude::*;
+use actix::{fut, prelude::*};
 use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse};
-use futures::future;
-use futures::prelude::*;
+use futures::{future, prelude::*};
 use gu_base::{ArgMatches, Module};
 use gu_event_bus;
-use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -79,7 +79,8 @@ impl Actor for ProxyManager {
                             } else {
                                 Some((name, service))
                             }
-                        }).for_each(|(name, service)| act.configure(name, service.into_iter()));
+                        })
+                        .for_each(|(name, service)| act.configure(name, service.into_iter()));
                     fut::ok(())
                 }),
         );

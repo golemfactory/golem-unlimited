@@ -1,14 +1,13 @@
 use bytes::Bytes;
-use futures::future;
-use futures::prelude::*;
-use futures::Async;
-use futures_cpupool::CpuFuture;
-use futures_cpupool::CpuPool;
+use futures::{future, prelude::*, Async};
+use futures_cpupool::{CpuFuture, CpuPool};
 use sha1::Sha1;
-use std::cmp;
-use std::fs::File;
-use std::io::{self, Seek, SeekFrom, Write};
-use std::path::Path;
+use std::{
+    cmp,
+    fs::File,
+    io::{self, Seek, SeekFrom, Write},
+    path::Path,
+};
 
 lazy_static! {
     static ref FILE_HANDLER: FilePoolHandler = FilePoolHandler::default();
@@ -42,7 +41,8 @@ impl FilePoolHandler {
         future::result(match msg.range {
             Some(range) => ChunkedReadFile::new_ranged(msg.file, self.pool.clone(), range),
             None => ChunkedReadFile::new(msg.file, self.pool.clone()),
-        }).flatten_stream()
+        })
+        .flatten_stream()
     }
 }
 
@@ -108,7 +108,8 @@ fn stream_with_positions<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
                             .map_err(|e| format!("File clone error {:?}", e))
                     }),
             )
-        }).flatten_stream()
+        })
+        .flatten_stream()
 }
 
 pub fn write_async_with_sha1<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
@@ -119,7 +120,8 @@ pub fn write_async_with_sha1<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
         .fold(Sha1::new(), move |mut sha, (x, pos, file)| {
             sha.update(x.as_ref());
             write_bytes(x, pos, file).and_then(|_| Ok(sha))
-        }).and_then(|sha| Ok(sha.digest().to_string()))
+        })
+        .and_then(|sha| Ok(sha.digest().to_string()))
 }
 
 pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
@@ -242,12 +244,10 @@ impl Stream for ChunkedReadFile {
 
 #[cfg(test)]
 mod tests {
-    use actix::Arbiter;
-    use actix::System;
+    use actix::{Arbiter, System};
     use bytes::Bytes;
     use files::write_async_with_sha1;
-    use futures::prelude::*;
-    use futures::stream;
+    use futures::{prelude::*, stream};
     use std::path::PathBuf;
 
     #[test]

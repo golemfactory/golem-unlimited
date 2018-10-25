@@ -5,10 +5,11 @@ use actix_web::{
 };
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_base::cli;
-use gu_base::{App, ArgMatches, Decorator, Module, SubCommand};
-use gu_net::rpc::peer::PeerInfo;
-use gu_net::NodeId;
+use gu_base::{cli, App, ArgMatches, Decorator, Module, SubCommand};
+use gu_net::{
+    rpc::{peer::PeerInfo, public_destination, reply::CallRemoteUntyped},
+    NodeId,
+};
 use serde_json::Value as JsonValue;
 
 pub struct PeerModule {
@@ -88,7 +89,8 @@ fn list_peers<S>(_r: HttpRequest<S>) -> impl Responder {
         .and_then(|res| {
             //debug!("res={:?}", res);
             Ok(HttpResponse::Ok().json(res))
-        }).responder()
+        })
+        .responder()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -104,15 +106,15 @@ fn call_remote_ep(
     destination_id: u32,
     arg: JsonValue,
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
-    use gu_net::rpc::public_destination;
-    use gu_net::rpc::reply::*;
+    use gu_net::rpc::ReplyRouter;
 
     ReplyRouter::from_registry()
         .send(CallRemoteUntyped(
             node_id,
             public_destination(destination_id),
             arg,
-        )).flatten_fut()
+        ))
+        .flatten_fut()
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| Ok(HttpResponse::Ok().json(res)))
 }

@@ -1,13 +1,27 @@
 use super::server::ServerConfig;
-use actix::SystemService;
-use actix_web::{http, App, Error as ActixWebError, HttpRequest, HttpResponse, Responder, Scope};
-use futures::Future;
+use actix::{Actor, Addr, Context, Handler, Recipient, SystemService};
+use actix_web::{http, App, HttpRequest, Responder, Scope};
+use futures::{future, Future};
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{self, Arg, ArgMatches, Decorator, Module, SubCommand};
-use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, HasSectionId, SetConfig};
+use gu_lan::{
+    actor::{Continuous, MdnsActor, SubscribeInstance},
+    NewInstance, ServiceDescription, Subscription,
+};
+use gu_net::{
+    rpc::{
+        self,
+        ws::{ConnectionSupervisor, StopSupervisor},
+    },
+    NodeId,
+};
+use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, SetConfig};
 use serde::{de::DeserializeOwned, Serialize};
 use server::ConnectMode;
-use std::{collections::HashSet, net::SocketAddr};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+};
 
 pub struct ConnectModule {
     state: State,
@@ -161,11 +175,11 @@ pub(crate) enum ListingType {
     Connected,
 }
 
-fn list_scope<S>(_r: HttpRequest<S>, m: &ListingType) -> impl Responder {
+fn list_scope<S>(_r: HttpRequest<S>, _m: &ListingType) -> impl Responder {
     ""
 }
 
-fn mode_scope<S>(_r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
+fn mode_scope<S>(_r: HttpRequest<S>, _m: &ConnectMode) -> impl Responder {
     ""
 }
 
@@ -183,7 +197,7 @@ pub(crate) struct ConnectionChangeMessage {
     pub hubs: Vec<SocketAddr>,
 }
 
-fn connect_scope<S>(_r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
+fn connect_scope<S>(_r: HttpRequest<S>, _m: &ConnectionChange) -> impl Responder {
     ""
 }
 
@@ -232,7 +246,6 @@ where
     A: 'static,
     F: Fn(&C, A) -> Option<C> + 'static,
 {
-    use actix_web::{error::ErrorInternalServerError, AsyncResponder, HttpResponse};
     use futures::{future, Future};
     use std::{ops::Deref, sync::Arc};
     let manager = ConfigManager::from_registry();
@@ -284,5 +297,71 @@ fn edit_config_list(
         None
     } else {
         Some(Vec::from_iter(old.into_iter()))
+    }
+}
+
+pub struct ConnectManager {
+    node_id: NodeId,
+    hub_addrs: HashMap<SocketAddr, Addr<ConnectionSupervisor>>,
+    subscription: Option<Subscription>,
+    recipient: Recipient<NewInstance>,
+}
+
+impl ConnectManager {
+    pub fn config_mode(&mut self) {
+        self.subscription = None;
+    }
+
+    pub fn auto_mode(&mut self) {
+        self.subscription = MdnsActor::<Continuous>::from_registry()
+            .send(SubscribeInstance {
+                service: "gu-hub._unlimited._tcp".to_string().into(),
+                rec: self.recipient.clone(),
+            })
+            .flatten_fut()
+            .wait()
+            .ok();
+    }
+
+    fn connect_to(&mut self, addr: SocketAddr) {
+        if self.hub_addrs.contains_key(&addr) {
+            return;
+        }
+
+        let supervisor = rpc::ws::start_connection(self.node_id, addr);
+        self.hub_addrs.insert(addr, supervisor);
+    }
+
+    fn disconnect(&mut self, addr: SocketAddr) -> impl Future<Item = (), Error = String> {
+        if let Some(supervisor) = self.hub_addrs.remove(&addr) {
+            future::Either::A(
+                supervisor
+                    .send(StopSupervisor)
+                    .and_then(|_| Ok(()))
+                    .map_err(|e| format!("{}", e)),
+            )
+        } else {
+            future::Either::B(future::ok(()))
+        }
+    }
+}
+
+impl Actor for ConnectManager {
+    type Context = Context<Self>;
+}
+
+impl Handler<NewInstance> for ConnectManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: NewInstance, _ctx: &mut Context<Self>) -> () {
+        if let (Some(ip), Some(port)) = (msg.data.addrs_v4.first(), msg.data.ports.first()) {
+            use std::net::IpAddr;
+
+            let ip = IpAddr::V4(*ip);
+            let sock = SocketAddr::new(ip, *port);
+            self.connect_to(sock);
+        } else {
+            error!("Invalid mDNS instance")
+        }
     }
 }

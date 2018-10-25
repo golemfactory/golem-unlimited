@@ -1,20 +1,17 @@
 #![allow(dead_code)]
 
 use gu_base::cli;
-use plugins::parser;
-use plugins::parser::PathPluginParser;
-use plugins::parser::PluginParser;
-use semver::Version;
-use semver::VersionReq;
+use plugins::parser::{self, PathPluginParser, PluginParser};
+use semver::{Version, VersionReq};
 use serde::de::DeserializeOwned;
-use serde_json;
-use serde_json::Value as JsonValue;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Debug;
-use std::fs::File;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use serde_json::{self, Value as JsonValue};
+use std::{
+    collections::HashMap,
+    fmt::{self, Debug},
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PluginEvent {
@@ -79,7 +76,8 @@ impl PluginMetadata {
             .filter_map(|json_value| match json_value {
                 JsonValue::Object(ht) => ht.get(key),
                 _ => None,
-            }).filter_map(|cfg_value| serde_json::from_value(cfg_value.clone()).ok())
+            })
+            .filter_map(|cfg_value| serde_json::from_value(cfg_value.clone()).ok())
             .collect()
     }
 }

@@ -1,14 +1,11 @@
 //! Command line module for one-shot service discovery
 
 use actix::{Arbiter, System};
-use actor::MdnsActor;
-use actor::OneShot;
+use actor::{MdnsActor, OneShot};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::Future;
-use gu_base::Decorator;
-use gu_base::{cli, Module};
-use service::ServiceInstance;
-use service::ServicesDescription;
+use gu_base::{cli, Decorator, Module};
+use service::{ServiceInstance, ServicesDescription};
 use std::{collections::HashSet, net::Ipv4Addr};
 
 fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
@@ -43,8 +40,7 @@ pub fn format_instances_table(instances: &HashSet<ServiceInstance>) {
 }
 
 fn run_client(instances: &String) {
-    use actix;
-    use actix::SystemService;
+    use actix::{self, SystemService};
 
     let sys = actix::System::new("gu-lan");
     let instances = instances.split(',').map(|s| s.to_string().into()).collect();
@@ -95,7 +91,8 @@ impl Module for LanModule {
                     SubCommand::with_name("list")
                         .about("Lists available instances")
                         .arg(instance),
-                ).about("Lan services"),
+                )
+                .about("Lan services"),
         )
     }
 

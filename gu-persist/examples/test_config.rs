@@ -4,8 +4,7 @@ extern crate gu_persist;
 
 use actix::prelude::*;
 use futures::prelude::*;
-use std::borrow::Cow;
-use std::env;
+use std::{borrow::Cow, env};
 
 enum Cmd {
     Fetch(String),
@@ -34,13 +33,15 @@ impl Actor for MyActor {
                         println!("stop app");
                         System::current().stop();
                         Ok(())
-                    }).map_err(|_| ()),
+                    })
+                    .map_err(|_| ()),
             ),
             Cmd::Put(key, v) => Box::new(
                 fs.send(gu_persist::storage::Put(
                     Cow::Owned(key.clone()),
                     v.bytes().collect(),
-                )).and_then(|v| {
+                ))
+                .and_then(|v| {
                     match v {
                         Ok(_b) => println!("ok"),
                         Err(e) => println!("err {:?}", e),
@@ -48,7 +49,8 @@ impl Actor for MyActor {
                     println!("stop app");
                     System::current().stop();
                     Ok(())
-                }).map_err(|_| ()),
+                })
+                .map_err(|_| ()),
             ),
         };
 
@@ -67,7 +69,8 @@ fn main() {
         2 => MyActor(Cmd::Fetch(args[1].clone())),
         3 => MyActor(Cmd::Put(args[1].clone(), args[2].clone())),
         _ => panic!("arr!"),
-    }.start();
+    }
+    .start();
 
     let _ = sys.run();
 }

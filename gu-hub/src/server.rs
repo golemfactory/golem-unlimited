@@ -1,36 +1,35 @@
 #![allow(dead_code)]
 
-use actix::fut;
-use actix::prelude::*;
-use actix_web;
-use actix_web::Body;
-use actix_web::client;
-use actix_web::client::ClientRequest;
-use actix_web::error::JsonPayloadError;
-use actix_web::http;
-use bytes::Bytes;
 use clap::{App, ArgMatches, SubCommand};
-use futures::future;
-use futures::prelude::*;
 use gu_actix::*;
+use std::{borrow::Cow, net::ToSocketAddrs, sync::Arc};
+
+use actix::{
+    self, fut, Actor, ActorContext, ActorFuture, ActorResponse, Addr, ArbiterService, AsyncContext,
+    Context, Handler, MailboxError, Message, Supervised, SystemService, WrapFuture,
+};
+use actix_web::{
+    self,
+    client::{self, ClientRequest},
+    error::JsonPayloadError,
+    http, Body,
+};
+use bytes::Bytes;
+use futures::{future, Future};
 use gu_base::{Decorator, Module};
 use gu_ethkey::prelude::*;
-use gu_net::NodeId;
-use gu_net::rpc;
-use gu_net::rpc::mock;
-use gu_persist::config;
-use gu_persist::config::ConfigManager;
-use gu_persist::config::ConfigModule;
-use gu_persist::daemon_module::DaemonModule;
-use mdns::Responder;
-use mdns::Service;
-use serde::de;
-use serde::Serialize;
+use gu_net::{
+    rpc::{self, mock},
+    NodeId,
+};
+use gu_persist::{
+    config::{self, ConfigManager, ConfigModule},
+    daemon_module::DaemonModule,
+};
+use mdns::{Responder, Service};
+use serde::{de, Serialize};
 use serde_json;
-use std::borrow::Cow;
 use std::marker::PhantomData;
-use std::net::ToSocketAddrs;
-use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,10 +58,6 @@ impl ServerConfig {
     }
 
     fn publish_service() -> bool {
-        true
-    }
-
-    fn discover_service() -> bool {
         true
     }
 
@@ -182,7 +177,8 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")
                             .expect("cannot provide static files"),
-                    ).scope("/m", mock::scope)
+                    )
+                    .scope("/m", mock::scope)
                     .resource("/ws/", |r| r.route().f(chat_route)),
             )
         });
@@ -200,7 +196,6 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-
         ctx.spawn(
             self.config()
                 .send(config::GetConfig::new())
@@ -456,7 +451,8 @@ where
                             .map_err(|e| ClientError::SendRequestError(e))
                             .and_then(|r| r.json::<T>().map_err(|e| ClientError::Json(e))),
                     )
-                }).into_actor(self),
+                })
+                .into_actor(self),
         )
     }
 }

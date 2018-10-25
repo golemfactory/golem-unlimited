@@ -1,33 +1,23 @@
 #![allow(dead_code)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use actix::{fut, prelude::*};
+use actix::prelude::*;
 use actix_web::*;
-use clap::{self, Arg, ArgMatches};
-<<<<<<< HEAD
-use connect::{self, ConnectionChangeMessage, ListingType};
-use futures::prelude::*;
+use clap::ArgMatches;
+use futures::{future, prelude::*};
+use gu_actix::flatten::FlattenFuture;
 use gu_base::{Decorator, Module};
-use gu_ethkey::{EthKey, EthKeyStore, SafeEthKey};
-use gu_p2p::{rpc, NodeId};
-use gu_persist::{
-    config::{ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath},
-    daemon_module::DaemonModule,
-    error::Error as ConfigError,
-=======
-use futures::prelude::*;
-use gu_base::Decorator;
-use gu_base::Module;
 use gu_ethkey::prelude::*;
+use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
-use gu_persist::config::{
-    ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath,
->>>>>>> master
+use gu_persist::{
+    config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
+    daemon_module::DaemonModule,
 };
 use hdman::HdMan;
 use mdns::{Responder, Service};
 use std::{
-    borrow::Cow,
+    collections::HashSet,
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
@@ -64,6 +54,7 @@ impl Default for ServerConfig {
 pub(crate) enum ConnectMode {
     Auto,
     Config,
+    Manual,
 }
 
 impl ServerConfig {
@@ -84,43 +75,44 @@ impl HasSectionId for ServerConfig {
     const SECTION_ID: &'static str = "provider-server-cfg";
 }
 
-pub struct ServerModule {
-    config_path: Option<String>,
-    hub_addrs: Option<Vec<SocketAddr>>,
-}
+pub struct ServerModule;
 
 impl ServerModule {
     pub fn new() -> Self {
-        ServerModule {
-            config_path: None,
-            hub_addrs: None,
-        }
+        ServerModule
     }
 }
 
+fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
+    let node_id = NodeId::from(keys.address().as_ref());
+    info!("node_id={:?}", node_id);
+    node_id
+}
+
 impl Module for ServerModule {
+    fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
+        true
+    }
+
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
+        let dec = decorator.clone();
         let daemon_module: &DaemonModule = decorator.extract().unwrap();
+
         if !daemon_module.run() {
             return;
         }
 
-        let config_module: &ConfigModule = decorator.extract().unwrap();
-
-        let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
-            .expect("should load or generate eth key");
-
-        let _ = ServerConfigurer {
-            config_path: self.config_path.clone(),
-            node_id: get_node_id(keys),
-            hub_addrs: self.hub_addrs.clone().unwrap_or_default(),
-            decorator: decorator.clone(),
-        }
-        .start();
-
-        let _ = HdMan::start(config_module);
+        use gu_base;
 
         let sys = System::new("gu-provider");
+
+        gu_base::run_once(move || {
+            let config_module: &ConfigModule = dec.extract().unwrap();
+            let _ = HdMan::start(config_module);
+
+            ProviderServer::from_registry().do_send(InitServer);
+        });
+
         let _ = sys.run();
     }
 }
@@ -129,77 +121,85 @@ fn p2p_server(_r: &HttpRequest) -> &'static str {
     "ok"
 }
 
-fn mdns_publisher(port: u16) -> Service {
-    let responder = Responder::new().expect("Failed to run mDNS publisher");
+#[derive(Default)]
+struct ProviderServer {
+    node_id: Option<NodeId>,
+    p2p_port: Option<u16>,
+    hub_addrs: HashSet<SocketAddr>,
 
-    responder.register(
-        "_unlimited._tcp".to_owned(),
-        "gu-provider".to_owned(),
-        port,
-        &["path=/", ""],
-    )
+    mdns_publisher: MdnsPublisher,
+    connect_mode: Option<ConnectMode>,
 }
 
-struct ServerConfigurer<D> {
-    decorator: D,
-    config_path: Option<String>,
-    node_id: NodeId,
-    hub_addrs: Vec<SocketAddr>,
-}
-
-impl<D: Decorator + 'static + Sync + Send> Actor for ServerConfigurer<D> {
-    type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        let config = ConfigManager::from_registry();
-
-        println!("path={:?}", &self.config_path);
-        if let Some(path) = &self.config_path {
-            config.do_send(SetConfigPath::FsPath(Cow::Owned(path.clone())));
+impl ProviderServer {
+    fn publish_service(&mut self, publish: bool) {
+        match publish {
+            true => self.mdns_publisher.start(),
+            false => self.mdns_publisher.stop(),
         }
-
-        let node_id = self.node_id.clone();
-        let hub_addrs = self.hub_addrs.clone();
-
-        let decorator = self.decorator.clone();
-        ctx.spawn(
-            config
-                .send(GetConfig::new())
-                .map_err(|e| ConfigError::from(e))
-                .and_then(|r| r)
-                .map_err(|e| println!("error ! {}", e))
-                .and_then(move |c: Arc<ServerConfig>| {
-                    let decorator = decorator.clone();
-                    let server = server::new(move || {
-                        decorator.decorate_webapp(App::new().scope("/m", rpc::mock::scope))
-                    });
-                    let _ = server.bind(c.p2p_addr()).unwrap().start();
-
-                    if c.publish_service {
-                        Box::leak(Box::new(mdns_publisher(c.p2p_port)));
-                    }
-
-                    config.do_send(SetConfig::new(ServerConfig {
-                        hub_addrs: hub_addrs.clone(),
-                        ..(*c).clone()
-                    }));
-                    connect_to_multiple_hubs(node_id, &hub_addrs);
-                    connect_to_multiple_hubs(node_id, &c.hub_addrs);
-                    println!("{:?}", &c.hub_addrs);
-
-                    Ok(())
-                })
-                .into_actor(self)
-                .and_then(|_, _, ctx| fut::ok(ctx.stop())),
-        );
-
-        println!("configured");
     }
 }
 
-impl<D> Drop for ServerConfigurer<D> {
-    fn drop(&mut self) {
-        println!("provider server configured")
+impl Supervised for ProviderServer {}
+
+impl SystemService for ProviderServer {}
+
+impl Actor for ProviderServer {
+    type Context = Context<Self>;
+
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        println!("started");
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+struct PublishMdns(bool);
+
+impl Handler<PublishMdns> for ProviderServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: PublishMdns, _ctx: &mut Context<Self>) -> () {
+        self.publish_service(msg.0)
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<(), ()>")]
+struct InitServer;
+
+impl Handler<InitServer> for ProviderServer {
+    type Result = ActorResponse<Self, (), ()>;
+
+    fn handle(&mut self, msg: InitServer, _ctx: &mut Context<Self>) -> Self::Result {
+        use std::{iter::FromIterator, ops::Deref};
+
+        ActorResponse::async(
+            ConfigManager::from_registry()
+                .send(GetConfig::new())
+                .flatten_fut()
+                .and_then(|config: Arc<ServerConfig>| Ok(config.deref().clone()))
+                .map_err(|e| error!("{}", e))
+                .into_actor(self)
+                .and_then(|config: ServerConfig, act: &mut Self, _ctx| {
+                    let keys = SafeEthKey::load_or_generate(
+                        ConfigModule::new().keystore_path(),
+                        &"".into(),
+                    )
+                    .unwrap();
+
+                    act.node_id = Some(get_node_id(keys));
+                    act.p2p_port = Some(config.p2p_port);
+                    act.hub_addrs = HashSet::from_iter(config.hub_addrs.into_iter());
+
+                    // Init mDNS publisher
+                    act.mdns_publisher
+                        .init_provider(config.p2p_port, act.node_id.unwrap().to_string());
+                    act.publish_service(config.publish_service);
+
+                    future::ok(()).into_actor(act)
+                }),
+        )
     }
 }
 
@@ -209,13 +209,13 @@ fn connect_to_multiple_hubs(id: NodeId, hubs: &Vec<SocketAddr>) {
     }
 }
 
-impl<D: Decorator + 'static> Handler<ConnectMode> for ServerConfigurer<D> {
-    type Result = ActorResponse<Self, Option<()>, String>;
-
-    fn handle(&mut self, msg: ConnectMode, ctx: &mut Context<Self>) -> Self::Result {
-        ActorResponse::async(connect::edit_config_connect_mode(msg).into_actor(self))
-    }
-}
+//impl Handler<ConnectMode> for ServerConfigurer {
+//    type Result = ActorResponse<Self, Option<()>, String>;
+//
+//    fn handle(&mut self, msg: ConnectMode, _ctx: &mut Context<Self>) -> Self::Result {
+//        ActorResponse::async(connect::edit_config_connect_mode(msg).into_actor(self))
+//    }
+//}
 
 //impl<D: Decorator + 'static> Handler<ConnectionChangeMessage> for ServerConfigurer<D> {
 //    type Result = ActorResponse<Self, Option<()>, String>;

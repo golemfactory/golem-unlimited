@@ -1,11 +1,14 @@
-use std::fmt;
-use std::str::{self, FromStr};
+use std::{
+    fmt,
+    str::{self, FromStr},
+};
 
-use rand::distributions::{Distribution, Standard};
-use rand::Rng;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use std::borrow::Cow;
-use std::mem::uninitialized;
+use std::{borrow::Cow, mem::uninitialized};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct NodeId {

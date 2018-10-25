@@ -26,8 +26,7 @@ uuid = { version = "0.7", features = ["v4"] }
 bytes = "0.4"
 flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
 tar = "0.4"
-
-mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
+mdns = { git = "https://github.com/plietar/rust-mdns" }
 
 gu-base= { path="../gu-base" }
 gu-actix = { path = "../gu-actix" }

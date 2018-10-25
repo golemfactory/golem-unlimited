@@ -1,6 +1,8 @@
-use prettytable::format::{self, TableFormat};
-use prettytable::row::Row;
-use prettytable::Table;
+use prettytable::{
+    format::{self, TableFormat},
+    row::Row,
+    Table,
+};
 
 lazy_static! {
     pub static ref FORMAT_BASIC: TableFormat = format::FormatBuilder::new()
@@ -9,13 +11,16 @@ lazy_static! {
         .separators(
             &[format::LinePosition::Top],
             format::LineSeparator::new('─', '┬', '┌', '┐')
-        ).separators(
+        )
+        .separators(
             &[format::LinePosition::Intern],
             format::LineSeparator::new('─', '┼', '├', '┤')
-        ).separators(
+        )
+        .separators(
             &[format::LinePosition::Bottom],
             format::LineSeparator::new('─', '┴', '└', '┘')
-        ).padding(1, 1)
+        )
+        .padding(1, 1)
         .build();
 }
 
