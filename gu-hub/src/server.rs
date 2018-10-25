@@ -174,9 +174,10 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
             .expect("should load or generate eth key");
 
         let decorator = self.decorator.clone();
+        let node_id = NodeId::from(key.address().as_ref());
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(
-                actix_web::App::with_state(NodeId::from(key.address().as_ref()))
+                actix_web::App::with_state(node_id)
                     .handler(
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")
