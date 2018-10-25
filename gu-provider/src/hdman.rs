@@ -5,10 +5,8 @@ use super::{
 use actix::{fut, prelude::*};
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_p2p::rpc::{
-    peer::{PeerSessionInfo, PeerSessionStatus},
-    *,
-};
+use gu_net::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
+use gu_net::rpc::*;
 use gu_persist::config::ConfigModule;
 use id::generate_new_id;
 use provision::{download, untgz};

@@ -9,7 +9,7 @@ extern crate prettytable;
 
 extern crate gu_actix;
 extern crate gu_base;
-extern crate gu_p2p;
+extern crate gu_net;
 
 extern crate bytes;
 extern crate rand;

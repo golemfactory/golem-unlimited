@@ -2,36 +2,35 @@
 
 use actix::fut;
 use actix::prelude::*;
-use futures::prelude::*;
-
-use gu_persist::config;
-
 use actix_web;
-use clap::{App, ArgMatches, SubCommand};
-use gu_actix::*;
-use std::borrow::Cow;
-use std::net::ToSocketAddrs;
-use std::sync::Arc;
-
+use actix_web::Body;
 use actix_web::client;
 use actix_web::client::ClientRequest;
 use actix_web::error::JsonPayloadError;
 use actix_web::http;
-use actix_web::Body;
 use bytes::Bytes;
+use clap::{App, ArgMatches, SubCommand};
 use futures::future;
+use futures::prelude::*;
+use gu_actix::*;
 use gu_base::{Decorator, Module};
-use gu_p2p::rpc;
-use gu_p2p::rpc::mock;
-use gu_p2p::NodeId;
+use gu_ethkey::prelude::*;
+use gu_net::NodeId;
+use gu_net::rpc;
+use gu_net::rpc::mock;
+use gu_persist::config;
 use gu_persist::config::ConfigManager;
+use gu_persist::config::ConfigModule;
 use gu_persist::daemon_module::DaemonModule;
 use mdns::Responder;
 use mdns::Service;
 use serde::de;
 use serde::Serialize;
 use serde_json;
+use std::borrow::Cow;
 use std::marker::PhantomData;
+use std::net::ToSocketAddrs;
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -169,11 +168,16 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         config
     }
 
-    fn hub_configuration(&mut self, c: Arc<ServerConfig>, node_id: NodeId) -> Result<(), ()> {
+    fn hub_configuration(&mut self, c: Arc<ServerConfig>) -> Result<(), ()> {
+        let config_module: &ConfigModule = self.decorator.extract().unwrap();
+        let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
+            .expect("should load or generate eth key");
+
         let decorator = self.decorator.clone();
+        let node_id = NodeId::from(key.address().as_ref());
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(
-                actix_web::App::with_state(node_id.clone())
+                actix_web::App::with_state(node_id)
                     .handler(
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")
@@ -196,10 +200,6 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        use rand::*;
-
-        // TODO: use gu-ethkey
-        let node_id: NodeId = thread_rng().gen();
 
         ctx.spawn(
             self.config()
@@ -209,7 +209,7 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
                 .into_actor(self)
                 .and_then(move |config, act, ctx| {
                     let _ = act
-                        .hub_configuration(config, node_id)
+                        .hub_configuration(config)
                         .map_err(|e| error!("Hub configuration error {:?}", e));
                     fut::ok(ctx.stop())
                 }),

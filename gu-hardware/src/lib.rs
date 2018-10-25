@@ -7,7 +7,7 @@ extern crate serde_derive;
 
 extern crate gu_actix;
 extern crate gu_base;
-extern crate gu_p2p;
+extern crate gu_net;
 extern crate gu_persist;
 
 extern crate actix;
@@ -25,7 +25,7 @@ extern crate cl_sys;
 extern crate smallvec;
 
 use gu_base::Module;
-use gu_p2p::rpc::RemotingSystemService;
+use gu_net::rpc::RemotingSystemService;
 
 pub mod actor;
 mod cli;

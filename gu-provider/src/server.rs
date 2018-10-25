@@ -4,6 +4,7 @@
 use actix::{fut, prelude::*};
 use actix_web::*;
 use clap::{self, Arg, ArgMatches};
+<<<<<<< HEAD
 use connect::{self, ConnectionChangeMessage, ListingType};
 use futures::prelude::*;
 use gu_base::{Decorator, Module};
@@ -13,6 +14,15 @@ use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath},
     daemon_module::DaemonModule,
     error::Error as ConfigError,
+=======
+use futures::prelude::*;
+use gu_base::Decorator;
+use gu_base::Module;
+use gu_ethkey::prelude::*;
+use gu_net::{rpc, NodeId};
+use gu_persist::config::{
+    ConfigManager, ConfigModule, GetConfig, HasSectionId, SetConfig, SetConfigPath,
+>>>>>>> master
 };
 use hdman::HdMan;
 use mdns::{Responder, Service};
@@ -88,12 +98,6 @@ impl ServerModule {
     }
 }
 
-fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
-    let node_id = NodeId::from(keys.address().as_ref());
-    info!("node_id={:?}", node_id);
-    node_id
-}
-
 impl Module for ServerModule {
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
         let daemon_module: &DaemonModule = decorator.extract().unwrap();
@@ -103,8 +107,8 @@ impl Module for ServerModule {
 
         let config_module: &ConfigModule = decorator.extract().unwrap();
 
-        // TODO: introduce separate actor for key mgmt
-        let keys = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into()).unwrap();
+        let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
+            .expect("should load or generate eth key");
 
         let _ = ServerConfigurer {
             config_path: self.config_path.clone(),
