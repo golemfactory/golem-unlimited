@@ -4,6 +4,9 @@
 use actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
+use connect::{
+    self, AutoMdns, Connect, ConnectManager, ConnectionChange, ConnectionChangeMessage, Disconnect,
+};
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{Decorator, Module};
@@ -18,12 +21,10 @@ use hdman::HdMan;
 use mdns::{Responder, Service};
 use std::{
     collections::HashSet,
+    iter::FromIterator,
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
-use connect::ConnectManager;
-use connect::AutoMdns;
-use connect::Connect;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -57,7 +58,6 @@ impl Default for ServerConfig {
 pub(crate) enum ConnectMode {
     Auto,
     Config,
-    Manual,
 }
 
 impl ServerConfig {
@@ -192,17 +192,19 @@ impl Handler<InitServer> for ProviderServer {
 
                     act.node_id = Some(get_node_id(keys));
                     act.p2p_port = Some(config.p2p_port);
-                    //act.hub_addrs = HashSet::from_iter(config.hub_addrs.into_iter());
 
                     // Init mDNS publisher
-                    act.mdns_publisher = MdnsPublisher::init_provider(config.p2p_port, act.node_id.unwrap().to_string());
+                    act.mdns_publisher = MdnsPublisher::init_provider(
+                        config.p2p_port,
+                        act.node_id.unwrap().to_string(),
+                    );
                     act.publish_service(config.publish_service);
 
                     let connect = ConnectManager::init(act.node_id.unwrap(), Vec::new()).start();
                     for i in config.hub_addrs {
                         connect.do_send(Connect(i));
                     }
-                    connect.do_send(AutoMdns(true));
+                    connect.do_send(AutoMdns(false));
                     act.connections = Some(connect);
 
                     future::ok(()).into_actor(act)
@@ -217,24 +219,59 @@ fn connect_to_multiple_hubs(id: NodeId, hubs: &Vec<SocketAddr>) {
     }
 }
 
-//impl Handler<ConnectMode> for ServerConfigurer {
-//    type Result = ActorResponse<Self, Option<()>, String>;
-//
-//    fn handle(&mut self, msg: ConnectMode, _ctx: &mut Context<Self>) -> Self::Result {
-//        ActorResponse::async(connect::edit_config_connect_mode(msg).into_actor(self))
-//    }
-//}
+impl Handler<ConnectMode> for ProviderServer {
+    type Result = ActorResponse<Self, Option<()>, String>;
 
-//impl<D: Decorator + 'static> Handler<ConnectionChangeMessage> for ServerConfigurer<D> {
-//    type Result = ActorResponse<Self, Option<()>, String>;
-//
-//    fn handle(&mut self, msg: ConnectionChangeMessage, ctx: &mut Context<Self>,
-//    ) -> Self::Result {
-//        for host in msg.hubs.iter() {
-//            match msg.change {
-//
-//            }
-//        }
-//        ActorResponse::async(connect::edit_config_hosts(msg.hubs, msg.change).into_actor(self))
-//    }
-//}
+    fn handle(&mut self, msg: ConnectMode, _ctx: &mut Context<Self>) -> Self::Result {
+        let config_fut = connect::edit_config_connect_mode(msg.clone());
+        if let Some(ref connections) = self.connections {
+            let state_fut = connections.send(AutoMdns(msg == ConnectMode::Auto));
+
+            return ActorResponse::async(
+                config_fut
+                    .and_then(|_| state_fut.map_err(|e| e.to_string()))
+                    .and_then(|r| r)
+                    .into_actor(self),
+            );
+        }
+
+        unreachable!()
+    }
+}
+
+impl Handler<ConnectionChangeMessage> for ProviderServer {
+    type Result = ActorResponse<Self, Option<()>, String>;
+
+    fn handle(&mut self, msg: ConnectionChangeMessage, ctx: &mut Context<Self>) -> Self::Result {
+        let config_fut = connect::edit_config_hosts(msg.hubs.clone(), msg.change);
+        if let Some(ref connections) = self.connections {
+            let connections = connections.clone();
+            let state_fut = match msg.change {
+                ConnectionChange::Add | ConnectionChange::Connect => {
+                    future::Either::A(future::join_all(
+                        msg.hubs
+                            .into_iter()
+                            .map(move |hub| connections.send(Connect(hub)).map_err(|e| e.to_string())),
+                    ))
+                }
+                ConnectionChange::Remove | ConnectionChange::Disconnect => {
+                    future::Either::B(future::join_all(msg.hubs.into_iter().map(move |hub| {
+                        connections
+                            .send(Disconnect(hub))
+                            .map_err(|e| e.to_string())
+                            .and_then(|a| a)
+                    })))
+                }
+            };
+
+            return ActorResponse::async(
+                config_fut
+                    .and_then(|_| state_fut)
+                    .and_then(|r| Ok(None))
+                    .into_actor(self),
+            );
+        }
+
+        unreachable!()
+    }
+}

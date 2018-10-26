@@ -183,6 +183,7 @@ fn mode_scope<S>(_r: HttpRequest<S>, _m: &ConnectMode) -> impl Responder {
     ""
 }
 
+#[derive(Copy, Clone)]
 pub(crate) enum ConnectionChange {
     Add,
     Remove,
@@ -309,7 +310,7 @@ pub struct ConnectManager {
 impl ConnectManager {
     pub fn init<I>(id: NodeId, hubs: I) -> Self
     where
-        I: IntoIterator<Item=SocketAddr>,
+        I: IntoIterator<Item = SocketAddr>,
     {
         ConnectManager {
             node_id: id,
@@ -327,16 +328,16 @@ impl ConnectManager {
         self.connections.insert(addr, supervisor);
     }
 
-    fn disconnect(&mut self, addr: SocketAddr) -> impl Future<Item = (), Error = String> {
+    fn disconnect(&mut self, addr: SocketAddr) -> impl Future<Item = Option<()>, Error = String> {
         if let Some(supervisor) = self.connections.remove(&addr) {
             future::Either::A(
                 supervisor
                     .send(StopSupervisor)
-                    .and_then(|_| Ok(()))
+                    .and_then(|_| Ok(Some(())))
                     .map_err(|e| format!("{}", e)),
             )
         } else {
-            future::Either::B(future::ok(()))
+            future::Either::B(future::ok(None))
         }
     }
 }
@@ -381,33 +382,47 @@ impl Handler<Connect> for ConnectManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<(), String>")]
+#[rtype(result = "Result<Option<()>, String>")]
+pub struct Disconnect(pub SocketAddr);
+
+impl Handler<Disconnect> for ConnectManager {
+    type Result = ActorResponse<Self, Option<()>, String>;
+
+    fn handle(&mut self, msg: Disconnect, _ctx: &mut Context<Self>) -> Self::Result {
+        ActorResponse::async(self.disconnect(msg.0).into_actor(self))
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<Option<()>, String>")]
 pub struct AutoMdns(pub bool);
 
 impl Handler<AutoMdns> for ConnectManager {
-    type Result = ActorResponse<Self, (), String>;
+    type Result = ActorResponse<Self, Option<()>, String>;
 
     fn handle(&mut self, msg: AutoMdns, ctx: &mut Context<Self>) -> Self::Result {
         if msg.0 && self.subscription.is_none() {
-            ActorResponse::async(MdnsActor::<Continuous>::from_registry()
-                .send(SubscribeInstance {
-                    service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),
-                    rec: ctx.address().recipient(),
-                })
-                .flatten_fut()
-                .map_err(|e| format!("{}", e))
-                .into_actor(self)
-                .and_then(|res, act: &mut Self, ctx| {
-                    act.subscription = Some(res);
-                    println!("??");
+            ActorResponse::async(
+                MdnsActor::<Continuous>::from_registry()
+                    .send(SubscribeInstance {
+                        service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),
+                        rec: ctx.address().recipient(),
+                    })
+                    .flatten_fut()
+                    .map_err(|e| format!("{}", e))
+                    .into_actor(self)
+                    .and_then(|res, act: &mut Self, ctx| {
+                        act.subscription = Some(res);
+                        println!("??");
 
-                    future::ok(()).into_actor(act)
-                }))
+                        future::ok(Some(())).into_actor(act)
+                    }),
+            )
         } else if !msg.0 {
             self.subscription = None;
-            ActorResponse::reply(Ok(()))
+            ActorResponse::reply(Ok(Some(())))
         } else {
-            ActorResponse::reply(Ok(()))
+            ActorResponse::reply(Ok(None))
         }
     }
 }
