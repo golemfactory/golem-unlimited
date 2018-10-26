@@ -1,6 +1,6 @@
+extern crate actix;
 #[macro_use]
 extern crate actix_derive;
-extern crate actix;
 extern crate actix_web;
 extern crate bytes;
 extern crate clap;

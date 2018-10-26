@@ -1,5 +1,5 @@
 use super::server::ServerConfig;
-use actix::{Actor, Addr, Context, Handler, Recipient, SystemService};
+use actix::prelude::*;
 use actix_web::{http, App, HttpRequest, Responder, Scope};
 use futures::{future, Future};
 use gu_actix::flatten::FlattenFuture;
@@ -302,38 +302,33 @@ fn edit_config_list(
 
 pub struct ConnectManager {
     node_id: NodeId,
-    hub_addrs: HashMap<SocketAddr, Addr<ConnectionSupervisor>>,
+    connections: HashMap<SocketAddr, Addr<ConnectionSupervisor>>,
     subscription: Option<Subscription>,
-    recipient: Recipient<NewInstance>,
 }
 
 impl ConnectManager {
-    pub fn config_mode(&mut self) {
-        self.subscription = None;
-    }
-
-    pub fn auto_mode(&mut self) {
-        self.subscription = MdnsActor::<Continuous>::from_registry()
-            .send(SubscribeInstance {
-                service: "gu-hub._unlimited._tcp".to_string().into(),
-                rec: self.recipient.clone(),
-            })
-            .flatten_fut()
-            .wait()
-            .ok();
+    pub fn init<I>(id: NodeId, hubs: I) -> Self
+    where
+        I: IntoIterator<Item=SocketAddr>,
+    {
+        ConnectManager {
+            node_id: id,
+            connections: HashMap::new(),
+            subscription: None,
+        }
     }
 
     fn connect_to(&mut self, addr: SocketAddr) {
-        if self.hub_addrs.contains_key(&addr) {
+        if self.connections.contains_key(&addr) {
             return;
         }
 
         let supervisor = rpc::ws::start_connection(self.node_id, addr);
-        self.hub_addrs.insert(addr, supervisor);
+        self.connections.insert(addr, supervisor);
     }
 
     fn disconnect(&mut self, addr: SocketAddr) -> impl Future<Item = (), Error = String> {
-        if let Some(supervisor) = self.hub_addrs.remove(&addr) {
+        if let Some(supervisor) = self.connections.remove(&addr) {
             future::Either::A(
                 supervisor
                     .send(StopSupervisor)
@@ -354,6 +349,7 @@ impl Handler<NewInstance> for ConnectManager {
     type Result = ();
 
     fn handle(&mut self, msg: NewInstance, _ctx: &mut Context<Self>) -> () {
+        println!("{:?}", msg.data);
         if let (Some(ip), Some(port)) = (msg.data.addrs_v4.first(), msg.data.ports.first()) {
             use std::net::IpAddr;
 
@@ -362,6 +358,56 @@ impl Handler<NewInstance> for ConnectManager {
             self.connect_to(sock);
         } else {
             error!("Invalid mDNS instance")
+        }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Option<()>")]
+pub struct Connect(pub SocketAddr);
+
+impl Handler<Connect> for ConnectManager {
+    type Result = Option<()>;
+
+    fn handle(&mut self, msg: Connect, _ctx: &mut Context<Self>) -> Option<()> {
+        if self.connections.contains_key(&msg.0) {
+            return None;
+        }
+
+        let supervisor = rpc::ws::start_connection(self.node_id, msg.0);
+        self.connections.insert(msg.0, supervisor);
+        Some(())
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<(), String>")]
+pub struct AutoMdns(pub bool);
+
+impl Handler<AutoMdns> for ConnectManager {
+    type Result = ActorResponse<Self, (), String>;
+
+    fn handle(&mut self, msg: AutoMdns, ctx: &mut Context<Self>) -> Self::Result {
+        if msg.0 && self.subscription.is_none() {
+            ActorResponse::async(MdnsActor::<Continuous>::from_registry()
+                .send(SubscribeInstance {
+                    service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),
+                    rec: ctx.address().recipient(),
+                })
+                .flatten_fut()
+                .map_err(|e| format!("{}", e))
+                .into_actor(self)
+                .and_then(|res, act: &mut Self, ctx| {
+                    act.subscription = Some(res);
+                    println!("??");
+
+                    future::ok(()).into_actor(act)
+                }))
+        } else if !msg.0 {
+            self.subscription = None;
+            ActorResponse::reply(Ok(()))
+        } else {
+            ActorResponse::reply(Ok(()))
         }
     }
 }

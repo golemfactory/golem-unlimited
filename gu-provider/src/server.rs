@@ -21,6 +21,9 @@ use std::{
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
+use connect::ConnectManager;
+use connect::AutoMdns;
+use connect::Connect;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -125,10 +128,9 @@ fn p2p_server(_r: &HttpRequest) -> &'static str {
 struct ProviderServer {
     node_id: Option<NodeId>,
     p2p_port: Option<u16>,
-    hub_addrs: HashSet<SocketAddr>,
 
     mdns_publisher: MdnsPublisher,
-    connect_mode: Option<ConnectMode>,
+    connections: Option<Addr<ConnectManager>>,
 }
 
 impl ProviderServer {
@@ -190,12 +192,18 @@ impl Handler<InitServer> for ProviderServer {
 
                     act.node_id = Some(get_node_id(keys));
                     act.p2p_port = Some(config.p2p_port);
-                    act.hub_addrs = HashSet::from_iter(config.hub_addrs.into_iter());
+                    //act.hub_addrs = HashSet::from_iter(config.hub_addrs.into_iter());
 
                     // Init mDNS publisher
-                    act.mdns_publisher
-                        .init_provider(config.p2p_port, act.node_id.unwrap().to_string());
+                    act.mdns_publisher = MdnsPublisher::init_provider(config.p2p_port, act.node_id.unwrap().to_string());
                     act.publish_service(config.publish_service);
+
+                    let connect = ConnectManager::init(act.node_id.unwrap(), Vec::new()).start();
+                    for i in config.hub_addrs {
+                        connect.do_send(Connect(i));
+                    }
+                    connect.do_send(AutoMdns(true));
+                    act.connections = Some(connect);
 
                     future::ok(()).into_actor(act)
                 }),

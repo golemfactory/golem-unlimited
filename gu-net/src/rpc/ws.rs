@@ -462,10 +462,8 @@ impl Actor for ConnectionSupervisor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        println!("a");
         let _ = ctx.run_interval(time::Duration::from_secs(1), |act, ctx| {
             act.check(ctx);
-            println!("a");
         });
     }
 }

@@ -92,12 +92,15 @@ impl MdnsPublisher {
         )
     }
 
-    pub fn init_provider<S>(&mut self, port: u16, node_id: S)
+    pub fn init_provider<S>(port: u16, node_id: S) -> Self
     where
         S: AsRef<str>,
     {
-        self.name = "gu-provider";
+        let mut mdns = MdnsPublisher::default();
+        mdns.name = "gu-provider";
         let node_id = format!("node_id={}", node_id.as_ref());
-        self.init(port, vec![node_id]);
+        mdns.init(port, vec![node_id]);
+
+        mdns
     }
 }
