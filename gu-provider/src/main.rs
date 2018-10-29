@@ -46,6 +46,7 @@ fn main() {
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(status::module())
+            .chain(connect::module())
             .chain(daemon_module::DaemonModule::provider())
             .chain(server::ServerModule::new()),
     );

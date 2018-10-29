@@ -92,31 +92,37 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
     node_id
 }
 
+use actix_web;
 impl Module for ServerModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
         true
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
+        use gu_base;
+
         let dec = decorator.clone();
-        let daemon_module: &DaemonModule = decorator.extract().unwrap();
+        let daemon_module: &DaemonModule = dec.extract().unwrap();
 
         if !daemon_module.run() {
             return;
         }
 
-        use gu_base;
-
         let sys = System::new("gu-provider");
 
         gu_base::run_once(move || {
+            let dec = decorator.clone();
             let config_module: &ConfigModule = dec.extract().unwrap();
             let _ = HdMan::start(config_module);
 
-            ProviderServer::from_registry().do_send(InitServer);
+            ProviderServer::from_registry().do_send(InitServer { decorator });
         });
 
         let _ = sys.run();
+    }
+
+    fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
+        app
     }
 }
 
@@ -166,15 +172,22 @@ impl Handler<PublishMdns> for ProviderServer {
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Clone, Copy)]
 #[rtype(result = "Result<(), ()>")]
-struct InitServer;
+struct InitServer<D: Decorator> {
+    decorator: D,
+}
 
-impl Handler<InitServer> for ProviderServer {
+impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     type Result = ActorResponse<Self, (), ()>;
 
-    fn handle(&mut self, msg: InitServer, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
         use std::{iter::FromIterator, ops::Deref};
+
+        let server = server::new(move || {
+            msg.decorator
+                .decorate_webapp(App::new().scope("/m", rpc::mock::scope))
+        });
 
         ActorResponse::async(
             ConfigManager::from_registry()
@@ -190,6 +203,8 @@ impl Handler<InitServer> for ProviderServer {
                     )
                     .unwrap();
 
+                    let _ = server.bind(config.p2p_addr()).unwrap().start();
+
                     act.node_id = Some(get_node_id(keys));
                     act.p2p_port = Some(config.p2p_port);
 
@@ -204,7 +219,7 @@ impl Handler<InitServer> for ProviderServer {
                     for i in config.hub_addrs {
                         connect.do_send(Connect(i));
                     }
-                    connect.do_send(AutoMdns(false));
+                    connect.do_send(AutoMdns(config.connect_mode == ConnectMode::Auto));
                     act.connections = Some(connect);
 
                     future::ok(()).into_actor(act)
@@ -248,11 +263,9 @@ impl Handler<ConnectionChangeMessage> for ProviderServer {
             let connections = connections.clone();
             let state_fut = match msg.change {
                 ConnectionChange::Add | ConnectionChange::Connect => {
-                    future::Either::A(future::join_all(
-                        msg.hubs
-                            .into_iter()
-                            .map(move |hub| connections.send(Connect(hub)).map_err(|e| e.to_string())),
-                    ))
+                    future::Either::A(future::join_all(msg.hubs.into_iter().map(move |hub| {
+                        connections.send(Connect(hub)).map_err(|e| e.to_string())
+                    })))
                 }
                 ConnectionChange::Remove | ConnectionChange::Disconnect => {
                     future::Either::B(future::join_all(msg.hubs.into_iter().map(move |hub| {

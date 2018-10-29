@@ -23,6 +23,10 @@ use std::{
     net::SocketAddr,
 };
 
+pub fn module() -> ConnectModule {
+    ConnectModule { state: State::None }
+}
+
 pub struct ConnectModule {
     state: State,
 }
@@ -106,7 +110,7 @@ impl Module for ConnectModule {
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {}
 
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
-        app.scope("/connect/all", scope)
+        app.scope("/connect", scope)
     }
 }
 
@@ -221,6 +225,7 @@ pub(crate) fn edit_config_connect_mode(
         }
     }
 
+    println!("abcd");
     edit_config(mode, editor)
 }
 
@@ -278,6 +283,8 @@ fn edit_config_list(
 
     let mut old: HashSet<_> = HashSet::from_iter(old.into_iter());
     let len = old.len();
+
+    println!("wubba");
 
     match change {
         ConnectionChange::Add => {

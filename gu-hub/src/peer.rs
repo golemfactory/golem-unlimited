@@ -11,6 +11,7 @@ use gu_net::{
     NodeId,
 };
 use serde_json::Value as JsonValue;
+use server::HubClient;
 
 pub struct PeerModule {
     inner: State,
@@ -50,11 +51,9 @@ impl Module for PeerModule {
         match self.inner {
             State::None => return (),
             State::List => {
-                use super::server::ServerClient;
-
                 System::run(|| {
                     Arbiter::spawn(
-                        ServerClient::get("/peer")
+                        HubClient::get("/peer")
                             .and_then(|r: Vec<PeerInfo>| Ok(format_peer_table(r)))
                             .map_err(|e| error!("{}", e))
                             .then(|_r| Ok(System::current().stop())),

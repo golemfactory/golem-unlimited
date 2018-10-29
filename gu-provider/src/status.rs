@@ -12,7 +12,6 @@ struct StatusModule;
 
 impl Module for StatusModule {
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
-        println!("status!");
         app.handler("/status", status_handler)
     }
 }

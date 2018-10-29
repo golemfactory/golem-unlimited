@@ -90,11 +90,7 @@ impl Actor for ProxyManager {
 impl Handler<gu_event_bus::Event<PluginEvent>> for ProxyManager {
     type Result = ();
 
-    fn handle(
-        &mut self,
-        msg: gu_event_bus::Event<PluginEvent>,
-        _ctx: &mut Self::Context,
-    ) -> Self::Result {
+    fn handle(&mut self, msg: gu_event_bus::Event<PluginEvent>, _ctx: &mut Self::Context) -> () {
         match msg.data() {
             PluginEvent::New(plugin_meta) => {
                 let config: Vec<ServiceConfig> = plugin_meta.service("gu-proxy");

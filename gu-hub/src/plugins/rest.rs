@@ -16,7 +16,7 @@ use plugins::{
     plugin::{format_plugins_table, PluginInfo},
     rest_result::{InstallQueryResult, RestResponse, ToHttpResponse},
 };
-use server::ServerClient;
+use server::HubClient as ServerClient;
 use std::{
     fs::File,
     io::{Cursor, Read},
