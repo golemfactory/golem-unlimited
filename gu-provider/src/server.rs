@@ -16,20 +16,18 @@ use gu_net::{rpc, NodeId};
 use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
     daemon_module::DaemonModule,
+    http::{ServerClient, ServerConfig},
 };
 use hdman::HdMan;
-use mdns::{Responder, Service};
 use std::{
-    collections::HashSet,
-    iter::FromIterator,
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ServerConfig {
-    #[serde(default = "ServerConfig::default_p2p_port")]
+pub(crate) struct ProviderConfig {
+    #[serde(default = "ProviderConfig::default_p2p_port")]
     p2p_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
@@ -37,19 +35,25 @@ pub(crate) struct ServerConfig {
     pub(crate) hub_addrs: Vec<SocketAddr>,
     #[serde(default)]
     publish_service: bool,
-    #[serde(default = "ServerConfig::default_connect_mode")]
+    #[serde(default = "ProviderConfig::default_connect_mode")]
     pub(crate) connect_mode: ConnectMode,
 }
 
-impl Default for ServerConfig {
+impl Default for ProviderConfig {
     fn default() -> Self {
-        ServerConfig {
+        ProviderConfig {
             p2p_port: Self::default_p2p_port(),
             control_socket: None,
             hub_addrs: Vec::new(),
             publish_service: true,
             connect_mode: Self::default_connect_mode(),
         }
+    }
+}
+
+impl ServerConfig for ProviderConfig {
+    fn port(&self) -> u16 {
+        Self::default_p2p_port()
     }
 }
 
@@ -60,7 +64,7 @@ pub(crate) enum ConnectMode {
     Config,
 }
 
-impl ServerConfig {
+impl ProviderConfig {
     fn p2p_addr(&self) -> impl ToSocketAddrs {
         ("0.0.0.0", self.p2p_port)
     }
@@ -74,7 +78,9 @@ impl ServerConfig {
     }
 }
 
-impl HasSectionId for ServerConfig {
+pub(crate) type ProviderClient = ServerClient<ProviderConfig>;
+
+impl HasSectionId for ProviderConfig {
     const SECTION_ID: &'static str = "provider-server-cfg";
 }
 
@@ -131,7 +137,7 @@ fn p2p_server(_r: &HttpRequest) -> &'static str {
 }
 
 #[derive(Default)]
-struct ProviderServer {
+pub struct ProviderServer {
     node_id: Option<NodeId>,
     p2p_port: Option<u16>,
 
@@ -182,7 +188,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     type Result = ActorResponse<Self, (), ()>;
 
     fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
-        use std::{iter::FromIterator, ops::Deref};
+        use std::ops::Deref;
 
         let server = server::new(move || {
             msg.decorator
@@ -193,10 +199,10 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
             ConfigManager::from_registry()
                 .send(GetConfig::new())
                 .flatten_fut()
-                .and_then(|config: Arc<ServerConfig>| Ok(config.deref().clone()))
+                .and_then(|config: Arc<ProviderConfig>| Ok(config.deref().clone()))
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
-                .and_then(|config: ServerConfig, act: &mut Self, _ctx| {
+                .and_then(|config: ProviderConfig, act: &mut Self, _ctx| {
                     let keys = SafeEthKey::load_or_generate(
                         ConfigModule::new().keystore_path(),
                         &"".into(),
@@ -257,7 +263,7 @@ impl Handler<ConnectMode> for ProviderServer {
 impl Handler<ConnectionChangeMessage> for ProviderServer {
     type Result = ActorResponse<Self, Option<()>, String>;
 
-    fn handle(&mut self, msg: ConnectionChangeMessage, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: ConnectionChangeMessage, _ctx: &mut Context<Self>) -> Self::Result {
         let config_fut = connect::edit_config_hosts(msg.hubs.clone(), msg.change);
         if let Some(ref connections) = self.connections {
             let connections = connections.clone();
@@ -280,7 +286,7 @@ impl Handler<ConnectionChangeMessage> for ProviderServer {
             return ActorResponse::async(
                 config_fut
                     .and_then(|_| state_fut)
-                    .and_then(|r| Ok(None))
+                    .and_then(|_| Ok(None))
                     .into_actor(self),
             );
         }

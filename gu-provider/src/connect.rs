@@ -1,7 +1,10 @@
-use super::server::ServerConfig;
+use super::server::ProviderConfig;
 use actix::prelude::*;
-use actix_web::{http, App, HttpRequest, Responder, Scope};
-use futures::{future, Future};
+use actix_web::{
+    error::{ErrorBadRequest, ErrorInternalServerError},
+    http, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Responder, Scope,
+};
+use futures::{future, stream::Stream, Future};
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{self, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_lan::{
@@ -17,7 +20,8 @@ use gu_net::{
 };
 use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, SetConfig};
 use serde::{de::DeserializeOwned, Serialize};
-use server::ConnectMode;
+use serde_json;
+use server::{ConnectMode, ProviderClient, ProviderServer};
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
@@ -107,7 +111,18 @@ impl Module for ConnectModule {
         self.state != State::None
     }
 
-    fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {}
+    fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
+        match self.state {
+            State::Connect(a) => {}
+            State::Disconnect(a) => {}
+            State::Add(a) => {}
+            State::Remove(a) => {}
+            State::Mode(_) => {}
+            State::ListConfig => {}
+            State::ListConnected => {}
+            State::None => {}
+        }
+    }
 
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
         app.scope("/connect", scope)
@@ -202,18 +217,49 @@ pub(crate) struct ConnectionChangeMessage {
     pub hubs: Vec<SocketAddr>,
 }
 
-fn connect_scope<S>(_r: HttpRequest<S>, _m: &ConnectionChange) -> impl Responder {
-    ""
-}
+fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
+    let provider = ProviderServer::from_registry();
+    let change = m.clone();
+    let hubs = match r.method() {
+        &http::Method::POST => future::Either::A(
+            r.payload()
+                .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
+                .concat2()
+                .and_then(|a| {
+                    serde_json::from_slice::<Vec<SocketAddr>>(a.as_ref()).map_err(|e| {
+                        ErrorBadRequest(format!("Couldn't parse request body: {:?}", e))
+                    })
+                }),
+        ),
+        &http::Method::PUT => future::Either::B(
+            future::result(r.query().get("hostAddr").unwrap().parse())
+                .and_then(|addr: SocketAddr| Ok(vec![addr]))
+                .map_err(|e| ErrorBadRequest(format!("Couldn't parse request body: {:?}", e))),
+        ),
+        _ => unreachable!(),
+    };
 
-fn dummy_scope<S>(_r: HttpRequest<S>) -> impl Responder {
-    ""
+    hubs.and_then(move |hubs| {
+        provider
+            .send(ConnectionChangeMessage { change, hubs })
+            .map_err(|e| {
+                ErrorInternalServerError(format!("Error during message processing {:?}", e))
+            })
+    })
+    .and_then(|result| {
+        result
+            .and_then(|result| Ok(HttpResponse::Ok()))
+            .map_err(|e| {
+                ErrorInternalServerError(format!("Error during message processing {:?}", e))
+            })
+    })
+    .responder()
 }
 
 pub(crate) fn edit_config_connect_mode(
     mode: ConnectMode,
 ) -> impl Future<Item = Option<()>, Error = String> {
-    fn editor(c: &ServerConfig, data: ConnectMode) -> Option<ServerConfig> {
+    fn editor(c: &ProviderConfig, data: ConnectMode) -> Option<ProviderConfig> {
         use std::ops::Deref;
 
         if c.connect_mode == data {
@@ -225,7 +271,6 @@ pub(crate) fn edit_config_connect_mode(
         }
     }
 
-    println!("abcd");
     edit_config(mode, editor)
 }
 
@@ -233,7 +278,10 @@ pub(crate) fn edit_config_hosts(
     list: Vec<SocketAddr>,
     change: ConnectionChange,
 ) -> impl Future<Item = Option<()>, Error = String> {
-    fn editor(c: &ServerConfig, data: (Vec<SocketAddr>, ConnectionChange)) -> Option<ServerConfig> {
+    fn editor(
+        c: &ProviderConfig,
+        data: (Vec<SocketAddr>, ConnectionChange),
+    ) -> Option<ProviderConfig> {
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
@@ -418,7 +466,7 @@ impl Handler<AutoMdns> for ConnectManager {
                     .flatten_fut()
                     .map_err(|e| format!("{}", e))
                     .into_actor(self)
-                    .and_then(|res, act: &mut Self, ctx| {
+                    .and_then(|res, act: &mut Self, _ctx| {
                         act.subscription = Some(res);
                         println!("??");
 

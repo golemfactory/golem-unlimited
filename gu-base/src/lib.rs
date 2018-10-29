@@ -122,10 +122,8 @@ where
     {
         if self.m1.args_autocomplete(matches, app_gen) {
             true
-        } else if self.m2.args_autocomplete(matches, app_gen) {
-            true
         } else {
-            false
+            self.m2.args_autocomplete(matches, app_gen)
         }
     }
 

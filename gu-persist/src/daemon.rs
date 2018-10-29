@@ -144,7 +144,7 @@ where
 {
     File::open(path)
         .map_err(|e| format!(".pid file open error: {:?}", e))
-        .and_then(|file| read_file(file))
+        .and_then(read_file)
 }
 
 fn read_pid_file(path: &Path) -> Result<i32, String> {
