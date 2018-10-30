@@ -99,6 +99,8 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
 }
 
 use actix_web;
+use connect::ListSockets;
+
 impl Module for ServerModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
         true
@@ -244,19 +246,46 @@ impl Handler<ConnectMode> for ProviderServer {
     type Result = ActorResponse<Self, Option<()>, String>;
 
     fn handle(&mut self, msg: ConnectMode, _ctx: &mut Context<Self>) -> Self::Result {
-        let config_fut = connect::edit_config_connect_mode(msg.clone());
         if let Some(ref connections) = self.connections {
-            let state_fut = connections.send(AutoMdns(msg == ConnectMode::Auto));
+            let config_fut = connect::edit_config_connect_mode(msg.clone());
+            let state_fut = connections
+                .send(AutoMdns(msg == ConnectMode::Auto))
+                .map_err(|e| e.to_string())
+                .and_then(|r| r);
 
             return ActorResponse::async(
                 config_fut
-                    .and_then(|_| state_fut.map_err(|e| e.to_string()))
-                    .and_then(|r| r)
+                    .join(state_fut)
+                    .map_err(|e| e.to_string())
+                    .and_then(|a| {
+                        Ok(match a {
+                            (None, None) => None,
+                            _ => Some(()),
+                        })
+                    })
                     .into_actor(self),
             );
         }
 
         unreachable!()
+    }
+}
+
+impl Handler<ListSockets> for ProviderServer {
+    type Result = ActorResponse<Self, Vec<SocketAddr>, String>;
+
+    fn handle(&mut self, _msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
+        if let Some(ref connections) = self.connections {
+            ActorResponse::async(
+                connections
+                    .send(ListSockets)
+                    .map_err(|e| e.to_string())
+                    .and_then(|r| r)
+                    .into_actor(self),
+            )
+        } else {
+            unreachable!()
+        }
     }
 }
 

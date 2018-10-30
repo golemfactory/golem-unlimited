@@ -1,3 +1,5 @@
+#![allow(proc_macro_derive_resolution_fallback)]
+
 use super::server::ProviderConfig;
 use actix::prelude::*;
 use actix_web::{
@@ -21,9 +23,10 @@ use gu_net::{
 use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, SetConfig};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json;
-use server::{ConnectMode, ProviderClient, ProviderServer};
+use server::{ConnectMode, ProviderServer};
 use std::{
     collections::{HashMap, HashSet},
+    iter::FromIterator,
     net::SocketAddr,
 };
 
@@ -113,10 +116,10 @@ impl Module for ConnectModule {
 
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
         match self.state {
-            State::Connect(a) => {}
-            State::Disconnect(a) => {}
-            State::Add(a) => {}
-            State::Remove(a) => {}
+            State::Connect(_) => {}
+            State::Disconnect(_) => {}
+            State::Add(_) => {}
+            State::Remove(_) => {}
             State::Mode(_) => {}
             State::ListConfig => {}
             State::ListConnected => {}
@@ -125,7 +128,7 @@ impl Module for ConnectModule {
     }
 
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
-        app.scope("/connect", scope)
+        app.scope("/connections", scope)
     }
 }
 
@@ -181,11 +184,7 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             http::Method::PUT,
             mode_lambda(ConnectMode::Config),
         )
-        .nested("/batch", edit_connection_scope(http::Method::POST))
-        .nested(
-            "/{hostAddr:.+:.+}",
-            edit_connection_scope(http::Method::PUT),
-        )
+        .nested("/", edit_connection_scope(http::Method::POST))
 }
 
 #[derive(Message)]
@@ -194,15 +193,52 @@ pub(crate) enum ListingType {
     Connected,
 }
 
-fn list_scope<S>(_r: HttpRequest<S>, _m: &ListingType) -> impl Responder {
-    ""
+fn list_scope<S>(_r: HttpRequest<S>, m: &ListingType) -> impl Responder {
+    match m {
+        ListingType::Config => unimplemented!(),
+        ListingType::Connected => {
+            let provider = ProviderServer::from_registry();
+
+            provider
+                .send(ListSockets)
+                .map_err(|e| {
+                    ErrorInternalServerError(format!(
+                        "Mailbox error during message processing {:?}",
+                        e
+                    ))
+                })
+                .and_then(|result| {
+                    result
+                        .and_then(|list| Ok(HttpResponse::Ok().json(list)))
+                        .map_err(|e| {
+                            ErrorInternalServerError(format!(
+                                "Error during message processing {:?}",
+                                e
+                            ))
+                        })
+                })
+                .responder()
+        }
+    }
 }
 
-fn mode_scope<S>(_r: HttpRequest<S>, _m: &ConnectMode) -> impl Responder {
-    ""
+fn mode_scope<S>(_r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
+    let provider = ProviderServer::from_registry();
+
+    provider
+        .send(m.clone())
+        .map_err(|e| {
+            ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
+        })
+        .and_then(|result| {
+            result.and_then(|_| Ok(HttpResponse::Ok())).map_err(|e| {
+                ErrorInternalServerError(format!("Error during message processing {:?}", e))
+            })
+        })
+        .responder()
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub(crate) enum ConnectionChange {
     Add,
     Remove,
@@ -219,39 +255,28 @@ pub(crate) struct ConnectionChangeMessage {
 
 fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
     let provider = ProviderServer::from_registry();
-    let change = m.clone();
-    let hubs = match r.method() {
-        &http::Method::POST => future::Either::A(
-            r.payload()
-                .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
-                .concat2()
-                .and_then(|a| {
-                    serde_json::from_slice::<Vec<SocketAddr>>(a.as_ref()).map_err(|e| {
-                        ErrorBadRequest(format!("Couldn't parse request body: {:?}", e))
-                    })
-                }),
-        ),
-        &http::Method::PUT => future::Either::B(
-            future::result(r.query().get("hostAddr").unwrap().parse())
-                .and_then(|addr: SocketAddr| Ok(vec![addr]))
-                .map_err(|e| ErrorBadRequest(format!("Couldn't parse request body: {:?}", e))),
-        ),
-        _ => unreachable!(),
-    };
+    let change = *m;
+
+    let hubs = r
+        .payload()
+        .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
+        .concat2()
+        .and_then(|a| {
+            serde_json::from_slice::<Vec<SocketAddr>>(a.as_ref())
+                .map_err(|e| ErrorBadRequest(format!("Couldn't parse request body: {:?}", e)))
+        });
 
     hubs.and_then(move |hubs| {
         provider
             .send(ConnectionChangeMessage { change, hubs })
             .map_err(|e| {
-                ErrorInternalServerError(format!("Error during message processing {:?}", e))
+                ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
             })
     })
     .and_then(|result| {
-        result
-            .and_then(|result| Ok(HttpResponse::Ok()))
-            .map_err(|e| {
-                ErrorInternalServerError(format!("Error during message processing {:?}", e))
-            })
+        result.and_then(|_| Ok(HttpResponse::Ok())).map_err(|e| {
+            ErrorInternalServerError(format!("Error during message processing {:?}", e))
+        })
     })
     .responder()
 }
@@ -332,7 +357,9 @@ fn edit_config_list(
     let mut old: HashSet<_> = HashSet::from_iter(old.into_iter());
     let len = old.len();
 
-    println!("wubba");
+    println!("{:?}", old);
+    println!("{:?}", list);
+    println!("{:?}", change);
 
     match change {
         ConnectionChange::Add => {
@@ -374,16 +401,22 @@ impl ConnectManager {
         }
     }
 
+    fn list(&self) -> Vec<SocketAddr> {
+        Vec::from_iter(self.connections.keys().into_iter().map(|sock| sock.clone()))
+    }
+
     fn connect_to(&mut self, addr: SocketAddr) {
         if self.connections.contains_key(&addr) {
             return;
         }
 
+        println!("connecting");
         let supervisor = rpc::ws::start_connection(self.node_id, addr);
         self.connections.insert(addr, supervisor);
     }
 
     fn disconnect(&mut self, addr: SocketAddr) -> impl Future<Item = Option<()>, Error = String> {
+        println!("disconnect {:?}", addr);
         if let Some(supervisor) = self.connections.remove(&addr) {
             future::Either::A(
                 supervisor
@@ -415,6 +448,18 @@ impl Handler<NewInstance> for ConnectManager {
         } else {
             error!("Invalid mDNS instance")
         }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<Vec<SocketAddr>, String>")]
+pub struct ListSockets;
+
+impl Handler<ListSockets> for ConnectManager {
+    type Result = ActorResponse<Self, Vec<SocketAddr>, String>;
+
+    fn handle(&mut self, _msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
+        ActorResponse::reply(Ok(self.list()))
     }
 }
 
