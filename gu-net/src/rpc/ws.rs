@@ -529,7 +529,7 @@ mod test {
 
         let buf = serialize_into_vec(&rpc).unwrap();
 
-        assert!(deserialize_from_slice::<RpcMessage>(&buf).unwrap(), rpc)
+        assert_eq!(deserialize_from_slice::<RpcMessage>(&buf).unwrap(), rpc)
     }
 
 }
