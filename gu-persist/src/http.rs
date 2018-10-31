@@ -138,6 +138,26 @@ impl<C: ServerConfig> ServerClient<C> {
             .send(ResourcePost::new(path.into(), "null".into()))
             .flatten_fut()
     }
+
+    pub fn put<
+        T: de::DeserializeOwned + Send + 'static,
+        IntoStr: Into<String>,
+        IntoBody: Into<Bytes>,
+    >(
+        path: IntoStr,
+        body: IntoBody,
+    ) -> impl Future<Item = T, Error = ClientError> {
+        ServerClient::<C>::from_registry()
+            .send(ResourcePut::new(path.into(), body.into()))
+            .flatten_fut()
+    }
+    pub fn empty_put<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
+        path: IntoStr,
+    ) -> impl Future<Item = T, Error = ClientError> {
+        ServerClient::<C>::from_registry()
+            .send(ResourcePut::new(path.into(), "null".into()))
+            .flatten_fut()
+    }
 }
 
 impl<C: 'static> Actor for ServerClient<C> {
@@ -233,6 +253,24 @@ impl<T> IntoRequest for ResourcePost<T> {
     }
 }
 
+struct ResourcePut<T>(String, Bytes, PhantomData<T>);
+
+impl<T> ResourcePut<T> {
+    fn new(path: String, body: Bytes) -> Self {
+        ResourcePut(path, body, PhantomData)
+    }
+}
+
+impl<T> IntoRequest for ResourcePut<T> {
+    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
+        ClientRequest::put(url).body::<Body>(Body::from(self.1))
+    }
+
+    fn path(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
 impl<T: de::DeserializeOwned + 'static> Message for ResourceGet<T> {
     type Result = Result<T, ClientError>;
 }
@@ -242,6 +280,10 @@ impl<T: de::DeserializeOwned + 'static> Message for ResourceDelete<T> {
 }
 
 impl<T: de::DeserializeOwned + 'static> Message for ResourcePost<T> {
+    type Result = Result<T, ClientError>;
+}
+
+impl<T: de::DeserializeOwned + 'static> Message for ResourcePut<T> {
     type Result = Result<T, ClientError>;
 }
 
@@ -277,7 +319,8 @@ where
                             .send()
                             .map_err(|e| error::ErrorKind::SendRequestError(e).into())
                             .and_then(|r| {
-                                r.json::<T>().map_err(|e| error::ErrorKind::Json(e).into())
+                                r.json::<T>()
+                                    .map_err(move |e| error::ErrorKind::Json(e).into())
                             }),
                     )
                 })

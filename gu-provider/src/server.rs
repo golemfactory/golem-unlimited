@@ -57,7 +57,9 @@ impl ServerConfig for ProviderConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Message)]
+pub(crate) type ProviderClient = ServerClient<ProviderConfig>;
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Message, Debug, Copy)]
 #[rtype(result = "Result<Option<()>, String>")]
 pub(crate) enum ConnectMode {
     Auto,
@@ -77,8 +79,6 @@ impl ProviderConfig {
         ConnectMode::Config
     }
 }
-
-pub(crate) type ProviderClient = ServerClient<ProviderConfig>;
 
 impl HasSectionId for ProviderConfig {
     const SECTION_ID: &'static str = "provider-server-cfg";

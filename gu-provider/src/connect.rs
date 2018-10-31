@@ -23,7 +23,7 @@ use gu_net::{
 use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, SetConfig};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json;
-use server::{ConnectMode, ProviderServer};
+use server::{ConnectMode, ProviderClient, ProviderServer};
 use std::{
     collections::{HashMap, HashSet},
     iter::FromIterator,
@@ -38,7 +38,7 @@ pub struct ConnectModule {
     state: State,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 enum State {
     Connect(SocketAddr),
     Disconnect(SocketAddr),
@@ -48,6 +48,24 @@ enum State {
     ListConfig,
     ListConnected,
     None,
+}
+
+impl Into<&'static str> for State {
+    fn into(self) -> &'static str {
+        match self {
+            State::Connect(_) => "/connections/connect",
+            State::Disconnect(_) => "/connections/disconnect",
+            State::Add(_) => "/connections/add",
+            State::Remove(_) => "/connections/remove",
+            State::Mode(x) => match x {
+                ConnectMode::Auto => "/connections/mode/auto",
+                ConnectMode::Config => "/connections/mode/config",
+            },
+            State::ListConfig => "/connections/config",
+            State::ListConnected => "/connections/connected",
+            State::None => unreachable!(),
+        }
+    }
 }
 
 impl Module for ConnectModule {
@@ -111,20 +129,50 @@ impl Module for ConnectModule {
             _ => State::None,
         };
 
-        self.state != State::None
+        true
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
-        match self.state {
-            State::Connect(_) => {}
-            State::Disconnect(_) => {}
-            State::Add(_) => {}
-            State::Remove(_) => {}
-            State::Mode(_) => {}
-            State::ListConfig => {}
-            State::ListConnected => {}
-            State::None => {}
+        if self.state == State::None {
+            return;
         }
+        let state = self.state.clone();
+        println!("state: {:?}", state);
+        System::run(move || {
+            let endpoint: &'static str = state.into();
+            match state {
+                State::Connect(a) | State::Disconnect(a) | State::Add(a) | State::Remove(a) => {
+                    Arbiter::spawn(
+                        ProviderClient::post(
+                            endpoint.to_string(),
+                            format!("[ \"{}:{}\" ]", a.ip(), a.port()),
+                        )
+                        .and_then(|()| Ok(()))
+                        .map_err(|e| error!("{}", e))
+                        .then(|_r| Ok(System::current().stop())),
+                    )
+                }
+                State::Mode(a) => Arbiter::spawn(
+                    ProviderClient::empty_put(endpoint.to_string())
+                        .and_then(|_: ()| Ok(()))
+                        .map_err(|e| error!("{}", e))
+                        .then(|_r| Ok(System::current().stop())),
+                ),
+                State::ListConnected => Arbiter::spawn(
+                    ProviderClient::get(endpoint.to_string())
+                        .and_then(|l: Vec<SocketAddr>| {
+                            for e in l {
+                                println!("{:?}", e);
+                            }
+                            Ok(())
+                        })
+                        .map_err(|e| error!("{}", e))
+                        .then(|_r| Ok(System::current().stop())),
+                ),
+                _ => unimplemented!(),
+                //                    State::ListConfig => {}
+            }
+        });
     }
 
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
@@ -231,9 +279,15 @@ fn mode_scope<S>(_r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
             ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
         })
         .and_then(|result| {
-            result.and_then(|_| Ok(HttpResponse::Ok())).map_err(|e| {
-                ErrorInternalServerError(format!("Error during message processing {:?}", e))
-            })
+            result
+                .and_then(|_| {
+                    Ok(HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body("null"))
+                })
+                .map_err(|e| {
+                    ErrorInternalServerError(format!("Error during message processing {:?}", e))
+                })
         })
         .responder()
 }
@@ -274,9 +328,19 @@ fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
             })
     })
     .and_then(|result| {
-        result.and_then(|_| Ok(HttpResponse::Ok())).map_err(|e| {
-            ErrorInternalServerError(format!("Error during message processing {:?}", e))
-        })
+        result
+            .and_then(|_| {
+                Ok(HttpResponse::Ok()
+                    .content_type("application/json")
+                    .body("null"))
+            })
+            .map_err(|e| {
+                ErrorInternalServerError(format!("Error during message processing {:?}", e))
+            })
+    })
+    .map_err(|e| {
+        error!("{}", e);
+        e
     })
     .responder()
 }
