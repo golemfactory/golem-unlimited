@@ -40,11 +40,9 @@ pub struct ConnectModule {
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 enum State {
-    Connect(SocketAddr),
-    Disconnect(SocketAddr),
-    Add(SocketAddr),
-    Remove(SocketAddr),
-    Mode(ConnectMode),
+    Connect(SocketAddr, bool),
+    Disconnect(SocketAddr, bool),
+    Mode(ConnectMode, bool),
     ListConfig,
     ListConnected,
     None,
@@ -53,13 +51,17 @@ enum State {
 impl Into<&'static str> for State {
     fn into(self) -> &'static str {
         match self {
-            State::Connect(_) => "/connections/connect",
-            State::Disconnect(_) => "/connections/disconnect",
-            State::Add(_) => "/connections/add",
-            State::Remove(_) => "/connections/remove",
-            State::Mode(x) => match x {
+            State::Connect(_, false) => "/connections/connect",
+            State::Connect(_, true) => "/connections/connect?save=1",
+            State::Disconnect(_, false) => "/connections/disconnect",
+            State::Disconnect(_, true) => "/connections/disconnect?save=1",
+            State::Mode(x, false) => match x {
                 ConnectMode::Auto => "/connections/mode/auto",
                 ConnectMode::Config => "/connections/mode/config",
+            },
+            State::Mode(x, true) => match x {
+                ConnectMode::Auto => "/connections/mode/auto?save=1",
+                ConnectMode::Config => "/connections/mode/config?save=1",
             },
             State::ListConfig => "/connections/config",
             State::ListConnected => "/connections/connected",
@@ -79,21 +81,20 @@ impl Module for ConnectModule {
             .value_name("IP:PORT")
             .help("IP and PORT of a Hub");
 
+        let save = Arg::with_name("save")
+            .short("S")
+            .required(false)
+            .long("save change in config file")
+            .takes_value(false);
+
         let connect = SubCommand::with_name("connect")
             .about("Connect to a host without adding it to the config")
-            .arg(host.clone());
+            .arg(host.clone())
+            .arg(save.clone());
         let disconnect = SubCommand::with_name("disconnect")
             .about("Disconnect from a hub")
-            .arg(host.clone());
-        let add = SubCommand::with_name("add")
-            .about("Add host to the config hub list and connect")
-            .arg(host.clone());
-        let remove = SubCommand::with_name("remove")
-            .about("Remove a hub from config and disconnect form it")
-            .arg(host.clone());
-        let config = SubCommand::with_name("config")
-            .about("List hubs contained in config")
-            .arg(host);
+            .arg(host.clone())
+            .arg(save.clone());
         let servers =
             SubCommand::with_name("list").about("List hubs the provider is currently connected to");
 
@@ -102,26 +103,24 @@ impl Module for ConnectModule {
         let config_mode = SubCommand::with_name("config").about("Connect just to config hubs");
         let mode = SubCommand::with_name("mode")
             .about("Change the connection mode")
-            .subcommands(vec![auto_mode, config_mode]);
+            .subcommands(vec![auto_mode, config_mode])
+            .arg(save);
 
         app.subcommand(SubCommand::with_name("hubs").about("Manipulate hubs connections"))
-            .subcommands(vec![
-                connect, disconnect, add, remove, mode, config, servers,
-            ])
+            .subcommands(vec![connect, disconnect, mode, servers])
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         let get_host: fn(&ArgMatches) -> SocketAddr =
             |m| m.value_of("host").unwrap().parse().unwrap();
+        let save = matches.is_present("save");
 
         self.state = match matches.subcommand() {
-            ("connect", Some(m)) => State::Connect(get_host(m)),
-            ("disconnect", Some(m)) => State::Disconnect(get_host(m)),
-            ("add", Some(m)) => State::Add(get_host(m)),
-            ("remove", Some(m)) => State::Remove(get_host(m)),
+            ("connect", Some(m)) => State::Connect(get_host(m), save),
+            ("disconnect", Some(m)) => State::Disconnect(get_host(m), save),
             ("mode", Some(m)) => match m.subcommand_name().unwrap() {
-                "auto" => State::Mode(ConnectMode::Auto),
-                "config" => State::Mode(ConnectMode::Config),
+                "auto" => State::Mode(ConnectMode::Auto, save),
+                "config" => State::Mode(ConnectMode::Config, save),
                 _ => State::None,
             },
             ("list", _) => State::ListConnected,
@@ -141,18 +140,16 @@ impl Module for ConnectModule {
         System::run(move || {
             let endpoint: &'static str = state.into();
             match state {
-                State::Connect(a) | State::Disconnect(a) | State::Add(a) | State::Remove(a) => {
-                    Arbiter::spawn(
-                        ProviderClient::post(
-                            endpoint.to_string(),
-                            format!("[ \"{}:{}\" ]", a.ip(), a.port()),
-                        )
-                        .and_then(|()| Ok(()))
-                        .map_err(|e| error!("{}", e))
-                        .then(|_r| Ok(System::current().stop())),
+                State::Connect(a, _) | State::Disconnect(a, _) => Arbiter::spawn(
+                    ProviderClient::post(
+                        endpoint.to_string(),
+                        format!("[ \"{}:{}\" ]", a.ip(), a.port()),
                     )
-                }
-                State::Mode(a) => Arbiter::spawn(
+                    .and_then(|()| Ok(()))
+                    .map_err(|e| error!("{}", e))
+                    .then(|_r| Ok(System::current().stop())),
+                ),
+                State::Mode(_, _) => Arbiter::spawn(
                     ProviderClient::empty_put(endpoint.to_string())
                         .and_then(|_: ()| Ok(()))
                         .map_err(|e| error!("{}", e))
@@ -188,16 +185,6 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     let edit_connection_scope = |method: http::Method| {
         |scope: Scope<S>| {
             scope
-                .route(
-                    "/add",
-                    method.clone(),
-                    connect_lambda(ConnectionChange::Add),
-                )
-                .route(
-                    "/remove",
-                    method.clone(),
-                    connect_lambda(ConnectionChange::Remove),
-                )
                 .route(
                     "/connect",
                     method.clone(),
@@ -270,11 +257,14 @@ fn list_scope<S>(_r: HttpRequest<S>, m: &ListingType) -> impl Responder {
     }
 }
 
-fn mode_scope<S>(_r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
+fn mode_scope<S>(r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
     let provider = ProviderServer::from_registry();
 
     provider
-        .send(m.clone())
+        .send(ConnectModeMessage {
+            mode: m.clone(),
+            save: parse_save_param(&r),
+        })
         .map_err(|e| {
             ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
         })
@@ -294,22 +284,22 @@ fn mode_scope<S>(_r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum ConnectionChange {
-    Add,
-    Remove,
     Connect,
     Disconnect,
 }
 
-#[derive(Message)]
+#[derive(Message, Clone)]
 #[rtype(result = "Result<Option<()>, String>")]
 pub(crate) struct ConnectionChangeMessage {
     pub change: ConnectionChange,
     pub hubs: Vec<SocketAddr>,
+    pub save: bool,
 }
 
 fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
     let provider = ProviderServer::from_registry();
     let change = *m;
+    let save = parse_save_param(&r);
 
     let hubs = r
         .payload()
@@ -322,7 +312,7 @@ fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
 
     hubs.and_then(move |hubs| {
         provider
-            .send(ConnectionChangeMessage { change, hubs })
+            .send(ConnectionChangeMessage { change, hubs, save })
             .map_err(|e| {
                 ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
             })
@@ -343,6 +333,20 @@ fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
         e
     })
     .responder()
+}
+
+fn parse_save_param<S>(r: &HttpRequest<S>) -> bool {
+    r.query()
+        .get("save")
+        .map(|s| s.as_str() == "1")
+        .unwrap_or_default()
+}
+
+#[derive(Message, Clone)]
+#[rtype(result = "Result<Option<()>, String>")]
+pub(crate) struct ConnectModeMessage {
+    pub mode: ConnectMode,
+    pub save: bool,
 }
 
 pub(crate) fn edit_config_connect_mode(
@@ -426,18 +430,16 @@ fn edit_config_list(
     println!("{:?}", change);
 
     match change {
-        ConnectionChange::Add => {
+        ConnectionChange::Connect => {
             list.into_iter().for_each(|sock| {
                 old.insert(sock);
             });
         }
-        ConnectionChange::Remove => {
+        ConnectionChange::Disconnect => {
             list.into_iter().for_each(|sock| {
                 old.remove(&sock);
             });
         }
-        ConnectionChange::Connect => return None,
-        ConnectionChange::Disconnect => return None,
     }
 
     if len == old.len() {

@@ -476,9 +476,7 @@ impl Handler<StopSupervisor> for ConnectionSupervisor {
     type Result = ActorResponse<Self, (), ()>;
 
     fn handle(&mut self, _msg: StopSupervisor, ctx: &mut Context<Self>) -> Self::Result {
-        println!("outside");
         if let Some(ref client) = self.connection {
-            println!("inside");
             ActorResponse::async(
                 client
                     .send(StopClient)
@@ -492,6 +490,21 @@ impl Handler<StopSupervisor> for ConnectionSupervisor {
         } else {
             ctx.stop();
             ActorResponse::reply(Ok(()))
+        }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "bool")]
+pub struct IsConnected;
+
+impl Handler<IsConnected> for ConnectionSupervisor {
+    type Result = bool;
+
+    fn handle(&mut self, _msg: IsConnected, ctx: &mut Context<Self>) -> bool {
+        match self.connection {
+            Some(_) => true,
+            None => false,
         }
     }
 }

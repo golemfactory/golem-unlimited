@@ -99,7 +99,7 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
 }
 
 use actix_web;
-use connect::ListSockets;
+use connect::{ConnectModeMessage, ListSockets};
 
 impl Module for ServerModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
@@ -236,20 +236,28 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     }
 }
 
-fn connect_to_multiple_hubs(id: NodeId, hubs: &Vec<SocketAddr>) {
-    for hub in hubs {
-        rpc::ws::start_connection(id, *hub);
+fn optional_save_future<F, R>(f: F, save: bool) -> impl Future<Item = Option<()>, Error = String>
+where
+    F: FnOnce() -> R,
+    R: Future<Item = Option<()>, Error = String>,
+{
+    if save {
+        future::Either::A(f())
+    } else {
+        future::Either::B(future::ok(None))
     }
 }
 
-impl Handler<ConnectMode> for ProviderServer {
+impl Handler<ConnectModeMessage> for ProviderServer {
     type Result = ActorResponse<Self, Option<()>, String>;
 
-    fn handle(&mut self, msg: ConnectMode, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: ConnectModeMessage, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {
-            let config_fut = connect::edit_config_connect_mode(msg.clone());
+            let mode = msg.mode.clone();
+            let config_fut =
+                optional_save_future(move || connect::edit_config_connect_mode(mode), msg.save);
             let state_fut = connections
-                .send(AutoMdns(msg == ConnectMode::Auto))
+                .send(AutoMdns(msg.mode == ConnectMode::Auto))
                 .map_err(|e| e.to_string())
                 .and_then(|r| r);
 
@@ -293,16 +301,22 @@ impl Handler<ConnectionChangeMessage> for ProviderServer {
     type Result = ActorResponse<Self, Option<()>, String>;
 
     fn handle(&mut self, msg: ConnectionChangeMessage, _ctx: &mut Context<Self>) -> Self::Result {
-        let config_fut = connect::edit_config_hosts(msg.hubs.clone(), msg.change);
+        let msg2 = msg.clone();
+        let save = msg.save;
+        let config_fut = optional_save_future(
+            move || connect::edit_config_hosts(msg2.hubs, msg2.change),
+            save,
+        );
+
         if let Some(ref connections) = self.connections {
             let connections = connections.clone();
             let state_fut = match msg.change {
-                ConnectionChange::Add | ConnectionChange::Connect => {
+                ConnectionChange::Connect => {
                     future::Either::A(future::join_all(msg.hubs.into_iter().map(move |hub| {
                         connections.send(Connect(hub)).map_err(|e| e.to_string())
                     })))
                 }
-                ConnectionChange::Remove | ConnectionChange::Disconnect => {
+                ConnectionChange::Disconnect => {
                     future::Either::B(future::join_all(msg.hubs.into_iter().map(move |hub| {
                         connections
                             .send(Disconnect(hub))
