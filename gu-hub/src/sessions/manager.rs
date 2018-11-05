@@ -59,8 +59,7 @@ impl SessionsManager {
                 .map(|(id, s)| EnumeratedSessionInfo {
                     id: *id,
                     info: s.info(),
-                })
-                .collect(),
+                }).collect(),
             self.version,
         ))
     }

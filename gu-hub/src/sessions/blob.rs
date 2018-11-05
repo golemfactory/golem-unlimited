@@ -83,13 +83,11 @@ impl Handler<ReadAccessRequest> for FileLockActor {
                         .clone()
                         .and_then(move |sha: SharedItem<Sha1>| {
                             Ok(ReadAccess::new(sha.deref().clone(), rec))
-                        })
-                        .map_err(|err: SharedError<SessionErr>| err.deref().clone())
+                        }).map_err(|err: SharedError<SessionErr>| err.deref().clone())
                         .map_err(|err: SessionErr| err)
                 }),
                 _ => future::Either::B(future::err(SessionErr::BlobLockedError)),
-            }
-            .into_actor(self),
+            }.into_actor(self),
         )
     }
 }
@@ -198,8 +196,7 @@ fn recalculate_sha1(path: PathBuf) -> impl Future<Item = Sha1, Error = SessionEr
         .fold(Sha1::new(), |mut sha, chunk| {
             sha.update(chunk.as_ref());
             Ok(sha).map_err(|()| "")
-        })
-        .map_err(|e| SessionErr::FileError(e))
+        }).map_err(|e| SessionErr::FileError(e))
         .and_then(|sha| Ok(sha))
 }
 
@@ -269,8 +266,7 @@ impl Blob {
             .and_then(|a| a)
             .and_then(move |_access: WriteAccess| {
                 write_async(fut, self.path.clone()).map_err(|e| SessionErr::FileError(e))
-            })
-            .and_then(|_a| Ok(SessionOk::Ok))
+            }).and_then(|_a| Ok(SessionOk::Ok))
     }
 
     pub fn read(self) -> impl Future<Item = (NamedFile, HeaderValue), Error = SessionErr> {

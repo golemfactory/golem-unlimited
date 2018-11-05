@@ -71,12 +71,12 @@ impl ServerModule {
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
         app.arg(
-                Arg::with_name("hub_addr")
-                   .short("a")
-                   .long("hub address")
-                   .takes_value(true)
-                   .value_name("IP:PORT")
-                   .help("IP and PORT of Hub to connect to")
+            Arg::with_name("hub_addr")
+                .short("a")
+                .long("hub address")
+                .takes_value(true)
+                .value_name("IP:PORT")
+                .help("IP and PORT of Hub to connect to"),
         )
     }
 

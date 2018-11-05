@@ -4,6 +4,7 @@ use actix::fut;
 use actix::prelude::*;
 use futures::prelude::*;
 use gu_actix::prelude::*;
+use gu_envman_api::*;
 use gu_net::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
 use gu_net::rpc::*;
 use gu_persist::config::ConfigModule;
@@ -177,32 +178,6 @@ impl SessionInfo {
     }
 }
 
-/// image with binaries and resources for given session
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Image {
-    url: String,
-    // TODO: sha256sum: String,
-    cache_file: String,
-}
-
-/// Message for session creation: local provisioning: downloads and unpacks the binaries
-#[derive(Serialize, Deserialize)]
-struct CreateSession {
-    image: Image,
-    name: String,
-    tags: Vec<String>,
-    note: Option<String>,
-}
-
-impl CreateSession {
-    const ID: u32 = 37;
-}
-
-/// returns session_id
-impl Message for CreateSession {
-    type Result = result::Result<String, Error>;
-}
-
 impl Handler<CreateSession> for HdMan {
     type Result = ActorResponse<HdMan, String, Error>;
 
@@ -218,7 +193,7 @@ impl Handler<CreateSession> for HdMan {
             Ok(_) => (),
             Err(e) => return ActorResponse::reply(Err(e.into())),
         }
-        let cache_path = self.get_cache_path(&msg.image.cache_file);
+        let cache_path = self.get_cache_path(&msg.image.hash);
 
         let session = SessionInfo {
             name: msg.name,
@@ -255,45 +230,6 @@ impl Handler<CreateSession> for HdMan {
                 }),
         )
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct SessionUpdate {
-    session_id: String,
-    commands: Vec<Command>,
-}
-
-#[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Debug)]
-enum Command {
-    Exec {
-        // return cmd output
-        executable: String,
-        args: Vec<String>,
-    },
-    Start {
-        // return child process id
-        executable: String,
-        args: Vec<String>,
-        // TODO: consider adding tags here
-    },
-    Stop {
-        child_id: String,
-    },
-    AddTags(Vec<String>),
-    DelTags(Vec<String>),
-    DumpFile {
-        // TODO: implement file up- and download
-        data: Vec<u8>,
-        file_name: String,
-    },
-}
-
-impl SessionUpdate {
-    const ID: u32 = 38;
-}
-
-impl Message for SessionUpdate {
-    type Result = result::Result<Vec<String>, Vec<String>>;
 }
 
 impl Handler<SessionUpdate> for HdMan {
@@ -472,17 +408,6 @@ struct SessionStatus {
     session_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct GetSessions {}
-
-impl GetSessions {
-    const ID: u32 = 39;
-}
-
-impl Message for GetSessions {
-    type Result = result::Result<Vec<PeerSessionInfo>, ()>;
-}
-
 impl Handler<GetSessions> for HdMan {
     type Result = result::Result<Vec<PeerSessionInfo>, ()>;
 
@@ -501,20 +426,6 @@ impl Handler<GetSessions> for HdMan {
     }
 }
 
-/// Message for session destruction: clean local resources and kill all child processes
-#[derive(Serialize, Deserialize)]
-struct DestroySession {
-    session_id: String,
-}
-
-impl DestroySession {
-    const ID: u32 = 40;
-}
-
-impl Message for DestroySession {
-    type Result = result::Result<String, Error>;
-}
-
 impl Handler<DestroySession> for HdMan {
     type Result = ActorResponse<HdMan, String, Error>;
 
@@ -527,40 +438,6 @@ impl Handler<DestroySession> for HdMan {
             Ok(_) => fut::ok("Session closed".into()),
             Err(e) => fut::err(e),
         })
-    }
-}
-
-/// HdMan Errors
-// impl note: can not use error_chain bc it does not support SerDe
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Error {
-    Error(String),
-    IoError(String),
-    NoSuchSession(String),
-    NoSuchChild(String),
-}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Error::IoError(e.to_string())
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Error(msg) => write!(f, "error: {}", msg)?,
-            Error::IoError(msg) => write!(f, "IO error: {}", msg)?,
-            Error::NoSuchSession(msg) => write!(f, "session not found: {}", msg)?,
-            Error::NoSuchChild(msg) => write!(f, "child not found: {}", msg)?,
-        }
-        Ok(())
-    }
-}
-
-impl From<String> for Error {
-    fn from(msg: String) -> Self {
-        Error::Error(msg)
     }
 }
 

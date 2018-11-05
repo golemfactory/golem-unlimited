@@ -35,6 +35,7 @@ gu-persist = { path = "../gu-persist" }
 gu-lan = { path = "../gu-lan"}
 gu-ethkey = { path = "../gu-ethkey"}
 gu-hardware = { path = "../gu-hardware"}
+gu-envman-api = { path = "../gu-envman-api" }
 
 [package.metadata.deb]
 depends = "$auto, systemd"

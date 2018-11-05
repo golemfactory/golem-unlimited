@@ -19,6 +19,7 @@ extern crate mdns;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate gu_envman_api;
 extern crate tar;
 extern crate uuid;
 
@@ -26,6 +27,7 @@ use clap::App;
 use gu_base::*;
 use gu_persist::daemon_module;
 
+pub mod envman;
 mod hdman;
 mod id;
 mod provision;

@@ -3,11 +3,11 @@
 use actix::fut;
 use actix::prelude::*;
 use actix_web;
-use actix_web::Body;
 use actix_web::client;
 use actix_web::client::ClientRequest;
 use actix_web::error::JsonPayloadError;
 use actix_web::http;
+use actix_web::Body;
 use bytes::Bytes;
 use clap::{App, ArgMatches, SubCommand};
 use futures::future;
@@ -15,9 +15,9 @@ use futures::prelude::*;
 use gu_actix::*;
 use gu_base::{Decorator, Module};
 use gu_ethkey::prelude::*;
-use gu_net::NodeId;
 use gu_net::rpc;
 use gu_net::rpc::mock;
+use gu_net::NodeId;
 use gu_persist::config;
 use gu_persist::config::ConfigManager;
 use gu_persist::config::ConfigModule;
@@ -200,7 +200,6 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-
         ctx.spawn(
             self.config()
                 .send(config::GetConfig::new())
