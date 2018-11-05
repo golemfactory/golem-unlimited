@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 extern crate actix;
 extern crate futures;
 extern crate gu_actix;

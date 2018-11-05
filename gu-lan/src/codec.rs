@@ -2,15 +2,19 @@ use bytes::BytesMut;
 use errors::{Error, ErrorKind, Result};
 use tokio_codec::{Decoder, Encoder};
 
-use dns_parser::rdata::a::Record;
-use dns_parser::rdata::RData::{A, SRV, TXT};
-use dns_parser::Question;
-use dns_parser::{Builder, Packet, QueryClass, QueryType, ResourceRecord};
+use dns_parser::{
+    rdata::{
+        a::Record,
+        RData::{A, SRV, TXT},
+    },
+    Builder, Packet, QueryClass, QueryType, Question, ResourceRecord,
+};
 use service::{ServiceInstance, ServicesDescription};
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::net::Ipv4Addr;
-use std::str::from_utf8;
+use std::{
+    collections::{HashMap, HashSet},
+    net::Ipv4Addr,
+    str::from_utf8,
+};
 
 #[derive(Clone, Debug)]
 pub struct ParsedPacket {

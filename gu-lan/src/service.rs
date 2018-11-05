@@ -1,9 +1,10 @@
 use actix::prelude::*;
 use errors::Result;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::net::Ipv4Addr;
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    net::Ipv4Addr,
+};
 
 /// Struct describing single service in .local domain's network
 ///
@@ -33,6 +34,15 @@ impl ServiceDescription {
     }
 }
 
+impl From<String> for ServiceDescription {
+    fn from(s: String) -> Self {
+        ServiceDescription {
+            instance: s.into(),
+            service: "_unlimited._tcp".into(),
+        }
+    }
+}
+
 impl Message for ServiceDescription {
     type Result = Result<HashSet<ServiceInstance>>;
 }
@@ -58,14 +68,6 @@ impl ServicesDescription {
     pub(crate) fn services(&self) -> &Vec<ServiceDescription> {
         &self.services
     }
-
-    pub(crate) fn to_services(&self) -> Services {
-        let mut services = Services::default();
-        for i in self.services.clone() {
-            services.add_service(i.to_string())
-        }
-        services
-    }
 }
 
 impl Message for ServicesDescription {
@@ -85,6 +87,17 @@ pub struct ServiceInstance {
 #[derive(Debug, Serialize, Default)]
 pub struct Services {
     map: HashMap<String, HashSet<ServiceInstance>>,
+}
+
+impl<'a> From<&'a ServicesDescription> for Services {
+    fn from(s: &'a ServicesDescription) -> Self {
+        let mut res = Services::default();
+        for service in s.services() {
+            res.add_service(service.to_string());
+        }
+
+        res
+    }
 }
 
 impl Services {

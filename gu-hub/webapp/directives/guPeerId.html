@@ -1,0 +1,6 @@
+
+<code ng-if="!guClick">{{peer.nodeId | limitTo: 11}}</code>
+<a ng-if="guClick" href="#" ng-click="click()"><code >{{peer.nodeId | limitTo: 11}}</code></a>
+<span class="label label-{{peer.os.toLowerCase().includes('macos') ? 'info' : 'default'}}" ng-if="peer.os">
+{{peer.os}}
+</span>

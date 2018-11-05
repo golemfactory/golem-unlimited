@@ -2,13 +2,12 @@ extern crate actix;
 extern crate futures;
 extern crate gu_actix;
 extern crate gu_hardware;
-extern crate gu_p2p;
+extern crate gu_net;
 extern crate serde_json;
 extern crate sysinfo;
 
 use actix::prelude::*;
-use gu_actix::prelude::*;
-use gu_p2p::rpc::start_actor;
+use gu_net::rpc::start_actor;
 
 //use std::path::PathBuf;
 use futures::prelude::*;

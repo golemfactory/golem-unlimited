@@ -1,21 +1,16 @@
-use actix::{
-    Actor, Arbiter, ArbiterService, Context, Handler, Message, Supervised, System, SystemService,
-};
-use bytes::Bytes;
+use actix::fut::WrapFuture;
+use actix::ActorResponse;
+use actix::{Actor, Arbiter, ArbiterService, Context, Handler, Message, Supervised, System};
 use futures::future;
 use futures::future::Future;
-use gu_actix::flatten::FlattenFuture;
 use gu_base::{App, Arg, ArgMatches, SubCommand};
 use plugins::plugin::DirectoryHandler;
 use plugins::plugin::PluginHandler;
-use plugins::{manager, plugin, rest};
-use std::fs::{self, DirEntry, File};
-use std::io::{Cursor, Read, Write};
+use plugins::rest;
+use std::fs::{self, File};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use zip::{write::FileOptions, ZipWriter};
-use actix::ActorFuture;
-use actix::ActorResponse;
-use actix::fut::WrapFuture;
 
 #[derive(Debug, Clone, Default)]
 pub struct PluginBuilder;
@@ -96,7 +91,8 @@ fn zip_file(zip: &mut ZipWriter<File>, filename: &Path, base: &Path) -> Result<(
 
     let mut file = File::open(filename).map_err(|_| format!("Cannot open {:?} file", filename))?;
     let mut buf = Vec::new();
-    file.read_to_end(&mut buf);
+    file.read_to_end(&mut buf)
+        .map_err(|_| format!("Cannot read whole file {:?}", filename))?;
 
     zip.write(buf.as_ref())
         .map_err(|_| format!("Cannot write {:?} file in archive", filename))?;
@@ -148,20 +144,17 @@ fn build_plugin(msg: BuildPluginQuery) -> Result<PathBuf, String> {
     let file = File::create(&target_file).map_err(|_| "Cannot create target file")?;
 
     let mut writer = ZipWriter::new(file);
-    zip_file(&mut writer, &source.join("gu-plugin.json"), &source);
+    zip_file(&mut writer, &source.join("gu-plugin.json"), &source)?;
 
     add_directory_recursive(&mut writer, &app_dir, &source)?;
 
     Ok(target_file)
 }
 
-fn install_plugin(path: &PathBuf, install: bool) -> impl Future<Item=(), Error=()> {
+fn install_plugin(path: &PathBuf, install: bool) -> impl Future<Item = (), Error = ()> {
     if install {
         future::Either::A(
-            future::result(rest::read_file(path))
-                .and_then(|buf| {
-                    rest::install_query_inner(buf)
-                })
+            future::result(rest::read_file(path)).and_then(|buf| rest::install_query_inner(buf)),
         )
     } else {
         future::Either::B(future::ok(()))
@@ -174,13 +167,13 @@ impl Handler<BuildPluginQuery> for PluginBuilder {
     fn handle(
         &mut self,
         msg: BuildPluginQuery,
-        ctx: &mut Context<Self>,
+        _ctx: &mut Context<Self>,
     ) -> <Self as Handler<BuildPluginQuery>>::Result {
         ActorResponse::async(
             future::result(build_plugin(msg.clone()))
                 .map_err(|e| error!("{}", e))
                 .and_then(move |file| install_plugin(&file, msg.install))
-                .into_actor(self)
+                .into_actor(self),
         )
     }
 }
@@ -188,11 +181,13 @@ impl Handler<BuildPluginQuery> for PluginBuilder {
 pub fn build_query(msg: &BuildPluginQuery) {
     let msg = msg.clone();
 
-    System::run(|| { Arbiter::spawn(
-        PluginBuilder::from_registry()
-            .send(msg)
-            .then(|a| a.unwrap_or_else(|_| Err(error!("Mailbox error"))))
-            .map_err(|e| error!("{:?}", e))
-            .then(|_r| Ok(System::current().stop()))
-    )});
+    System::run(|| {
+        Arbiter::spawn(
+            PluginBuilder::from_registry()
+                .send(msg)
+                .then(|a| a.unwrap_or_else(|_| Err(error!("Mailbox error"))))
+                .map_err(|e| error!("{:?}", e))
+                .then(|_r| Ok(System::current().stop())),
+        )
+    });
 }

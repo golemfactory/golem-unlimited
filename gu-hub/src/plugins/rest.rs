@@ -27,7 +27,6 @@ use plugins::plugin::PluginInfo;
 use plugins::rest_result::InstallQueryResult;
 use plugins::rest_result::RestResponse;
 use plugins::rest_result::ToHttpResponse;
-use server::ClientError;
 use server::ServerClient;
 use std::fs::File;
 use std::io::Cursor;
@@ -61,22 +60,20 @@ pub fn read_file(path: &Path) -> Result<Vec<u8>, ()> {
 
 pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
     ServerClient::post("/plug", buf)
-        .and_then(|r: RestResponse<InstallQueryResult>| Ok(println!("{}", r.message.message())))
+        .and_then(|r: RestResponse<InstallQueryResult>| Ok(debug!("{}", r.message.message())))
         .map_err(|e| {
             error!("Error on server connection");
             debug!("Error details: {:?}", e)
-        })
-        .then(|_r| {
-            Ok(System::current().stop())
-        })
+        }).then(|_r| Ok(System::current().stop()))
 }
 
 pub fn install_query(path: PathBuf) {
     System::run(move || {
-        Arbiter::spawn(future::result(read_file(&path)).and_then(|buf| install_query_inner(buf))
-            .then(|_r| {
-                Ok(System::current().stop())
-            }))
+        Arbiter::spawn(
+            future::result(read_file(&path))
+                .and_then(|buf| install_query_inner(buf))
+                .then(|_r| Ok(System::current().stop())),
+        )
     });
 }
 
@@ -84,7 +81,7 @@ pub fn uninstall_query(plugin: String) {
     System::run(move || {
         Arbiter::spawn(
             ServerClient::delete(format!("/plug/{}", plugin))
-                .and_then(|r: ()| Ok(()))
+                .and_then(|_r: ()| Ok(()))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
@@ -95,7 +92,7 @@ pub fn status_query(plugin: String, status: QueriedStatus) {
     System::run(move || {
         Arbiter::spawn(
             ServerClient::patch(format!("/plug/{}/{}", plugin, status))
-                .and_then(|r: ()| Ok(()))
+                .and_then(|_r: ()| Ok(()))
                 .map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
@@ -114,7 +111,7 @@ pub fn dev_query(path: PathBuf) {
         Arbiter::spawn(
             ServerClient::empty_post(format!("/plug/dev{}", path))
                 .and_then(|r: RestResponse<InstallQueryResult>| {
-                    Ok(println!("{}", r.message.message()))
+                    Ok(debug!("{}", r.message.message()))
                 }).map_err(|e| error!("{}", e))
                 .then(|_r| Ok(System::current().stop())),
         )
@@ -130,9 +127,11 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             state_scope(QueriedStatus::Uninstall, r)
         }).route("/{pluginName}/activate", http::Method::PATCH, |r| {
             state_scope(QueriedStatus::Activate, r)
-        }).route("/{pluginName}/inactivate/inactivate", http::Method::PATCH, |r| {
-            state_scope(QueriedStatus::Inactivate, r)
-        }).route("/{pluginName}/{fileName:.*}", http::Method::GET, file_scope)
+        }).route(
+            "/{pluginName}/inactivate/inactivate",
+            http::Method::PATCH,
+            |r| state_scope(QueriedStatus::Inactivate, r),
+        ).route("/{pluginName}/{fileName:.*}", http::Method::GET, file_scope)
 }
 
 fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
@@ -150,6 +149,7 @@ enum ContentType {
     JavaScript,
     Html,
     Svg,
+    Wasm,
     NotSupported,
 }
 
@@ -159,6 +159,7 @@ impl<'a> From<&'a str> for ContentType {
             "js" => ContentType::JavaScript,
             "html" => ContentType::Html,
             "svg" => ContentType::Svg,
+            "wasm" => ContentType::Wasm,
             _ => ContentType::NotSupported,
         }
     }
@@ -170,6 +171,7 @@ impl ToString for ContentType {
             ContentType::JavaScript => "application/javascript".to_string(),
             ContentType::Html => "text/html".to_string(),
             ContentType::Svg => "image/svg+xml".to_string(),
+            ContentType::Wasm => "application/wasm".to_string(),
             ContentType::NotSupported => "Content type not supported".to_string(),
         }
     }
@@ -238,7 +240,7 @@ fn state_scope<S>(state: QueriedStatus, r: HttpRequest<S>) -> impl Responder {
 
     manager
         .send(ChangePluginState { plugin, state })
-        .and_then(move |res| {
+        .and_then(move |_res| {
             Ok(HttpResponse::Ok()
                 .content_type("application/json")
                 .body("null"))

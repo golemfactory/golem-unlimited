@@ -9,7 +9,7 @@ extern crate prettytable;
 
 extern crate gu_actix;
 extern crate gu_base;
-extern crate gu_p2p;
+extern crate gu_net;
 
 extern crate bytes;
 extern crate rand;
@@ -24,12 +24,14 @@ extern crate futures;
 extern crate tokio;
 extern crate tokio_codec;
 
+pub use continuous::{NewInstance, Subscription};
+pub use service::ServiceDescription;
+
 pub mod actor;
 mod codec;
-pub mod continuous;
-mod errors;
-pub mod rest_client;
-pub mod server;
-pub mod service;
+mod continuous;
+pub mod errors;
+pub mod module;
+mod service;
 
 pub const LAN_ENDPOINT: u32 = 576411;

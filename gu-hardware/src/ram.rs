@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use actix::Message;
 use error::Result;
 use sysinfo::SystemExt;

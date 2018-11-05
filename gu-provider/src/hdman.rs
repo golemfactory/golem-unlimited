@@ -4,12 +4,14 @@ use actix::fut;
 use actix::prelude::*;
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_p2p::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
-use gu_p2p::rpc::*;
+use gu_net::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
+use gu_net::rpc::*;
 use gu_persist::config::ConfigModule;
 use id::generate_new_id;
 use provision::{download, untgz};
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::iter::FromIterator;
 use std::path::PathBuf;
 use std::{fmt, fs, io, process, result, time};
 
@@ -62,6 +64,7 @@ impl HdMan {
         );
         fs::create_dir_all(&cache_dir)
             .and_then(|_| fs::create_dir_all(&sessions_dir))
+            .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
             .unwrap();
 
         start_actor(HdMan {
@@ -142,7 +145,7 @@ struct SessionInfo {
     status: PeerSessionStatus,
     /// used to determine proper status when last child is finished
     dirty: bool,
-    tags: Vec<String>,
+    tags: HashSet<String>,
     note: Option<String>,
     work_dir: PathBuf,
     processes: HashMap<String, process::Child>,
@@ -159,17 +162,16 @@ impl SessionInfo {
 
     fn destroy(&mut self) -> Result<(), Error> {
         debug!("killing all running child processes");
-        let mut _x = Vec::new();
-        _x = self
+        let _ = self
             .processes
             .values_mut()
             .map(|child| child.kill())
-            .collect();
-        _x = self
+            .collect::<Vec<_>>();
+        let _ = self
             .processes
             .values_mut()
-            .map(|child| child.wait().map(|_| ()))
-            .collect();
+            .map(|child| child.wait())
+            .collect::<Vec<_>>();
         debug!("cleaning session dir {:?}", self.work_dir);
         fs::remove_dir_all(&self.work_dir).map_err(From::from)
     }
@@ -222,7 +224,7 @@ impl Handler<CreateSession> for HdMan {
             name: msg.name,
             status: PeerSessionStatus::PENDING,
             dirty: false,
-            tags: msg.tags,
+            tags: HashSet::from_iter(msg.tags.into_iter()),
             note: msg.note,
             work_dir: work_dir.clone(),
             processes: HashMap::new(),
@@ -418,7 +420,9 @@ impl Handler<SessionUpdate> for HdMan {
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
                         match act.get_session_mut(&session_id) {
                             Ok(session) => {
-                                session.tags.append(&mut tags);
+                                tags.into_iter().for_each(|tag| {
+                                    session.tags.insert(tag);
+                                });
                                 v.push(format!(
                                     "tags inserted. Current tags are: {:?}",
                                     &session.tags
@@ -490,7 +494,7 @@ impl Handler<GetSessions> for HdMan {
                 id: id.clone(),
                 name: session.name.clone(),
                 status: session.status.clone(),
-                tags: session.tags.clone(),
+                tags: Vec::from_iter(session.tags.clone().into_iter()),
                 note: session.note.clone(),
                 processes: session.processes.keys().cloned().collect(),
             }).collect())
@@ -565,12 +569,12 @@ impl Handler<status::GetEnvStatus> for HdMan {
 
     fn handle(
         &mut self,
-        msg: status::GetEnvStatus,
-        ctx: &mut Self::Context,
+        _msg: status::GetEnvStatus,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<status::GetEnvStatus>>::Result {
         let mut num_proc = 0;
         for session in self.sessions.values() {
-            debug!("session statuc = {:?}", session.status);
+            debug!("session status = {:?}", session.status);
             num_proc += session.processes.len();
         }
         debug!("result = {}", num_proc);

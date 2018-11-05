@@ -1,6 +1,6 @@
 use actix::prelude::*;
 use actix_web;
-use actix_web::{App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Json, Responder};
+use actix_web::{App, AsyncResponder, HttpRequest, HttpResponse, Responder};
 use futures::{future, prelude::*};
 use gu_base::Module;
 use std::collections::BTreeMap;
@@ -83,7 +83,7 @@ impl Handler<AddProvider> for StatusManager {
     fn handle(
         &mut self,
         msg: AddProvider,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<AddProvider>>::Result {
         self.providers.insert(msg.0, msg.1);
     }
@@ -92,7 +92,7 @@ impl Handler<AddProvider> for StatusManager {
 impl Handler<ListEnvStatus> for StatusManager {
     type Result = ActorResponse<StatusManager, BTreeMap<String, EnvStatus>, String>;
 
-    fn handle(&mut self, msg: ListEnvStatus, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _msg: ListEnvStatus, _ctx: &mut Self::Context) -> Self::Result {
         ActorResponse::async(
             future::join_all(self.providers.clone().into_iter().map(
                 move |(env_name, env_addr)| {

@@ -16,34 +16,29 @@ extern crate serde_derive;
 extern crate error_chain;
 extern crate directories;
 
+extern crate daemonize;
 extern crate futures;
 extern crate gu_actix;
 extern crate gu_base;
+extern crate libc;
 extern crate tokio_fs;
 extern crate tokio_io;
 
 pub mod error {
     use actix::MailboxError;
-    use futures::future;
-    use futures::Async;
     use serde_json;
     use std::io;
-    use std::result as r;
 
     error_chain!(
+        foreign_links {
+            Json(serde_json::Error);
+            Io(io::Error);
+        }
 
-    //
-    foreign_links {
-        Json(serde_json::Error);
-        Io(io::Error);
-    }
-
-    errors {
-        MailboxError(e : MailboxError){}
-        ConcurrentChange{}
-    }
-
-
+        errors {
+            MailboxError(e : MailboxError){}
+            ConcurrentChange{}
+        }
     );
 
     impl From<MailboxError> for Error {
@@ -55,5 +50,9 @@ pub mod error {
 }
 
 pub mod config;
+#[cfg(unix)]
+mod daemon;
+#[cfg(unix)]
+pub mod daemon_module;
 pub mod file_storage;
 pub mod storage;

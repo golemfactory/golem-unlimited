@@ -86,7 +86,7 @@ impl Handler<RouteMessage<String>> for MessageRouter {
         debug!("handling dest: {:?}", msg.destination);
         if let Some(v) = self.destinations.get_mut(&msg.destination) {
             v.handle(msg, ctx);
-        } else if let Some(r) = EmitMessage::reply(&msg, TransportResult::NoDestination) {
+        } else if let Some(r) = EmitMessage::reply(&msg, TransportResult::NO_DESTINATION) {
             error!("no dest: {:?}", msg.destination);
             ctx.notify(r);
         } else {

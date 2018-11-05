@@ -7,7 +7,7 @@ members= [
 	'gu-provider',
 	'gu-hub',
 	'gu-ethkey',
-	'gu-p2p',
+	'gu-net',
 	'gu-persist',
 	'gu-lan',
 	'gu-hardware',
@@ -21,10 +21,6 @@ flate2 = { version = "1.0", features = ["rust_backend"], default-features = fals
 #[patch.'https://github.com/tworec/parity-ethereum']
 #ethkey = { path = '../parity-ethereum/ethkey'}
 #ethstore = { path = '../parity-ethereum/ethstore'}
-
-[patch.'https://github.com/paritytech/parity-common']
-parity-crypto = { git = 'https://github.com/tworec/parity-common', branch='ring-v-upgrade'}
-#parity-crypto = { path = '../parity-common/parity-crypto'}
 
 [profile.release]
 codegen-units = 1

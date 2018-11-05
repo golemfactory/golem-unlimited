@@ -4,14 +4,13 @@
 extern crate actix;
 extern crate futures;
 extern crate gu_actix;
-extern crate smallvec;
 
 #[macro_use]
 extern crate log;
 
 use actix::{ArbiterService, Message};
-use std::sync::Arc;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 /// Empty event
 pub struct Event<T> {

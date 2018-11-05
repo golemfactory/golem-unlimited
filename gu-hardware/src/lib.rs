@@ -7,7 +7,7 @@ extern crate serde_derive;
 
 extern crate gu_actix;
 extern crate gu_base;
-extern crate gu_p2p;
+extern crate gu_net;
 extern crate gu_persist;
 
 extern crate actix;
@@ -24,10 +24,8 @@ extern crate cl_sys;
 #[cfg(feature = "clinfo")]
 extern crate smallvec;
 
-use futures::future;
-use futures::prelude::*;
 use gu_base::Module;
-use gu_p2p::rpc::{start_actor, RemotingSystemService};
+use gu_net::rpc::RemotingSystemService;
 
 pub mod actor;
 mod cli;

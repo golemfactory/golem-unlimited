@@ -8,24 +8,29 @@ use futures::sync::oneshot;
 use service::{ServiceInstance, ServicesDescription};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::{
+    collections::HashMap,
+    net::{Ipv4Addr, SocketAddrV4},
+};
 
 use actix::AsyncContext;
 use codec::ParsedPacket;
-use continuous::ContinuousInstancesList;
-use continuous::NewInstance;
-use continuous::Subscribe;
-use continuous::{ForeignMdnsQueryInfo, ReceivedMdnsInstance};
+use continuous::{
+    ContinuousInstancesList, ForeignMdnsQueryInfo, NewInstance, ReceivedMdnsInstance, Subscribe,
+    Subscription,
+};
 use futures::sync::mpsc;
 use gu_actix::FlattenFuture;
-use service::ServiceDescription;
-use service::Services;
-use std::collections::HashSet;
-use std::net::SocketAddr::{self, V4};
-use std::time::Duration;
-use tokio::net::{UdpFramed, UdpSocket};
-use tokio::reactor::Handle;
+use service::{ServiceDescription, Services};
+use std::{
+    collections::HashSet,
+    net::SocketAddr::{self, V4},
+    time::Duration,
+};
+use tokio::{
+    net::{UdpFramed, UdpSocket},
+    reactor::Handle,
+};
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]
@@ -44,7 +49,7 @@ pub trait MdnsConnection: 'static + Default + Sized {
 }
 
 pub type OneShotResponse<T> = ActorResponse<MdnsActor<T>, HashSet<ServiceInstance>, Error>;
-pub type ContinuousResponse<T> = ActorResponse<MdnsActor<T>, (), Error>;
+pub type ContinuousResponse<T> = ActorResponse<MdnsActor<T>, Subscription, Error>;
 
 #[derive(Debug, Default)]
 pub struct OneShot {
@@ -246,14 +251,19 @@ impl<T: MdnsConnection> Actor for MdnsActor<T> {
         let socket = Self::create_mdns_socket().expect("Creation of mDNS socket failed");
         let (sink, stream) = UdpFramed::new(socket, MdnsCodec(T::unicast_query())).split();
 
-        ctx.add_message_stream(stream.map(|(packet, socket)| PacketPair { packet, socket }).map_err(|_| ()));
+        ctx.add_message_stream(
+            stream
+                .map(|(packet, socket)| PacketPair { packet, socket })
+                .map_err(|_| ()),
+        );
 
         let (tx, rx) = mpsc::channel(16);
         ctx.spawn(
-            rx.map_err(|_| ErrorKind::UninitializedChannelReceiver).forward(sink)
+            rx.map_err(|_| ErrorKind::UninitializedChannelReceiver)
+                .forward(sink)
                 .map_err(|e| error!("{:?}", e))
                 .and_then(|_| Ok(()))
-                .into_actor(self)
+                .into_actor(self),
         );
 
         self.sender = Some(tx);
@@ -275,6 +285,7 @@ impl Handler<ServicesDescription> for MdnsActor<OneShot> {
         let id = self.data.next_id;
         self.data.next_id = id.wrapping_add(1);
 
+        self.data.map.insert(id, Services::from(&msg));
         let future = send_mdns_query(self.sender.clone(), msg, id);
 
         self.build_response(future, ctx, id)
@@ -287,11 +298,7 @@ pub struct SubscribeInstance {
 }
 
 impl Message for SubscribeInstance {
-    type Result = Result<()>;
-}
-
-pub struct UnsubscribeInstance {
-    pub service: ServiceInstance,
+    type Result = Result<Subscription>;
 }
 
 impl Handler<SubscribeInstance> for MdnsActor<Continuous> {

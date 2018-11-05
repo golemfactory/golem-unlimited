@@ -1,4 +1,3 @@
-use actix_web::dev::HttpResponseBuilder;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
 use serde::de::DeserializeOwned;
@@ -15,8 +14,6 @@ pub struct RestResponse<T> {
 
 pub trait ToHttpResponse: Serialize + DeserializeOwned + Debug {
     fn to_http_response(&self) -> HttpResponse {
-        use serde::Serialize;
-
         let code = self.status_code();
 
         let response = RestResponse {

@@ -1,25 +1,15 @@
-use actix::prelude::*;
-use actix::Actor;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::Recipient;
+use actix::{prelude::*, Actor, Context, Handler, Message, Recipient};
 use actor::send_mdns_query;
-use futures::sync::mpsc;
-use rand::thread_rng;
-use rand::Rng;
-use rand::ThreadRng;
-use service::ServiceDescription;
-use service::ServiceInstance;
-use service::ServicesDescription;
-use std::cmp::Ordering;
-use std::collections::BinaryHeap;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::net::SocketAddr;
-use std::time::Duration;
-use std::time::Instant;
-use futures::Future;
+use errors::ErrorKind;
+use futures::{sync::mpsc, Future};
+use rand::{thread_rng, Rng, ThreadRng};
+use service::{ServiceDescription, ServiceInstance, ServicesDescription};
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap, HashSet},
+    net::SocketAddr,
+    time::{Duration, Instant},
+};
 
 static SKIP_INTERVAL_PERCENTAGE: u64 = 80;
 static INTERVAL_MULTIPLIER: u32 = 3;
@@ -59,7 +49,6 @@ impl ExponentialNotify {
 
             self.interval = Duration::from_millis(self.rng.clone().unwrap().gen_range(20, 120));
 
-
             return (None, self.interval);
         }
 
@@ -69,8 +58,7 @@ impl ExponentialNotify {
         let interval_ms = self.interval.subsec_millis() as u64 + 1000 * self.interval.as_secs();
         let diff_ms = diff.subsec_millis() as u64 + 1000 * diff.as_secs();
 
-        let percent =
-            100 * diff_ms / interval_ms;
+        let percent = 100 * diff_ms / interval_ms;
 
         // increase interval
         self.interval = self
@@ -81,13 +69,10 @@ impl ExponentialNotify {
             .div(self.rng.clone().unwrap().gen_range(900, 1100));
 
         if percent > SKIP_INTERVAL_PERCENTAGE {
-            //println!("Less: {:?}", self.interval);
-
             self.last_query = now;
 
             (Some(()), self.interval)
         } else {
-            //println!("Greater: {:?}", self.interval);
             (None, self.interval - diff)
         }
     }
@@ -161,9 +146,10 @@ impl MemoryManager {
     }
 
     fn conditionally_destroy_instance(&mut self, time: Instant) -> bool {
-        use std::collections::binary_heap::PeekMut;
-        use std::collections::hash_map::Entry;
-        use std::ops::Add;
+        use std::{
+            collections::{binary_heap::PeekMut, hash_map::Entry},
+            ops::Add,
+        };
 
         match self.queue.peek_mut() {
             Some(top) => {
@@ -238,6 +224,15 @@ impl ContinuousInstancesList {
     fn service(&self) -> ServicesDescription {
         ServicesDescription::new(vec![self.name.clone()])
     }
+
+    fn new_instance_info(&mut self, rec: &Recipient<NewInstance>, inst: ServiceInstance) {
+        let _ = rec
+            .do_send(NewInstance { data: inst })
+            .map_err(|_| {
+                self.subscribers.remove(rec);
+                ErrorKind::DoSendError.into()
+            }).map_err(|e: ErrorKind| warn!("Cannot send message to subscriber - {:?}", e));
+    }
 }
 
 impl Actor for ContinuousInstancesList {
@@ -255,17 +250,15 @@ impl Actor for ContinuousInstancesList {
             let vec = act.service();
             let time = act.notifier.query_time();
 
-
             match time.0 {
-                 Some(_) => {
+                Some(_) => {
                     ctx.spawn(
                         send_mdns_query(Some(act.sender.clone()), vec.clone(), 0)
                             .map_err(|e| error!("mDNS query error: {:?}", e))
-                            .into_actor(act)
+                            .into_actor(act),
                     );
                 }
                 _ => (),
-
             };
 
             ctx.run_later(time.1, query_loop);
@@ -302,7 +295,7 @@ impl Handler<ReceivedMdnsInstance> for ContinuousInstancesList {
         let msg = msg.0;
         if let Some(inst) = self.memory.update(msg) {
             for s in self.subscribers.clone() {
-                let _ = s.do_send(NewInstance { data: inst.clone() }).map_err(|e| error!("error: {:?}", e));
+                self.new_instance_info(&s, inst.clone());
             }
         }
     }
@@ -312,23 +305,33 @@ pub struct Subscribe {
     pub rec: Recipient<NewInstance>,
 }
 
+pub struct Subscription {
+    list: Recipient<Unsubscribe>,
+    subscriber: Recipient<NewInstance>,
+}
+
 impl Message for Subscribe {
-    type Result = ();
+    type Result = Subscription;
 }
 
 impl Handler<Subscribe> for ContinuousInstancesList {
-    type Result = ();
+    type Result = MessageResult<Subscribe>;
 
-    fn handle(&mut self, msg: Subscribe, _ctx: &mut Context<Self>) -> () {
+    fn handle(&mut self, msg: Subscribe, ctx: &mut Context<Self>) -> MessageResult<Subscribe> {
         self.subscribers.insert(msg.rec.clone());
         for inst in self.memory.memory() {
-            let _ = msg.rec.do_send(NewInstance { data: inst.clone() }).map_err(|e| error!("error: {:?}", e));
+            self.new_instance_info(&msg.rec, inst.clone());
         }
+
+        MessageResult(Subscription {
+            list: ctx.address().recipient(),
+            subscriber: msg.rec,
+        })
     }
 }
 
-pub struct Unsubscribe {
-    rec: Recipient<NewInstance>,
+struct Unsubscribe {
+    pub rec: Recipient<NewInstance>,
 }
 
 impl Message for Unsubscribe {
@@ -347,8 +350,10 @@ impl Handler<Unsubscribe> for ContinuousInstancesList {
     }
 }
 
-impl Drop for ContinuousInstancesList {
+impl Drop for Subscription {
     fn drop(&mut self) {
-        unimplemented!()
+        let _ = self.list.do_send(Unsubscribe {
+            rec: self.subscriber.clone(),
+        });
     }
 }

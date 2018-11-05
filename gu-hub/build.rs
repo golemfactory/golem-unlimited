@@ -1,5 +1,3 @@
-extern crate flate2;
-
 use std::io::prelude::*;
 use std::{env, fs, path};
 

@@ -1,3 +1,30 @@
+//! Ethereum keys management supporting keystores in formats used by [geth], [parity] and [pyethereum].
+//!
+//! ## Features
+//!   * keys generation
+//!   * keys serialization/deserialization
+//!   * keystore password change
+//!   * signing/verification
+//!   * encryption/decryption
+//!
+//! [geth]: https://github.com/ethereum/go-ethereum
+//! [parity]: https://github.com/paritytech/parity-ethereum
+//! [pyethereum]: https://github.com/ethereum/pyethereum
+//!
+//! ## Example
+//!
+//! ```
+//! extern crate gu_ethkey;
+//! use gu_ethkey::prelude::*;
+//!
+//! fn main() {
+//!     let key = SafeEthKey::load_or_generate("/tmp/path/to/keystore", &"passwd".into())
+//!         .expect("should load or generate new eth key");
+//!
+//!     println!("{:?}", key.address())
+//! }
+//! ```
+//!
 #[macro_use]
 extern crate error_chain;
 extern crate ethkey;
@@ -5,11 +32,16 @@ extern crate ethstore;
 #[macro_use]
 extern crate log;
 extern crate parity_crypto;
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
+extern crate rand;
 extern crate rustc_hex;
 
 use ethkey::crypto::ecies::{decrypt, encrypt};
-use ethkey::{sign, verify_public, Generator, KeyPair, Password, Random};
-pub use ethkey::{Address, Message, Public, Signature};
+use ethkey::{
+    sign, verify_public, Address, Generator, KeyPair, Message, Password, Public, Random, Signature,
+};
 use ethstore::accounts_dir::{DiskKeyFileManager, KeyFileManager, RootDiskDirectory};
 use ethstore::SafeAccount;
 use rustc_hex::ToHex;
@@ -18,6 +50,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// HMAC fn iteration count; compromise between security and performance
 pub const KEY_ITERATIONS: u32 = 10240;
 
 /// An Ethereum `KeyPair` wrapper with Store.
@@ -26,7 +59,10 @@ pub struct SafeEthKey {
     file_path: PathBuf,
 }
 
-/// Provides basic EC operations on curve Secp256k1.
+/// Provides basic [EC] operations on curve [Secp256k1].
+///
+/// [EC]: https://blog.cloudflare.com/a-relatively-easy-to-understand-primer-on-elliptic-curve-cryptography/
+/// [Secp256k1]: https://en.bitcoin.it/wiki/Secp256k1
 pub trait EthKey {
     /// get public key
     fn public(&self) -> &Public;
@@ -51,8 +87,8 @@ pub trait EthKey {
 pub trait EthKeyStore {
     /// reads keys from disk or generates new ones and stores to disk; pass needed
     fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>>
-    where
-        P: Into<PathBuf>;
+        where
+            P: Into<PathBuf>;
     /// stores keys on disk with changed password
     fn change_password(&self, new_pwd: &Password) -> Result<()>;
 }
@@ -86,7 +122,7 @@ impl EthKey for SafeEthKey {
 fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
     SafeAccount::create(
         key_pair,
-        [0u8; 16], // TODO: use uuid4 or random
+        rand::random(),
         pwd,
         KEY_ITERATIONS,
         "".to_owned(),
@@ -95,8 +131,8 @@ fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
 }
 
 fn save_key_pair<P>(key_pair: &KeyPair, pwd: &Password, file_path: &P) -> Result<()>
-where
-    P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
 {
     let file_path = file_path.as_ref();
     let dir_path = file_path.parent().ok_or(ErrorKind::InvalidPath)?;
@@ -115,8 +151,8 @@ where
 
 impl EthKeyStore for SafeEthKey {
     fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>>
-    where
-        P: Into<PathBuf>,
+        where
+            P: Into<PathBuf>,
     {
         let file_path = file_path.into();
         match fs::File::open(&file_path).map_err(Error::from) {
@@ -200,19 +236,39 @@ impl From<ethstore::Error> for Error {
     }
 }
 
+pub mod prelude {
+    //! A "prelude" for users of the `gu-ethkey` crate.
+    //!
+    //! ```
+    //! use gu_ethkey::prelude::*;
+    //! ```
+    //!
+    //! The prelude may grow over time.
+
+    pub use super::{
+        SafeEthKey,
+        EthKey,
+        EthKeyStore,
+    };
+}
+
 #[cfg(test)]
 mod tests {
     extern crate env_logger;
     extern crate log;
+    extern crate rand;
+    extern crate serde_json;
     extern crate tempfile;
+
+
     use self::tempfile::tempdir;
-    use super::{EthKey, EthKeyStore, Message, SafeEthKey};
+    use super::prelude::*;
     use std::env;
     use std::fs;
     use std::io::prelude::*;
     use std::path::PathBuf;
 
-    fn temp_keystore_path() -> PathBuf {
+    fn tmp_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();
         dir.push("keystore.json");
         dir
@@ -232,19 +288,45 @@ mod tests {
 
     #[test]
     fn test_generate() {
-        // given
-        let path = temp_keystore_path();
-        let pwd = "zimko".into();
         // when
-        let key = SafeEthKey::load_or_generate(path, &pwd);
+        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into());
+
         // then
         assert!(key.is_ok());
     }
 
     #[test]
+    fn test_serialize_with_proper_id_and_address() {
+        use std::fs;
+        // given
+        let path = tmp_path();
+
+        // when
+        let key = SafeEthKey::load_or_generate(&path, &"pwd".into());
+
+        // then
+        assert!(key.is_ok());
+
+        let file = fs::File::open(path).unwrap();
+        let json : serde_json::Value = serde_json::from_reader(file).unwrap();
+        // println!("{:#}", json);
+        let id = json.get("id").unwrap();
+        assert!(id.is_string());
+        assert_eq!(id.as_str().unwrap().len(), 36);
+        assert_ne!(
+            format!("{}", id.as_str().unwrap()),
+            "00000000-0000-0000-0000-000000000000"
+        );
+        assert_eq!(
+            format!("{:?}", key.unwrap().address()),
+            format!("0x{}", json.get("address").unwrap().as_str().unwrap())
+        );
+    }
+
+    #[test]
     fn test_read_keystore_generated_by_pyethereum() {
         // given
-        let path = temp_keystore_path();
+        let path = tmp_path();
         let mut file = fs::File::create(&path).unwrap();
         let _ = file.write_all(b" \
         { \
@@ -267,8 +349,10 @@ mod tests {
              \"version\": 3\
         }");
         let pwd = "hekloo".into();
+
         // when
         let key = SafeEthKey::load_or_generate(path, &pwd);
+
         // then
         assert!(key.is_ok());
     }
@@ -276,8 +360,9 @@ mod tests {
     #[test]
     fn test_generate_change_pass_and_reload_with_old_pass_should_fail() {
         // given
-        let path = temp_keystore_path();
+        let path = tmp_path();
         let pwd = "zimko".into();
+
         // when
         let key = SafeEthKey::load_or_generate(&path, &pwd);
         assert!(key.is_ok());
@@ -291,12 +376,12 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_change_pass_and_reload_with_now_pass_should_pass() {
+    fn test_generate_change_pass_and_reload_with_new_pass_should_pass() {
         // given
-        let path = temp_keystore_path();
-        let pwd = "zimko".into();
+        let path = tmp_path();
+
         // when
-        let key = SafeEthKey::load_or_generate(&path, &pwd);
+        let key = SafeEthKey::load_or_generate(&path, &"pwd".into());
         assert!(key.is_ok());
 
         // change pass
@@ -310,15 +395,10 @@ mod tests {
     #[test]
     fn test_sign_verify() {
         // given
-        let path = temp_keystore_path();
-        let pwd = "zimko".into();
-        let mut v = [0u8; 32];
-        v[0] = 39u8;
-        v[1] = 50u8;
-        let msg: Message = Message::from(v);
+        let msg: super::Message = rand::random::<[u8; 32]>().into();
 
         // when
-        let key = SafeEthKey::load_or_generate(&path, &pwd).unwrap();
+        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into()).unwrap();
         let sig = key.sign(&msg);
 
         // then
@@ -329,22 +409,17 @@ mod tests {
     #[test]
     fn test_encrypt_decrypt() {
         // given
-        let path = temp_keystore_path();
-        let pwd = "zimko".into();
-        let mut v = [0u8; 32];
-        v[0] = 39u8;
-        v[1] = 50u8;
+        let plain : [u8; 32] = rand::random();
 
         // when
-        let key = SafeEthKey::load_or_generate(&path, &pwd).unwrap();
-        let encv = key.encrypt(&v);
+        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into()).unwrap();
+        let encv = key.encrypt(&plain);
 
         // then
         assert!(encv.is_ok());
         assert!(eq(
             key.decrypt(&encv.unwrap().as_slice()).unwrap().as_slice(),
-            &v
+            &plain,
         ));
     }
-
 }

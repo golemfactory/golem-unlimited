@@ -2,7 +2,6 @@ use actix_web;
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use plugins;
 use plugins::builder::BuildPluginQuery;
-use plugins::builder::PluginBuilder;
 use plugins::manager::QueriedStatus;
 use plugins::rest::scope;
 use std::path::PathBuf;
@@ -49,23 +48,29 @@ impl Module for PluginModule {
             .required(true)
             .index(1);
 
-        app.subcommand(SubCommand::with_name("plugin").subcommands(vec![
-                SubCommand::with_name("install")
-                    .about("Installs the plugin from the package").arg(path),
-                SubCommand::with_name("dev")
-                    .about("Installs the plugin in a dev mode").arg(dir),
-                SubCommand::with_name("list").about("Lists currently installed plugins"),
-                SubCommand::with_name("start")
-                    .about("Starts serving files by the plugin")
-                    .arg(Arg::from(&plugin)),
-                SubCommand::with_name("stop")
-                    .about("Stops serving files by the plugin")
-                    .arg(Arg::from(&plugin)),
-                SubCommand::with_name("uninstall")
-                    .about("Uninstalls the plugin")
-                    .arg(Arg::from(&plugin)),
-                plugins::builder::subcommand()
-            ]))
+        app.subcommand(
+            SubCommand::with_name("plugin")
+                .about("UI plugins tools")
+                .subcommands(vec![
+                    SubCommand::with_name("install")
+                        .about("Installs the plugin from the package")
+                        .arg(path),
+                    SubCommand::with_name("dev")
+                        .about("Installs the plugin in a dev mode")
+                        .arg(dir),
+                    SubCommand::with_name("list").about("Lists currently installed plugins"),
+                    SubCommand::with_name("start")
+                        .about("Starts serving files by the plugin")
+                        .arg(Arg::from(&plugin)),
+                    SubCommand::with_name("stop")
+                        .about("Stops serving files by the plugin")
+                        .arg(Arg::from(&plugin)),
+                    SubCommand::with_name("uninstall")
+                        .about("Uninstalls the plugin")
+                        .arg(Arg::from(&plugin)),
+                    plugins::builder::subcommand(),
+                ]),
+        )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {

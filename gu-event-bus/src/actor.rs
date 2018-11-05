@@ -188,8 +188,12 @@ impl<T: 'static + Send + Sync> Handler<Event<T>> for EventHubWorker<T> {
         msg: Event<T>,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<Event<T>>>::Result {
-
-        debug!("processing event worker_id={}, keys={:?}, path={}", self.worker_id.unwrap(), self.subscribers.keys(), msg.path());
+        debug!(
+            "processing event worker_id={}, keys={:?}, path={}",
+            self.worker_id.unwrap(),
+            self.subscribers.keys(),
+            msg.path()
+        );
 
         let path: EventPath = msg.path().into();
 

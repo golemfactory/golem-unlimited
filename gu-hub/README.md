@@ -1,30 +1,48 @@
 
 # gu-hub
 
+Golem Unlimited management node.
+
 ## Command line options
 
-Start server 
+Run server
 ```
-$ gu-hub server
+$ gu-hub server run
 ```
 
-List lan peers
+Start server as daemon
+```
+$ gu-hub server start
+```
+
+Check server status
+```
+$ gu-hub server status
+```
+
+Stop server daemon
+```
+$ gu-hub server stop
+```
+
+List connected peers
+
+```
+$ gu-hub peer list
+```
+
+List available peers
 
 ```
 $ gu-hub lan list
 ```
 
-Check status
-
-```
-$ gu-hub status
-```
 
 ## HTTP Paths
 
- * ```/gu-p2p``` - p2p base path
- * ```/gu-p2p/ws``` - main websocket
- * ```/gu-p2p/c/{resource-id}``` - path for static resources transmision.
+ * ```/gu-net``` - net base path
+ * ```/gu-net/ws``` - main websocket
+ * ```/gu-net/c/{resource-id}``` - path for static resources transmision.
  
  
  Reservations:
