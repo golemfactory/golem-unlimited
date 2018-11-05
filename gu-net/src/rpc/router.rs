@@ -14,7 +14,7 @@ pub struct MessageRouter {
 
 impl Drop for MessageRouter {
     fn drop(&mut self) {
-        println!("router stopped");
+        info!("router stopped");
     }
 }
 

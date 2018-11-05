@@ -223,10 +223,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     );
                     act.publish_service(config.publish_service);
 
-                    let connect = ConnectManager::init(act.node_id.unwrap(), Vec::new()).start();
-                    for i in config.hub_addrs {
-                        connect.do_send(Connect(i));
-                    }
+                    let connect =
+                        ConnectManager::init(act.node_id.unwrap(), config.hub_addrs).start();
                     connect.do_send(AutoMdns(config.connect_mode == ConnectMode::Auto));
                     act.connections = Some(connect);
 
@@ -282,11 +280,11 @@ impl Handler<ConnectModeMessage> for ProviderServer {
 impl Handler<ListSockets> for ProviderServer {
     type Result = ActorResponse<Self, Vec<SocketAddr>, String>;
 
-    fn handle(&mut self, _msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {
             ActorResponse::async(
                 connections
-                    .send(ListSockets)
+                    .send(msg)
                     .map_err(|e| e.to_string())
                     .and_then(|r| r)
                     .into_actor(self),
