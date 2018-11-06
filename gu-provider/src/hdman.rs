@@ -14,7 +14,8 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::iter::FromIterator;
 use std::path::PathBuf;
-use std::{fmt, fs, io, process, result, time};
+use std::{fs, process, result, time};
+use super::envman;
 
 /// Host direct manager
 pub struct HdMan {
@@ -23,14 +24,13 @@ pub struct HdMan {
     sessions_dir: PathBuf,
 }
 
+impl envman::EnvManService for HdMan {}
+
 impl Actor for HdMan {
     type Context = RemotingContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.bind::<CreateSession>(CreateSession::ID);
-        ctx.bind::<SessionUpdate>(SessionUpdate::ID);
-        ctx.bind::<GetSessions>(GetSessions::ID);
-        ctx.bind::<DestroySession>(DestroySession::ID);
+        envman::register("hd", ctx.address());
 
         status::StatusManager::from_registry().do_send(status::AddProvider::new(
             "hostDirect",

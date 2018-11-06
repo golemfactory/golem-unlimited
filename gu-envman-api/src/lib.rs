@@ -16,11 +16,18 @@ pub enum Error {
     IoError(String),
     NoSuchSession(String),
     NoSuchChild(String),
+    UnknownEnv(String),
 }
 
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self {
         Error::IoError(e.to_string())
+    }
+}
+
+impl From<actix::MailboxError> for Error {
+    fn from(e: MailboxError) -> Self {
+        Error::Error(format!("{}", e))
     }
 }
 
@@ -31,6 +38,7 @@ impl fmt::Display for Error {
             Error::IoError(msg) => write!(f, "IO error: {}", msg)?,
             Error::NoSuchSession(msg) => write!(f, "session not found: {}", msg)?,
             Error::NoSuchChild(msg) => write!(f, "child not found: {}", msg)?,
+            Error::UnknownEnv(env_id) => write!(f, "unknown exec enviroment: {}", env_id)?,
         }
         Ok(())
     }
