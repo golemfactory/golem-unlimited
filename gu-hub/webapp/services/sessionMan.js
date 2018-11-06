@@ -114,6 +114,7 @@ angular.module('gu').service('sessionMan', function ($http, $log, $q, hubApi, hd
                 peer.os = ok.os || peer.os;
                 osMap[peer.nodeId] = ok.os || peer.os || 'unk';
                 peer.hostname = ok.hostname;
+                peer.num_cores = ok.num_cores;
             }
         })
         ;
