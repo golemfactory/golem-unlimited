@@ -213,7 +213,7 @@ impl Handler<CreateSession> for HdMan {
         ActorResponse::async(
             download(msg.image.url.as_ref(), cache_path.clone())
                 .map_err(From::from)
-                .and_then(move |_| untgz(&cache_path, &work_dir))
+                .and_then(move |_| untgz(cache_path, work_dir))
                 .map_err(From::from)
                 .into_actor(self)
                 .and_then(|_, act, _ctx| match act.get_session_mut(&sess_id) {
