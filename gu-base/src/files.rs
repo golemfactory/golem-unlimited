@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use flate2::read::GzDecoder;
 use futures::future;
 use futures::prelude::*;
 use futures::Async;
@@ -6,12 +7,11 @@ use futures_cpupool::CpuFuture;
 use futures_cpupool::CpuPool;
 use sha1::Sha1;
 use std::cmp;
+use std::fs;
 use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::path::Path;
 use tar::Archive;
-use flate2::read::GzDecoder;
-use std::fs;
 
 lazy_static! {
     static ref FILE_HANDLER: FilePoolHandler = FilePoolHandler::default();
@@ -48,11 +48,14 @@ impl FilePoolHandler {
         }).flatten_stream()
     }
 
-    pub fn untar_archive<P: AsRef<Path> + ToOwned>(&self, mut archive: Archive<GzDecoder<File>>, output_path: P) -> impl Future<Item = (), Error = String> {
+    pub fn untar_archive<P: AsRef<Path> + ToOwned>(
+        &self,
+        mut archive: Archive<GzDecoder<File>>,
+        output_path: P,
+    ) -> impl Future<Item = (), Error = String> {
         let out = output_path.as_ref().to_owned();
-        self.pool.spawn_fn(move || {
-            archive.unpack(out).map_err(|e| e.to_string())
-        })
+        self.pool
+            .spawn_fn(move || archive.unpack(out).map_err(|e| e.to_string()))
     }
 }
 
@@ -250,8 +253,15 @@ impl Stream for ChunkedReadFile {
     }
 }
 
-pub fn untgz_async<P: AsRef<Path> + ToOwned>(input_path: P, output_path: P) -> impl Future<Item = (), Error = String> {
-    let d = GzDecoder::new(fs::File::open(input_path).map_err(|e| e.to_string()).unwrap());
+pub fn untgz_async<P: AsRef<Path> + ToOwned>(
+    input_path: P,
+    output_path: P,
+) -> impl Future<Item = (), Error = String> {
+    let d = GzDecoder::new(
+        fs::File::open(input_path)
+            .map_err(|e| e.to_string())
+            .unwrap(),
+    );
     let archive = Archive::new(d);
 
     FILE_HANDLER.untar_archive(archive, output_path)

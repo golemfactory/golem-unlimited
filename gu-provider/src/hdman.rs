@@ -1,3 +1,4 @@
+use super::envman;
 use super::status;
 use super::sync_exec::{Exec, ExecResult, SyncExecManager};
 use actix::fut;
@@ -15,7 +16,6 @@ use std::collections::HashSet;
 use std::iter::FromIterator;
 use std::path::PathBuf;
 use std::{fs, process, result, time};
-use super::envman;
 
 /// Host direct manager
 pub struct HdMan {

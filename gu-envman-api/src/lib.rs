@@ -3,6 +3,8 @@ extern crate actix;
 extern crate serde_derive;
 extern crate gu_net;
 extern crate serde;
+#[cfg(test)]
+extern crate serde_json;
 
 use actix::prelude::*;
 use gu_net::rpc::peer::PeerSessionInfo;
@@ -99,11 +101,13 @@ pub enum Command {
         args: Vec<String>,
         // TODO: consider adding tags here
     },
+    #[serde(rename_all = "camelCase")]
     Stop {
         child_id: String,
     },
     AddTags(Vec<String>),
     DelTags(Vec<String>),
+    #[serde(rename_all = "camelCase")]
     DumpFile {
         // TODO: implement file up- and download
         data: Vec<u8>,
@@ -142,4 +146,37 @@ impl DestroySession {
 
 impl Message for DestroySession {
     type Result = Result<String, Error>;
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_update_1() {
+        let json = r#"
+        {
+            "sessionId":"hd::08087f8f-a0f3-41d4-a192-3388f46aa678",
+            "commands":[
+                {"exec":{"executable":"gu-mine","args":["spec"]}}
+            ]
+        }
+        "#;
+
+        let u: SessionUpdate = serde_json::from_str(json).unwrap();
+
+        assert_eq!(u.session_id, "hd::08087f8f-a0f3-41d4-a192-3388f46aa678");
+
+        let json = r#"
+        {
+            "sessionId":"hd::4c562af4-db3f-4e57-8fac-cf30249db682",
+            "commands":[{"stop":{"childId":"145ccba6-ce24-4809-8856-7eae40092fdd"}},{"delTags":["gu:mine:working"]}]
+        }"#;
+
+        let u: SessionUpdate = serde_json::from_str(json).unwrap();
+        assert_eq!(u.session_id, "hd::4c562af4-db3f-4e57-8fac-cf30249db682");
+    }
+
 }

@@ -2,12 +2,12 @@ extern crate actix;
 extern crate actix_web;
 extern crate bytes;
 extern crate clap;
+extern crate flate2;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate prettytable;
 extern crate sha1;
 extern crate tar;
-extern crate flate2;
 
 #[macro_use]
 extern crate lazy_static;
