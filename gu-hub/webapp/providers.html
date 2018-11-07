@@ -19,6 +19,7 @@
                     <th>Node Name</th>
                     <th>RAM</th>
                     <th>GPU</th>
+                    <th>Number of cores</th>
                     <th>Sessions</th>
                     <th>Connection</th>
                 </tr>
@@ -29,6 +30,7 @@
                         <td gu-peer-name></td>
                         <td gu-peer-ram></td>
                         <td gu-peer-gpu></td>
+                        <td gu-peer-num_cores>{{peer.num_cores}}</td>
                         <td>{{(peer.sessions.length || 0)}}</td>
                         <td>{{peer.peerAddr}}</td>
                     </tr>
