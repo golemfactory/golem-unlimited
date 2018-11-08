@@ -1,11 +1,10 @@
-use super::error;
-use super::message::*;
-use super::util::*;
-use actix::fut;
-use actix::prelude::*;
+use super::{error, message::*, util::*};
+use actix::{fut, prelude::*};
 use futures::prelude::*;
-use std::collections::HashMap;
-use std::io::{self, Write};
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+};
 
 pub struct MessageRouter {
     destinations: HashMap<DestinationId, Box<LocalEndpoint + 'static>>,
@@ -15,7 +14,7 @@ pub struct MessageRouter {
 
 impl Drop for MessageRouter {
     fn drop(&mut self) {
-        println!("router stopped");
+        info!("router stopped");
     }
 }
 

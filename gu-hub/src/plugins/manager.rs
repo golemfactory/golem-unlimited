@@ -1,35 +1,24 @@
 #![allow(dead_code)]
 
-use actix::Actor;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::MessageResult;
-use actix::Supervised;
-use actix::SystemService;
+use actix::{Actor, Context, Handler, Message, MessageResult, Supervised, SystemService};
 use bytes::Bytes;
 use gu_event_bus::post_event;
 use gu_persist::config::ConfigModule;
-use plugins::parser::BytesPluginParser;
-use plugins::parser::PluginParser;
-use plugins::parser::ZipParser;
-use plugins::plugin::DirectoryHandler;
-use plugins::plugin::Plugin;
-use plugins::plugin::PluginEvent;
-use plugins::plugin::PluginHandler;
-use plugins::plugin::PluginInfo;
-use plugins::plugin::PluginStatus;
-use plugins::plugin::ZipHandler;
-use plugins::rest_result::InstallQueryResult;
+use plugins::{
+    parser::{BytesPluginParser, PluginParser, ZipParser},
+    plugin::{
+        DirectoryHandler, Plugin, PluginEvent, PluginHandler, PluginInfo, PluginStatus, ZipHandler,
+    },
+    rest_result::InstallQueryResult,
+};
 use semver::Version;
-use std::collections::HashMap;
-use std::fmt;
-use std::fs;
-use std::fs::remove_file;
-use std::fs::DirBuilder;
-use std::io::BufReader;
-use std::io::Cursor;
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    fmt,
+    fs::{self, remove_file, DirBuilder},
+    io::{BufReader, Cursor},
+    path::PathBuf,
+};
 
 #[derive(Debug)]
 pub struct PluginManager {

@@ -1,37 +1,27 @@
-use actix::Arbiter;
-use actix::System;
-use actix::SystemService;
-use actix_web::error::ErrorBadRequest;
-use actix_web::error::ErrorInternalServerError;
-use actix_web::http;
-use actix_web::AsyncResponder;
-use actix_web::HttpMessage;
-use actix_web::HttpRequest;
-use actix_web::HttpResponse;
-use actix_web::Responder;
-use actix_web::Scope;
-use bytes::buf::IntoBuf;
-use bytes::Bytes;
-use futures::future;
-use futures::future::Future;
-use futures::stream::Stream;
-use plugins::manager::ChangePluginState;
-use plugins::manager::InstallDevPlugin;
-use plugins::manager::InstallPlugin;
-use plugins::manager::ListPlugins;
-use plugins::manager::PluginFile;
-use plugins::manager::PluginManager;
-use plugins::manager::QueriedStatus;
-use plugins::plugin::format_plugins_table;
-use plugins::plugin::PluginInfo;
-use plugins::rest_result::InstallQueryResult;
-use plugins::rest_result::RestResponse;
-use plugins::rest_result::ToHttpResponse;
-use server::ServerClient;
-use std::fs::File;
-use std::io::Cursor;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use actix::{Arbiter, System, SystemService};
+use actix_web::{
+    error::{ErrorBadRequest, ErrorInternalServerError},
+    http, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Responder, Scope,
+};
+use bytes::{buf::IntoBuf, Bytes};
+use futures::{
+    future::{self, Future},
+    stream::Stream,
+};
+use plugins::{
+    manager::{
+        ChangePluginState, InstallDevPlugin, InstallPlugin, ListPlugins, PluginFile, PluginManager,
+        QueriedStatus,
+    },
+    plugin::{format_plugins_table, PluginInfo},
+    rest_result::{InstallQueryResult, RestResponse, ToHttpResponse},
+};
+use server::HubClient as ServerClient;
+use std::{
+    fs::File,
+    io::{Cursor, Read},
+    path::{Path, PathBuf},
+};
 
 pub fn list_query() {
     System::run(|| {

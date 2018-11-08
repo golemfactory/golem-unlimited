@@ -150,7 +150,7 @@ pub fn send_mdns_query(
                 .and_then(|sender| Ok(sender.flush()))
                 .and_then(|_| Ok(()))
                 .map_err(|e| {
-                    println!("{}", e);
+                    error!("{}", e);
                     ErrorKind::FutureSendError.into()
                 }),
         ),
@@ -310,25 +310,21 @@ impl Handler<SubscribeInstance> for MdnsActor<Continuous> {
         _ctx: &mut Self::Context,
     ) -> ContinuousResponse<Continuous> {
         use std::collections::hash_map::Entry;
+        let list = ContinuousInstancesList::new(msg.service.clone(), self.sender.clone().unwrap());
 
         let res = match self.data.map.entry(msg.service.to_string()) {
             Entry::Vacant(a) => {
-                let service =
-                    ContinuousInstancesList::new(msg.service.clone(), self.sender.clone().unwrap())
-                        .start();
-                a.insert(service.clone().into());
+                let service = list.start();
+                a.insert(service.clone());
                 service.send(Subscribe { rec: msg.rec })
             }
             Entry::Occupied(ref mut b) => {
                 if b.get().connected() {
                     b.get_mut().send(Subscribe { rec: msg.rec })
                 } else {
-                    b.insert({
-                        ContinuousInstancesList::new(
-                            msg.service.clone(),
-                            self.sender.clone().unwrap(),
-                        ).start()
-                    }).send(Subscribe { rec: msg.rec })
+                    let service = list.start();
+                    b.insert(service.clone());
+                    service.send(Subscribe { rec: msg.rec })
                 }
             }
         };

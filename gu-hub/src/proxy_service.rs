@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
 use super::plugins::{self, ListPlugins, PluginEvent, PluginManager, PluginStatus};
-use actix::fut;
-use actix::prelude::*;
+use actix::{fut, prelude::*};
 use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse};
-use futures::future;
-use futures::prelude::*;
+use futures::{future, prelude::*};
 use gu_base::{ArgMatches, Module};
 use gu_event_bus;
-use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -89,11 +89,7 @@ impl Actor for ProxyManager {
 impl Handler<gu_event_bus::Event<PluginEvent>> for ProxyManager {
     type Result = ();
 
-    fn handle(
-        &mut self,
-        msg: gu_event_bus::Event<PluginEvent>,
-        _ctx: &mut Self::Context,
-    ) -> Self::Result {
+    fn handle(&mut self, msg: gu_event_bus::Event<PluginEvent>, _ctx: &mut Self::Context) -> () {
         match msg.data() {
             PluginEvent::New(plugin_meta) => {
                 let config: Vec<ServiceConfig> = plugin_meta.service("gu-proxy");

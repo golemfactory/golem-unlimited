@@ -1,11 +1,14 @@
-use std::fmt;
-use std::str::{self, FromStr};
+use std::{
+    fmt,
+    str::{self, FromStr},
+};
 
-use rand::distributions::{Distribution, Standard};
-use rand::Rng;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use std::borrow::Cow;
-use std::mem::uninitialized;
+use std::{borrow::Cow, mem::uninitialized};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct NodeId {
@@ -122,8 +125,7 @@ impl str::FromStr for NodeId {
 }
 
 static HEX_CHARS: [u8; 16] = [
-    '0' as u8, '1' as u8, '2' as u8, '3' as u8, '4' as u8, '5' as u8, '6' as u8, '7' as u8,
-    '8' as u8, '9' as u8, 'a' as u8, 'b' as u8, 'c' as u8, 'd' as u8, 'e' as u8, 'f' as u8,
+    b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd', b'e', b'f',
 ];
 
 impl Serialize for NodeId {

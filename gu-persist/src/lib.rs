@@ -14,8 +14,10 @@ extern crate serde_json;
 extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
+extern crate bytes;
 extern crate directories;
 
+extern crate actix_web;
 extern crate daemonize;
 extern crate futures;
 extern crate gu_actix;
@@ -55,4 +57,5 @@ mod daemon;
 #[cfg(unix)]
 pub mod daemon_module;
 pub mod file_storage;
+pub mod http;
 pub mod storage;

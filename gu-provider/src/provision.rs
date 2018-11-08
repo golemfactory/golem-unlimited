@@ -1,10 +1,10 @@
 use actix_web::HttpMessage;
-use futures::future;
-use futures::prelude::*;
-use gu_base::files::untgz_async;
-use gu_base::files::write_async;
-use std::path::{Path, PathBuf};
-use std::time;
+use futures::{future, prelude::*};
+use gu_base::files::{untgz_async, write_async};
+use std::{
+    path::{Path, PathBuf},
+    time,
+};
 
 // TODO: support redirect
 // TODO: support https

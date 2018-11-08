@@ -1,17 +1,14 @@
 use bytes::Bytes;
 use plugins::plugin::PluginMetadata;
-use semver::Version;
-use semver::VersionReq;
+use semver::{Version, VersionReq};
 use serde_json;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fs::File;
-use std::io::BufReader;
-use std::io::Cursor;
-use std::io::Read;
-use std::io::Seek;
-use std::path::Path;
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    fs::File,
+    io::{BufReader, Cursor, Read, Seek},
+    path::{Path, PathBuf},
+};
 use zip::ZipArchive;
 
 pub trait PluginParser: Debug {

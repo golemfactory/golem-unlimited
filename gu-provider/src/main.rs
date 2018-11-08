@@ -1,4 +1,6 @@
 extern crate actix;
+#[macro_use]
+extern crate actix_derive;
 extern crate actix_web;
 extern crate bytes;
 extern crate clap;
@@ -20,6 +22,7 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate gu_envman_api;
+extern crate serde_json;
 extern crate tar;
 extern crate uuid;
 
@@ -27,6 +30,7 @@ use clap::App;
 use gu_base::*;
 use gu_persist::daemon_module;
 
+mod connect;
 pub mod envman;
 mod hdman;
 mod id;
@@ -45,6 +49,7 @@ fn main() {
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(status::module())
+            .chain(connect::module())
             .chain(daemon_module::DaemonModule::provider())
             .chain(server::ServerModule::new()),
     );

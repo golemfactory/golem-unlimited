@@ -1,16 +1,14 @@
 use bytes::Bytes;
 use flate2::read::GzDecoder;
-use futures::future;
-use futures::prelude::*;
-use futures::Async;
-use futures_cpupool::CpuFuture;
-use futures_cpupool::CpuPool;
+use futures::{future, prelude::*, Async};
+use futures_cpupool::{CpuFuture, CpuPool};
 use sha1::Sha1;
-use std::cmp;
-use std::fs;
-use std::fs::File;
-use std::io::{self, Seek, SeekFrom, Write};
-use std::path::Path;
+use std::{
+    cmp,
+    fs::File,
+    io::{self, Seek, SeekFrom, Write},
+    path::Path,
+};
 use tar::Archive;
 
 lazy_static! {
@@ -257,11 +255,7 @@ pub fn untgz_async<P: AsRef<Path> + ToOwned>(
     input_path: P,
     output_path: P,
 ) -> impl Future<Item = (), Error = String> {
-    let d = GzDecoder::new(
-        fs::File::open(input_path)
-            .map_err(|e| e.to_string())
-            .unwrap(),
-    );
+    let d = GzDecoder::new(File::open(input_path).map_err(|e| e.to_string()).unwrap());
     let archive = Archive::new(d);
 
     FILE_HANDLER.untar_archive(archive, output_path)
@@ -269,12 +263,10 @@ pub fn untgz_async<P: AsRef<Path> + ToOwned>(
 
 #[cfg(test)]
 mod tests {
-    use actix::Arbiter;
-    use actix::System;
+    use actix::{Arbiter, System};
     use bytes::Bytes;
     use files::write_async_with_sha1;
-    use futures::prelude::*;
-    use futures::stream;
+    use futures::{prelude::*, stream};
     use std::path::PathBuf;
 
     #[test]

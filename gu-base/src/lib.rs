@@ -19,10 +19,8 @@ mod output;
 mod run_once;
 
 pub use clap::{App, Arg, ArgMatches, SubCommand};
-use futures::future;
-use futures::prelude::*;
-use std::any::Any;
-use std::sync::Arc;
+use futures::{future, prelude::*};
+use std::{any::Any, sync::Arc};
 
 pub use output::{AutocompleteModule, LogModule};
 
@@ -126,10 +124,8 @@ where
     {
         if self.m1.args_autocomplete(matches, app_gen) {
             true
-        } else if self.m2.args_autocomplete(matches, app_gen) {
-            true
         } else {
-            false
+            self.m2.args_autocomplete(matches, app_gen)
         }
     }
 

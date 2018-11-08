@@ -8,7 +8,7 @@ Trust within Golem Unlimited subnetwork allows simplifying its design and taking
 
 Golem Unlimited joint resources can be used to perform tasks for internal requestor - the hub operator - with no fee. At the same time the hub will be able to expose its subordinate trusted providers to the public [Golem](../../../golem) Network. In such a setting hub will act as a provider and earn GNTs.  
 
-The latter broadens [Golem](../../../golem) reach. Now Golem Node can be a single machine, with Golem Unlimited it can be more complex component, such as a whole subnetwork.
+The latter broadens [Golem](../../../golem) Network reach, because it currently supports just single machine nodes. With Golem Unlimited it would allow more complex components, such as a whole subnetworks.
 
 # Use cases
 So far we have prepared plugins for two use cases:

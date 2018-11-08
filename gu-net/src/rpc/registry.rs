@@ -1,10 +1,12 @@
 use super::context::{start_actor, RemotingContext};
 use actix::prelude::*;
 use futures::prelude::*;
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::sync::Mutex;
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    marker::PhantomData,
+    sync::Mutex,
+};
 
 struct RemotingRegistry {
     inner: HashMap<TypeId, Box<Any + Send>>,

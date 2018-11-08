@@ -4,8 +4,7 @@ extern crate gu_persist;
 
 use actix::prelude::*;
 use futures::prelude::*;
-use std::borrow::Cow;
-use std::env;
+use std::{borrow::Cow, env};
 
 enum Cmd {
     Fetch(String),

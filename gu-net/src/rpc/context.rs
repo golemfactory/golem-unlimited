@@ -1,15 +1,13 @@
-use super::error::{Error, ErrorKind};
-use super::message::{self, public_destination, DestinationId};
-use super::router::{self, MessageRouter};
-use actix::dev::*;
-use actix::prelude::*;
-use futures::sync::oneshot::Sender;
-use futures::{future, prelude::*};
+use super::{
+    error::{Error, ErrorKind},
+    message::{self, public_destination, DestinationId},
+    router::{self, MessageRouter},
+};
+use actix::{dev::*, prelude::*};
+use futures::{future, prelude::*, sync::oneshot::Sender};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
-use std::any;
-use std::collections::HashMap;
-use std::marker::PhantomData;
+use std::{any, collections::HashMap, marker::PhantomData};
 
 pub struct RemotingContext<A>
 where
