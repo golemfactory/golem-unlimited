@@ -15,6 +15,7 @@ extern crate actix_web;
 extern crate clap;
 extern crate futures;
 extern crate hostname;
+extern crate num_cpus;
 extern crate serde;
 extern crate serde_json;
 extern crate sysinfo;
