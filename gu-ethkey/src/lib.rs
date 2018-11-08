@@ -129,8 +129,7 @@ fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
         KEY_ITERATIONS,
         "".to_owned(),
         "{}".to_owned(),
-    )
-    .map_err(Error::from)
+    ).map_err(Error::from)
 }
 
 fn save_key_pair<P>(key_pair: &KeyPair, pwd: &Password, file_path: &P) -> Result<()>
@@ -188,14 +187,12 @@ impl EthKeyStore for SafeEthKey {
                     Err(e) => Err(Error::from(e)),
                 }
             }
-        }
-        .map(|key_pair| {
+        }.map(|key_pair| {
             Box::new(SafeEthKey {
                 key_pair,
                 file_path,
             })
-        })
-        .map_err(Error::from)
+        }).map_err(Error::from)
     }
 
     fn change_password(&self, new_pwd: &Password) -> Result<()> {

@@ -231,8 +231,7 @@ impl ContinuousInstancesList {
             .map_err(|_| {
                 self.subscribers.remove(rec);
                 ErrorKind::DoSendError.into()
-            })
-            .map_err(|e: ErrorKind| warn!("Cannot send message to subscriber - {:?}", e));
+            }).map_err(|e: ErrorKind| warn!("Cannot send message to subscriber - {:?}", e));
     }
 }
 

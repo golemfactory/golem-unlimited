@@ -32,8 +32,7 @@ fn mock_send<S: 'static>(r: HttpRequest<S>, path: Path<(u32,)>) -> impl Responde
         .and_then(|body| {
             String::from_utf8(body.as_ref().into())
                 .map_err(|e| error::ErrorInternalServerError(format!("{}", e)))
-        })
-        .and_then(move |body| {
+        }).and_then(move |body| {
             Callback::from_registry()
                 .send(Forward(RouteMessage {
                     msg_id: gen_destination_id(),
@@ -44,12 +43,10 @@ fn mock_send<S: 'static>(r: HttpRequest<S>, path: Path<(u32,)>) -> impl Responde
                     ts: 0,
                     expires: None,
                     body,
-                }))
-                .flatten_fut()
+                })).flatten_fut()
                 .and_then(|b| Ok(HttpResponse::Ok().body(b)))
                 .map_err(|e| error::ErrorInternalServerError(format!("{}", e)))
-        })
-        .and_then(|r| future::ok(r))
+        }).and_then(|r| future::ok(r))
         .or_else(
             |e: actix_web::Error| -> Result<HttpResponse, actix_web::Error> {
                 debug!("Error {:?}", &e);
@@ -58,8 +55,7 @@ fn mock_send<S: 'static>(r: HttpRequest<S>, path: Path<(u32,)>) -> impl Responde
                 resp.set_body(format!("{}", e));
                 Ok(resp)
             },
-        )
-        .responder()
+        ).responder()
 }
 
 struct Callback {

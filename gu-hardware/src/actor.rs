@@ -119,8 +119,7 @@ impl Handler<HardwareQuery> for HardwareActor {
                         os: os_type(),
                         hostname,
                     })
-                })
-                .into_actor(self),
+                }).into_actor(self),
         )
     }
 }

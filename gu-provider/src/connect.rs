@@ -158,8 +158,7 @@ impl Module for ConnectModule {
                     ProviderClient::post(
                         endpoint.to_string(),
                         format!("[ \"{}:{}\" ]", a.ip(), a.port()),
-                    )
-                    .and_then(|()| Ok(()))
+                    ).and_then(|()| Ok(()))
                     .map_err(|e| error!("{}", e))
                     .then(|_r| Ok(System::current().stop())),
                 ),
@@ -176,8 +175,7 @@ impl Module for ConnectModule {
                                 println!("{:?}", e);
                             }
                             Ok(())
-                        })
-                        .map_err(|e| error!("{}", e))
+                        }).map_err(|e| error!("{}", e))
                         .then(|_r| Ok(System::current().stop())),
                 ),
                 _ => unimplemented!(),
@@ -202,8 +200,7 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     "/connect",
                     method.clone(),
                     connect_lambda(ConnectionChange::Connect),
-                )
-                .route(
+                ).route(
                     "/disconnect",
                     method,
                     connect_lambda(ConnectionChange::Disconnect),
@@ -218,25 +215,20 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     "/pending",
                     http::Method::GET,
                     list_lambda(ListingType::Pending),
-                )
-                .route(
+                ).route(
                     "/connected",
                     http::Method::GET,
                     list_lambda(ListingType::Connected),
-                )
-                .route("/all", http::Method::GET, list_lambda(ListingType::All))
-        })
-        .route(
+                ).route("/all", http::Method::GET, list_lambda(ListingType::All))
+        }).route(
             "/mode/auto",
             http::Method::PUT,
             mode_lambda(ConnectMode::Auto),
-        )
-        .route(
+        ).route(
             "/mode/config",
             http::Method::PUT,
             mode_lambda(ConnectMode::Config),
-        )
-        .nested("/", edit_connection_scope(http::Method::POST))
+        ).nested("/", edit_connection_scope(http::Method::POST))
 }
 
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
@@ -253,15 +245,13 @@ fn list_scope<S>(_r: HttpRequest<S>, m: &ListingType) -> impl Responder {
         .send(ListSockets(*m))
         .map_err(|e| {
             ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
-        })
-        .and_then(|result| {
+        }).and_then(|result| {
             result
                 .and_then(|list| Ok(HttpResponse::Ok().json(list)))
                 .map_err(|e| {
                     ErrorInternalServerError(format!("Error during message processing {:?}", e))
                 })
-        })
-        .responder()
+        }).responder()
 }
 
 fn mode_scope<S>(r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
@@ -271,22 +261,18 @@ fn mode_scope<S>(r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
         .send(ConnectModeMessage {
             mode: m.clone(),
             save: parse_save_param(&r),
-        })
-        .map_err(|e| {
+        }).map_err(|e| {
             ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
-        })
-        .and_then(|result| {
+        }).and_then(|result| {
             result
                 .and_then(|_| {
                     Ok(HttpResponse::Ok()
                         .content_type("application/json")
                         .body("null"))
-                })
-                .map_err(|e| {
+                }).map_err(|e| {
                     ErrorInternalServerError(format!("Error during message processing {:?}", e))
                 })
-        })
-        .responder()
+        }).responder()
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -323,23 +309,19 @@ fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
             .map_err(|e| {
                 ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
             })
-    })
-    .and_then(|result| {
+    }).and_then(|result| {
         result
             .and_then(|_| {
                 Ok(HttpResponse::Ok()
                     .content_type("application/json")
                     .body("null"))
-            })
-            .map_err(|e| {
+            }).map_err(|e| {
                 ErrorInternalServerError(format!("Error during message processing {:?}", e))
             })
-    })
-    .map_err(|e| {
+    }).map_err(|e| {
         error!("{}", e);
         e
-    })
-    .responder()
+    }).responder()
 }
 
 fn parse_save_param<S>(r: &HttpRequest<S>) -> bool {
@@ -418,8 +400,7 @@ where
             } else {
                 future::Either::B(future::ok(None))
             }
-        })
-        .map_err(|e| e.to_string())
+        }).map_err(|e| e.to_string())
 }
 
 fn edit_config_list(
@@ -596,8 +577,7 @@ impl Handler<AutoMdns> for ConnectManager {
                     .send(SubscribeInstance {
                         service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),
                         rec: ctx.address().recipient(),
-                    })
-                    .flatten_fut()
+                    }).flatten_fut()
                     .map_err(|e| format!("{}", e))
                     .into_actor(self)
                     .and_then(|res, act: &mut Self, _ctx| {

@@ -122,8 +122,7 @@ impl Platform {
                     param_value,
                     param_value_size_ret,
                 )
-            })
-            .unwrap()
+            }).unwrap()
         }
     }
 }

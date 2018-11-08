@@ -31,8 +31,7 @@ fn status_handler<S: 'static>(_r: &HttpRequest<S>) -> impl Responder {
                 "err: {}",
                 e
             ))),
-        })
-        .responder()
+        }).responder()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -98,13 +97,11 @@ impl Handler<ListEnvStatus> for StatusManager {
                     let name = env_name.to_string();
                     env_addr.send(GetEnvStatus).and_then(move |s| Ok((name, s)))
                 },
-            ))
-            .and_then(
+            )).and_then(
                 |envs| -> Result<BTreeMap<String, EnvStatus>, actix::MailboxError> {
                     Ok(envs.into_iter().collect())
                 },
-            )
-            .map_err(|e| format!("{}", e))
+            ).map_err(|e| format!("{}", e))
             .into_actor(self),
         )
     }

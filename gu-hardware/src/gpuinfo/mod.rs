@@ -25,8 +25,7 @@ pub fn gpu_count() -> error::Result<GpuCount> {
         .filter(|device| match device.class_code() {
             Ok(code) => code == CL_DEVICE_TYPE_GPU || code == CL_DEVICE_TYPE_ACCELERATOR,
             Err(_) => false,
-        })
-        .fold(GpuCount::default(), |gpu, device| {
+        }).fold(GpuCount::default(), |gpu, device| {
             match device.vendor_code() {
                 Ok(VENDOR_CODE_AMD) => GpuCount {
                     amd: gpu.amd + 1,

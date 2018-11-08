@@ -41,8 +41,7 @@ pub trait PluginParser: Debug {
                 let mut path = PathBuf::from(app_name.clone());
                 path.push(name);
                 self.contains_file(path)
-            })
-            .and_then(|_| Ok(()))
+            }).and_then(|_| Ok(()))
         })
     }
 
@@ -99,8 +98,7 @@ impl PathPluginParser for ZipParser<File> {
             .map_err(|e| format!("Cannot open file: {:?}", e))
             .and_then(|f| {
                 ZipArchive::new(f).map_err(|e| format!("Cannot open file as zip: {:?}", e))
-            })
-            .map(|zip| Self::inner_new(zip))
+            }).map(|zip| Self::inner_new(zip))
     }
 }
 
@@ -131,8 +129,7 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
                             map.insert(path.to_path_buf(), x)
                                 .map(|_| warn!("File overwritten: {:?}", path));
                             Ok(())
-                        })
-                        .map_err(|e| warn!("{:?}", e));
+                        }).map_err(|e| warn!("{:?}", e));
                 }
             }
         }
@@ -154,8 +151,7 @@ impl<T: Read + Debug + Seek> PluginParser for ZipParser<T> {
             .by_name(
                 path.to_str()
                     .ok_or("Cannot cast PathBuf to str".to_string())?,
-            )
-            .map_err(|_| "".to_string())
+            ).map_err(|_| "".to_string())
             .and_then(|_| Ok(()))
     }
 }
