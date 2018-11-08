@@ -1,7 +1,6 @@
 use actix::prelude::*;
 use actix_web::{ws, Binary};
-use futures::stream::Stream;
-use futures::{Async, Future};
+use futures::{stream::Stream, Async, Future};
 
 // Przyjmuje komunikaty i kieruje je do zainteresowanych odbiorców.
 //

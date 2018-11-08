@@ -1,7 +1,7 @@
 extern crate gu_actix;
 extern crate gu_base;
-extern crate gu_event_bus;
 extern crate gu_ethkey;
+extern crate gu_event_bus;
 extern crate gu_hardware;
 extern crate gu_lan;
 extern crate gu_net;
@@ -19,9 +19,6 @@ extern crate serde_derive;
 
 #[macro_use]
 extern crate log;
-
-#[macro_use]
-extern crate failure;
 
 #[macro_use]
 extern crate actix_derive;

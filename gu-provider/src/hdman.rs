@@ -1,19 +1,24 @@
-use super::status;
-use super::sync_exec::{Exec, ExecResult, SyncExecManager};
-use actix::fut;
-use actix::prelude::*;
+use super::{
+    status,
+    sync_exec::{Exec, ExecResult, SyncExecManager},
+};
+use actix::{fut, prelude::*};
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_net::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
-use gu_net::rpc::*;
+use gu_net::rpc::{
+    peer::{PeerSessionInfo, PeerSessionStatus},
+    *,
+};
 use gu_persist::config::ConfigModule;
 use id::generate_new_id;
 use provision::{download, untgz};
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::iter::FromIterator;
-use std::path::PathBuf;
-use std::{fmt, fs, io, process, result, time};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt, fs, io,
+    iter::FromIterator,
+    path::PathBuf,
+    process, result, time,
+};
 
 /// Host direct manager
 pub struct HdMan {
@@ -247,11 +252,9 @@ impl Handler<CreateSession> for HdMan {
                         fut::ok(sess_id)
                     }
                     Err(e) => fut::err(e),
-                }).map_err(move |e, act, _ctx| {
-                    match act.destroy_session(&session_id) {
-                        Ok(_) => Error::IoError(format!("creating session error: {:?}", e)),
-                        Err(e) => e,
-                    }
+                }).map_err(move |e, act, _ctx| match act.destroy_session(&session_id) {
+                    Ok(_) => Error::IoError(format!("creating session error: {:?}", e)),
+                    Err(e) => e,
                 }),
         )
     }

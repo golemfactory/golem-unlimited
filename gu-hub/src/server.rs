@@ -1,51 +1,44 @@
 #![allow(dead_code)]
 
-use actix::fut;
-use actix::prelude::*;
-use actix_web;
-use actix_web::Body;
-use actix_web::client;
-use actix_web::client::ClientRequest;
-use actix_web::error::JsonPayloadError;
-use actix_web::http;
-use bytes::Bytes;
 use clap::{App, ArgMatches, SubCommand};
-use futures::future;
-use futures::prelude::*;
 use gu_actix::*;
+use std::{borrow::Cow, net::ToSocketAddrs, sync::Arc};
+
+use actix::{
+    self, fut, Actor, ActorContext, ActorFuture, Addr, AsyncContext, Context, SystemService,
+    WrapFuture,
+};
+use actix_web;
+use futures::Future;
 use gu_base::{Decorator, Module};
 use gu_ethkey::prelude::*;
-use gu_net::NodeId;
-use gu_net::rpc;
-use gu_net::rpc::mock;
-use gu_persist::config;
-use gu_persist::config::ConfigManager;
-use gu_persist::config::ConfigModule;
-use gu_persist::daemon_module::DaemonModule;
-use mdns::Responder;
-use mdns::Service;
-use serde::de;
-use serde::Serialize;
-use serde_json;
-use std::borrow::Cow;
-use std::marker::PhantomData;
-use std::net::ToSocketAddrs;
-use std::sync::Arc;
+use gu_net::{
+    rpc::{self, mock},
+    NodeId,
+};
+use gu_persist::{
+    config::{self, ConfigManager, ConfigModule},
+    daemon_module::DaemonModule,
+    http::{ServerClient, ServerConfig},
+};
+use mdns::{Responder, Service};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ServerConfig {
-    #[serde(default = "ServerConfig::default_p2p_port")]
+pub(crate) struct HubConfig {
+    #[serde(default = "HubConfig::default_p2p_port")]
     pub(crate) p2p_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
-    #[serde(default = "ServerConfig::publish_service")]
+    #[serde(default = "HubConfig::publish_service")]
     pub(crate) publish_service: bool,
 }
 
-impl Default for ServerConfig {
+pub(crate) type HubClient = ServerClient<HubConfig>;
+
+impl Default for HubConfig {
     fn default() -> Self {
-        ServerConfig {
+        HubConfig {
             p2p_port: Self::default_p2p_port(),
             control_socket: None,
             publish_service: Self::publish_service(),
@@ -53,7 +46,17 @@ impl Default for ServerConfig {
     }
 }
 
-impl ServerConfig {
+impl ServerConfig for HubConfig {
+    fn port(&self) -> u16 {
+        self.p2p_port
+    }
+}
+
+impl HubConfig {
+    fn p2p_addr(&self) -> impl ToSocketAddrs {
+        ("0.0.0.0", self.p2p_port)
+    }
+
     fn default_p2p_port() -> u16 {
         61622
     }
@@ -61,21 +64,9 @@ impl ServerConfig {
     fn publish_service() -> bool {
         true
     }
-
-    fn discover_service() -> bool {
-        true
-    }
-
-    pub fn p2p_addr(&self) -> impl ToSocketAddrs {
-        ("0.0.0.0", self.p2p_port)
-    }
-
-    pub fn port(&self) -> u16 {
-        self.p2p_port
-    }
 }
 
-impl config::HasSectionId for ServerConfig {
+impl config::HasSectionId for HubConfig {
     const SECTION_ID: &'static str = "server-cfg";
 }
 
@@ -168,7 +159,7 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         config
     }
 
-    fn hub_configuration(&mut self, c: Arc<ServerConfig>) -> Result<(), ()> {
+    fn hub_configuration(&mut self, c: Arc<HubConfig>) -> Result<(), ()> {
         let config_module: &ConfigModule = self.decorator.extract().unwrap();
         let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
             .expect("should load or generate eth key");
@@ -200,7 +191,6 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-
         ctx.spawn(
             self.config()
                 .send(config::GetConfig::new())
@@ -220,243 +210,5 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
 impl<D: Decorator> Drop for ServerConfigurer<D> {
     fn drop(&mut self) {
         info!("hub server configured")
-    }
-}
-
-#[derive(Fail, Debug)]
-pub enum ClientError {
-    #[fail(display = "MailboxError {}", _0)]
-    Mailbox(#[cause] MailboxError),
-    #[fail(display = "ActixError {}", _0)]
-    ActixError(actix_web::Error),
-    #[fail(display = "{}", _0)]
-    SendRequestError(#[cause] actix_web::client::SendRequestError),
-    #[fail(display = "{}", _0)]
-    Json(#[cause] JsonPayloadError),
-    #[fail(display = "{}", _0)]
-    SerdeJson(#[cause] serde_json::Error),
-    #[fail(display = "config")]
-    ConfigError,
-}
-
-impl From<actix_web::Error> for ClientError {
-    fn from(e: actix_web::Error) -> Self {
-        ClientError::ActixError(e)
-    }
-}
-
-impl From<MailboxError> for ClientError {
-    fn from(e: MailboxError) -> Self {
-        ClientError::Mailbox(e)
-    }
-}
-
-#[derive(Default)]
-pub struct ServerClient {
-    inner: (),
-}
-
-impl ServerClient {
-    pub fn new() -> Self {
-        ServerClient { inner: () }
-    }
-
-    pub fn get<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
-        path: IntoStr,
-    ) -> impl Future<Item = T, Error = ClientError> {
-        ServerClient::from_registry()
-            .send(ResourceGet::new(path.into()))
-            .flatten_fut()
-    }
-
-    pub fn delete<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
-        path: IntoStr,
-    ) -> impl Future<Item = T, Error = ClientError> {
-        ServerClient::from_registry()
-            .send(ResourceDelete::new(path.into()))
-            .flatten_fut()
-    }
-
-    pub fn patch<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
-        path: IntoStr,
-    ) -> impl Future<Item = T, Error = ClientError> {
-        ServerClient::from_registry()
-            .send(ResourcePatch::new(path.into()))
-            .flatten_fut()
-    }
-
-    pub fn post<
-        T: de::DeserializeOwned + Send + 'static,
-        IntoStr: Into<String>,
-        IntoBody: Into<Bytes>,
-    >(
-        path: IntoStr,
-        body: IntoBody,
-    ) -> impl Future<Item = T, Error = ClientError> {
-        ServerClient::from_registry()
-            .send(ResourcePost::new(path.into(), body.into()))
-            .flatten_fut()
-    }
-
-    pub fn post_json<
-        T: de::DeserializeOwned + Send + 'static,
-        IntoStr: Into<String>,
-        Ser: Serialize,
-    >(
-        path: IntoStr,
-        body: Ser,
-    ) -> impl Future<Item = T, Error = ClientError> {
-        future::result(serde_json::to_string(&body))
-            .map_err(|e| ClientError::SerdeJson(e))
-            .and_then(|body| Self::post::<T, _, _>(path, body))
-    }
-
-    pub fn empty_post<T: de::DeserializeOwned + Send + 'static, IntoStr: Into<String>>(
-        path: IntoStr,
-    ) -> impl Future<Item = T, Error = ClientError> {
-        ServerClient::from_registry()
-            .send(ResourcePost::new(path.into(), "null".into()))
-            .flatten_fut()
-    }
-}
-
-impl Actor for ServerClient {
-    type Context = Context<Self>;
-}
-
-impl Supervised for ServerClient {}
-impl ArbiterService for ServerClient {}
-
-pub trait IntoRequest {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error>;
-
-    fn path(&self) -> &str;
-}
-
-struct ResourceGet<T>(String, PhantomData<T>);
-
-impl<T> ResourceGet<T> {
-    fn new(path: String) -> Self {
-        ResourceGet::<T>(path, PhantomData)
-    }
-}
-
-impl<T> IntoRequest for ResourceGet<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
-        client::ClientRequest::get(url)
-            .header("Accept", "application/json")
-            .finish()
-    }
-
-    fn path(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-struct ResourceDelete<T>(String, PhantomData<T>);
-
-impl<T> ResourceDelete<T> {
-    fn new(path: String) -> Self {
-        ResourceDelete(path, PhantomData)
-    }
-}
-
-impl<T> IntoRequest for ResourceDelete<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
-        client::ClientRequest::delete(url)
-            .header("Accept", "application/json")
-            .finish()
-    }
-
-    fn path(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-struct ResourcePatch<T>(String, PhantomData<T>);
-
-impl<T> ResourcePatch<T> {
-    fn new(path: String) -> Self {
-        ResourcePatch(path, PhantomData)
-    }
-}
-
-impl<T> IntoRequest for ResourcePatch<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
-        let mut builder = ClientRequest::build();
-        builder.method(http::Method::PATCH).uri(url);
-        builder.header("Accept", "application/json").finish()
-    }
-
-    fn path(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-struct ResourcePost<T>(String, Bytes, PhantomData<T>);
-
-impl<T> ResourcePost<T> {
-    fn new(path: String, body: Bytes) -> Self {
-        ResourcePost(path, body, PhantomData)
-    }
-}
-
-impl<T> IntoRequest for ResourcePost<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
-        client::ClientRequest::post(url)
-            .header("Accept", "application/json")
-            .body::<Body>(Body::from(self.1))
-    }
-
-    fn path(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-impl<T: de::DeserializeOwned + 'static> Message for ResourceGet<T> {
-    type Result = Result<T, ClientError>;
-}
-
-impl<T: de::DeserializeOwned + 'static> Message for ResourceDelete<T> {
-    type Result = Result<T, ClientError>;
-}
-
-impl<T: de::DeserializeOwned + 'static> Message for ResourcePost<T> {
-    type Result = Result<T, ClientError>;
-}
-
-impl<T: de::DeserializeOwned + 'static> Message for ResourcePatch<T> {
-    type Result = Result<T, ClientError>;
-}
-
-impl<T: de::DeserializeOwned + 'static, M: IntoRequest + Message> Handler<M> for ServerClient
-where
-    M: Message<Result = Result<T, ClientError>> + 'static,
-{
-    type Result = ActorResponse<ServerClient, T, ClientError>;
-
-    fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
-        use actix_web::HttpMessage;
-        use futures::future;
-
-        ActorResponse::async(
-            ConfigManager::from_registry()
-                .send(config::GetConfig::new())
-                .flatten_fut()
-                .map_err(|_e| ClientError::ConfigError)
-                .and_then(move |config: Arc<ServerConfig>| {
-                    let url = format!("http://127.0.0.1:{}{}", config.port(), msg.path());
-                    let client = match msg.into_request(&url) {
-                        Ok(cli) => cli,
-                        Err(err) => return future::Either::B(future::err(err.into())),
-                    };
-                    future::Either::A(
-                        client
-                            .send()
-                            .map_err(|e| ClientError::SendRequestError(e))
-                            .and_then(|r| r.json::<T>().map_err(|e| ClientError::Json(e))),
-                    )
-                }).into_actor(self),
-        )
     }
 }

@@ -1,5 +1,4 @@
-use super::error::*;
-use super::storage;
+use super::{error::*, storage};
 use actix::prelude::*;
 use std::path::PathBuf;
 

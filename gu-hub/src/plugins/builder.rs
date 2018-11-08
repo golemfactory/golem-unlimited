@@ -1,15 +1,18 @@
-use actix::fut::WrapFuture;
-use actix::ActorResponse;
-use actix::{Actor, Arbiter, ArbiterService, Context, Handler, Message, Supervised, System};
-use futures::future;
-use futures::future::Future;
+use actix::{
+    fut::WrapFuture, Actor, ActorResponse, Arbiter, ArbiterService, Context, Handler, Message,
+    Supervised, System,
+};
+use futures::future::{self, Future};
 use gu_base::{App, Arg, ArgMatches, SubCommand};
-use plugins::plugin::DirectoryHandler;
-use plugins::plugin::PluginHandler;
-use plugins::rest;
-use std::fs::{self, File};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use plugins::{
+    plugin::{DirectoryHandler, PluginHandler},
+    rest,
+};
+use std::{
+    fs::{self, File},
+    io::{Read, Write},
+    path::{Path, PathBuf},
+};
 use zip::{write::FileOptions, ZipWriter};
 
 #[derive(Debug, Clone, Default)]

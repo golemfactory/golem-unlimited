@@ -4,15 +4,15 @@ use daemonize::Daemonize;
 use libc::{
     dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
 };
-use std::fs::File;
-use std::io::Read;
-use std::io::Write;
-use std::os::raw::c_int;
-use std::os::unix::prelude::*;
-use std::path::Path;
-use std::str;
-use std::thread::sleep;
-use std::time::Duration;
+use std::{
+    fs::File,
+    io::{Read, Write},
+    os::{raw::c_int, unix::prelude::*},
+    path::Path,
+    str,
+    thread::sleep,
+    time::Duration,
+};
 
 pub enum Process {
     Running(i32),
@@ -143,7 +143,7 @@ where
 {
     File::open(path)
         .map_err(|e| format!(".pid file open error: {:?}", e))
-        .and_then(|file| read_file(file))
+        .and_then(read_file)
 }
 
 fn read_pid_file(path: &Path) -> Result<i32, String> {

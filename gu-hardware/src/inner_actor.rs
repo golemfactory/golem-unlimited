@@ -1,5 +1,4 @@
-use actix::MessageResult;
-use actix::{Actor, ArbiterService, Context, Handler, Supervised};
+use actix::{Actor, ArbiterService, Context, Handler, MessageResult, Supervised};
 use sysinfo::{self, System, SystemExt};
 
 use disk::{disk_info, DiskQuery};

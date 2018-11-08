@@ -1,6 +1,8 @@
-use prettytable::format::{self, TableFormat};
-use prettytable::row::Row;
-use prettytable::Table;
+use prettytable::{
+    format::{self, TableFormat},
+    row::Row,
+    Table,
+};
 
 lazy_static! {
     pub static ref FORMAT_BASIC: TableFormat = format::FormatBuilder::new()

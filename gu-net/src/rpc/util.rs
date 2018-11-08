@@ -1,7 +1,9 @@
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use smallvec;
-use std::io::{Read, Write};
-use std::{io, u16, u32, u64};
+use std::{
+    io::{self, Read, Write},
+    u16, u32, u64,
+};
 
 pub trait Narrow<T> {
     fn narrow(self) -> Option<T>;

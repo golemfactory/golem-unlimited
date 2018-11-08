@@ -1,14 +1,13 @@
 use bytes::Bytes;
-use futures::future;
-use futures::prelude::*;
-use futures::Async;
-use futures_cpupool::CpuFuture;
-use futures_cpupool::CpuPool;
+use futures::{future, prelude::*, Async};
+use futures_cpupool::{CpuFuture, CpuPool};
 use sha1::Sha1;
-use std::cmp;
-use std::fs::File;
-use std::io::{self, Seek, SeekFrom, Write};
-use std::path::Path;
+use std::{
+    cmp,
+    fs::File,
+    io::{self, Seek, SeekFrom, Write},
+    path::Path,
+};
 
 lazy_static! {
     static ref FILE_HANDLER: FilePoolHandler = FilePoolHandler::default();
@@ -242,12 +241,10 @@ impl Stream for ChunkedReadFile {
 
 #[cfg(test)]
 mod tests {
-    use actix::Arbiter;
-    use actix::System;
+    use actix::{Arbiter, System};
     use bytes::Bytes;
     use files::write_async_with_sha1;
-    use futures::prelude::*;
-    use futures::stream;
+    use futures::{prelude::*, stream};
     use std::path::PathBuf;
 
     #[test]

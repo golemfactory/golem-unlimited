@@ -1,14 +1,11 @@
-use actix::fut;
-use actix::prelude::*;
+use actix::{fut, prelude::*};
 use actix_web::{self, *};
 use futures::{future, prelude::*};
 use gu_actix::*;
 
-use super::super::NodeId;
-use super::error::ErrorKind;
 use super::{
-    gen_destination_id, public_destination, DestinationId, EmitMessage, MessageId, MessageRouter,
-    RouteMessage, RpcError,
+    super::NodeId, error::ErrorKind, gen_destination_id, public_destination, DestinationId,
+    EmitMessage, MessageId, MessageRouter, RouteMessage, RpcError,
 };
 use futures::unsync::oneshot;
 use std::collections::HashMap;

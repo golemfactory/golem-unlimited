@@ -1,7 +1,5 @@
-use actix_web::http::StatusCode;
-use actix_web::HttpResponse;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use actix_web::{http::StatusCode, HttpResponse};
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json;
 use std::fmt::Debug;
 

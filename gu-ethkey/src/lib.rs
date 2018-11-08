@@ -38,17 +38,19 @@ extern crate pretty_assertions;
 extern crate rand;
 extern crate rustc_hex;
 
-use ethkey::crypto::ecies::{decrypt, encrypt};
 use ethkey::{
+    crypto::ecies::{decrypt, encrypt},
     sign, verify_public, Address, Generator, KeyPair, Message, Password, Public, Random, Signature,
 };
-use ethstore::accounts_dir::{DiskKeyFileManager, KeyFileManager, RootDiskDirectory};
-use ethstore::SafeAccount;
+use ethstore::{
+    accounts_dir::{DiskKeyFileManager, KeyFileManager, RootDiskDirectory},
+    SafeAccount,
+};
 use rustc_hex::ToHex;
-use std::fmt;
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::{
+    fmt, fs, io,
+    path::{Path, PathBuf},
+};
 
 /// HMAC fn iteration count; compromise between security and performance
 pub const KEY_ITERATIONS: u32 = 10240;
@@ -87,8 +89,8 @@ pub trait EthKey {
 pub trait EthKeyStore {
     /// reads keys from disk or generates new ones and stores to disk; pass needed
     fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>>
-        where
-            P: Into<PathBuf>;
+    where
+        P: Into<PathBuf>;
     /// stores keys on disk with changed password
     fn change_password(&self, new_pwd: &Password) -> Result<()>;
 }
@@ -131,8 +133,8 @@ fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
 }
 
 fn save_key_pair<P>(key_pair: &KeyPair, pwd: &Password, file_path: &P) -> Result<()>
-    where
-        P: AsRef<Path>,
+where
+    P: AsRef<Path>,
 {
     let file_path = file_path.as_ref();
     let dir_path = file_path.parent().ok_or(ErrorKind::InvalidPath)?;
@@ -151,8 +153,8 @@ fn save_key_pair<P>(key_pair: &KeyPair, pwd: &Password, file_path: &P) -> Result
 
 impl EthKeyStore for SafeEthKey {
     fn load_or_generate<P>(file_path: P, pwd: &Password) -> Result<Box<Self>>
-        where
-            P: Into<PathBuf>,
+    where
+        P: Into<PathBuf>,
     {
         let file_path = file_path.into();
         match fs::File::open(&file_path).map_err(Error::from) {
@@ -245,11 +247,7 @@ pub mod prelude {
     //!
     //! The prelude may grow over time.
 
-    pub use super::{
-        SafeEthKey,
-        EthKey,
-        EthKeyStore,
-    };
+    pub use super::{EthKey, EthKeyStore, SafeEthKey};
 }
 
 #[cfg(test)]
@@ -260,13 +258,9 @@ mod tests {
     extern crate serde_json;
     extern crate tempfile;
 
-
     use self::tempfile::tempdir;
     use super::prelude::*;
-    use std::env;
-    use std::fs;
-    use std::io::prelude::*;
-    use std::path::PathBuf;
+    use std::{env, fs, io::prelude::*, path::PathBuf};
 
     fn tmp_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();
@@ -308,7 +302,7 @@ mod tests {
         assert!(key.is_ok());
 
         let file = fs::File::open(path).unwrap();
-        let json : serde_json::Value = serde_json::from_reader(file).unwrap();
+        let json: serde_json::Value = serde_json::from_reader(file).unwrap();
         // println!("{:#}", json);
         let id = json.get("id").unwrap();
         assert!(id.is_string());
@@ -409,7 +403,7 @@ mod tests {
     #[test]
     fn test_encrypt_decrypt() {
         // given
-        let plain : [u8; 32] = rand::random();
+        let plain: [u8; 32] = rand::random();
 
         // when
         let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into()).unwrap();

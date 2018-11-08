@@ -2,20 +2,20 @@ use actix::prelude::*;
 use futures::prelude::*;
 use gu_actix::prelude::*;
 
-use super::super::NodeId;
-use super::context::RemotingContext;
-use super::gen_destination_id;
-use super::message::{
-    DestinationId, EmitMessage, MessageId, RouteMessage, TransportError, TransportResult,
+use super::{
+    super::NodeId,
+    context::RemotingContext,
+    gen_destination_id,
+    message::{
+        DestinationId, EmitMessage, MessageId, RouteMessage, TransportError, TransportResult,
+    },
+    router::{BindReplyDestination, LocalReplyEndpoint, MessageRouter},
 };
-use super::router::{BindReplyDestination, LocalReplyEndpoint, MessageRouter};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
 
 use futures::unsync::oneshot;
-use std::collections::HashMap;
-use std::error::Error;
-use std::{fmt, io};
+use std::{collections::HashMap, error::Error, fmt, io};
 
 #[derive(Debug)]
 pub enum SendError {
