@@ -1,6 +1,5 @@
 use actix::prelude::*;
-use actix_web;
-use actix_web::{App, AsyncResponder, HttpRequest, HttpResponse, Responder};
+use actix_web::{self, App, AsyncResponder, HttpRequest, HttpResponse, Responder};
 use futures::{future, prelude::*};
 use gu_base::Module;
 use std::collections::BTreeMap;
@@ -13,7 +12,6 @@ struct StatusModule;
 
 impl Module for StatusModule {
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
-        debug!("status!");
         app.handler("/status", status_handler)
     }
 }

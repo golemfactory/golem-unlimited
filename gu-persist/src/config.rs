@@ -8,13 +8,14 @@ use gu_actix::*;
 use gu_base::{App, Arg, Module};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value as JsonValue};
-use std::any::Any;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{
+    any::Any,
+    borrow::Cow,
+    collections::HashMap,
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 type Storage = super::file_storage::FileStorage;
 

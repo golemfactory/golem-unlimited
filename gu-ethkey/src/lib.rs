@@ -38,17 +38,19 @@ extern crate pretty_assertions;
 extern crate rand;
 extern crate rustc_hex;
 
-use ethkey::crypto::ecies::{decrypt, encrypt};
 use ethkey::{
+    crypto::ecies::{decrypt, encrypt},
     sign, verify_public, Address, Generator, KeyPair, Message, Password, Public, Random, Signature,
 };
-use ethstore::accounts_dir::{DiskKeyFileManager, KeyFileManager, RootDiskDirectory};
-use ethstore::SafeAccount;
+use ethstore::{
+    accounts_dir::{DiskKeyFileManager, KeyFileManager, RootDiskDirectory},
+    SafeAccount,
+};
 use rustc_hex::ToHex;
-use std::fmt;
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::{
+    fmt, fs, io,
+    path::{Path, PathBuf},
+};
 
 /// HMAC fn iteration count; compromise between security and performance
 pub const KEY_ITERATIONS: u32 = 10240;
@@ -258,10 +260,7 @@ mod tests {
 
     use self::tempfile::tempdir;
     use super::prelude::*;
-    use std::env;
-    use std::fs;
-    use std::io::prelude::*;
-    use std::path::PathBuf;
+    use std::{env, fs, io::prelude::*, path::PathBuf};
 
     fn tmp_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();

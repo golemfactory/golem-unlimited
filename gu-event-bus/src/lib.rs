@@ -9,8 +9,7 @@ extern crate gu_actix;
 extern crate log;
 
 use actix::{ArbiterService, Message};
-use std::fmt::Debug;
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 /// Empty event
 pub struct Event<T> {

@@ -1,6 +1,8 @@
 use rand::*;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 #[derive(Clone)]
 pub struct MonitorConfig {
@@ -70,11 +72,13 @@ impl Monitor {
         let now = Instant::now();
 
         match self.pending_pong.take() {
-            Some((s, ts)) => if now.duration_since(ts) > self.configuration.max_wait_time {
-                return MonitorAction::Stop;
-            } else {
-                return MonitorAction::Continue;
-            },
+            Some((s, ts)) => {
+                if now.duration_since(ts) > self.configuration.max_wait_time {
+                    return MonitorAction::Stop;
+                } else {
+                    return MonitorAction::Continue;
+                }
+            }
             None => (),
         }
 

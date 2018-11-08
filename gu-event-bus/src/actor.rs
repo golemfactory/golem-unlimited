@@ -1,14 +1,11 @@
-use actix::fut;
-use actix::prelude::*;
-use futures::future;
-use futures::prelude::*;
+use actix::{fut, prelude::*};
+use futures::{future, prelude::*};
 use gu_actix::prelude::*;
 use std::collections::BTreeMap;
 //use std::sync::Arc;
 //use std::any::{TypeId, Any};
 //use smallvec::SmallVec;
-use super::path::EventPath;
-use super::Event;
+use super::{path::EventPath, Event};
 use std::cmp;
 
 /* TODO: Auto unsubscribe

@@ -7,10 +7,12 @@ use rand::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
 use smallvec::*;
-use std::any::Any;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::io::{self, Write};
+use std::{
+    any::Any,
+    cell::RefCell,
+    collections::HashMap,
+    io::{self, Write},
+};
 
 pub type NodeId = super::super::NodeId;
 pub type MessageId = SmallVec<[u8; 8]>;

@@ -47,6 +47,7 @@ pub struct Hardware {
     os: Option<OsType>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hostname: Option<String>,
+    num_cores: usize,
 }
 
 impl Message for HardwareQuery {
@@ -118,6 +119,7 @@ impl Handler<HardwareQuery> for HardwareActor {
                         disk,
                         os: os_type(),
                         hostname,
+                        num_cores: num_cpus::get_physical()
                     })
                 }).into_actor(self),
         )

@@ -1,5 +1,4 @@
-use std::io::prelude::*;
-use std::{env, fs, path};
+use std::{env, fs, io::prelude::*, path};
 
 fn main() {
     let mut outf = fs::OpenOptions::new()

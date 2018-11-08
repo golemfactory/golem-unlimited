@@ -1,5 +1,4 @@
-use daemon::run_process_normally;
-use daemon::{daemonize_process, process_status, stop_process, Process};
+use daemon::{daemonize_process, process_status, run_process_normally, stop_process, Process};
 use gu_base::{App, ArgMatches, Module, SubCommand};
 
 enum GuServer {

@@ -1,5 +1,4 @@
-use actix::fut;
-use actix::prelude::*;
+use actix::{fut, prelude::*};
 use gu_actix::*;
 use std::{io, process};
 

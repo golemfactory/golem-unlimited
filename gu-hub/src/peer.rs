@@ -5,11 +5,13 @@ use actix_web::{
 };
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_base::cli;
-use gu_base::{App, ArgMatches, Decorator, Module, SubCommand};
-use gu_net::rpc::peer::PeerInfo;
-use gu_net::NodeId;
+use gu_base::{cli, App, ArgMatches, Decorator, Module, SubCommand};
+use gu_net::{
+    rpc::{peer::PeerInfo, public_destination, reply::CallRemoteUntyped},
+    NodeId,
+};
 use serde_json::Value as JsonValue;
+use server::HubClient;
 
 pub struct PeerModule {
     inner: State,
@@ -49,11 +51,9 @@ impl Module for PeerModule {
         match self.inner {
             State::None => return (),
             State::List => {
-                use super::server::ServerClient;
-
                 System::run(|| {
                     Arbiter::spawn(
-                        ServerClient::get("/peer")
+                        HubClient::get("/peer")
                             .and_then(|r: Vec<PeerInfo>| Ok(format_peer_table(r)))
                             .map_err(|e| error!("{}", e))
                             .then(|_r| Ok(System::current().stop())),
@@ -104,8 +104,7 @@ fn call_remote_ep(
     destination_id: u32,
     arg: JsonValue,
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
-    use gu_net::rpc::public_destination;
-    use gu_net::rpc::reply::*;
+    use gu_net::rpc::ReplyRouter;
 
     ReplyRouter::from_registry()
         .send(CallRemoteUntyped(
