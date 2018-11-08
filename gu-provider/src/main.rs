@@ -32,6 +32,7 @@ use gu_persist::daemon_module;
 mod connect;
 mod hdman;
 mod id;
+mod permission;
 mod provision;
 mod server;
 mod status;
@@ -49,6 +50,7 @@ fn main() {
             .chain(status::module())
             .chain(connect::module())
             .chain(daemon_module::DaemonModule::provider())
+            .chain(permission::module())
             .chain(server::ServerModule::new()),
     );
 }
