@@ -134,7 +134,7 @@ impl Module for PermissionModule {
 
 fn check_box(v: bool) -> &'static str {
     if v {
-        "[X]️️"
+        "[X]"
     } else {
         "[ ]"
     }
@@ -208,7 +208,7 @@ fn run_configure() {
                                 .then(|_| Ok(()));
                         } else {
                             let idx: usize = input.parse().unwrap_or_default();
-                            if (idx > 0 && idx <= hubs.len()) {
+                            if idx > 0 && idx <= hubs.len() {
                                 toggle_managed_by(&mut config, &hubs[idx - 1])
                             }
                         }
