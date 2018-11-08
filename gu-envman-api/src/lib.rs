@@ -1,6 +1,7 @@
 extern crate actix;
 #[macro_use]
 extern crate serde_derive;
+extern crate actix_web;
 extern crate gu_net;
 extern crate serde;
 #[cfg(test)]
@@ -8,6 +9,7 @@ extern crate serde_json;
 
 use actix::prelude::*;
 use gu_net::rpc::peer::PeerSessionInfo;
+use std::path::PathBuf;
 use std::{fmt, io};
 
 /// Errors
@@ -40,7 +42,7 @@ impl fmt::Display for Error {
             Error::IoError(msg) => write!(f, "IO error: {}", msg)?,
             Error::NoSuchSession(msg) => write!(f, "session not found: {}", msg)?,
             Error::NoSuchChild(msg) => write!(f, "child not found: {}", msg)?,
-            Error::UnknownEnv(env_id) => write!(f, "unknown exec enviroment: {}", env_id)?,
+            Error::UnknownEnv(env_id) => write!(f, "unknown exec environment: {}", env_id)?,
         }
         Ok(())
     }
@@ -107,11 +109,13 @@ pub enum Command {
     },
     AddTags(Vec<String>),
     DelTags(Vec<String>),
-    #[serde(rename_all = "camelCase")]
-    DumpFile {
-        // TODO: implement file up- and download
-        data: Vec<u8>,
-        file_name: String,
+    DownloadFile {
+        uri: String,
+        file_path: PathBuf,
+    },
+    UploadFile {
+        uri: String,
+        file_path: PathBuf,
     },
 }
 

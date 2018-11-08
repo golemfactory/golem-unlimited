@@ -3,8 +3,13 @@ use super::{
     sync_exec::{Exec, ExecResult, SyncExecManager},
 };
 use actix::{fut, prelude::*};
+use actix_web::client;
+use actix_web::error::ErrorInternalServerError;
+use actix_web::HttpMessage;
 use futures::prelude::*;
 use gu_actix::prelude::*;
+use gu_base::files::read_async;
+use gu_base::files::write_async;
 use gu_envman_api::*;
 use gu_net::rpc::{
     peer::{PeerSessionInfo, PeerSessionStatus},
@@ -392,16 +397,85 @@ impl Handler<SessionUpdate> for HdMan {
                         }
                     }));
                 }
-                cmd => {
-                    return ActorResponse::reply(Err(vec![format!(
-                        "command {:?} unsupported",
-                        cmd
-                    )]));
+                Command::DownloadFile { uri, file_path } => {
+                    future_chain = Box::new(handle_download_file(future_chain, uri, file_path));
                 }
+                Command::UploadFile { uri, file_path } => {
+                    future_chain = Box::new(handle_upload_file(future_chain, uri, file_path));
+                } //                cmd => {
+                  //                    return ActorResponse::reply(Err(vec![format!(
+                  //                        "command {:?} unsupported",
+                  //                        cmd
+                  //                    )]));
+                  //                }
             }
         }
         ActorResponse::async(future_chain)
     }
+}
+
+fn handle_download_file(
+    future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
+    uri: String,
+    file_path: PathBuf,
+) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
+    future_chain.and_then(
+        move |mut v, act, _ctx| match client::get(uri.clone()).finish() {
+            Ok(req) => fut::Either::A(
+                req.send()
+                    .map_err(|e| e.to_string())
+                    .and_then(|a| write_async(a.payload(), file_path))
+                    .then(move |x| match x {
+                        Ok(()) => {
+                            v.push(format!("{:?} file downloaded", uri));
+                            Ok(v)
+                        }
+                        Err(e) => {
+                            v.push(e.to_string());
+                            Err(v)
+                        }
+                    }).into_actor(act),
+            ),
+            Err(e) => {
+                v.push(e.to_string());
+                fut::Either::B(fut::err(v))
+            }
+        },
+    )
+}
+
+fn handle_upload_file(
+    future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
+    uri: String,
+    file_path: PathBuf,
+) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
+    future_chain.and_then(move |mut v, act, _ctx| {
+        match client::put(uri.clone())
+            .streaming(read_async(file_path).map_err(|e| ErrorInternalServerError(e)))
+        {
+            Ok(req) => fut::Either::A(
+                req.send()
+                    .map_err(|e| e.to_string())
+                    .then(move |x| {
+                        x.and_then(|res| {
+                            if res.status().is_success() {
+                                v.push(format!("{:?} file uploaded", uri));
+                                Ok(v.clone())
+                            } else {
+                                Err(format!("Unsuccessful file upload: {}", res.status()))
+                            }
+                        }).map_err(|e| {
+                            v.push(e.to_string());
+                            v
+                        })
+                    }).into_actor(act),
+            ),
+            Err(e) => {
+                v.push(e.to_string());
+                fut::Either::B(fut::err(v))
+            }
+        }
+    })
 }
 
 // TODO: implement child process polling and status reporting

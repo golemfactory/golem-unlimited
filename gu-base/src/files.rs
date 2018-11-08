@@ -255,10 +255,13 @@ pub fn untgz_async<P: AsRef<Path> + ToOwned>(
     input_path: P,
     output_path: P,
 ) -> impl Future<Item = (), Error = String> {
-    let d = GzDecoder::new(File::open(input_path).map_err(|e| e.to_string()).unwrap());
-    let archive = Archive::new(d);
-
-    FILE_HANDLER.untar_archive(archive, output_path)
+    future::result(File::open(input_path))
+        .map_err(|e| e.to_string())
+        .and_then(|file| {
+            let decoder = GzDecoder::new(file);
+            let archive = Archive::new(decoder);
+            FILE_HANDLER.untar_archive(archive, output_path)
+        })
 }
 
 #[cfg(test)]

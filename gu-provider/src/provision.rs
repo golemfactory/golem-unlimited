@@ -27,8 +27,7 @@ pub fn download(url: &str, output_path: PathBuf) -> impl Future<Item = (), Error
             .and_then(|resp| {
                 write_async(resp.payload(), output_path)
                     .map_err(|_| "writing downloaded file failed".to_string())
-            }).and_then(|_| Ok(()))
-            .map_err(|_| "dsa".to_string()),
+            }),
     )
 }
 

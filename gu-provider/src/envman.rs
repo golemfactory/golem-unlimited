@@ -114,7 +114,9 @@ impl Handler<SessionUpdate> for EnvMan {
     fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
         let (prefix, session_id) = match extract_prefix(&msg.session_id) {
             Ok(v) => v,
-            Err(_e) => return ActorResponse::reply(Err(Vec::new())),
+            Err(_e) => {
+                return ActorResponse::reply(Err(vec!["Invalid environment prefix".to_string()]))
+            }
         };
 
         match self.session_update_map.get(prefix) {
