@@ -161,8 +161,6 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
             .expect("should load or generate eth key");
 
-        let node_id: NodeId = NodeId::from(key.address().as_ref());
-
         let decorator = self.decorator.clone();
         let node_id = NodeId::from(key.address().as_ref());
         let server = actix_web::server::new(move || {
