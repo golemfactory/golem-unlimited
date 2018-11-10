@@ -39,6 +39,11 @@ $ cargo run -- -vv -a 192.168.1.1:61622 server run
 
 # Usage
 
+The hub exposes a browser-accessible dashboard, which is accessible at the URL:
+```
+http://<hub-ip>:61622/app/index.html
+```
+
 See our demo for sample usage
 https://youtu.be/J0LBdg2j6Tk
 
