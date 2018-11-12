@@ -159,7 +159,7 @@ mod test {
     use serde_json;
 
     #[test]
-    fn test_update_1() {
+    fn test_session_update_deserialization() {
         let json = r#"
         {
             "sessionId":"hd::08087f8f-a0f3-41d4-a192-3388f46aa678",
