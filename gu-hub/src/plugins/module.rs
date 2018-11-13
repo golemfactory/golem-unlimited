@@ -112,7 +112,10 @@ impl Module for PluginModule {
                 ("build", Some(m)) => Command::Build(m.to_owned().into()),
                 _ => Command::None,
             };
-            match self.command { Command::None => false, _ => true }
+            match self.command {
+                Command::None => false,
+                _ => true,
+            }
         } else {
             false
         }
