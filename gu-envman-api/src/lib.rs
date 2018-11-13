@@ -9,7 +9,6 @@ extern crate serde_json;
 
 use actix::prelude::*;
 use gu_net::rpc::peer::PeerSessionInfo;
-use std::path::PathBuf;
 use std::{fmt, io};
 
 /// Errors
@@ -111,11 +110,11 @@ pub enum Command {
     DelTags(Vec<String>),
     DownloadFile {
         uri: String,
-        file_path: PathBuf,
+        file_path: String,
     },
     UploadFile {
         uri: String,
-        file_path: PathBuf,
+        file_path: String,
     },
 }
 

@@ -8,11 +8,15 @@ use std::{
 
 // TODO: support redirect
 // TODO: support https
-pub fn download(url: &str, output_path: PathBuf) -> impl Future<Item = (), Error = String> {
+pub fn download(
+    url: &str,
+    output_path: PathBuf,
+    use_cache: bool,
+) -> impl Future<Item = (), Error = String> {
     info!("downloading from {} to {:?}", url, &output_path);
     use actix_web::client;
 
-    if output_path.exists() {
+    if use_cache && output_path.exists() {
         info!("using cached file {:?}", &output_path);
         return future::Either::A(future::ok(()));
     }

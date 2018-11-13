@@ -104,25 +104,24 @@ impl<S: Stream<Item = Bytes, Error = String>> Stream for WithPositions<S> {
         }
     }
 }
-
-fn stream_with_positions<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
+use std::fmt::Debug;
+fn stream_with_positions<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(
     input_stream: Ins,
     path: P,
 ) -> impl Stream<Item = (Bytes, u64, File), Error = String> {
     future::result(File::create(path).map_err(|e| format!("File creation error: {:?}", e)))
         .and_then(|file| {
-            Ok(
-                WithPositions::new(input_stream.map_err(|_| format!("Input stream error")))
-                    .and_then(move |(x, pos)| {
-                        file.try_clone()
-                            .and_then(|file| Ok((x, pos, file)))
-                            .map_err(|e| format!("File clone error {:?}", e))
-                    }),
-            )
+            Ok(WithPositions::new(
+                input_stream.map_err(|e: E| format!("Input stream error {:?}", e)),
+            ).and_then(move |(x, pos)| {
+                file.try_clone()
+                    .and_then(|file| Ok((x, pos, file)))
+                    .map_err(|e| format!("File clone error {:?}", e))
+            }))
         }).flatten_stream()
 }
 
-pub fn write_async_with_sha1<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
+pub fn write_async_with_sha1<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(
     input_stream: Ins,
     path: P,
 ) -> impl Future<Item = String, Error = String> {
@@ -133,7 +132,7 @@ pub fn write_async_with_sha1<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
         }).and_then(|sha| Ok(sha.digest().to_string()))
 }
 
-pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
+pub fn write_async<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(
     input_stream: Ins,
     path: P,
 ) -> impl Future<Item = (), Error = String> {

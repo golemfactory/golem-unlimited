@@ -188,7 +188,7 @@ where
 
         match message.from_json() {
             Err(err) => {
-                error!("bad format!");
+                error!("bad format! {}", err);
                 if let Some(msg) = message::EmitMessage::reply(
                     &m,
                     message::TransportResult::bad_request(format!("{}", err)),
