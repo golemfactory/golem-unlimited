@@ -158,7 +158,7 @@ mod test {
     use serde_json;
 
     #[test]
-    fn test_update_1() {
+    fn test_session_update_deserialization() {
         let json = r#"
         {
             "sessionId":"hd::08087f8f-a0f3-41d4-a192-3388f46aa678",
@@ -171,6 +171,13 @@ mod test {
         let u: SessionUpdate = serde_json::from_str(json).unwrap();
 
         assert_eq!(u.session_id, "hd::08087f8f-a0f3-41d4-a192-3388f46aa678");
+        assert_eq!(u.commands.len(), 1);
+        if let Command::Exec { ref executable, ref args } = u.commands[0] {
+            assert_eq!(executable, "gu-mine");
+            assert_eq!(args, &vec!(String::from("spec")));
+        } else {
+            panic!("Exec command expected");
+        }        
 
         let json = r#"
         {
