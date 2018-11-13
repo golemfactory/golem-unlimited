@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use flate2::read::GzDecoder;
 use futures::{future, prelude::*, Async};
 use futures_cpupool::{CpuFuture, CpuPool};
 use sha1::Sha1;
@@ -8,6 +9,7 @@ use std::{
     io::{self, Seek, SeekFrom, Write},
     path::Path,
 };
+use tar::Archive;
 
 lazy_static! {
     static ref FILE_HANDLER: FilePoolHandler = FilePoolHandler::default();
@@ -42,6 +44,16 @@ impl FilePoolHandler {
             Some(range) => ChunkedReadFile::new_ranged(msg.file, self.pool.clone(), range),
             None => ChunkedReadFile::new(msg.file, self.pool.clone()),
         }).flatten_stream()
+    }
+
+    pub fn untar_archive<P: AsRef<Path> + ToOwned>(
+        &self,
+        mut archive: Archive<GzDecoder<File>>,
+        output_path: P,
+    ) -> impl Future<Item = (), Error = String> {
+        let out = output_path.as_ref().to_owned();
+        self.pool
+            .spawn_fn(move || archive.unpack(out).map_err(|e| e.to_string()))
     }
 }
 
@@ -92,25 +104,24 @@ impl<S: Stream<Item = Bytes, Error = String>> Stream for WithPositions<S> {
         }
     }
 }
-
-fn stream_with_positions<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
+use std::fmt::Debug;
+fn stream_with_positions<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(
     input_stream: Ins,
     path: P,
 ) -> impl Stream<Item = (Bytes, u64, File), Error = String> {
     future::result(File::create(path).map_err(|e| format!("File creation error: {:?}", e)))
         .and_then(|file| {
-            Ok(
-                WithPositions::new(input_stream.map_err(|_| format!("Input stream error")))
-                    .and_then(move |(x, pos)| {
-                        file.try_clone()
-                            .and_then(|file| Ok((x, pos, file)))
-                            .map_err(|e| format!("File clone error {:?}", e))
-                    }),
-            )
+            Ok(WithPositions::new(
+                input_stream.map_err(|e: E| format!("Input stream error {:?}", e)),
+            ).and_then(move |(x, pos)| {
+                file.try_clone()
+                    .and_then(|file| Ok((x, pos, file)))
+                    .map_err(|e| format!("File clone error {:?}", e))
+            }))
         }).flatten_stream()
 }
 
-pub fn write_async_with_sha1<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
+pub fn write_async_with_sha1<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(
     input_stream: Ins,
     path: P,
 ) -> impl Future<Item = String, Error = String> {
@@ -121,7 +132,7 @@ pub fn write_async_with_sha1<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
         }).and_then(|sha| Ok(sha.digest().to_string()))
 }
 
-pub fn write_async<Ins: Stream<Item = Bytes>, P: AsRef<Path>>(
+pub fn write_async<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(
     input_stream: Ins,
     path: P,
 ) -> impl Future<Item = (), Error = String> {
@@ -237,6 +248,19 @@ impl Stream for ChunkedReadFile {
             self.poll()
         }
     }
+}
+
+pub fn untgz_async<P: AsRef<Path> + ToOwned>(
+    input_path: P,
+    output_path: P,
+) -> impl Future<Item = (), Error = String> {
+    future::result(File::open(input_path))
+        .map_err(|e| e.to_string())
+        .and_then(|file| {
+            let decoder = GzDecoder::new(file);
+            let archive = Archive::new(decoder);
+            FILE_HANDLER.untar_archive(archive, output_path)
+        })
 }
 
 #[cfg(test)]

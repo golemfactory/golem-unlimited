@@ -12,6 +12,7 @@ members= [
 	'gu-lan',
 	'gu-hardware',
 	'gu-event-bus',
+	'gu-envman-api',
 ]
 
 #[patch.'https://github.com/tworec/parity-ethereum']

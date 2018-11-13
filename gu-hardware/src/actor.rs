@@ -9,6 +9,7 @@ use inner_actor::InnerActor;
 use ram::{RamInfo, RamQuery};
 
 use super::gpuinfo::{gpu_count, GpuCount};
+use num_cpus;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HardwareQuery;

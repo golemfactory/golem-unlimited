@@ -97,8 +97,16 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             }
 
             newSession(sessionSpec) {
+                let spec = angular.copy(sessionSpec);
+
+                if (spec.image && spec.image.cache_file) {
+                    delete spec.image.cache_file;
+                    spec.image.hash = sessionSpec.image.cache_file;
+                }
+                spec.envType = 'hd';
+
                 return new Session(this.nodeId,
-                    hubApi.callRemote(this.nodeId, HDMAN_CREATE, sessionSpec));
+                    hubApi.callRemote(this.nodeId, HDMAN_CREATE, spec));
             }
 
             fromId(sessionId, sessionData) {
@@ -147,9 +155,9 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             exec(entry, args) {
                 return this.$create.then(id =>
                     hubApi.callRemote(this.nodeId, HDMAN_UPDATE, {
-                        session_id: id,
+                        sessionId: id,
                         commands: [
-                            {Exec: {executable: entry, args: (args||[])}}
+                            {exec: {executable: entry, args: (args||[])}}
                         ]
                     })
                 ).then(result => {
@@ -161,10 +169,10 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             runWithTag(tag, entry, args) {
                 return this.$create.then(id =>
                     hubApi.callRemote(this.nodeId, HDMAN_UPDATE, {
-                        session_id: id,
+                        sessionId: id,
                         commands: [
-                            {Start: {executable: entry, args: (args||[])}},
-                            {AddTags: angular.isArray(tag) ? tag : [tag]}
+                            {start: {executable: entry, args: (args||[])}},
+                            {addTags: angular.isArray(tag) ? tag : [tag]}
                         ]
                     })
                 ).then(result => {
@@ -176,10 +184,10 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             stopWithTag(tag, pid) {
                 return this.$create.then(id =>
                     hubApi.callRemote(this.nodeId, HDMAN_UPDATE, {
-                        session_id: id,
+                        sessionId: id,
                         commands: [
-                            {Stop: {child_id: pid}},
-                            {DelTags: angular.isArray(tag) ? tag : [tag]}
+                            {stop: {childId: pid}},
+                            {delTags: angular.isArray(tag) ? tag : [tag]}
                         ]
                     })
                 ).then(result => {

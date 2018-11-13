@@ -1,10 +1,15 @@
 use super::{
-    status,
+    envman, status,
     sync_exec::{Exec, ExecResult, SyncExecManager},
 };
 use actix::{fut, prelude::*};
+use actix_web::client;
+use actix_web::error::ErrorInternalServerError;
+use actix_web::HttpMessage;
 use futures::prelude::*;
 use gu_actix::prelude::*;
+use gu_base::files::read_async;
+use gu_envman_api::*;
 use gu_net::rpc::{
     peer::{PeerSessionInfo, PeerSessionStatus},
     *,
@@ -14,7 +19,7 @@ use id::generate_new_id;
 use provision::{download, untgz};
 use std::{
     collections::{HashMap, HashSet},
-    fmt, fs, io,
+    fs,
     iter::FromIterator,
     path::PathBuf,
     process, result, time,
@@ -27,14 +32,13 @@ pub struct HdMan {
     sessions_dir: PathBuf,
 }
 
+impl envman::EnvManService for HdMan {}
+
 impl Actor for HdMan {
     type Context = RemotingContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.bind::<CreateSession>(CreateSession::ID);
-        ctx.bind::<SessionUpdate>(SessionUpdate::ID);
-        ctx.bind::<GetSessions>(GetSessions::ID);
-        ctx.bind::<DestroySession>(DestroySession::ID);
+        envman::register("hd", ctx.address());
 
         status::StatusManager::from_registry().do_send(status::AddProvider::new(
             "hostDirect",
@@ -182,32 +186,6 @@ impl SessionInfo {
     }
 }
 
-/// image with binaries and resources for given session
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Image {
-    url: String,
-    // TODO: sha256sum: String,
-    cache_file: String,
-}
-
-/// Message for session creation: local provisioning: downloads and unpacks the binaries
-#[derive(Serialize, Deserialize)]
-struct CreateSession {
-    image: Image,
-    name: String,
-    tags: Vec<String>,
-    note: Option<String>,
-}
-
-impl CreateSession {
-    const ID: u32 = 37;
-}
-
-/// returns session_id
-impl Message for CreateSession {
-    type Result = result::Result<String, Error>;
-}
-
 impl Handler<CreateSession> for HdMan {
     type Result = ActorResponse<HdMan, String, Error>;
 
@@ -223,7 +201,7 @@ impl Handler<CreateSession> for HdMan {
             Ok(_) => (),
             Err(e) => return ActorResponse::reply(Err(e.into())),
         }
-        let cache_path = self.get_cache_path(&msg.image.cache_file);
+        let cache_path = self.get_cache_path(&msg.image.hash);
 
         let session = SessionInfo {
             name: msg.name,
@@ -241,9 +219,9 @@ impl Handler<CreateSession> for HdMan {
         debug!("hey! I'm downloading from: {:?}", msg.image);
         let sess_id = session_id.clone();
         ActorResponse::async(
-            download(msg.image.url.as_ref(), cache_path.clone())
+            download(msg.image.url.as_ref(), cache_path.clone(), true)
                 .map_err(From::from)
-                .and_then(move |_| untgz(&cache_path, &work_dir))
+                .and_then(move |_| untgz(cache_path, work_dir))
                 .map_err(From::from)
                 .into_actor(self)
                 .and_then(|_, act, _ctx| match act.get_session_mut(&sess_id) {
@@ -258,45 +236,6 @@ impl Handler<CreateSession> for HdMan {
                 }),
         )
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct SessionUpdate {
-    session_id: String,
-    commands: Vec<Command>,
-}
-
-#[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Debug)]
-enum Command {
-    Exec {
-        // return cmd output
-        executable: String,
-        args: Vec<String>,
-    },
-    Start {
-        // return child process id
-        executable: String,
-        args: Vec<String>,
-        // TODO: consider adding tags here
-    },
-    Stop {
-        child_id: String,
-    },
-    AddTags(Vec<String>),
-    DelTags(Vec<String>),
-    DumpFile {
-        // TODO: implement file up- and download
-        data: Vec<u8>,
-        file_name: String,
-    },
-}
-
-impl SessionUpdate {
-    const ID: u32 = 38;
-}
-
-impl Message for SessionUpdate {
-    type Result = result::Result<Vec<String>, Vec<String>>;
 }
 
 impl Handler<SessionUpdate> for HdMan {
@@ -457,11 +396,13 @@ impl Handler<SessionUpdate> for HdMan {
                         }
                     }));
                 }
-                cmd => {
-                    return ActorResponse::reply(Err(vec![format!(
-                        "command {:?} unsupported",
-                        cmd
-                    )]));
+                Command::DownloadFile { uri, file_path } => {
+                    let path = self.get_session_path(&session_id).join(file_path);
+                    future_chain = Box::new(handle_download_file(future_chain, uri, path));
+                }
+                Command::UploadFile { uri, file_path } => {
+                    let path = self.get_session_path(&session_id).join(file_path);
+                    future_chain = Box::new(handle_upload_file(future_chain, uri, path));
                 }
             }
         }
@@ -469,21 +410,64 @@ impl Handler<SessionUpdate> for HdMan {
     }
 }
 
+fn handle_download_file(
+    future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
+    uri: String,
+    file_path: PathBuf,
+) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
+    future_chain.and_then(move |mut v, act, _ctx| {
+        download(uri.as_ref(), file_path, false)
+            .then(move |x| match x {
+                Ok(()) => {
+                    v.push(format!("{:?} file downloaded", uri));
+                    Ok(v)
+                }
+                Err(e) => {
+                    v.push(e.to_string());
+                    Err(v)
+                }
+            }).into_actor(act)
+    })
+}
+
+fn handle_upload_file(
+    future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
+    uri: String,
+    file_path: PathBuf,
+) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
+    future_chain.and_then(move |mut v, act, _ctx| {
+        match client::put(uri.clone())
+            .streaming(read_async(file_path).map_err(|e| ErrorInternalServerError(e)))
+        {
+            Ok(req) => fut::Either::A(
+                req.send()
+                    .map_err(|e| e.to_string())
+                    .then(move |x| {
+                        x.and_then(|res| {
+                            if res.status().is_success() {
+                                v.push(format!("{:?} file uploaded", uri));
+                                Ok(v.clone())
+                            } else {
+                                Err(format!("Unsuccessful file upload: {}", res.status()))
+                            }
+                        }).map_err(|e| {
+                            v.push(e.to_string());
+                            v
+                        })
+                    }).into_actor(act),
+            ),
+            Err(e) => {
+                v.push(e.to_string());
+                fut::Either::B(fut::err(v))
+            }
+        }
+    })
+}
+
 // TODO: implement child process polling and status reporting
 #[derive(Serialize, Deserialize, Debug)]
 struct SessionStatus {
     session_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct GetSessions {}
-
-impl GetSessions {
-    const ID: u32 = 39;
-}
-
-impl Message for GetSessions {
-    type Result = result::Result<Vec<PeerSessionInfo>, ()>;
 }
 
 impl Handler<GetSessions> for HdMan {
@@ -504,20 +488,6 @@ impl Handler<GetSessions> for HdMan {
     }
 }
 
-/// Message for session destruction: clean local resources and kill all child processes
-#[derive(Serialize, Deserialize)]
-struct DestroySession {
-    session_id: String,
-}
-
-impl DestroySession {
-    const ID: u32 = 40;
-}
-
-impl Message for DestroySession {
-    type Result = result::Result<String, Error>;
-}
-
 impl Handler<DestroySession> for HdMan {
     type Result = ActorResponse<HdMan, String, Error>;
 
@@ -530,40 +500,6 @@ impl Handler<DestroySession> for HdMan {
             Ok(_) => fut::ok("Session closed".into()),
             Err(e) => fut::err(e),
         })
-    }
-}
-
-/// HdMan Errors
-// impl note: can not use error_chain bc it does not support SerDe
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Error {
-    Error(String),
-    IoError(String),
-    NoSuchSession(String),
-    NoSuchChild(String),
-}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Error::IoError(e.to_string())
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Error(msg) => write!(f, "error: {}", msg)?,
-            Error::IoError(msg) => write!(f, "IO error: {}", msg)?,
-            Error::NoSuchSession(msg) => write!(f, "session not found: {}", msg)?,
-            Error::NoSuchChild(msg) => write!(f, "child not found: {}", msg)?,
-        }
-        Ok(())
-    }
-}
-
-impl From<String> for Error {
-    fn from(msg: String) -> Self {
-        Error::Error(msg)
     }
 }
 
