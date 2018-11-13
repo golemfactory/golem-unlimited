@@ -110,10 +110,9 @@ impl Module for PluginModule {
                     Command::Inactivate(name)
                 }
                 ("build", Some(m)) => Command::Build(m.to_owned().into()),
-                ("", None) => Command::None,
-                _ => return false,
+                _ => Command::None,
             };
-            true
+            match self.command { Command::None => false, _ => true }
         } else {
             false
         }
