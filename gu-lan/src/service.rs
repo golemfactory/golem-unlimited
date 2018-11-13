@@ -1,5 +1,7 @@
 use actix::prelude::*;
 use errors::Result;
+use std::result::Result as StdResult;
+use std::str::FromStr;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -34,8 +36,11 @@ impl ServiceDescription {
     }
 }
 
-impl From<String> for ServiceDescription {
-    fn from(s: String) -> Self {
+impl<T> From<T> for ServiceDescription
+where
+    T: Into<Cow<'static, str>>,
+{
+    fn from(s: T) -> Self {
         ServiceDescription {
             instance: s.into(),
             service: "_unlimited._tcp".into(),
@@ -82,6 +87,22 @@ pub struct ServiceInstance {
     pub txt: Vec<String>,
     pub addrs_v4: Vec<Ipv4Addr>,
     pub ports: Vec<u16>,
+}
+
+impl ServiceInstance {
+    pub fn extract<T, R>(&self, key: &T) -> Option<StdResult<R, R::Err>>
+    where
+        R: FromStr,
+        T: AsRef<str> + ?Sized,
+    {
+        let key_str = format!("{}=", key.as_ref());
+
+        self.txt
+            .iter()
+            .filter(|txt| txt.starts_with(&key_str))
+            .map(|txt| R::from_str(&txt[key_str.len()..]))
+            .next()
+    }
 }
 
 #[derive(Debug, Serialize, Default)]
