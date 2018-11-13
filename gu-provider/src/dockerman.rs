@@ -1,9 +1,9 @@
 //! Docker mode implementation
 
 use super::envman;
-use futures::prelude::*;
 use actix::prelude::*;
-use async_docker::{new_docker, DockerApi, ContainerOptions};
+use async_docker::{new_docker, ContainerOptions, DockerApi};
+use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_envman_api::*;
 use gu_net::rpc::peer::PeerSessionInfo;
@@ -13,12 +13,10 @@ use std::collections::BTreeMap;
 #[derive(Default)]
 struct DockerMan {
     docker_api: Option<Box<DockerApi>>,
-    sessions : BTreeMap<String, DockerSessionInfo>
+    sessions: BTreeMap<String, DockerSessionInfo>,
 }
 
-struct DockerSessionInfo {
-
-}
+struct DockerSessionInfo {}
 
 impl Actor for DockerMan {
     type Context = Context<Self>;
@@ -53,13 +51,17 @@ impl Handler<CreateSession> for DockerMan {
 
                 //let docker_image = api.image(url.as_ref().into());
                 let opts = ContainerOptions::builder(url.as_ref())
-                    .name(msg.name.as_ref()).build();
-                ActorResponse::async(api.containers().create(&opts).and_then(|c| {
-                    Ok(c.Id)
-                }).map_err(|e| Error::IoError(format!("{}", e)))
-                    .into_actor(self))
-            },
-            None => ActorResponse::reply(Err(Error::UnknownEnv(msg.env_type)))
+                    .name(msg.name.as_ref())
+                    .build();
+                ActorResponse::async(
+                    api.containers()
+                        .create(&opts)
+                        .and_then(|c| Ok(c.Id))
+                        .map_err(|e| Error::IoError(format!("{}", e)))
+                        .into_actor(self),
+                )
+            }
+            None => ActorResponse::reply(Err(Error::UnknownEnv(msg.env_type))),
         }
     }
 }
