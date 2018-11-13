@@ -48,9 +48,6 @@ The [hub](gu-hub) comes also with web UI at:
 http://<hub-ip>:61622/app/index.html
 ```
 
-
-
-
 # Project layout
 
 *  [`gu-actix`]: small util crate defining flatten trait for ActixWeb future
