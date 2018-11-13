@@ -21,6 +21,8 @@ extern crate mdns;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+#[cfg(feature = "env-docker")]
+extern crate async_docker;
 extern crate gu_envman_api;
 extern crate serde_json;
 extern crate tar;
@@ -38,6 +40,9 @@ mod provision;
 mod server;
 mod status;
 mod sync_exec;
+
+#[cfg(feature = "env-docker")]
+mod dockerman;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
