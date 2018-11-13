@@ -1,3 +1,6 @@
+//! mDNS discovery for Golem Unlimited nodes.
+//!
+
 #[macro_use]
 extern crate error_chain;
 #[macro_use]
@@ -36,6 +39,87 @@ pub mod module;
 mod service;
 
 pub const ID_LAN: u32 = 576411;
+use std::net::SocketAddr;
+
+/// Hub mDNS data
+#[derive(Clone)]
+pub struct HubDesc {
+    /// ip & TCP port.
+    pub address: SocketAddr,
+    pub host_name: String,
+    /// nodes public key hash
+    pub node_id: String,
+}
+
+/// Lists HUBs visible in local network.
+///
+/// # Example
+///
+/// ```
+/// extern crate actix;
+/// extern crate futures;
+/// extern crate gu_lan;
+///
+/// use actix::prelude::*;
+/// use futures::{future, prelude::*};
+///
+///
+/// fn main() {
+///     System::run(||
+///         Arbiter::spawn(
+///            gu_lan::list_hubs()
+///               .and_then(|hubs|
+///                    Ok(hubs.iter().for_each(|hub| {
+///                        println!(
+///                            "name={}, addr={:?}, node_id={}",
+///                            hub.host_name, hub.address, hub.node_id
+///                        )
+///                    }))).then(|_r| future::ok(System::current().stop()))
+///         )
+///     );
+/// }
+/// ```
+pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
+    use self::actor::{MdnsActor, OneShot};
+    use self::service::{ServiceInstance, ServicesDescription};
+    use actix::prelude::*;
+    use futures::prelude::*;
+    use gu_actix::prelude::*;
+    use std::collections::HashSet;
+
+    let query = ServicesDescription::new(vec!["gu-hub".into()]);
+
+    MdnsActor::<OneShot>::from_registry()
+        .send(query)
+        .flatten_fut()
+        .and_then(|mut r: HashSet<ServiceInstance>| {
+            Ok(r.drain()
+                .filter_map(|service_instance| {
+                    let node_id = match service_instance.extract("node_id") {
+                        Some(Ok(node_id)) => node_id,
+                        _ => String::default(),
+                    };
+                    let host_name = service_instance.host;
+                    match (
+                        service_instance.addrs_v4.first(),
+                        service_instance.ports.first(),
+                    ) {
+                        (Some(address), Some(port)) => {
+                            let address = (*address, *port as u16).into();
+                            Some(HubDesc {
+                                address,
+                                host_name,
+                                node_id,
+                            })
+                        }
+                        (_, _) => {
+                            warn!("instance not found");
+                            None
+                        }
+                    }
+                }).collect())
+        }).map_err(|_e| ())
+}
 
 use mdns::{Responder, Service};
 
