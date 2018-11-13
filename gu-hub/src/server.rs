@@ -98,7 +98,6 @@ impl Module for ServerModule {
         if let Some(_m) = matches.subcommand_matches("server") {
             self.active = true;
             self.config_path = config_path.to_owned();
-            return true;
         }
         false
     }
