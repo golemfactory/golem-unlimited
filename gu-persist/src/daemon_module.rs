@@ -112,6 +112,6 @@ impl Module for DaemonModule {
             _ => (),
         }
 
-        false
+        self.run
     }
 }
