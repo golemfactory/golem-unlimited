@@ -38,14 +38,17 @@ $ cargo run -- -vv -a 192.168.1.1:61622 server run
 ```
 
 # Usage
+See our demo for sample usage
+https://youtu.be/J0LBdg2j6Tk
 
-The hub exposes a browser-accessible dashboard, which is accessible at the URL:
+Both [hub](gu-hub) and [provider](gu-provider) can be configured via CLI. Invoke them with `help` command to see what's possible.
+
+The [hub](gu-hub) comes also with web UI at:
 ```
 http://<hub-ip>:61622/app/index.html
 ```
 
-See our demo for sample usage
-https://youtu.be/J0LBdg2j6Tk
+
 
 
 # Project layout
