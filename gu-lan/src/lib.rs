@@ -79,7 +79,7 @@ pub struct HubDesc {
 ///     );
 /// }
 /// ```
-pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error=()> {
+pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
     use self::actor::{MdnsActor, OneShot};
     use self::service::{ServiceInstance, ServicesDescription};
     use actix::prelude::*;
