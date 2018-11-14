@@ -116,8 +116,11 @@ impl Module for ConnectModule {
             .about("Connect just to config hubs")
             .arg(save);
 
-        app.subcommand(SubCommand::with_name("hubs").about("Manipulate hubs connections")
-            .subcommands(vec![connect, disconnect, manual_mode, auto_mode, list]))
+        app.subcommand(
+            SubCommand::with_name("hubs")
+                .about("Manipulate hubs connections")
+                .subcommands(vec![connect, disconnect, manual_mode, auto_mode, list]),
+        )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
@@ -127,7 +130,7 @@ impl Module for ConnectModule {
 
         let (name, m) = matches.subcommand();
         if name != "hubs" {
-            return false
+            return false;
         }
 
         self.state = match m.unwrap().subcommand() {
