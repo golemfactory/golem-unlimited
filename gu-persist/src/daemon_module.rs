@@ -7,15 +7,7 @@ enum GuServer {
 }
 
 impl GuServer {
-    #[allow(dead_code)]
-    pub fn normal(&self) -> &'static str {
-        match self {
-            GuServer::Hub => "Hub",
-            GuServer::Provider => "Provider",
-        }
-    }
-
-    pub fn full(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             GuServer::Hub => "gu-hub",
             GuServer::Provider => "gu-provider",
@@ -66,7 +58,7 @@ impl Module for DaemonModule {
         let start = SubCommand::with_name("start").about("Run server in background");
         let stop = SubCommand::with_name("stop").about("Stop currently running server");
         let status =
-            SubCommand::with_name("status").about("Get status of currently running server");
+            SubCommand::with_name("status").about("Checks whether server is running");
 
         let command = SubCommand::with_name("server")
             .about("Server management")
@@ -86,7 +78,7 @@ impl Module for DaemonModule {
             }
         }
 
-        let name = self.server.full();
+        let name = self.server.name();
 
         match self.command {
             DaemonCommand::Run => match run_process_normally(name) {
