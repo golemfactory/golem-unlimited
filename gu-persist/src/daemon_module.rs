@@ -112,6 +112,9 @@ impl Module for DaemonModule {
             _ => (),
         }
 
-        self.run
+        match self.command {
+            DaemonCommand::None => false,
+            _ => true,
+        }
     }
 }
