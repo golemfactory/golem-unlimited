@@ -16,8 +16,12 @@ extern crate env_logger;
 extern crate daemonize;
 extern crate libc;
 
+#[cfg(test)]
+#[macro_use]
+extern crate log;
+
 #[cfg(unix)]
-mod daemon;
+pub mod daemon;
 #[cfg(unix)]
 pub mod daemon_module;
 

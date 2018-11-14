@@ -208,24 +208,109 @@ fn force_kill(pid: i32, file: &File) -> bool {
     kill_with_waiting(pid, file, SIGKILL)
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use daemon::daemonize_process;
-//    use daemon::file_is_locked;
-//    use daemon::stop_process;
-//    use std::fs::File;
-//    use std::thread::sleep;
-//    use std::time::Duration;
-//
-//    #[test]
-//    fn start() {
-//        daemonize_process("gu-hub");
-//
-//        sleep(Duration::from_secs(1234));
-//    }
-//
-//    #[test]
-//    fn killy() {
-//        let _ = stop_process("gu-hub");
-//    }
-//}
+#[cfg(test)]
+mod tests {
+    extern crate env_logger;
+    extern crate tempfile;
+
+    use daemon::{DaemonProcess, ProcessStatus};
+    use libc::getpid;
+    use std::{env, path::PathBuf, process::Command, thread, time::Duration};
+
+    fn tmp_work_dir() -> PathBuf {
+        let w = tempfile::tempdir().unwrap().into_path();
+        info!("work_dir: {:?}", w);
+        w
+    }
+
+    fn run_daemonized_example(name: &str, work_dir: &str) -> i32 {
+        let mut child = Command::new("../target/debug/examples/test_daemonize")
+            .args(&[name, work_dir])
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        child.wait().unwrap();
+
+        thread::sleep(Duration::from_millis(100));
+        pid as i32
+    }
+
+    #[test]
+    fn test_init_logging() {
+        if env::var("RUST_LOG").is_err() {
+            env::set_var("RUST_LOG", "info")
+        }
+        env_logger::init();
+    }
+
+    #[test]
+    fn test_initial_status() {
+        // when
+        let p = DaemonProcess::create("whatever", tmp_work_dir());
+
+        // then
+        assert!(!p.pid_path.exists());
+        let s = p.status();
+        assert!(s.is_ok());
+        assert!(match s.unwrap() {
+            ProcessStatus::Stopped => true,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test_run() {
+        // when
+        let p = DaemonProcess::create("run", tmp_work_dir());
+        let r = p.run_normally();
+
+        // then
+        assert!(r.is_ok());
+        assert!(p.pid_path.exists());
+
+        // and when
+        let s = p.status();
+
+        // then
+        assert!(s.is_ok());
+        unsafe {
+            match s.unwrap() {
+                ProcessStatus::Running(pid) => assert_eq!(pid, getpid()),
+                _ => panic!("running status expected"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_daemonize_and_stop() {
+        // given
+        let name = "daemonize";
+        let work_dir = tmp_work_dir();
+
+        // when
+        let p = DaemonProcess::create(&name, &work_dir);
+        let run_pid = run_daemonized_example(&name, &work_dir.to_str().unwrap());
+        let s = p.status();
+
+        //then
+        assert!(s.is_ok());
+        match s.unwrap() {
+            ProcessStatus::Running(pid) => assert_eq!(pid, run_pid + 2),
+            _ => panic!("running status expected"),
+        }
+
+        // and when
+        let r = p.stop();
+        //then
+        assert!(r.is_ok());
+
+        // and when
+        let s = p.status();
+        // then
+        assert!(s.is_ok());
+        assert!(match s.unwrap() {
+            ProcessStatus::Stopped => true,
+            _ => false,
+        });
+    }
+}
