@@ -38,10 +38,10 @@ pub struct ConnectModule {
     state: State,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 enum State {
-    Connect(SocketAddr, bool),
-    Disconnect(SocketAddr, bool),
+    Connect(Vec<SocketAddr>, bool),
+    Disconnect(Vec<SocketAddr>, bool),
     Mode(ConnectMode, bool),
     List(ListingType),
     None,
@@ -56,11 +56,11 @@ impl Into<&'static str> for State {
             State::Disconnect(_, true) => "/connections/disconnect?save=1",
             State::Mode(x, false) => match x {
                 ConnectMode::Auto => "/connections/mode/auto",
-                ConnectMode::Config => "/connections/mode/config",
+                ConnectMode::Manual => "/connections/mode/manual",
             },
             State::Mode(x, true) => match x {
                 ConnectMode::Auto => "/connections/mode/auto?save=1",
-                ConnectMode::Config => "/connections/mode/config?save=1",
+                ConnectMode::Manual => "/connections/mode/manual?save=1",
             },
             State::List(x) => match x {
                 ListingType::Pending => "/connections/list/pending",
@@ -77,17 +77,19 @@ impl Module for ConnectModule {
         let host = Arg::with_name("host")
             .index(1)
             .short("h")
-            .required(true)
             .long("hub address")
+            .required(true)
             .takes_value(true)
+            .multiple(true)
             .value_name("IP:PORT")
             .help("IP and PORT of a Hub");
 
         let save = Arg::with_name("save")
             .short("S")
             .required(false)
-            .long("save change in config file")
-            .takes_value(false);
+            .long("save")
+            .takes_value(false)
+            .help("save change in config file");
 
         let connect = SubCommand::with_name("connect")
             .about("Connect to a host without adding it to the config")
@@ -110,30 +112,29 @@ impl Module for ConnectModule {
         let auto_mode = SubCommand::with_name("auto")
             .about("Connect to the config hubs and additionally automatically connect to all found local hubs")
             .arg(save.clone());
-        let config_mode = SubCommand::with_name("config")
+        let manual_mode = SubCommand::with_name("manual")
             .about("Connect just to config hubs")
             .arg(save);
-        let mode = SubCommand::with_name("mode")
-            .about("Change the connection mode")
-            .subcommands(vec![auto_mode, config_mode]);
 
-        app.subcommand(SubCommand::with_name("hubs").about("Manipulate hubs connections"))
-            .subcommands(vec![connect, disconnect, mode, list])
+        app.subcommand(SubCommand::with_name("hubs").about("Manipulate hubs connections")
+            .subcommands(vec![connect, disconnect, manual_mode, auto_mode, list]))
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        let get_host: fn(&ArgMatches) -> SocketAddr =
-            |m| m.value_of("host").unwrap().parse().unwrap();
+        let get_host: fn(&ArgMatches) -> Vec<SocketAddr> =
+            |m| Vec::from_iter(m.values_of("host").unwrap().map(|x| x.parse().unwrap()));
         let save = |matches: &ArgMatches| matches.is_present("save");
 
-        self.state = match matches.subcommand() {
+        let (name, m) = matches.subcommand();
+        if name != "hubs" {
+            return false
+        }
+
+        self.state = match m.unwrap().subcommand() {
             ("connect", Some(m)) => State::Connect(get_host(m), save(m)),
             ("disconnect", Some(m)) => State::Disconnect(get_host(m), save(m)),
-            ("mode", Some(m)) => match m.subcommand() {
-                ("auto", Some(m)) => State::Mode(ConnectMode::Auto, save(m)),
-                ("config", Some(m)) => State::Mode(ConnectMode::Config, save(m)),
-                _ => State::None,
-            },
+            ("auto", Some(m)) => State::Mode(ConnectMode::Auto, save(m)),
+            ("manual", Some(m)) => State::Mode(ConnectMode::Manual, save(m)),
             ("list", Some(m)) => match m.subcommand() {
                 ("pending", Some(_)) => State::List(ListingType::Pending),
                 ("connected", Some(_)) => State::List(ListingType::Connected),
@@ -152,12 +153,12 @@ impl Module for ConnectModule {
         }
         let state = self.state.clone();
         System::run(move || {
-            let endpoint: &'static str = state.into();
+            let endpoint: &'static str = state.clone().into();
             match state {
                 State::Connect(a, _) | State::Disconnect(a, _) => Arbiter::spawn(
-                    ProviderClient::post(
+                    ProviderClient::post_json(
                         endpoint.to_string(),
-                        format!("[ \"{}:{}\" ]", a.ip(), a.port()),
+                        Vec::from_iter(a.into_iter().map(|x| format!("{}:{}", x.ip(), x.port()))),
                     ).and_then(|()| Ok(()))
                     .map_err(|e| error!("{}", e))
                     .then(|_r| Ok(System::current().stop())),
@@ -225,9 +226,9 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             http::Method::PUT,
             mode_lambda(ConnectMode::Auto),
         ).route(
-            "/mode/config",
+            "/mode/manual",
             http::Method::PUT,
-            mode_lambda(ConnectMode::Config),
+            mode_lambda(ConnectMode::Manual),
         ).nested("/", edit_connection_scope(http::Method::POST))
 }
 
@@ -507,7 +508,6 @@ impl Handler<NewInstance> for ConnectManager {
     type Result = ();
 
     fn handle(&mut self, msg: NewInstance, _ctx: &mut Context<Self>) -> () {
-        println!("{:?}", msg.data);
         if let (Some(ip), Some(port)) = (msg.data.addrs_v4.first(), msg.data.ports.first()) {
             use std::net::IpAddr;
 

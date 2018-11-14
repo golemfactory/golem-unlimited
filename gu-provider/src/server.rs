@@ -63,7 +63,7 @@ pub(crate) type ProviderClient = ServerClient<ProviderConfig>;
 #[rtype(result = "Result<Option<()>, String>")]
 pub(crate) enum ConnectMode {
     Auto,
-    Config,
+    Manual,
 }
 
 impl ProviderConfig {
@@ -76,7 +76,7 @@ impl ProviderConfig {
     }
 
     fn default_connect_mode() -> ConnectMode {
-        ConnectMode::Config
+        ConnectMode::Manual
     }
 }
 
