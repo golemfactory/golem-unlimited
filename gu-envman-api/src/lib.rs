@@ -158,7 +158,33 @@ mod test {
     use serde_json;
 
     #[test]
-    fn test_session_update_deserialization() {
+    fn test_create_session_deserialization() {
+        // given
+        let json = r#"
+        {
+            "envType":"hd",
+            "image": {
+                "url": "http://some.url/file.tgz",
+                "hash": "12345"
+            },
+            "name": "zima",
+            "tags": ["lato"]
+        }"#;
+
+        // when
+        let c: CreateSession = serde_json::from_str(json).unwrap();
+
+        // then
+        assert_eq!(c.env_type, "hd");
+        assert_eq!(c.image.url, "http://some.url/file.tgz");
+        assert_eq!(c.image.hash, "12345");
+        assert_eq!(c.tags.len(), 1);
+        assert_eq!(c.tags[0], "lato");
+    }
+
+    #[test]
+    fn test_session_update_single_comm_deserialization() {
+        // given
         let json = r#"
         {
             "sessionId":"hd::08087f8f-a0f3-41d4-a192-3388f46aa678",
@@ -168,8 +194,10 @@ mod test {
         }
         "#;
 
+        // when
         let u: SessionUpdate = serde_json::from_str(json).unwrap();
 
+        // then
         assert_eq!(u.session_id, "hd::08087f8f-a0f3-41d4-a192-3388f46aa678");
         assert_eq!(u.commands.len(), 1);
         if let Command::Exec {
@@ -182,15 +210,37 @@ mod test {
         } else {
             panic!("Exec command expected");
         }
+    }
 
+    #[test]
+    fn test_session_update_multi_comm_deserialization() {
+        // given
         let json = r#"
         {
             "sessionId":"hd::4c562af4-db3f-4e57-8fac-cf30249db682",
-            "commands":[{"stop":{"childId":"145ccba6-ce24-4809-8856-7eae40092fdd"}},{"delTags":["gu:mine:working"]}]
+            "commands":[
+                {"stop":{"childId":"145ccba6-ce24-4809-8856-7eae40092fdd"}},
+                {"delTags":["gu:mine:working"]}
+            ]
         }"#;
 
+        // when
         let u: SessionUpdate = serde_json::from_str(json).unwrap();
         assert_eq!(u.session_id, "hd::4c562af4-db3f-4e57-8fac-cf30249db682");
-    }
+        assert_eq!(u.commands.len(), 2);
 
+        // then
+        if let Command::Stop { ref child_id } = u.commands[0] {
+            assert_eq!(child_id, "145ccba6-ce24-4809-8856-7eae40092fdd");
+        } else {
+            panic!("Stop command expected");
+        }
+
+        if let Command::DelTags(ref tags) = u.commands[1] {
+            assert_eq!(tags.len(), 1);
+            assert_eq!(tags, &vec!(String::from("gu:mine:working")));
+        } else {
+            panic!("DelTags command expected");
+        }
+    }
 }
