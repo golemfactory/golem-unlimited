@@ -18,11 +18,9 @@ extern crate bytes;
 extern crate directories;
 
 extern crate actix_web;
-extern crate daemonize;
 extern crate futures;
 extern crate gu_actix;
 extern crate gu_base;
-extern crate libc;
 extern crate tokio_fs;
 extern crate tokio_io;
 
@@ -52,10 +50,6 @@ pub mod error {
 }
 
 pub mod config;
-#[cfg(unix)]
-mod daemon;
-#[cfg(unix)]
-pub mod daemon_module;
 pub mod file_storage;
 pub mod http;
 pub mod storage;

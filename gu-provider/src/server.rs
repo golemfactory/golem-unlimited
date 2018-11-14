@@ -9,13 +9,12 @@ use connect::{
 };
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{Decorator, Module};
+use gu_base::{daemon_module::DaemonModule, Decorator, Module};
 use gu_ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
-    daemon_module::DaemonModule,
     http::{ServerClient, ServerConfig},
 };
 use hdman::HdMan;
