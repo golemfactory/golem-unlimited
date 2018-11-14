@@ -210,17 +210,14 @@ fn force_kill(pid: i32, file: &File) -> bool {
 
 #[cfg(test)]
 mod tests {
-    extern crate env_logger;
     extern crate tempfile;
 
     use daemon::{DaemonProcess, ProcessStatus};
     use libc::getpid;
-    use std::{env, path::PathBuf, process::Command, thread, time::Duration};
+    use std::{path::PathBuf, process::Command, thread, time::Duration};
 
     fn tmp_work_dir() -> PathBuf {
-        let w = tempfile::tempdir().unwrap().into_path();
-        info!("work_dir: {:?}", w);
-        w
+        tempfile::tempdir().unwrap().into_path()
     }
 
     fn run_daemonized_example(name: &str, work_dir: &str) -> i32 {
@@ -233,14 +230,6 @@ mod tests {
 
         thread::sleep(Duration::from_millis(100));
         pid as i32
-    }
-
-    #[test]
-    fn test_init_logging() {
-        if env::var("RUST_LOG").is_err() {
-            env::set_var("RUST_LOG", "info")
-        }
-        env_logger::init();
     }
 
     #[test]
