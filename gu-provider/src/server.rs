@@ -5,11 +5,15 @@ use actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
 use connect::{
-    self, AutoMdns, Connect, ConnectManager, ConnectionChange, ConnectionChangeMessage, Disconnect,
+    self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
+    ConnectionChangeMessage, Disconnect, ListSockets,
 };
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{daemon_module::DaemonHandler, Decorator, Module};
+use gu_base::{
+    daemon_lib::{DaemonCommand, DaemonHandler},
+    Decorator, Module,
+};
 use gu_ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
@@ -100,10 +104,6 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
     info!("node_id={:?}", node_id);
     node_id
 }
-
-use actix_web;
-use connect::{ConnectModeMessage, ListSockets};
-use gu_base::daemon_module::DaemonCommand;
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {

@@ -11,7 +11,7 @@ use actix::{
 use actix_web;
 use futures::Future;
 use gu_base::{
-    daemon_module::{DaemonCommand, DaemonHandler},
+    daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
 };
 use gu_ethkey::prelude::*;
