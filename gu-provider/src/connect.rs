@@ -8,7 +8,7 @@ use actix_web::{
 };
 use futures::{future, stream::Stream, Future};
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{self, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{self, cli, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_lan::{
     actor::{Continuous, MdnsActor, SubscribeInstance},
     NewInstance, ServiceDescription, Subscription,
@@ -43,7 +43,7 @@ enum State {
     Connect(SocketAddr, bool),
     Disconnect(SocketAddr, bool),
     Mode(ConnectMode, bool),
-    List(ListingType),
+    List(ConnectionStatus),
     None,
 }
 
@@ -63,9 +63,9 @@ impl Into<&'static str> for State {
                 ConnectMode::Config => "/connections/mode/config?save=1",
             },
             State::List(x) => match x {
-                ListingType::Pending => "/connections/list/pending",
-                ListingType::Connected => "/connections/list/connected",
-                ListingType::All => "/connections/list/all",
+                ConnectionStatus::Pending => "/connections/list/pending",
+                ConnectionStatus::Connected => "/connections/list/connected",
+                ConnectionStatus::All => "/connections/list/all",
             },
             State::None => unreachable!(),
         }
@@ -90,7 +90,7 @@ impl Module for ConnectModule {
             .takes_value(false);
 
         let connect = SubCommand::with_name("connect")
-            .about("Connect to a host without adding it to the config")
+            .about("Connect to a hub without adding it to the config")
             .arg(host.clone())
             .arg(save.clone());
         let disconnect = SubCommand::with_name("disconnect")
@@ -98,14 +98,13 @@ impl Module for ConnectModule {
             .arg(host.clone())
             .arg(save.clone());
 
-        let list_all = SubCommand::with_name("all").about("List pending and connected hubs");
         let list_pending = SubCommand::with_name("pending")
             .about("List hubs to which the provider is trying to get connected");
         let list_connected = SubCommand::with_name("connected")
             .about("List hubs the provider is currently connected to");
         let list = SubCommand::with_name("list")
             .about("Hub listing")
-            .subcommands(vec![list_connected, list_pending, list_all]);
+            .subcommands(vec![list_connected, list_pending]);
 
         let auto_mode = SubCommand::with_name("auto")
             .about("Connect to the config hubs and additionally automatically connect to all found local hubs")
@@ -117,8 +116,11 @@ impl Module for ConnectModule {
             .about("Change the connection mode")
             .subcommands(vec![auto_mode, config_mode]);
 
-        app.subcommand(SubCommand::with_name("hubs").about("Manipulate hubs connections"))
-            .subcommands(vec![connect, disconnect, mode, list])
+        app.subcommand(
+            SubCommand::with_name("hubs")
+                .about("Manage hubs connections")
+                .subcommands(vec![connect, disconnect, mode, list]),
+        )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
@@ -127,23 +129,28 @@ impl Module for ConnectModule {
         let save = |matches: &ArgMatches| matches.is_present("save");
 
         self.state = match matches.subcommand() {
-            ("connect", Some(m)) => State::Connect(get_host(m), save(m)),
-            ("disconnect", Some(m)) => State::Disconnect(get_host(m), save(m)),
-            ("mode", Some(m)) => match m.subcommand() {
-                ("auto", Some(m)) => State::Mode(ConnectMode::Auto, save(m)),
-                ("config", Some(m)) => State::Mode(ConnectMode::Config, save(m)),
-                _ => State::None,
-            },
-            ("list", Some(m)) => match m.subcommand() {
-                ("pending", Some(_)) => State::List(ListingType::Pending),
-                ("connected", Some(_)) => State::List(ListingType::Connected),
-                ("all", Some(_)) => State::List(ListingType::All),
+            ("hubs", Some(m)) => match m.subcommand() {
+                ("connect", Some(m)) => State::Connect(get_host(m), save(m)),
+                ("disconnect", Some(m)) => State::Disconnect(get_host(m), save(m)),
+                ("mode", Some(m)) => match m.subcommand() {
+                    ("auto", Some(m)) => State::Mode(ConnectMode::Auto, save(m)),
+                    ("config", Some(m)) => State::Mode(ConnectMode::Config, save(m)),
+                    _ => State::None,
+                },
+                ("list", Some(m)) => match m.subcommand() {
+                    ("pending", Some(_)) => State::List(ConnectionStatus::Pending),
+                    ("connected", Some(_)) => State::List(ConnectionStatus::Connected),
+                    _ => State::List(ConnectionStatus::All),
+                },
                 _ => State::None,
             },
             _ => State::None,
         };
 
-        true
+        match self.state {
+            State::None => false,
+            _ => true,
+        }
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
@@ -159,23 +166,40 @@ impl Module for ConnectModule {
                         endpoint.to_string(),
                         format!("[ \"{}:{}\" ]", a.ip(), a.port()),
                     ).and_then(|()| Ok(()))
-                    .map_err(|e| error!("{}", e))
+                    .map_err(|e| error!("state {:?}", e))
                     .then(|_r| Ok(System::current().stop())),
                 ),
                 State::Mode(_, _) => Arbiter::spawn(
                     ProviderClient::empty_put(endpoint.to_string())
                         .and_then(|_: ()| Ok(()))
-                        .map_err(|e| error!("{}", e))
+                        .map_err(|e| error!("mode {:?}", e))
                         .then(|_r| Ok(System::current().stop())),
                 ),
-                State::List(_) => Arbiter::spawn(
+                State::List(listing_type) => Arbiter::spawn(
                     ProviderClient::get(endpoint.to_string())
-                        .and_then(|l: Vec<SocketAddr>| {
-                            for e in l {
-                                println!("{:?}", e);
-                            }
+                        .and_then(move |l: Vec<(SocketAddr, ConnectionStatus)>| {
+                            println!("Listing {:?} hubs", listing_type);
+                            cli::format_table(
+                                row!["IP", "address", "port", "status"],
+                                || "No hubs found",
+                                l.iter()
+                                    .filter(|e| match listing_type {
+                                        ConnectionStatus::All => true,
+                                        lt => e.1 == lt,
+                                    }).map(|e| {
+                                        row![
+                                            match e.0 {
+                                                SocketAddr::V4(_) => "V4",
+                                                _ => "V6",
+                                            },
+                                            e.0.ip(),
+                                            e.0.port(),
+                                            format!("{:?}", e.1),
+                                        ]
+                                    }),
+                            );
                             Ok(())
-                        }).map_err(|e| error!("{}", e))
+                        }).map_err(|e| error!("list {:?}", e))
                         .then(|_r| Ok(System::current().stop())),
                 ),
                 _ => unimplemented!(),
@@ -190,7 +214,6 @@ impl Module for ConnectModule {
 
 fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     let mode_lambda = |m: ConnectMode| move |x| mode_scope(x, &m);
-    let list_lambda = |m: ListingType| move |x| list_scope(x, &m);
     let connect_lambda = |m: ConnectionChange| move |x| connect_scope(x, &m);
 
     let edit_connection_scope = |method: http::Method| {
@@ -211,15 +234,9 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .nested("/list/", |scope| {
             scope
-                .route(
-                    "/pending",
-                    http::Method::GET,
-                    list_lambda(ListingType::Pending),
-                ).route(
-                    "/connected",
-                    http::Method::GET,
-                    list_lambda(ListingType::Connected),
-                ).route("/all", http::Method::GET, list_lambda(ListingType::All))
+                .route("/pending", http::Method::GET, list_scope)
+                .route("/connected", http::Method::GET, list_scope)
+                .route("/all", http::Method::GET, list_scope)
         }).route(
             "/mode/auto",
             http::Method::PUT,
@@ -231,18 +248,16 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         ).nested("/", edit_connection_scope(http::Method::POST))
 }
 
-#[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum ListingType {
+#[derive(Message, Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub(crate) enum ConnectionStatus {
     Pending,
     Connected,
     All,
 }
 
-fn list_scope<S>(_r: HttpRequest<S>, m: &ListingType) -> impl Responder {
-    let provider = ProviderServer::from_registry();
-
-    provider
-        .send(ListSockets(*m))
+fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
+    ProviderServer::from_registry()
+        .send(ListSockets)
         .map_err(|e| {
             ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
         }).and_then(|result| {
@@ -255,9 +270,7 @@ fn list_scope<S>(_r: HttpRequest<S>, m: &ListingType) -> impl Responder {
 }
 
 fn mode_scope<S>(r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
-    let provider = ProviderServer::from_registry();
-
-    provider
+    ProviderServer::from_registry()
         .send(ConnectModeMessage {
             mode: m.clone(),
             save: parse_save_param(&r),
@@ -290,7 +303,6 @@ pub(crate) struct ConnectionChangeMessage {
 }
 
 fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
-    let provider = ProviderServer::from_registry();
     let change = *m;
     let save = parse_save_param(&r);
 
@@ -304,7 +316,7 @@ fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
         });
 
     hubs.and_then(move |hubs| {
-        provider
+        ProviderServer::from_registry()
             .send(ConnectionChangeMessage { change, hubs, save })
             .map_err(|e| {
                 ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
@@ -455,25 +467,20 @@ impl ConnectManager {
         manager
     }
 
-    fn list(&self, l_type: ListingType) -> impl Future<Item = Vec<SocketAddr>, Error = String> {
+    fn list(&self) -> impl Future<Item = Vec<(SocketAddr, ConnectionStatus)>, Error = String> {
         let vec = Vec::from_iter(self.connections.clone().into_iter().map(|elt| {
-            let connected = |b: bool, socket: SocketAddr| {
-                elt.1.send(IsConnected).and_then(move |connected| {
-                    let res = if b == connected { Some(socket) } else { None };
-                    Ok(res)
-                })
-            };
-
-            match l_type {
-                ListingType::Pending => future::Either::A(connected(false, elt.0)),
-                ListingType::Connected => future::Either::A(connected(true, elt.0)),
-                ListingType::All => future::Either::B(future::ok(Some(elt.0))),
-            }
+            elt.1.send(IsConnected).and_then(move |is_connected| {
+                Ok((
+                    elt.0,
+                    match is_connected {
+                        true => ConnectionStatus::Connected,
+                        _ => ConnectionStatus::Pending,
+                    },
+                ))
+            })
         }));
 
-        future::join_all(vec)
-            .and_then(|vec| Ok(Vec::from_iter(vec.into_iter().filter_map(|x| x))))
-            .map_err(|e| e.to_string())
+        future::join_all(vec).map_err(|e| e.to_string())
     }
 
     fn connect_to(&mut self, addr: SocketAddr) {
@@ -521,14 +528,14 @@ impl Handler<NewInstance> for ConnectManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<Vec<SocketAddr>, String>")]
-pub(crate) struct ListSockets(pub ListingType);
+#[rtype(result = "Result<Vec<(SocketAddr, ConnectionStatus)>, String>")]
+pub(crate) struct ListSockets;
 
 impl Handler<ListSockets> for ConnectManager {
-    type Result = ActorResponse<Self, Vec<SocketAddr>, String>;
+    type Result = ActorResponse<Self, Vec<(SocketAddr, ConnectionStatus)>, String>;
 
-    fn handle(&mut self, msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
-        let list = self.list(msg.0);
+    fn handle(&mut self, _: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
+        let list = self.list();
         ActorResponse::async(list.into_actor(self))
     }
 }
