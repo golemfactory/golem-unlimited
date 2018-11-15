@@ -98,8 +98,7 @@ impl Module for ConnectModule {
             .arg(host.clone())
             .arg(save.clone());
 
-        let list_all = SubCommand::with_name("all")
-            .about("List pending and connected hubs");
+        let list_all = SubCommand::with_name("all").about("List pending and connected hubs");
         let list_pending = SubCommand::with_name("pending")
             .about("List hubs to which the provider is trying to get connected");
         let list_connected = SubCommand::with_name("connected")
@@ -120,8 +119,8 @@ impl Module for ConnectModule {
 
         app.subcommand(
             SubCommand::with_name("hubs")
-            .about("Manage hubs connections")
-            .subcommands(vec![connect, disconnect, mode, list])
+                .about("Manage hubs connections")
+                .subcommands(vec![connect, disconnect, mode, list]),
         )
     }
 
@@ -152,7 +151,7 @@ impl Module for ConnectModule {
 
         match self.state {
             State::None => false,
-            _ => true
+            _ => true,
         }
     }
 
