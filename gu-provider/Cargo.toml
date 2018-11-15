@@ -40,7 +40,8 @@ gu-hardware = { path = "../gu-hardware"}
 gu-envman-api = { path = "../gu-envman-api" }
 
 
-async_docker={git = "https://github.com/golemfactory/async-docker", optional=true }
+#async_docker={git = "https://github.com/golemfactory/async-docker", optional=true }
+async_docker={path = "../../async-docker", optional=true }
 
 [package.metadata.deb]
 depends = "$auto, systemd"

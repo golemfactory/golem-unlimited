@@ -45,6 +45,8 @@ impl Handler<CreateSession> for DockerMan {
         msg: CreateSession,
         ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
+        debug!("create session for: {}", &msg.image.url);
+
         match self.docker_api {
             Some(ref api) => {
                 let Image { url, hash } = msg.image;
@@ -100,4 +102,17 @@ impl Handler<DestroySession> for DockerMan {
     ) -> <Self as Handler<DestroySession>>::Result {
         unimplemented!()
     }
+}
+
+
+struct Init;
+
+impl gu_base::Module for Init {
+    fn run<D: gu_base::Decorator + Clone + 'static>(&self, _decorator: D) {
+        gu_base::run_once(|| { let _ = DockerMan::default().start(); });
+    }
+}
+
+pub fn module() -> impl gu_base::Module {
+    Init
 }

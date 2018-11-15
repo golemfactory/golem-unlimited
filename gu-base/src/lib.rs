@@ -15,6 +15,7 @@ extern crate env_logger;
 
 pub mod cli;
 pub mod files;
+pub mod empty;
 mod output;
 mod run_once;
 

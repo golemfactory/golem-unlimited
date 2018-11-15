@@ -61,6 +61,7 @@ http://<hub-ip>:61622/app/index.html
 *  [`gu-persist`]: filesystem, persistent storage of files
 *  [`gu-provider`]: binary of Provider service
 *  [`gu-webapp`]: web application building development tools
+*  [`gu-envman-api`]: data structures used in communication with execution enviroment component on provider side.
 
 [`gu-actix`]: gu-actix
 [`gu-base`]: gu-base
@@ -73,6 +74,7 @@ http://<hub-ip>:61622/app/index.html
 [`gu-persist`]: gu-persist
 [`gu-provider`]: gu-provider
 [`gu-webapp`]: gu-webapp
+[`gu-envman-api`]: gu-envman-api
 
 
 # How to Contribute to Unlimited

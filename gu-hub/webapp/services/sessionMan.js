@@ -1,4 +1,4 @@
-angular.module('gu').service('sessionMan', function ($http, $log, $q, hubApi, hdMan) {
+angular.module('gu').service('sessionMan', function ($http, $log, $q, hubApi, guPeerMan) {
 
     function guid() {
         function s4() {
@@ -99,13 +99,13 @@ angular.module('gu').service('sessionMan', function ($http, $log, $q, hubApi, hd
         }
 
         if (needDetails) {
-            peersPromise.then(peers => angular.forEach(peers, peer => peerDetails(peer)));
+            peersPromise.then(peers => angular.forEach(peers, peer => peerDetails(session, peer)));
         }
 
         return peersPromise;
     }
 
-    function peerDetails(peer) {
+    function peerDetails(session, peer) {
         hubApi.callRemote(peer.nodeId, 19354, null).then(data => {
             var ok = data.Ok;
             if (ok) {
@@ -119,15 +119,13 @@ angular.module('gu').service('sessionMan', function ($http, $log, $q, hubApi, hd
         })
         ;
 
-        peer.hdMan = hdMan.peer(peer.nodeId);
+        peer.manager = guPeerMan.peer(session, peer.nodeId);
         peer.refreshSessions = function () {
-            peer.hdMan.sessions().then(sessions => peer.sessions = sessions
-            )
-            ;
-        }
+            peer.manager.sessions().then(sessions => peer.sessions = sessions);
+        };
 
         peer.refreshSessions();
-    };
+    }
 
 
     function listSessions(sessionType) {
@@ -162,8 +160,7 @@ angular.module('gu').service('sessionMan', function ($http, $log, $q, hubApi, hd
                     osMap[peer.nodeId] = ok.os || peer.os || 'unk';
                 }
                 return osMap[peer.nodeId];
-            })
-                ;
+            });
         }
     }
 

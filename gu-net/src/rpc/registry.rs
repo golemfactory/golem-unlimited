@@ -27,7 +27,7 @@ impl RemotingRegistry {
     {
         let type_id = TypeId::of::<T>();
         let (addr, is_new): (Addr<T>, bool) = match self.inner.get(&type_id) {
-            Some(addr) => match Any::downcast_ref::<Addr<T>>(addr) {
+            Some(addr) => match Any::downcast_ref::<Addr<T>>(addr.as_ref()) {
                 Some(v) => (v.clone(), false),
                 None => panic!("unexpected downcast RemotingRegistry::GetAddr"),
             },

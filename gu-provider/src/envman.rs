@@ -3,6 +3,7 @@
 
 use actix::prelude::*;
 use futures::{future, prelude::*};
+use gu_base;
 use gu_actix::prelude::*;
 use gu_envman_api::*;
 use gu_net::rpc::peer::PeerSessionInfo;
@@ -210,6 +211,7 @@ where
         address,
     })
 }
+
 
 #[cfg(test)]
 mod test {

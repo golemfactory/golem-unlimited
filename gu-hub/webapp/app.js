@@ -83,6 +83,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
 
         return {addTab: addTab, getTabs: getTabs}
   })
+
   .service('hdMan', function($http, hubApi, $q, $log) {
         var cache = {};
 
