@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["FlatFut",""]],"trait":[["FlattenFuture",""],["FlattenResult",""]]});

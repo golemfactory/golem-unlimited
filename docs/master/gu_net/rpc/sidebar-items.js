@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["gen_destination_id",""],["public_destination",""],["start_actor",""]],"mod":[["mock",""],["peer",""],["reply",""],["router",""],["ws",""]],"struct":[["EmitMessage",""],["RemotingContext",""],["RouteMessage",""],["RpcError","The Error type."]],"trait":[["RemotingSystemService",""]],"type":[["DestinationId",""],["MessageId",""]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["read_async",""],["untgz_async",""],["write_async",""],["write_async_with_sha1",""]],"struct":[["ChunkedReadFile","https://actix.rs/api/actix-web/stable/src/actix_web/fs.rs.html#477-484"]]});
