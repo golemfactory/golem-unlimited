@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use {
     daemon::{DaemonProcess, ProcessStatus},
-    App, ArgMatches, Module, SubCommand,
+    App, ArgMatches, SubCommand,
 };
 
 enum GuServer {
@@ -27,15 +27,15 @@ pub enum DaemonCommand {
     Status,
 }
 
-pub struct DaemonModule {
+pub struct DaemonHandler {
     server: GuServer,
     command: DaemonCommand,
     work_dir: PathBuf,
 }
 
-impl DaemonModule {
+impl DaemonHandler {
     pub fn hub<P: AsRef<Path>>(command: DaemonCommand, work_dir: P) -> Self {
-        DaemonModule {
+        DaemonHandler {
             server: GuServer::Hub,
             command,
             work_dir: work_dir.as_ref().into(),
@@ -43,7 +43,7 @@ impl DaemonModule {
     }
 
     pub fn provider<P: AsRef<Path>>(command: DaemonCommand, work_dir: P) -> Self {
-        DaemonModule {
+        DaemonHandler {
             server: GuServer::Provider,
             command,
             work_dir: work_dir.as_ref().into(),
@@ -75,7 +75,7 @@ impl DaemonModule {
         }
     }
 
-    pub fn run_handler(&self) -> bool {
+    pub fn run(&self) -> bool {
         let process = DaemonProcess::create(self.server.name(), &self.work_dir);
 
         match self.command {
@@ -108,7 +108,4 @@ impl DaemonModule {
 
         false
     }
-}
-
-impl Module for DaemonModule {
 }

@@ -10,7 +10,10 @@ use actix::{
 };
 use actix_web;
 use futures::Future;
-use gu_base::{daemon_module::{DaemonModule, DaemonCommand}, Decorator, Module};
+use gu_base::{
+    daemon_module::{DaemonCommand, DaemonHandler},
+    Decorator, Module,
+};
 use gu_ethkey::prelude::*;
 use gu_net::{
     rpc::{self, mock},
@@ -85,8 +88,7 @@ impl ServerModule {
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-        app
-            .subcommand(DaemonModule::subcommand())
+        app.subcommand(DaemonHandler::subcommand())
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
@@ -95,14 +97,14 @@ impl Module for ServerModule {
             None => None,
         };
 
-        self.daemon_command = DaemonModule::consume(matches);
+        self.daemon_command = DaemonHandler::consume(matches);
         self.daemon_command != DaemonCommand::None
     }
 
     fn run<D: Decorator + 'static + Sync + Send>(&self, decorator: D) {
         let config_module: &ConfigModule = decorator.extract().unwrap();
 
-        if !DaemonModule::hub(self.daemon_command, config_module.work_dir()).run_handler() {
+        if !DaemonHandler::hub(self.daemon_command, config_module.work_dir()).run() {
             return;
         }
 

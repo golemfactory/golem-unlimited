@@ -9,7 +9,7 @@ use connect::{
 };
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{daemon_module::DaemonModule, Decorator, Module};
+use gu_base::{daemon_module::DaemonHandler, Decorator, Module};
 use gu_ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
@@ -107,11 +107,11 @@ use gu_base::daemon_module::DaemonCommand;
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
-        app.subcommand(DaemonModule::subcommand())
+        app.subcommand(DaemonHandler::subcommand())
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        self.daemon_command = DaemonModule::consume(matches);
+        self.daemon_command = DaemonHandler::consume(matches);
 
         self.daemon_command != DaemonCommand::None
     }
@@ -121,7 +121,7 @@ impl Module for ServerModule {
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
 
-        if !DaemonModule::provider(self.daemon_command, config_module.work_dir()).run_handler() {
+        if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
             return;
         }
 
