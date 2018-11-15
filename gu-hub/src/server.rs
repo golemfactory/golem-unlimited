@@ -10,7 +10,7 @@ use actix::{
 };
 use actix_web;
 use futures::Future;
-use gu_base::{Decorator, Module};
+use gu_base::{daemon_module::DaemonModule, Decorator, Module};
 use gu_ethkey::prelude::*;
 use gu_net::{
     rpc::{self, mock},
@@ -18,7 +18,6 @@ use gu_net::{
 };
 use gu_persist::{
     config::{self, ConfigManager, ConfigModule},
-    daemon_module::DaemonModule,
     http::{ServerClient, ServerConfig},
 };
 use mdns::{Responder, Service};

@@ -25,10 +25,11 @@ extern crate gu_envman_api;
 extern crate serde_json;
 extern crate tar;
 extern crate uuid;
+#[macro_use]
+extern crate prettytable;
 
 use clap::App;
 use gu_base::*;
-use gu_persist::daemon_module;
 
 mod connect;
 pub mod envman;
@@ -43,16 +44,19 @@ mod sync_exec;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
+    let config_module = gu_persist::config::ConfigModule::new();
+
     GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
         LogModule
-            .chain(AutocompleteModule::new())
-            .chain(gu_persist::config::ConfigModule::new())
+            .chain(daemon_module::DaemonModule::provider(
+                config_module.work_dir().to_path_buf(),
+            )).chain(server::ServerModule::new())
+            .chain(config_module)
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(status::module())
             .chain(connect::module())
-            .chain(daemon_module::DaemonModule::provider())
             .chain(permission::module())
-            .chain(server::ServerModule::new()),
+            .chain(AutocompleteModule::new()),
     );
 }

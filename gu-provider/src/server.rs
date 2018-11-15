@@ -9,13 +9,12 @@ use connect::{
 };
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{Decorator, Module};
+use gu_base::{daemon_module::DaemonModule, Decorator, Module};
 use gu_ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
-    daemon_module::DaemonModule,
     http::{ServerClient, ServerConfig},
 };
 use hdman::HdMan;
@@ -99,11 +98,11 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
 }
 
 use actix_web;
-use connect::{ConnectModeMessage, ListSockets};
+use connect::{ConnectModeMessage, ConnectionStatus, ListSockets};
 
 impl Module for ServerModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
-        true
+        false
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
@@ -276,7 +275,7 @@ impl Handler<ConnectModeMessage> for ProviderServer {
 }
 
 impl Handler<ListSockets> for ProviderServer {
-    type Result = ActorResponse<Self, Vec<SocketAddr>, String>;
+    type Result = ActorResponse<Self, Vec<(SocketAddr, ConnectionStatus)>, String>;
 
     fn handle(&mut self, msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {

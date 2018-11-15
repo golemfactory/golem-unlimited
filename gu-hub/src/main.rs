@@ -35,7 +35,6 @@ extern crate zip;
 
 use clap::App;
 use gu_base::*;
-use gu_persist::daemon_module;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -46,17 +45,20 @@ mod server;
 mod sessions;
 
 fn main() {
+    let config_module = gu_persist::config::ConfigModule::new();
+
     GuApp(|| App::new("Golem Unlimited").version(VERSION)).run(
         LogModule
-            .chain(AutocompleteModule::new())
-            .chain(gu_persist::config::ConfigModule::new())
+            .chain(daemon_module::DaemonModule::hub(
+                config_module.work_dir().to_path_buf(),
+            )).chain(server::ServerModule::new())
+            .chain(config_module)
             .chain(gu_lan::module::LanModule::module())
+            .chain(gu_hardware::module())
             .chain(plugins::PluginModule::new())
             .chain(sessions::SessionsModule::default())
             .chain(proxy_service::module())
             .chain(peer::PeerModule::new())
-            .chain(gu_hardware::module())
-            .chain(daemon_module::DaemonModule::hub())
-            .chain(server::ServerModule::new()),
+            .chain(AutocompleteModule::new()),
     );
 }

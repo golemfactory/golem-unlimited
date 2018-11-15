@@ -1,5 +1,8 @@
-use daemon::{daemonize_process, process_status, run_process_normally, stop_process, Process};
-use gu_base::{App, ArgMatches, Module, SubCommand};
+use std::path::{Path, PathBuf};
+use {
+    daemon::{DaemonProcess, ProcessStatus},
+    App, ArgMatches, Module, SubCommand,
+};
 
 enum GuServer {
     Hub,
@@ -7,15 +10,7 @@ enum GuServer {
 }
 
 impl GuServer {
-    #[allow(dead_code)]
-    pub fn normal(&self) -> &'static str {
-        match self {
-            GuServer::Hub => "Hub",
-            GuServer::Provider => "Provider",
-        }
-    }
-
-    pub fn full(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             GuServer::Hub => "gu-hub",
             GuServer::Provider => "gu-provider",
@@ -36,22 +31,25 @@ pub struct DaemonModule {
     server: GuServer,
     command: DaemonCommand,
     run: bool,
+    work_dir: PathBuf,
 }
 
 impl DaemonModule {
-    pub fn hub() -> Self {
+    pub fn hub<P: AsRef<Path>>(work_dir: P) -> Self {
         DaemonModule {
             server: GuServer::Hub,
             command: DaemonCommand::None,
             run: false,
+            work_dir: work_dir.as_ref().into(),
         }
     }
 
-    pub fn provider() -> Self {
+    pub fn provider<P: AsRef<Path>>(work_dir: P) -> Self {
         DaemonModule {
             server: GuServer::Provider,
             command: DaemonCommand::None,
             run: false,
+            work_dir: work_dir.as_ref().into(),
         }
     }
 
@@ -65,8 +63,7 @@ impl Module for DaemonModule {
         let run = SubCommand::with_name("run").about("Run server in foreground");
         let start = SubCommand::with_name("start").about("Run server in background");
         let stop = SubCommand::with_name("stop").about("Stop currently running server");
-        let status =
-            SubCommand::with_name("status").about("Get status of currently running server");
+        let status = SubCommand::with_name("status").about("Checks whether server is running");
 
         let command = SubCommand::with_name("server")
             .about("Server management")
@@ -86,32 +83,39 @@ impl Module for DaemonModule {
             }
         }
 
-        let name = self.server.full();
+        let process = DaemonProcess::create(self.server.name(), &self.work_dir);
 
         match self.command {
-            DaemonCommand::Run => match run_process_normally(name) {
+            DaemonCommand::Run => match process.run_normally() {
                 Ok(()) => self.run = true,
                 Err(e) => println!("{}", e),
             },
-            DaemonCommand::Start => match daemonize_process(name) {
+            DaemonCommand::Start => match process.daemonize() {
                 Ok(true) => self.run = true,
                 Err(e) => println!("{}", e),
                 _ => (),
             },
             DaemonCommand::Stop => {
-                let _ = stop_process(name).map_err(|e| println!("{}", e));
+                let _ = process.stop().map_err(|e| println!("{}", e));
             }
             DaemonCommand::Status => {
-                let _ = process_status(name)
-                    .map_err(|e| println!("{}", e))
-                    .map(|status| match status {
-                        Process::Running(pid) => println!("Process is running (pid: {})", pid),
-                        Process::Stopped => println!("Process is not running"),
-                    });
+                let _ =
+                    process
+                        .status()
+                        .map_err(|e| println!("{}", e))
+                        .map(|status| match status {
+                            ProcessStatus::Running(pid) => {
+                                println!("Process is running (pid: {})", pid)
+                            }
+                            ProcessStatus::Stopped => println!("Process is not running"),
+                        });
             }
             _ => (),
         }
 
-        self.run
+        match self.command {
+            DaemonCommand::None => false,
+            _ => true,
+        }
     }
 }
