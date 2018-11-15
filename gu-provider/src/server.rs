@@ -6,6 +6,7 @@ use actix_web::*;
 use clap::ArgMatches;
 use connect::{
     self, AutoMdns, Connect, ConnectManager, ConnectionChange, ConnectionChangeMessage, Disconnect,
+    ListingType,
 };
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
@@ -98,7 +99,7 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
 }
 
 use actix_web;
-use connect::{ConnectModeMessage, ConnectionStatus, ListSockets};
+use connect::{ConnectModeMessage, ListSockets};
 
 impl Module for ServerModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
@@ -275,7 +276,7 @@ impl Handler<ConnectModeMessage> for ProviderServer {
 }
 
 impl Handler<ListSockets> for ProviderServer {
-    type Result = ActorResponse<Self, Vec<(SocketAddr, ConnectionStatus)>, String>;
+    type Result = ActorResponse<Self, Vec<(SocketAddr, ListingType)>, String>;
 
     fn handle(&mut self, msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {

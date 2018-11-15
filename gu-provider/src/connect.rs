@@ -43,7 +43,7 @@ enum State {
     Connect(Vec<SocketAddr>, bool),
     Disconnect(Vec<SocketAddr>, bool),
     Mode(ConnectMode, bool),
-    List(ConnectionStatus),
+    List(ListingType),
     None,
 }
 
@@ -63,9 +63,9 @@ impl Into<&'static str> for State {
                 ConnectMode::Manual => "/connections/mode/manual?save=1",
             },
             State::List(x) => match x {
-                ConnectionStatus::Pending => "/connections/list/pending",
-                ConnectionStatus::Connected => "/connections/list/connected",
-                ConnectionStatus::All => "/connections/list/all",
+                ListingType::Pending => "/connections/list/pending",
+                ListingType::Connected => "/connections/list/connected",
+                ListingType::All => "/connections/list/all",
             },
             State::None => unreachable!(),
         }
@@ -177,14 +177,14 @@ impl Module for ConnectModule {
                 ),
                 State::List(listing_type) => Arbiter::spawn(
                     ProviderClient::get(endpoint.to_string())
-                        .and_then(move |l: Vec<(SocketAddr, ConnectionStatus)>| {
+                        .and_then(move |l: Vec<(SocketAddr, ListingType)>| {
                             println!("Listing {:?} hubs", listing_type);
                             cli::format_table(
                                 row!["IP", "address", "port", "status"],
                                 || "No hubs found",
                                 l.iter()
                                     .filter(|e| match listing_type {
-                                        ConnectionStatus::All => true,
+                                        ListingType::All => true,
                                         lt => e.1 == lt,
                                     }).map(|e| {
                                         row![
@@ -249,7 +249,7 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
 }
 
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub(crate) enum ConnectionStatus {
+pub(crate) enum ListingType {
     Pending,
     Connected,
     All,
@@ -467,14 +467,14 @@ impl ConnectManager {
         manager
     }
 
-    fn list(&self) -> impl Future<Item = Vec<(SocketAddr, ConnectionStatus)>, Error = String> {
+    fn list(&self) -> impl Future<Item = Vec<(SocketAddr, ListingType)>, Error = String> {
         let vec = Vec::from_iter(self.connections.clone().into_iter().map(|elt| {
             elt.1.send(IsConnected).and_then(move |is_connected| {
                 Ok((
                     elt.0,
                     match is_connected {
-                        true => ConnectionStatus::Connected,
-                        _ => ConnectionStatus::Pending,
+                        true => ListingType::Connected,
+                        _ => ListingType::Pending,
                     },
                 ))
             })
@@ -527,11 +527,11 @@ impl Handler<NewInstance> for ConnectManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<Vec<(SocketAddr, ConnectionStatus)>, String>")]
+#[rtype(result = "Result<Vec<(SocketAddr, ListingType)>, String>")]
 pub(crate) struct ListSockets;
 
 impl Handler<ListSockets> for ConnectManager {
-    type Result = ActorResponse<Self, Vec<(SocketAddr, ConnectionStatus)>, String>;
+    type Result = ActorResponse<Self, Vec<(SocketAddr, ListingType)>, String>;
 
     fn handle(&mut self, _: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         let list = self.list();
