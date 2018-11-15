@@ -6,7 +6,7 @@ use actix_web::*;
 use clap::ArgMatches;
 use connect::{
     self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
-    ConnectionChangeMessage, Disconnect, ListSockets,
+    ConnectionChangeMessage, ConnectionStatus, Disconnect, ListSockets,
 };
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
