@@ -90,7 +90,7 @@ impl Module for ConnectModule {
             .takes_value(false);
 
         let connect = SubCommand::with_name("connect")
-            .about("Connect to a host without adding it to the config")
+            .about("Connect to a hub without adding it to the config")
             .arg(host.clone())
             .arg(save.clone());
         let disconnect = SubCommand::with_name("disconnect")
@@ -98,7 +98,8 @@ impl Module for ConnectModule {
             .arg(host.clone())
             .arg(save.clone());
 
-        let list_all = SubCommand::with_name("all").about("List pending and connected hubs");
+        let list_all = SubCommand::with_name("all")
+            .about("List pending and connected hubs");
         let list_pending = SubCommand::with_name("pending")
             .about("List hubs to which the provider is trying to get connected");
         let list_connected = SubCommand::with_name("connected")
@@ -117,8 +118,11 @@ impl Module for ConnectModule {
             .about("Change the connection mode")
             .subcommands(vec![auto_mode, config_mode]);
 
-        app.subcommand(SubCommand::with_name("hubs").about("Manipulate hubs connections"))
+        app.subcommand(
+            SubCommand::with_name("hubs")
+            .about("Manage hubs connections")
             .subcommands(vec![connect, disconnect, mode, list])
+        )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
@@ -127,23 +131,29 @@ impl Module for ConnectModule {
         let save = |matches: &ArgMatches| matches.is_present("save");
 
         self.state = match matches.subcommand() {
-            ("connect", Some(m)) => State::Connect(get_host(m), save(m)),
-            ("disconnect", Some(m)) => State::Disconnect(get_host(m), save(m)),
-            ("mode", Some(m)) => match m.subcommand() {
-                ("auto", Some(m)) => State::Mode(ConnectMode::Auto, save(m)),
-                ("config", Some(m)) => State::Mode(ConnectMode::Config, save(m)),
-                _ => State::None,
-            },
-            ("list", Some(m)) => match m.subcommand() {
-                ("pending", Some(_)) => State::List(ListingType::Pending),
-                ("connected", Some(_)) => State::List(ListingType::Connected),
-                ("all", Some(_)) => State::List(ListingType::All),
+            ("hubs", Some(m)) => match m.subcommand() {
+                ("connect", Some(m)) => State::Connect(get_host(m), save(m)),
+                ("disconnect", Some(m)) => State::Disconnect(get_host(m), save(m)),
+                ("mode", Some(m)) => match m.subcommand() {
+                    ("auto", Some(m)) => State::Mode(ConnectMode::Auto, save(m)),
+                    ("config", Some(m)) => State::Mode(ConnectMode::Config, save(m)),
+                    _ => State::None,
+                },
+                ("list", Some(m)) => match m.subcommand() {
+                    ("pending", Some(_)) => State::List(ListingType::Pending),
+                    ("connected", Some(_)) => State::List(ListingType::Connected),
+                    ("all", Some(_)) => State::List(ListingType::All),
+                    _ => State::List(ListingType::All),
+                },
                 _ => State::None,
             },
             _ => State::None,
         };
 
-        true
+        match self.state {
+            State::None => false,
+            _ => true
+        }
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {

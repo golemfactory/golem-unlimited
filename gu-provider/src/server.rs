@@ -102,7 +102,7 @@ use connect::{ConnectModeMessage, ListSockets};
 
 impl Module for ServerModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
-        true
+        false
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
