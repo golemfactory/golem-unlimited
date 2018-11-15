@@ -143,7 +143,7 @@ impl Module for ConnectModule {
             _ => State::None,
         };
 
-        true
+        self.state != State::None
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {

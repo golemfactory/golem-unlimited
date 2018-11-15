@@ -5,7 +5,6 @@ use super::{
 use actix::{fut, prelude::*};
 use actix_web::client;
 use actix_web::error::ErrorInternalServerError;
-use actix_web::HttpMessage;
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::files::read_async;

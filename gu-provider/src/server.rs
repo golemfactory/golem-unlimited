@@ -83,11 +83,15 @@ impl HasSectionId for ProviderConfig {
     const SECTION_ID: &'static str = "provider-server-cfg";
 }
 
-pub struct ServerModule;
+pub struct ServerModule {
+    daemon_command: DaemonCommand,
+}
 
 impl ServerModule {
     pub fn new() -> Self {
-        ServerModule
+        ServerModule {
+            daemon_command: DaemonCommand::None,
+        }
     }
 }
 
@@ -99,19 +103,25 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
 
 use actix_web;
 use connect::{ConnectModeMessage, ListSockets};
+use gu_base::daemon_module::DaemonCommand;
 
 impl Module for ServerModule {
-    fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
-        true
+    fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
+        app.subcommand(DaemonModule::subcommand())
+    }
+
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        self.daemon_command = DaemonModule::consume(matches);
+
+        self.daemon_command != DaemonCommand::None
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
         use gu_base;
-
         let dec = decorator.clone();
-        let daemon_module: &DaemonModule = dec.extract().unwrap();
+        let config_module: &ConfigModule = dec.extract().unwrap();
 
-        if !daemon_module.run() {
+        if !DaemonModule::provider(self.daemon_command, config_module.work_dir()).run_handler() {
             return;
         }
 
