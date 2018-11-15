@@ -256,7 +256,7 @@ pub(crate) enum ConnectionStatus {
 }
 
 fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
-   ProviderServer::from_registry()
+    ProviderServer::from_registry()
         .send(ListSockets)
         .map_err(|e| {
             ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
