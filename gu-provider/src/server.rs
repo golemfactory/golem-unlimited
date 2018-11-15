@@ -285,7 +285,7 @@ impl Handler<ConnectModeMessage> for ProviderServer {
 }
 
 impl Handler<ListSockets> for ProviderServer {
-    type Result = ActorResponse<Self, Vec<SocketAddr>, String>;
+    type Result = ActorResponse<Self, Vec<(SocketAddr, ConnectionStatus)>, String>;
 
     fn handle(&mut self, msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {
