@@ -284,7 +284,10 @@ mod tests {
         //then
         assert!(s.is_ok());
         match s.unwrap() {
-            ProcessStatus::Running(pid) => assert_eq!(pid, run_pid + 2),
+            ProcessStatus::Running(pid) => assert!(
+                // daemonize forks process, so pid is slightly increased
+                [run_pid + 1, run_pid + 2, run_pid + 3].contains(&pid)
+            ),
             _ => panic!("running status expected"),
         }
 
