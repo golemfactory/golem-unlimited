@@ -25,6 +25,8 @@ extern crate gu_envman_api;
 extern crate serde_json;
 extern crate tar;
 extern crate uuid;
+#[macro_use]
+extern crate prettytable;
 
 use clap::App;
 use gu_base::*;
