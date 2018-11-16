@@ -5,9 +5,9 @@
 ### First steps
 
 ```shell
-$ gu-hub server start
-$ gu-provider server start
-$ gu-provider hubs connect --save 127.0.0.1:61621
+$ gu-hub server start                              # starts local hub server in background
+$ gu-provider server start                         # starts local provider server in background
+$ gu-provider hubs connect --save 127.0.0.1:61621  # connects provider to hub
 ```
 
 open <http://127.0.0.1:61621/app/index.html>
