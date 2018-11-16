@@ -5,8 +5,8 @@
 ### First steps
 
 ```shell
-$ gu-hub server start                              # starts hub server in background locally
-$ gu-provider server start                         # starts provider server in background locally
+$ gu-hub server start                              # starts local hub server in background
+$ gu-provider server start                         # starts local provider server in background
 $ gu-provider hubs connect --save 127.0.0.1:61621  # connects provider to hub
 ```
 
