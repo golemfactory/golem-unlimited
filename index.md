@@ -4,10 +4,18 @@
 
 ### First steps
 
-```shell
-$ gu-hub server start                              # starts local hub server in background
-$ gu-provider server start                         # starts local provider server in background
-$ gu-provider hubs connect --save 127.0.0.1:61621  # connects provider to hub
+Start local Hub in background
+```shell 
+$ gu-hub server start                       
 ```
 
-open <http://127.0.0.1:61621/app/index.html>
+Now you can access Hub web GUI <http://127.0.0.1:61621/app/index.html>
+
+Start single local Provider in background and connect to the existing local Hub.
+```       
+$ gu-provider server start
+$ gu-provider hubs connect --save 127.0.0.1:61621
+```
+
+It should appear in **providers** section of the Hub web GUI.
+
