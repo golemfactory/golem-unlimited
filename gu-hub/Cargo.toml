@@ -2,7 +2,6 @@
 publish=false
 name = "gu-hub"
 version = "0.1.1"
-build = "build.rs"
 license = "MIT"
 authors=["golemfactory"]
 

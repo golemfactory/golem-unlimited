@@ -50,13 +50,13 @@ fn main() {
         LogModule
             .chain(daemon_module::DaemonModule::provider(
                 config_module.work_dir().to_path_buf(),
-            )).chain(server::ServerModule::new())
-            .chain(config_module)
+            )).chain(config_module)
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(status::module())
             .chain(connect::module())
             .chain(permission::module())
-            .chain(AutocompleteModule::new()),
+            .chain(AutocompleteModule::new())
+            .chain(server::ServerModule::new()),
     );
 }
