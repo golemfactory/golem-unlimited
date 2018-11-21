@@ -33,6 +33,7 @@ pub type NodeId = types::NodeId;
 
 type Key = [u8; 20];
 
+mod node_info;
 mod proto;
 pub mod rpc;
 pub mod types;

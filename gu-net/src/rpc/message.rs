@@ -157,12 +157,6 @@ impl RouteMessage<String> {
     }
 }
 
-impl<B: Serialize> RouteMessage<B> {
-    fn json(self) -> serde_json::Result<EmitMessage<String>> {
-        unimplemented!()
-    }
-}
-
 #[derive(Default, Debug)]
 pub struct EmitMessage<B> {
     pub dest_node: NodeId,
@@ -172,34 +166,6 @@ pub struct EmitMessage<B> {
     pub ts: u64,
     pub expires: Option<u64>,
     pub body: TransportResult<B>,
-}
-
-impl<B: BinPack> BinPack for TransportResult<B> {
-    fn pack_to_stream<W: io::Write + ?Sized>(&self, w: &mut W) -> io::Result<()> {
-        use byteorder::WriteBytesExt;
-
-        match self {
-            TransportResult::Reply(b) => {
-                w.write_u8(1)?;
-                b.pack_to_stream(w)
-            }
-            TransportResult::Request(b) => {
-                w.write_u8(0)?;
-                b.pack_to_stream(w)
-            }
-            TransportResult::Err(e) => {
-                let err_code = match e {
-                    TransportError::NoDestination => 10u8,
-                    TransportError::BadFormat(_s) => 11u8,
-                };
-                w.write_u8(err_code)
-            }
-        }
-    }
-
-    fn unpack_from_stream<R: io::Read + ?Sized>(&mut self, r: &mut R) -> io::Result<()> {
-        unimplemented!()
-    }
 }
 
 impl<B> EmitMessage<B> {
@@ -241,44 +207,6 @@ impl<B: Serialize> EmitMessage<B> {
             expires: self.expires,
             body,
         })
-    }
-}
-
-impl EmitMessage<String> {
-    fn to_vec(self, msg_id: &MessageId) -> io::Result<Vec<u8>> {
-        //use std::io::Write;
-
-        let mut buf: Vec<u8> = Vec::new();
-
-        buf.pack(msg_id)?;
-        buf.pack(self.dest_node.as_ref())?;
-        buf.pack(&self.destination)?;
-        buf.pack(&self.correlation_id)?;
-        buf.pack(&self.ts)?;
-        buf.pack(&self.expires)?;
-        buf.pack(&self.body)?;
-        Ok(buf)
-    }
-
-    fn from_vec(buf: &[u8]) -> io::Result<(MessageId, Self)> {
-        let mut c = io::Cursor::new(buf);
-
-        let mut msg: EmitMessage<String> = EmitMessage::default();
-
-        let mut msg_id = MessageId::default();
-        let mut dest_node = [0u8; 20];
-
-        c.unpack(&mut msg_id)?;
-        c.unpack(&mut dest_node[..])?;
-        c.unpack(&mut msg.destination)?;
-        c.unpack(&mut msg.correlation_id)?;
-        c.unpack(&mut msg.ts)?;
-        c.unpack(&mut msg.expires)?;
-        c.unpack(&mut msg.body)?;
-
-        msg.dest_node = dest_node.into();
-
-        Ok((msg_id, msg))
     }
 }
 

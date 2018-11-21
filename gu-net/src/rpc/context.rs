@@ -7,7 +7,18 @@ use actix::{dev::*, prelude::*};
 use futures::{future, prelude::*, sync::oneshot::Sender};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
-use std::{any, collections::HashMap, marker::PhantomData};
+use std::{any, collections::HashMap, marker::PhantomData, net};
+use std::ops::Deref;
+
+pub struct Caller {
+    node_id: super::super::types::NodeId,
+    route_info: RouteInfo,
+}
+
+pub enum RouteInfo {
+    Internal,
+    Direct(net::SocketAddr),
+}
 
 pub struct RemotingContext<A>
 where
@@ -16,6 +27,7 @@ where
     inner: ContextParts<A>,
     mb: Option<Mailbox<A>>,
     destinations: HashMap<any::TypeId, DestinationId>,
+    caller: Option<Caller>,
 }
 
 impl<A> ActorContext for RemotingContext<A>
@@ -102,6 +114,7 @@ where
             inner: ContextParts::new(mb.sender_producer()),
             destinations: HashMap::new(),
             mb: Some(mb),
+            caller: None,
         }
     }
 
@@ -127,8 +140,28 @@ where
     {
         let type_id = any::TypeId::of::<T>();
         let addr = self.address();
-        let endpoint = Box::new(AddrWrapper {
+        let endpoint = Box::new(SimpleRemotingAddress {
             addr,
+            message: PhantomData,
+        });
+        MessageRouter::from_registry().do_send(router::BindDestination {
+            destination_id: public_destination(destination_id),
+            endpoint,
+        })
+    }
+
+    pub fn bind_ctx<T: any::Any + Send + MessageBody>(&mut self, destination_id: u32)
+    where
+        A: Handler<T>,
+        T: Message,
+        T::Payload: DeserializeOwned,
+        T::Result: Serialize + Send,
+        A::Context: ToEnvelope<A, T>,
+    {
+        let type_id = any::TypeId::of::<T>();
+        let address = self.address();
+        let endpoint = Box::new(RemotingAddress {
+            address,
             message: PhantomData,
         });
         MessageRouter::from_registry().do_send(router::BindDestination {
@@ -147,15 +180,19 @@ where
         A::Context: ToEnvelope<A, T>,
     {
         let addr = self.address();
-        let endpoint = Box::new(AddrWrapper {
+        let endpoint = Box::new(SimpleRemotingAddress {
             addr,
             message: PhantomData,
         });
         future::ok(public_destination(1))
     }
+
+    pub fn caller(&self) -> Option<&Caller> {
+        self.caller.as_ref()
+    }
 }
 
-struct AddrWrapper<A, T>
+struct SimpleRemotingAddress<A, T>
 where
     A: Actor + Handler<T>,
     T: Message + DeserializeOwned,
@@ -165,14 +202,14 @@ where
     message: PhantomData<T>,
 }
 
-unsafe impl<A, T> Send for AddrWrapper<A, T>
+unsafe impl<A, T> Send for SimpleRemotingAddress<A, T>
 where
     A: Actor + Handler<T>,
     T: Message + DeserializeOwned,
     T::Result: Serialize,
 {}
 
-impl<A, T> router::LocalEndpoint for AddrWrapper<A, T>
+impl<A, T> router::LocalEndpoint for SimpleRemotingAddress<A, T>
 where
     A: Actor + Handler<T>,
     T: Message + DeserializeOwned + Send + 'static,
@@ -200,6 +237,108 @@ where
                 let m = message.unit();
                 debug!("message parsed!");
                 let f = actix::fut::wrap_future(self.addr.send(message.body))
+                    .then(move |r, act, ctx| match r {
+                        Ok(b) => fut::ok(serde_json::to_string(&b).unwrap()),
+                        Err(e) => fut::err(()),
+                    }).and_then(move |r, act, ctx: &mut <MessageRouter as Actor>::Context| {
+                        m.do_reply(r, |reply| ctx.notify(reply));
+                        fut::ok(())
+                    }).map_err(|e, act, ctx| println!("error: {:?}", e));
+                ctx.spawn(f);
+                //ctx.spawn(f.into_actor(self));
+            }
+        }
+    }
+}
+
+pub trait MessageBody {
+    type Payload;
+
+    fn extract(msg: message::RouteMessage<Self::Payload>) -> Self;
+}
+
+pub struct BodyWithNodeId<T> {
+    body : T,
+    node_id : message::NodeId,
+}
+
+impl<T> BodyWithNodeId<T> {
+
+    fn node_id(&self) -> &message::NodeId {
+        &self.node_id
+    }
+}
+
+impl<T> Deref for BodyWithNodeId<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.body
+    }
+}
+
+impl<T : Message> Message for BodyWithNodeId<T> {
+    type Result = T::Result;
+}
+
+impl<T : Message> MessageBody for BodyWithNodeId<T> {
+    type Payload = T;
+
+    fn extract(msg: message::RouteMessage<<Self as MessageBody>::Payload>) -> Self {
+        BodyWithNodeId {
+            body: msg.body,
+            node_id: msg.sender
+        }
+    }
+}
+
+struct RemotingAddress<A, T>
+where
+    A: Actor + Handler<T>,
+    T: Message + MessageBody,
+    <T as MessageBody>::Payload: DeserializeOwned,
+    T::Result: Serialize,
+{
+    address: Addr<A>,
+    message: PhantomData<T>,
+}
+
+unsafe impl<A, T> Send for RemotingAddress<A, T>
+where
+    A: Actor + Handler<T>,
+   T: Message + MessageBody,
+    T::Payload : DeserializeOwned,
+    <T as Message>::Result: Serialize,
+{}
+
+impl<A, T> router::LocalEndpoint for RemotingAddress<A, T>
+where
+    A: Actor + Handler<T>,
+    T: Message + MessageBody + Send + 'static,
+    T::Payload: DeserializeOwned,
+    T::Result: Serialize + Send,
+    A::Context: ToEnvelope<A, T>,
+{
+    fn handle(
+        &mut self,
+        message: message::RouteMessage<String>,
+        ctx: &mut <MessageRouter as Actor>::Context,
+    ) {
+        let m = message.clone();
+
+        match message.from_json() {
+            Err(err) => {
+                error!("bad format! {}", err);
+                if let Some(msg) = message::EmitMessage::reply(
+                    &m,
+                    message::TransportResult::bad_request(format!("{}", err)),
+                ) {
+                    ctx.notify(msg)
+                }
+            }
+            Ok(message) => {
+                debug!("message parsed!");
+                let f = actix::fut::wrap_future(self.address.send(T::extract(message)))
                     .then(move |r, act, ctx| match r {
                         Ok(b) => fut::ok(serde_json::to_string(&b).unwrap()),
                         Err(e) => fut::err(()),

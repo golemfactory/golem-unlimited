@@ -6,7 +6,7 @@ use futures::{future, prelude::*};
 use gu_actix::prelude::*;
 use gu_envman_api::*;
 use gu_net::rpc::peer::PeerSessionInfo;
-use gu_net::rpc::{RemotingContext, RemotingSystemService};
+use gu_net::rpc::{RemotingContext, RemotingSystemService, BodyWithNodeId};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
@@ -24,7 +24,8 @@ impl Actor for EnvMan {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.bind::<CreateSession>(CreateSession::ID);
-        ctx.bind::<SessionUpdate>(SessionUpdate::ID);
+
+        ctx.bind_ctx::<BodyWithNodeId<SessionUpdate>>(SessionUpdate::ID);
         ctx.bind::<GetSessions>(GetSessions::ID);
         ctx.bind::<DestroySession>(DestroySession::ID);
     }
@@ -108,10 +109,11 @@ impl Handler<CreateSession> for EnvMan {
     }
 }
 
-impl Handler<SessionUpdate> for EnvMan {
+
+impl Handler<BodyWithNodeId<SessionUpdate>> for EnvMan {
     type Result = ActorResponse<EnvMan, Vec<String>, Vec<String>>;
 
-    fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: BodyWithNodeId<SessionUpdate>, _ctx: &mut Self::Context) -> Self::Result {
         let (prefix, session_id) = match extract_prefix(&msg.session_id) {
             Ok(v) => v,
             Err(_e) => {

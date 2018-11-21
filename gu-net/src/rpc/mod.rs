@@ -51,7 +51,7 @@ mod error {
 }
 
 pub use self::{
-    context::{start_actor, RemotingContext},
+    context::{start_actor, RemotingContext, BodyWithNodeId},
     error::Error as RpcError,
     message::{
         gen_destination_id, public_destination, DestinationId, EmitMessage, MessageId, RouteMessage,
