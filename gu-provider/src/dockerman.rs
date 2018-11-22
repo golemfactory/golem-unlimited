@@ -2,11 +2,13 @@
 
 use super::envman;
 use actix::prelude::*;
-use async_docker::{new_docker, ContainerOptions, DockerApi};
+use async_docker::models::ContainerConfig;
+use async_docker::{self, new_docker, DockerApi};
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_envman_api::*;
 use gu_net::rpc::peer::PeerSessionInfo;
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 // Actor.
@@ -52,13 +54,21 @@ impl Handler<CreateSession> for DockerMan {
                 let Image { url, hash } = msg.image;
 
                 //let docker_image = api.image(url.as_ref().into());
-                let opts = ContainerOptions::builder(url.as_ref())
-                    .name(msg.name.as_ref())
-                    .build();
+                let opts = ContainerConfig::new()
+                    .with_image(url.into())
+                    .with_tty(true)
+                    .with_open_stdin(true)
+                    .with_attach_stdin(true)
+                    .with_attach_stderr(true)
+                    .with_attach_stdout(true);
+                //--.with_volumes([("/gu-data".to_string(), json!({}))].to_vec().into_iter().collect());
+
+                info!("config: {:?}", &opts);
+
                 ActorResponse::async(
                     api.containers()
                         .create(&opts)
-                        .and_then(|c| Ok(c.Id))
+                        .and_then(|c| Ok(c.id().to_owned()))
                         .map_err(|e| Error::IoError(format!("{}", e)))
                         .into_actor(self),
                 )
@@ -104,12 +114,13 @@ impl Handler<DestroySession> for DockerMan {
     }
 }
 
-
 struct Init;
 
 impl gu_base::Module for Init {
     fn run<D: gu_base::Decorator + Clone + 'static>(&self, _decorator: D) {
-        gu_base::run_once(|| { let _ = DockerMan::default().start(); });
+        gu_base::run_once(|| {
+            let _ = DockerMan::default().start();
+        });
     }
 }
 

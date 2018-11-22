@@ -1,6 +1,6 @@
 [package]
 name = "gu-provider"
-version = "0.1.1"
+version = "0.2.0"
 license = "MIT"
 publish=false
 authors=["golemfactory"]
@@ -28,6 +28,7 @@ uuid = { version = "0.7", features = ["v4"] }
 bytes = "0.4"
 flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
 tar = "0.4"
+prettytable-rs = "0.7"
 mdns = { git = "https://github.com/plietar/rust-mdns" }
 
 gu-base= { path="../gu-base" }
@@ -40,8 +41,8 @@ gu-hardware = { path = "../gu-hardware"}
 gu-envman-api = { path = "../gu-envman-api" }
 
 
-#async_docker={git = "https://github.com/golemfactory/async-docker", optional=true }
-async_docker={path = "../../async-docker", optional=true }
+async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger" }
+#async_docker={path = "../../async-docker", optional=true }
 
 [package.metadata.deb]
 depends = "$auto, systemd"
