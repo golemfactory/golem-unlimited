@@ -3,8 +3,9 @@ info:
   title: Golem unlimited low level hub API
   description: API description in Markdown.
   version: 1.0.0
+host: "127.0.0.1:61622"
 schemes:
-  - https
+  - http
 paths:
   /peer:
     get:
@@ -17,9 +18,181 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/PeerInfo'
-  /sessions
+  /sessions:
     get:
-      
+      summary: "Lists current hub sessions."
+      operationId: getHubSessions
+      parameters:
+        - name: limit
+          type: integer
+          in: query
+        - name: offset
+          type: integer
+          in: query
+      responses:
+        200:
+          description: OK list sessions
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/HubSession'
+    post:
+      operationId: createHubSessions
+      parameters:
+        - name: "newSessionSpec"
+          in: body
+          schema:
+            $ref: '#/definitions/HubSession'
+      responses:
+        201:
+          description: Session created
+          schema:
+            type: string
+            description: "Created hub session id"
+        500:
+          description: Error
+          schema:
+            type: string
+            description: Error message
+  /sessions/{sessionId}:
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        type: string
+    get:
+      summary: "Gets hub session info"
+      operationId: getHubSession
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/HubSession'
+        404:
+          description: Session not found
+        500:
+          description: Internal Error
+          schema:
+            type: object
+  /sessions/{sessionId}/config:
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        type: string
+    get:
+      summary: 'Gets configuration from stash'
+      operationId: getHubSessionConfig
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/ConfigStash'
+        404:
+          description: Session not found
+        500:
+          description: Internal Error
+    put:
+      summary: 'Sets configuration stash'
+      operationId: setHubSessionConfiguration
+      parameters:
+        - name: config
+          description: 'New config stash value'
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ConfigStash'
+      responses:
+        200:
+          description: OK
+          schema:
+            type: object
+            properties:
+              version:
+                type: integer
+            additionalProperties: true
+        404:
+          description: Session not found
+        409:
+          description: Conflicting version
+  /sessions/{sessionId}/peer:
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        type: string
+    post:
+      summary: 'Manually adds peers to hub session'
+      operationId: addHubSessionPeers
+      parameters:
+        - name: peer_list
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+            uniqueItems: true
+      responses:
+        200:
+          description: 'OK - peers added'
+          schema:
+            type: array
+            items:
+              type: array
+              description: 'peer id'
+            example: [ '0xb6804992598b9260a5b4ad553f98c3851cf2d18e' ]
+            description: 'list of session nodes after add'
+        404:
+          description: 'Session not found'
+        500:
+          description: 'Internal Error'
+  /sessions/{sessionId}/peer/{nodeId}/new-session:
+      post:
+        parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type:
+        - name: nodeId
+          in: path
+          required: true
+          type:
+        - name: sessionSpec
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PeerSessionSpec'
+        responses:
+          201:
+            description: created
+            schema:
+              type: string
+              description: 'exec environment session instance id'
+          404:
+            description: 'not found (session / peer)'
+  /sessions/{sessionId}/peer/{nodeId}/commands/{hubSession}:
+    post:
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+        - name: nodeId
+          in: path
+          required: true
+          type: string
+        - name: hubSession
+          in: path
+          required: true
+          type: string
+        - name: commands
+          in: body
+          required: true
+          type: array
+          items:
+            $ref: '#/definitions/Command'
+
 definitions:
   PeerInfo:
     description: "General information about GU subnetwork node"
@@ -36,10 +209,136 @@ definitions:
       nodeId:
         type: string
         description: "node public key hash in etherium format"
-        example: 0x875f272d3b9e7b55a5784a131a60bf3d7a42c73c
+        example: '0x875f272d3b9e7b55a5784a131a60bf3d7a42c73c'
         readOnly: true
       tags:
         type: array
         items:
           type: string
+  HubSession:
+    properties:
+      id:
+        type: string
+        description: Uniqe HUB Session identifier
+        example: '47f1dc88-0282-4ac3-f765-02b303e8c278'
+        readOnly: true
+      created:
+        type: string
+        description: Session creation timestamp
+        format: date-time
+        readOnly: true
+      expires:
+        type: string
+        format: date-time
+      allocation:
+        type: string
+        description: resource allocation mode
+        enum:
+          - manual
+          - auto
+      name:
+        type: string
+        description: optional human readable name
+      tags:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          pattern: '^[a-zA-Z][a-zA-Z0-9_:-]*$'
+  PeerSessionSpec:
+    properties:
+      envType:
+        $ref: '#/definitions/EnvType'
+      image:
+        properties:
+          hash:
+            type: string
+            description: 'Consistency hash'
+          url:
+            type: string
+            description: 'Image location spec'
+      name:
+        type: string
+        description: 'human readable name'
+      tags:
+        type: array
+        description: 'peer session tags'
+        uniqueItems: true
+        items:
+          type: string
+  Command:
+    properties:
+      exec:
+        $ref: '#/definitions/ExecCommand'
+      start:
+        $ref: '#/definitions/StartCommand'
+      addTags:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+      delTags:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+      downloadFile:
+        $ref: '#/definitions/DownloadFileCommand'
+      uploadFile:
+        $ref: '#/definitions/UploadFileCommand'
 
+  ExecCommand:
+    description: 'synchronous exec of session entry point'
+    type: object
+    properties:
+      executable:
+        type: string
+      args:
+        type: array
+        items:
+          type: string
+  StartCommand:
+    properties:
+      executable:
+        type: string
+      args:
+        type: array
+        items:
+          type: string
+
+  StopCommand:
+    properties:
+      childId:
+        description: 'id of asynchronous process, started with StartCommand'
+        type: string
+
+  DownloadFileCommand:
+    properties:
+      uri:
+        type: string
+        format: url
+      filePath:
+        type: string
+  UploadFileCommand:
+    properties:
+      uri:
+        type: string
+        format: url
+      filePath:
+        type: string
+
+
+  ConfigStash:
+    properties:
+      version:
+        type: integer
+        description: Version number
+    additionalProperties: true
+  EnvType:
+    type: string
+    enum:
+      - hd
+      - docker
+      - wasm
+      - graphne
+      - vm
