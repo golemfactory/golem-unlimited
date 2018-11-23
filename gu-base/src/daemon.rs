@@ -5,7 +5,7 @@ use libc::{
     dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
 };
 use std::{
-    fs::File,
+    fs::{create_dir_all, File},
     io::{Read, Write},
     os::{raw::c_int, unix::prelude::*},
     path::{Path, PathBuf},
@@ -147,7 +147,11 @@ fn write_pid_file(path: &Path) -> Result<(), String> {
         buf = getpid().to_string();
     }
 
-    let mut file = File::create(path).map_err(|_| "Cannot open pid file".to_string())?;
+    let parent = path.parent().expect("path didn't point to a file");
+    create_dir_all(parent)
+        .map_err(|err| format!("Cannot create the directory: {}: {}", parent.display(), err))?;
+    let mut file = File::create(path)
+        .map_err(|err| format!("Cannot open pid file: {}: {}", path.display(), err))?;
 
     if file_is_locked(&file) {
         Err("Cannot lock newly created pid file".to_string())

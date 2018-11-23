@@ -53,6 +53,7 @@ fn main() {
             .chain(status::module())
             .chain(connect::module())
             .chain(permission::module())
-            .chain(AutocompleteModule::new()),
+            .chain(AutocompleteModule::new())
+            .chain(server::ServerModule::new()),
     );
 }
