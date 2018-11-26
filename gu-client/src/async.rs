@@ -36,7 +36,7 @@ impl Driver {
     pub fn new_session(
         &self,
         session_info_builder: &SessionInfoBuilder,
-    ) -> impl Future<Item = HubSession, Error = Error> + '_ {
+    ) -> impl Future<Item = HubSession, Error = Error> {
         let sessions_url = format!("{}{}", self.driver_inner.url, "sessions");
         let request = client::ClientRequest::post(sessions_url.clone())
             .json(
@@ -58,16 +58,24 @@ impl Driver {
                 })
             }).and_then(|body| {
                 println!("BODY:{:?}", body);
-                future::ok(HubSession { driver: driver_for_session })
+                future::ok(HubSession {
+                    driver: driver_for_session,
+                })
             })
     }
     pub fn auth_app(&self, _app_name: String, _token: Option<String>) {}
     /// returns all peers connected to the hub
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
         let url = format!("{}{}", self.driver_inner.url, "peer");
-        let request = client::ClientRequest::get(url.clone())
-            .finish()
-            .expect(format!("Unknown URL: {}", url).as_str());
+        let r = client::ClientRequest::get(url.clone()).finish();
+        /*let def = client::ClientRequest::default();
+        let request2 = match r {
+            Ok(ref a) => &a,
+            _ => &def, //return future::err(Error::ErrorTODO),
+        };*/
+        let request = r.expect("abc");
+        //.unwrap_or_else(|_| return future::err(Error::ErrorTODO));
+        //.expect(format!("Unknown URL: {}", url).as_str());
         request
             .send()
             .map_err(|_| Error::ErrorTODO)
