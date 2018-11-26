@@ -36,7 +36,7 @@ impl Driver {
     pub fn new_session(
         &self,
         session_info_builder: &SessionInfoBuilder,
-    ) -> impl Future<Item = HubSession, Error = Error> + '_ {
+    ) -> impl Future<Item = HubSession, Error = Error> {
         let sessions_url = format!("{}{}", self.driver_inner.url, "sessions");
         let request = client::ClientRequest::post(sessions_url.clone())
             .json(
@@ -58,7 +58,9 @@ impl Driver {
                 })
             }).and_then(|body| {
                 println!("BODY:{:?}", body);
-                future::ok(HubSession { driver: driver_for_session })
+                future::ok(HubSession {
+                    driver: driver_for_session,
+                })
             })
     }
     pub fn auth_app(&self, _app_name: String, _token: Option<String>) {}
