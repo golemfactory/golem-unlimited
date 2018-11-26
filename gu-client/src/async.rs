@@ -40,25 +40,20 @@ impl Driver {
         let sessions_url = format!("{}{}", self.driver_inner.url, "sessions");
         let session_info = match session_info_builder.build() {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::ErrorTODO)),
+            _ => return future::Either::A(future::err(Error::InvalidHubSessionParameters)),
         };
         let request = match client::ClientRequest::post(sessions_url.clone()).json(session_info) {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::ErrorTODO)),
+            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
         };
         let driver_for_session = self.clone();
         future::Either::B(
             request
                 .send()
-                .map_err(|x| {
-                    println!("request.send() err: {:?}", x);
-                    Error::ErrorTODO
-                }).and_then(|response| {
+                .map_err(|_| Error::CannotSendRequest)
+                .and_then(|response| {
                     println!("response {:?}", response);
-                    response.body().map_err(|x| {
-                        println!("body() error {}", x);
-                        Error::ErrorTODO
-                    })
+                    response.body().map_err(|_| Error::CannotGetResponseBody)
                 }).and_then(|body| {
                     println!("BODY:{:?}", body);
                     future::ok(HubSession {
@@ -74,11 +69,11 @@ impl Driver {
         return match client::ClientRequest::get(url.clone()).finish() {
             Ok(r) => future::Either::A(
                 r.send()
-                    .map_err(|_| Error::ErrorTODO)
-                    .and_then(|response| response.json().map_err(|_| Error::ErrorTODO))
+                    .map_err(|_| Error::CannotSendRequest)
+                    .and_then(|response| response.json().map_err(|_| Error::InvalidJSONResponse))
                     .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
             ),
-            _ => future::Either::B(future::err(Error::ErrorTODO)),
+            _ => future::Either::B(future::err(Error::CannotCreateRequest)),
         };
     }
 }

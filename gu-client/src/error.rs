@@ -1,3 +1,7 @@
 pub enum Error {
-    ErrorTODO, /* TODO */
+    CannotCreateRequest,
+    CannotGetResponseBody,
+    CannotSendRequest,
+    InvalidHubSessionParameters,
+    InvalidJSONResponse,
 }
