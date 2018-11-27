@@ -35,7 +35,7 @@ impl Driver {
     /// creates a new hub session
     pub fn new_session(
         &self,
-        session_info_builder: &SessionInfoBuilder,
+        session_info_builder: SessionInfoBuilder,
     ) -> impl Future<Item = HubSession, Error = Error> {
         let sessions_url = format!("{}{}", self.driver_inner.url, "sessions");
         let session_info = match session_info_builder.build() {
@@ -51,11 +51,8 @@ impl Driver {
             request
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
-                .and_then(|response| {
-                    println!("response {:?}", response);
-                    response.body().map_err(|_| Error::CannotGetResponseBody)
-                }).and_then(|body| {
-                    println!("BODY:{:?}", body);
+                .and_then(|response| response.body().map_err(|_| Error::CannotGetResponseBody))
+                .and_then(|_body| {
                     future::ok(HubSession {
                         driver: driver_for_session,
                     })
