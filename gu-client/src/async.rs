@@ -57,7 +57,7 @@ impl Driver {
             Ok(r) => r,
             _ => return future::Either::A(future::err(Error::InvalidHubSessionParameters)),
         };
-        let request = match client::ClientRequest::post(sessions_url.clone()).json(session_info) {
+        let request = match client::ClientRequest::post(sessions_url).json(session_info) {
             Ok(r) => r,
             _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
         };
@@ -102,8 +102,19 @@ pub struct HubSession {
 
 impl HubSession {
     /// adds peers to the hub
-    pub fn add_peers(&self, peers: &[&str]) {
-        /* TODO */
+    pub fn add_peers(&self, peers: &[&str]) -> impl Future<Item = (), Error = Error> {
+        /* TODO Adding peers to HUB session POST /sessions/{session-id}/peer */
+        /* TODO Adding peer HostDirect session to HUB session POST /sessions/{session-id}/peer/{node-id}/hd */
+
+        let add_url = format!(
+            "{}{}/{}/peer",
+            self.driver.driver_inner.url, "sessions", self.session_id
+        );
+        let request = match client::ClientRequest::post(add_url.clone()).finish() {
+            Ok(r) => r,
+            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
+        };
+        future::Either::B(future::ok(()))
     }
     /// creates a new blob
     pub fn new_blob(&self) {
