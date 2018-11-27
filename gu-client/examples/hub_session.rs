@@ -18,8 +18,8 @@ fn main() {
                     SessionInfoBuilder::default()
                         .name("my session")
                         .environment("hd"),
-                ).and_then(|_hub_session| {
-                    println!("New hub session ready.");
+                ).and_then(|hub_session| {
+                    println!("New hub session ready: {}.", hub_session.session_id);
                     Ok(actix::System::current().stop())
                 }).map_err(|_| {
                     println!("Cannot open a hub session.");

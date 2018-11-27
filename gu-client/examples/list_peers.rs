@@ -7,7 +7,6 @@ extern crate gu_net;
 use actix::Arbiter;
 use futures::Future;
 use gu_client::async::Driver;
-//use gu_net::rpc::peer::PeerInfo;
 
 fn main() {
     let driver = Driver::from_addr("10.30.8.179:61622");
