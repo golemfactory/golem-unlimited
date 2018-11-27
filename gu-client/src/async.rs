@@ -72,8 +72,8 @@ impl Driver {
                         driver: driver_for_session,
                         session_id: match str::from_utf8(&body.to_vec()) {
                             Ok(str) => str.to_string(),
-                            _ => return future::err(Error::CannotGetResponseBody)
-                        }
+                            _ => return future::err(Error::CannotGetResponseBody),
+                        },
                     })
                 }),
         )
