@@ -174,15 +174,20 @@ paths:
           description: not found (session / peer)
   '/sessions/{sessionId}/peer/{nodeId}/commands/{hubSession}':
     post:
-      consumes: 
+      operationId: updatePeerSession
+      summary: 'Sends multiple commands for peer'
+      consumes:
+        - application/json
+      produces: 
         - application/json
       parameters:
         - name: commands
           in: body
           required: true
-          type: array
-          items:
-            $ref: '#/definitions/Command'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Command'
         - name: sessionId
           in: path
           required: true
@@ -196,7 +201,7 @@ paths:
           required: true
           type: string
       responses:
-        200:
+        '200':
           description: OK
 definitions:
   PeerInfo:
