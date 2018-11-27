@@ -102,8 +102,9 @@ pub struct HubSession {
 
 impl HubSession {
     /// adds peers to the hub
-    pub fn add_peers(&self, peers: &[&str]) -> impl Future<Item = (), Error = Error> {
-        /* TODO Adding peers to HUB session POST /sessions/{session-id}/peer */
+    pub fn add_peers<T>(&self, peers: &[&str]) -> impl Future<Item = (), Error = Error> {
+    //pub fn add_peers<T>(&self, peers: &T) -> impl Future<Item = (), Error = Error> where T : IntoIterator<Item=Into<String>> {
+        /* TODO Adding peers to HUB session POST /sessions/{session-id}/peer --> z tablica peer_id */
         /* TODO Adding peer HostDirect session to HUB session POST /sessions/{session-id}/peer/{node-id}/hd */
 
         let add_url = format!(
@@ -139,7 +140,7 @@ impl Blob {
 pub struct Peer {}
 
 impl Peer {
-    pub fn new_session(peer_session_info_builder: PeerSessionInfoBuilder) -> PeerSession {
+    pub fn new_session(&self, builder: PeerSessionInfoBuilder) -> PeerSession {
         PeerSession {}
     }
 }
