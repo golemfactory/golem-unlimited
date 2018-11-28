@@ -16,7 +16,7 @@ tags:
 schemes:
   - http
 security:
-  - gu-api-key: []
+  - serviceToken: []
   - systemName: []
 paths:
   /peer:
@@ -39,10 +39,7 @@ paths:
               $ref: '#/definitions/PeerInfo'
   /peer/{nodeId}:
     parameters:
-      - name: nodeId
-        type: string
-        in: path
-        required: true
+      - $ref: '#/parameters/nodeId'
     get:
       tags:
         - peer-info
@@ -100,10 +97,7 @@ paths:
             description: Error message
   '/sessions/{sessionId}':
     parameters:
-      - name: sessionId
-        in: path
-        required: true
-        type: string
+      - $ref: '#/parameters/sessionId'
     get:
       tags:
         - hub-session
@@ -120,6 +114,22 @@ paths:
           description: Internal Error
           schema:
             type: object
+    patch:
+      tags:
+        - hub-session
+      summary: 'Hub session update'
+      consumes:
+        - application/json
+      parameters:
+        - name: changes
+          in: body
+          schema:
+            $ref: '#/definitions/HubSessionCommand'
+
+      responses:
+        200:
+          description: OK
+
     delete:
       tags:
         - hub-session
@@ -130,10 +140,7 @@ paths:
           description: 'Session not found'
   '/sessions/{sessionId}/config':
     parameters:
-      - name: sessionId
-        in: path
-        required: true
-        type: string
+      - $ref: '#/parameters/sessionId'
     get:
       tags:
         - hub-session
@@ -175,10 +182,7 @@ paths:
           description: Conflicting version
   '/sessions/{sessionId}/peer':
     parameters:
-      - name: sessionId
-        in: path
-        required: true
-        type: string
+      - $ref: '#/parameters/sessionId'
     post:
       tags:
         - hub-session
@@ -214,14 +218,8 @@ paths:
         - peer-session
       operationId: createPeerSession
       parameters:
-        - name: sessionId
-          in: path
-          required: true
-          type: string
-        - name: nodeId
-          in: path
-          required: true
-          type: string
+        - $ref: '#/parameters/sessionId'
+        - $ref: '#/parameters/nodeId'
         - name: sessionSpec
           in: body
           required: true
@@ -242,14 +240,8 @@ paths:
           description: not found (session / peer)
   '/sessions/{sessionId}/peer/{nodeId}/peer-sessions/{hubSession}':
     parameters:
-      - name: sessionId
-        in: path
-        required: true
-        type: string
-      - name: nodeId
-        in: path
-        required: true
-        type: string
+      - $ref: '#/parameters/sessionId'
+      - $ref: '#/parameters/nodeId'
       - name: hubSession
         in: path
         required: true
@@ -530,16 +522,39 @@ definitions:
         type: string
         description: 'optional human readable blob name'
 
+  HubSessionCommand:
+    type: object
+    discriminator: commandType
+    required:
+      - commandType
+    properties:
+      commandType:
+        type: string
+      ts:
+        type: string
+        format: date-time
+
+  HubSessionTouchCommand:
+    allOf:
+      - $ref: '#/definitions/HubSessionCommand'
+      - type: object
+        properties:
+          keepUntil:
+            type: string
+            format: date-time
+
 
 securityDefinitions:
-  gu-api-key:
+  serviceToken:
     type: apiKey
     in: header
     name: X-GU-APIKEY
+    description: 'Service token'
   systemName:
     type: apiKey
     in: header
     name: X-GU-APPNAME
+    description: 'Integration identifier'
 parameters:
   limit:
     name: limit
@@ -558,3 +573,10 @@ parameters:
     type: string
     in: path
     required: true
+  nodeId:
+    name: nodeId
+    description: 'GU Network node identifier'
+    in: path
+    required: true
+    type: string
+    pattern: '0x[0-9a-f]{40}'
