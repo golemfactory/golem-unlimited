@@ -4,31 +4,73 @@ info:
   description: API description in Markdown.
   version: 1.0.0
 host: '127.0.0.1:61622'
+tags:
+  - name: hub-session
+    description: HUB Session managment.
+  - name: peer-info
+    description: Unlimited network peer info managment.
+  - name: peer-session
+  - name: lob-man
+    description: Large objects managment
+
 schemes:
   - http
+security:
+  - gu-api-key: []
+  - systemName: []
 paths:
   /peer:
     get:
+      tags:
+        - peer-info
+      operationId: listPeers
       summary: Returns a list hub peers.
-      description: Optional extended description in Markdown.
+      parameters:
+        - $ref: '#/parameters/offset'
+        - $ref: '#/parameters/limit'
       produces:
         - application/json
       responses:
         '200':
           description: OK
           schema:
+            type: array
+            items:
+              $ref: '#/definitions/PeerInfo'
+  /peer/{nodeId}:
+    parameters:
+      - name: nodeId
+        type: string
+        in: path
+        required: true
+    get:
+      tags:
+        - peer-info
+      operationId: getPeerDetails
+      summary: 'Returns detailed peer info'
+      responses:
+        200:
+          description: OK
+          schema:
             $ref: '#/definitions/PeerInfo'
+
   /sessions:
     get:
+      tags:
+        - hub-session
       summary: Lists current hub sessions.
-      operationId: getHubSessions
+      operationId: listHubSessions
       parameters:
         - name: limit
           type: integer
           in: query
+          allowEmptyValue: true
+          default: 50
         - name: offset
           type: integer
           in: query
+          allowEmptyValue: true
+          default: 0
       responses:
         '200':
           description: OK list sessions
@@ -37,7 +79,9 @@ paths:
             items:
               $ref: '#/definitions/HubSession'
     post:
-      operationId: createHubSessions
+      tags:
+        - hub-session
+      operationId: createHubSession
       parameters:
         - name: newSessionSpec
           in: body
@@ -61,6 +105,8 @@ paths:
         required: true
         type: string
     get:
+      tags:
+        - hub-session
       summary: Gets hub session info
       operationId: getHubSession
       responses:
@@ -74,6 +120,14 @@ paths:
           description: Internal Error
           schema:
             type: object
+    delete:
+      tags:
+        - hub-session
+      responses:
+        200:
+          description: Deleted
+        404:
+          description: 'Session not found'
   '/sessions/{sessionId}/config':
     parameters:
       - name: sessionId
@@ -81,6 +135,8 @@ paths:
         required: true
         type: string
     get:
+      tags:
+        - hub-session
       summary: Gets configuration from stash
       operationId: getHubSessionConfig
       responses:
@@ -93,6 +149,8 @@ paths:
         '500':
           description: Internal Error
     put:
+      tags:
+        - hub-session
       summary: Sets configuration stash
       operationId: setHubSessionConfiguration
       parameters:
@@ -122,6 +180,8 @@ paths:
         required: true
         type: string
     post:
+      tags:
+        - hub-session
       summary: Manually adds peers to hub session
       operationId: addHubSessionPeers
       parameters:
@@ -148,8 +208,11 @@ paths:
           description: Session not found
         '500':
           description: Internal Error
-  '/sessions/{sessionId}/peer/{nodeId}/new-session':
+  '/sessions/{sessionId}/peer/{nodeId}/peer-sessions':
     post:
+      tags:
+        - peer-session
+      operationId: createPeerSession
       parameters:
         - name: sessionId
           in: path
@@ -167,13 +230,33 @@ paths:
       responses:
         '201':
           description: created
+          headers:
+            location:
+              type: string
+              format: uri
+              description: 'Uri of new peer session'
           schema:
             type: string
             description: exec environment session instance id
         '404':
           description: not found (session / peer)
-  '/sessions/{sessionId}/peer/{nodeId}/commands/{hubSession}':
-    post:
+  '/sessions/{sessionId}/peer/{nodeId}/peer-sessions/{hubSession}':
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        type: string
+      - name: nodeId
+        in: path
+        required: true
+        type: string
+      - name: hubSession
+        in: path
+        required: true
+        type: string
+    patch:
+      tags:
+        - peer-session
       operationId: updatePeerSession
       summary: 'Sends multiple commands for peer'
       consumes:
@@ -188,21 +271,82 @@ paths:
             type: array
             items:
               $ref: '#/definitions/Command'
-        - name: sessionId
-          in: path
-          required: true
-          type: string
-        - name: nodeId
-          in: path
-          required: true
-          type: string
-        - name: hubSession
-          in: path
-          required: true
-          type: string
       responses:
         '200':
           description: OK
+    delete:
+      tags:
+        - peer-session
+      operationId: deletePeerSession
+      responses:
+        204:
+          description: Deleted
+
+  /sessions/{sessionId}/blob:
+    parameters:
+      - $ref: '#/parameters/sessionId'
+    post:
+      tags:
+        - lob-man
+      operationId: createBlob
+      summary: 'Creates new lob'
+      responses:
+        201:
+          description: Created
+          schema:
+            type: string
+            description: 'BLob uniq id'
+        404:
+          description: 'Session not found'
+    get:
+      tags:
+        - lob-man
+      operationId: listHubSessionBlobs
+      summary: 'Lists currently allocated lobs'
+      responses:
+        200:
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/BlobInfo'
+        404:
+          description: 'Session not found'
+
+  /sessions/{sessionId}/blob/{blobId}:
+    parameters:
+      - $ref: '#/parameters/sessionId'
+      - name: blobId
+        description: 'Blob identifier'
+        type: string
+        in: path
+        required: true
+    put:
+      tags:
+        - lob-man
+      operationId: uploadBlob
+      parameters:
+        - name: body
+          in: body
+          schema:
+            type: string
+            format: binary
+      consumes:
+        - application/octet-stream
+      responses:
+        200:
+          description: OK
+    get:
+      tags:
+        - lob-man
+      operationId: downloadBlob
+      responses:
+        200:
+          description: OK
+          schema:
+            type: file
+
+
 definitions:
   PeerInfo:
     description: General information about GU subnetwork node
@@ -276,11 +420,14 @@ definitions:
         items:
           type: string
   Command:
+    type: object
     properties:
       exec:
         $ref: '#/definitions/ExecCommand'
       start:
         $ref: '#/definitions/StartCommand'
+      stop:
+        $ref: '#/definitions/StopCommand'
       addTags:
         type: array
         uniqueItems: true
@@ -333,12 +480,23 @@ definitions:
       filePath:
         type: string
   ConfigStash:
+    description: 'Free style configuration object'
+    type: object
     properties:
       version:
         type: integer
         description: Version number
-    additionalProperties: true
+    additionalProperties: {}
+
   EnvType:
+    description: |-
+      Exec environment type.
+
+      * hd - Host Direct mode
+      * docker - Docker Container mode
+      * wasm - WebAssembly mode
+      * vm - virtual machine mode.
+
     type: string
     enum:
       - hd
@@ -346,3 +504,57 @@ definitions:
       - wasm
       - graphne
       - vm
+  BlobInfo:
+    type: object
+    description: 'Binary large object basic information'
+    required:
+      - id
+    properties:
+      id:
+        type: string
+        description: 'blob id'
+      hash:
+        type: string
+        description: 'SHA3-256 of blob contents if calculated'
+      size:
+        type: integer
+        format: int64
+        description: 'blob size in bytes'
+      tags:
+        type: array
+        description: 'Additional tags'
+        items:
+          type: string
+        uniqueItems: true
+      name:
+        type: string
+        description: 'optional human readable blob name'
+
+
+securityDefinitions:
+  gu-api-key:
+    type: apiKey
+    in: header
+    name: X-GU-APIKEY
+  systemName:
+    type: apiKey
+    in: header
+    name: X-GU-APPNAME
+parameters:
+  limit:
+    name: limit
+    type: integer
+    in: query
+    allowEmptyValue: true
+    default: 50
+  offset:
+    name: offset
+    type: integer
+    in: query
+    allowEmptyValue: true
+    default: 0
+  sessionId:
+    name: sessionId
+    type: string
+    in: path
+    required: true
