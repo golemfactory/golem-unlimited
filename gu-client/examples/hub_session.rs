@@ -20,11 +20,10 @@ fn main() {
                         .environment("hd"),
                 ).and_then(|hub_session| {
                     println!("New hub session ready: {}.", hub_session.session_id);
-                    hub_session.add_peers(&["a", "b", "c"]).and_then(|result| {
-                        Ok(println!("{:?}", result))
-                    })
-                })
-                .map_err(|_| ())
+                    hub_session
+                        .add_peers(&["a", "b", "c"])
+                        .and_then(|result| Ok(println!("{:?}", result)))
+                }).map_err(|_| ())
                 .then(|_| {
                     actix::System::current().stop();
                     Ok(())

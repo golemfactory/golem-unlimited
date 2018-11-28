@@ -95,6 +95,7 @@ impl Driver {
 }
 
 /// Represents a hub session.
+#[derive(Clone)]
 pub struct HubSession {
     driver: Driver,
     pub session_id: String,
@@ -107,18 +108,15 @@ impl HubSession {
         T: IntoIterator<Item = U>,
         U: AsRef<str>,
     {
-        /* TODO Adding peer HostDirect session to HUB session POST /sessions/{session-id}/peer/{node-id}/hd */
-
         let add_url = format!(
             "{}{}/{}/peer",
             self.driver.driver_inner.url, "sessions", self.session_id
         );
         let peer_vec: Vec<String> = peers.into_iter().map(|peer| peer.as_ref().into()).collect();
-        let request = match client::ClientRequest::post(add_url.clone()).json(peer_vec) {
+        let request = match client::ClientRequest::post(add_url).json(peer_vec) {
             Ok(r) => r,
             _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
         };
-        //let driver_for_session = self.clone();
         future::Either::B(
             request
                 .send()
@@ -131,29 +129,56 @@ impl HubSession {
         )
     }
     /// creates a new blob
-    pub fn new_blob(&self) {
-        /* TODO POST /sessions/{session-id}/blob creates a slot to updalod blob to HUB. Creates blob-id */
+    pub fn new_blob(&self) -> impl Future<Item = Blob, Error = Error> {
+        let new_blob_url = format!(
+            "{}{}/{}/blob",
+            self.driver.driver_inner.url, "sessions", self.session_id
+        );
+        let request = match client::ClientRequest::post(new_blob_url).finish() {
+            Ok(r) => r,
+            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
+        };
+        let hub_session_copy = self.clone();
+        future::Either::B(
+            request
+                .send()
+                .map_err(|_| Error::CannotSendRequest)
+                .and_then(|response| response.body().map_err(|_| Error::CannotGetResponseBody))
+                .and_then(|body| {
+                    println!("{:?}", body);
+                    /* TODO test if blob_id is in the body of the answer */
+                    future::ok(Blob {
+                        hub_session: hub_session_copy,
+                        blob_id: match str::from_utf8(&body.to_vec()) {
+                            Ok(str) => str.to_string(),
+                            _ => return future::err(Error::CannotGetResponseBody),
+                        },
+                    })
+                }),
+        )
     }
     /// gets a peer by its id
-    pub fn peer(&self, peer_id: &str) {
+    pub fn peer(&self, _peer_id: &str) {
         /* TODO */
-        //Peer {}
     }
 }
 
-pub struct Blob {}
+pub struct Blob {
+    hub_session: HubSession,
+    blob_id: String,
+}
 
 impl Blob {
-    pub fn upload(&self, path: &Path) {
-        /* TODO PUT /sessions/{session-id}/blob/{blob-id} uploads blob
-         */
+    pub fn upload(&self, _path: &Path) {
+        /* TODO PUT /sessions/{session-id}/blob/{blob-id} uploads blob */
     }
 }
 
 pub struct Peer {}
 
 impl Peer {
-    pub fn new_session(&self, builder: PeerSessionInfoBuilder) -> PeerSession {
+    pub fn new_session(&self, _builder: PeerSessionInfoBuilder) -> PeerSession {
+        /* TODO Adding peer HostDirect session to HUB session POST /sessions/{session-id}/peer/{node-id}/hd */
         PeerSession {}
     }
 }
