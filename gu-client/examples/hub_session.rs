@@ -10,7 +10,7 @@ use gu_client::async::SessionInfoBuilder;
 //use gu_net::rpc::peer::PeerInfo;
 
 fn main() {
-    let driver = Driver::from_addr("10.30.8.179:61622");
+    let driver = Driver::from_addr("127.0.0.1:61622");
     actix::System::run(move || {
         Arbiter::spawn(
             driver
@@ -20,11 +20,14 @@ fn main() {
                         .environment("hd"),
                 ).and_then(|hub_session| {
                     println!("New hub session ready: {}.", hub_session.session_id);
-                    Ok(actix::System::current().stop())
-                }).map_err(|_| {
-                    println!("Cannot open a hub session.");
+                    hub_session.add_peers(&["a", "b", "c"]).and_then(|result| {
+                        Ok(println!("{:?}", result))
+                    })
+                })
+                .map_err(|_| ())
+                .then(|_| {
                     actix::System::current().stop();
-                    ()
+                    Ok(())
                 }),
         );
     });

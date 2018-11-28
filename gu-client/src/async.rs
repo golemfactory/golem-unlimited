@@ -39,7 +39,7 @@ struct DriverInner {
 }
 
 impl Driver {
-    /// creates a driver from a given URL
+    /// creates a driver from a given address:port, e.g. 127.0.0.1:61621
     pub fn from_addr(addr: &str) -> Driver {
         Driver {
             driver_inner: Arc::new(DriverInner {
@@ -102,20 +102,33 @@ pub struct HubSession {
 
 impl HubSession {
     /// adds peers to the hub
-    pub fn add_peers<T>(&self, peers: &[&str]) -> impl Future<Item = (), Error = Error> {
-    //pub fn add_peers<T>(&self, peers: &T) -> impl Future<Item = (), Error = Error> where T : IntoIterator<Item=Into<String>> {
-        /* TODO Adding peers to HUB session POST /sessions/{session-id}/peer --> z tablica peer_id */
+    pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = (), Error = Error>
+    where
+        T: IntoIterator<Item = U>,
+        U: AsRef<str>,
+    {
         /* TODO Adding peer HostDirect session to HUB session POST /sessions/{session-id}/peer/{node-id}/hd */
 
         let add_url = format!(
             "{}{}/{}/peer",
             self.driver.driver_inner.url, "sessions", self.session_id
         );
-        let request = match client::ClientRequest::post(add_url.clone()).finish() {
+        let peer_vec: Vec<String> = peers.into_iter().map(|peer| peer.as_ref().into()).collect();
+        let request = match client::ClientRequest::post(add_url.clone()).json(peer_vec) {
             Ok(r) => r,
             _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
         };
-        future::Either::B(future::ok(()))
+        //let driver_for_session = self.clone();
+        future::Either::B(
+            request
+                .send()
+                .map_err(|_| Error::CannotSendRequest)
+                .and_then(|response| response.body().map_err(|_| Error::CannotGetResponseBody))
+                .and_then(|body| {
+                    println!("{:?}", body);
+                    future::ok(())
+                }),
+        )
     }
     /// creates a new blob
     pub fn new_blob(&self) {
