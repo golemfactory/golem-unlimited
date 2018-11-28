@@ -63,7 +63,7 @@ paths:
           in: query
           allowEmptyValue: true
           default: 50
-        - name: offset
+        - $ref: '#/parameters/offset'
           type: integer
           in: query
           allowEmptyValue: true
