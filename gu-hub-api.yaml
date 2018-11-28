@@ -58,7 +58,7 @@ paths:
       summary: Lists current hub sessions.
       operationId: listHubSessions
       parameters:
-        - name: limit
+        - $ref: '#/parameters/limit'
           type: integer
           in: query
           allowEmptyValue: true
