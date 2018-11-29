@@ -232,7 +232,10 @@ impl Peer {
     ) -> impl Future<Item = PeerSession, Error = Error> {
         let url = format!(
             "{}{}/{}/peer/{}/peer_sessions", /* TODO check if /peer_sessions or /hd */
-            self.hub_session.driver.driver_inner.url, "sessions", self.hub_session.session_id, self.peer_info.node_id.to_string()
+            self.hub_session.driver.driver_inner.url,
+            "sessions",
+            self.hub_session.session_id,
+            self.peer_info.node_id.to_string()
         );
         let session_info = match builder.build() {
             Ok(r) => r,
