@@ -1,3 +1,4 @@
+//! Rust API for Golem Unlimited
 extern crate actix;
 extern crate actix_web;
 extern crate futures;
@@ -9,5 +10,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate derive_builder;
 
+/// Asynchronous Rust API for Golem Unlimited
 pub mod async;
+/// Errors returned by Rust API for Golem Unlimited
 pub mod error;
