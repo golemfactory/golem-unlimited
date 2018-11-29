@@ -40,10 +40,7 @@ struct DriverInner {
 
 impl Driver {
     /// creates a driver from a given address:port, e.g. 127.0.0.1:61621
-    pub fn from_addr<T>(addr: T) -> Driver
-    where
-        T: Into<String>,
-    {
+    pub fn from_addr<T: Into<String>>(addr: T) -> Driver {
         Driver {
             driver_inner: Arc::new(DriverInner {
                 url: format!("http://{}/", addr.into()),
@@ -69,8 +66,12 @@ impl Driver {
             request
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
-                .and_then(|response| response.body().map_err(|_| Error::CannotGetResponseBody))
-                .and_then(|body| {
+                .and_then(|response| {
+                    if response.status().as_u16() != 201 {
+                        return future::Either::A(future::err(Error::CannotCreateSession));
+                    }
+                    future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
+                }).and_then(|body| {
                     future::ok(HubSession {
                         driver: driver_for_session,
                         session_id: match str::from_utf8(&body.to_vec()) {
@@ -81,12 +82,7 @@ impl Driver {
                 }),
         )
     }
-    pub fn auth_app<T, U>(&self, _app_name: T, _token: Option<U>)
-    where
-        T: Into<String>,
-        U: Into<String>,
-    {
-    }
+    pub fn auth_app<T: Into<String>, U: Into<String>>(&self, _app_name: T, _token: Option<U>) {}
     /// returns all peers connected to the hub
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
         let url = format!("{}{}", self.driver_inner.url, "peer");
@@ -94,8 +90,12 @@ impl Driver {
             Ok(r) => future::Either::A(
                 r.send()
                     .map_err(|_| Error::CannotSendRequest)
-                    .and_then(|response| response.json().map_err(|_| Error::InvalidJSONResponse))
-                    .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
+                    .and_then(|response| match response.status().as_u16() {
+                        200 => future::Either::A(
+                            response.json().map_err(|_| Error::InvalidJSONResponse),
+                        ),
+                        _ => future::Either::B(future::err(Error::InternalError)),
+                    }).and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
             ),
             _ => future::Either::B(future::err(Error::CannotCreateRequest)),
         };
@@ -129,8 +129,13 @@ impl HubSession {
             request
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
-                .and_then(|response| response.body().map_err(|_| Error::CannotGetResponseBody))
-                .and_then(|body| {
+                .and_then(|response| match response.status().as_u16() {
+                    404 => future::Either::A(future::err(Error::SessionNotFound)),
+                    500 => future::Either::A(future::err(Error::InternalError)),
+                    _ => {
+                        future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
+                    }
+                }).and_then(|body| {
                     println!("{:?}", body);
                     future::ok(())
                 }),
@@ -151,9 +156,11 @@ impl HubSession {
             request
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
-                .and_then(|response| response.body().map_err(|_| Error::CannotGetResponseBody))
-                .and_then(|body| {
-                    println!("{:?}", body);
+                .and_then(|response| match response.status().as_u16() {
+                    201 => future::Either::A(response.body().map_err(|_| Error::CannotCreateBlob)),
+                    _ => future::Either::B(future::err(Error::InternalError)),
+                }).and_then(|body| {
+                    println!("BLOB:{:?}###", body);
                     /* TODO test if blob_id is in the body of the answer */
                     future::ok(Blob {
                         hub_session: hub_session_copy,
@@ -166,10 +173,7 @@ impl HubSession {
         )
     }
     /// gets a peer by its id
-    pub fn peer<T>(&self, _peer_id: T)
-    where
-        T: Into<String>,
-    {
+    pub fn peer<T: Into<String>>(&self, _peer_id: T) {
         /* TODO */
     }
 }
