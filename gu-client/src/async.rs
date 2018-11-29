@@ -40,10 +40,13 @@ struct DriverInner {
 
 impl Driver {
     /// creates a driver from a given address:port, e.g. 127.0.0.1:61621
-    pub fn from_addr(addr: &str) -> Driver {
+    pub fn from_addr<T>(addr: T) -> Driver
+    where
+        T: Into<String>,
+    {
         Driver {
             driver_inner: Arc::new(DriverInner {
-                url: format!("http://{}/", addr),
+                url: format!("http://{}/", addr.into()),
             }),
         }
     }
@@ -78,7 +81,12 @@ impl Driver {
                 }),
         )
     }
-    pub fn auth_app(&self, _app_name: &str, _token: Option<&str>) {}
+    pub fn auth_app<T, U>(&self, _app_name: T, _token: Option<U>)
+    where
+        T: Into<String>,
+        U: Into<String>,
+    {
+    }
     /// returns all peers connected to the hub
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
         let url = format!("{}{}", self.driver_inner.url, "peer");
@@ -158,7 +166,10 @@ impl HubSession {
         )
     }
     /// gets a peer by its id
-    pub fn peer(&self, _peer_id: &str) {
+    pub fn peer<T>(&self, _peer_id: T)
+    where
+        T: Into<String>,
+    {
         /* TODO */
     }
 }
