@@ -32,11 +32,12 @@ pub struct PeerSessionImage {
 }
 
 /// Connection to a single hub.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Driver {
     driver_inner: Arc<DriverInner>,
 }
 
+#[derive(Debug)]
 struct DriverInner {
     url: String,
 }
@@ -106,7 +107,7 @@ impl Driver {
 }
 
 /// Hub session.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HubSession {
     driver: Driver,
     pub session_id: String,
@@ -128,12 +129,13 @@ impl HubSession {
             Ok(r) => r,
             _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
         };
+        let session_id_copy = self.session_id.clone();
         future::Either::B(
             request
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
                 .and_then(|response| match response.status().as_u16() {
-                    404 => future::Either::A(future::err(Error::SessionNotFound)),
+                    404 => future::Either::A(future::err(Error::SessionNotFound(session_id_copy))),
                     500 => future::Either::A(future::err(Error::InternalError)),
                     _ => {
                         future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
@@ -206,6 +208,7 @@ impl HubSession {
 }
 
 /// Large binary object.
+#[derive(Debug)]
 pub struct Blob {
     hub_session: HubSession,
     blob_id: String,
@@ -214,6 +217,7 @@ pub struct Blob {
 impl Blob {
     pub fn upload(&self, _path: &Path) {
         /* TODO PUT /sessions/{session-id}/blob/{blob-id} uploads blob */
+        /* TODO stream z futures-0.1.25 */
     }
 }
 

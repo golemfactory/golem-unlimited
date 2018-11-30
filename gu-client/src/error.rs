@@ -1,4 +1,5 @@
 /// Errors returned by Rust API for Golem Unlimited
+#[derive(Debug)]
 pub enum Error {
     CannotAddPeers(Vec<String>),
     CannotCreateBlob,
@@ -10,5 +11,5 @@ pub enum Error {
     InvalidHubSessionParameters,
     InvalidPeerSessionParameters,
     InvalidJSONResponse,
-    SessionNotFound,
+    SessionNotFound(String),
 }
