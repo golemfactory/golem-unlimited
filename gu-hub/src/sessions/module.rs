@@ -1,3 +1,4 @@
+use gu_actix::prelude::*;
 use actix::{Handler, MailboxError, Message, SystemService};
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
@@ -25,8 +26,8 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .route("", http::Method::POST, crate_scope)
         .route("/{sessionId}", http::Method::GET, info_scope)
         .route("/{sessionId}", http::Method::DELETE, delete_scope)
-        .route("/{sessionId}/config", http::Method::PUT, set_config_scope)
-        .route("/{sessionId}/config", http::Method::GET, get_config_scope)
+        .route("/{sessionId}/config", http::Method::PUT, set_config)
+        .route("/{sessionId}/config", http::Method::GET, get_config)
         .route("/{sessionId}/blob", http::Method::POST, create_blob_scope)
         .route(
             "/{sessionId}/blob/{blobId}",
@@ -85,8 +86,14 @@ fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
 }
 
 fn crate_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
+    use actix_web::{HttpRequest, HttpResponse, http::ContentEncoding, Json};
+
     request_json(r)
-        .and_then(|info: SessionInfo| manager_request::<SessionsManager, _>(CreateSession { info }))
+        .and_then(|info: SessionInfo|
+            SessionsManager::from_registry().send(CreateSession { info }).flatten_fut()
+                .from_err()
+        )
+        .and_then(|v| Ok(HttpResponse::Ok().json(v)))
         .responder()
 }
 
@@ -102,13 +109,13 @@ fn delete_scope<S>(r: HttpRequest<S>) -> impl Responder {
     manager_request::<SessionsManager, _>(DeleteSession { session }).responder()
 }
 
-fn get_config_scope<S>(r: HttpRequest<S>) -> impl Responder {
+fn get_config<S>(r: HttpRequest<S>) -> impl Responder {
     let session = session_id(&r).map_err(|e| return e).unwrap();
 
     manager_request::<SessionsManager, _>(GetMetadata { session }).responder()
 }
 
-fn set_config_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
+fn set_config<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let session = session_id(&r).map_err(|e| return e).unwrap();
 
     request_json(r)

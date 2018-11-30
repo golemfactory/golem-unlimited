@@ -59,15 +59,7 @@ paths:
       operationId: listHubSessions
       parameters:
         - $ref: '#/parameters/limit'
-          type: integer
-          in: query
-          allowEmptyValue: true
-          default: 50
         - $ref: '#/parameters/offset'
-          type: integer
-          in: query
-          allowEmptyValue: true
-          default: 0
       responses:
         '200':
           description: OK list sessions
@@ -79,6 +71,11 @@ paths:
       tags:
         - hub-session
       operationId: createHubSession
+      summary: 'Creates new hub session.'
+      consumes:
+        - application/json
+      produces:
+        - application/json
       parameters:
         - name: newSessionSpec
           in: body
@@ -95,6 +92,7 @@ paths:
           schema:
             type: string
             description: Error message
+
   '/sessions/{sessionId}':
     parameters:
       - $ref: '#/parameters/sessionId'
@@ -113,7 +111,7 @@ paths:
         '500':
           description: Internal Error
           schema:
-            type: object
+            type: string
     patch:
       tags:
         - hub-session
@@ -134,7 +132,7 @@ paths:
       tags:
         - hub-session
       responses:
-        200:
+        204:
           description: Deleted
         404:
           description: 'Session not found'
@@ -159,7 +157,7 @@ paths:
       tags:
         - hub-session
       summary: Sets configuration stash
-      operationId: setHubSessionConfiguration
+      operationId: setHubSessionConfig
       parameters:
         - name: config
           description: New config stash value
@@ -238,14 +236,11 @@ paths:
             description: exec environment session instance id
         '404':
           description: not found (session / peer)
-  '/sessions/{sessionId}/peer/{nodeId}/peer-sessions/{hubSession}':
+  '/sessions/{sessionId}/peer/{nodeId}/peer-sessions/{deploymentId}':
     parameters:
       - $ref: '#/parameters/sessionId'
       - $ref: '#/parameters/nodeId'
-      - name: hubSession
-        in: path
-        required: true
-        type: string
+      - $ref: '#/parameters/deploymentId'
     patch:
       tags:
         - peer-session
@@ -570,6 +565,13 @@ parameters:
     default: 0
   sessionId:
     name: sessionId
+    description: 'HUB session id'
+    type: integer
+    format: int64
+    in: path
+    required: true
+  deploymentId:
+    name: deploymentId
     type: string
     in: path
     required: true

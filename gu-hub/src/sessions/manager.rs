@@ -83,7 +83,7 @@ impl SessionsManager {
         }
     }
 
-    fn create_session_inner(&mut self, session: Session, id: Option<u64>) -> SessionResult {
+    fn create_session_inner(&mut self, session: Session, id: Option<u64>) -> Result<u64, SessionErr> {
         let id = match id {
             None => self.next_id,
             Some(v) => v,
@@ -93,19 +93,17 @@ impl SessionsManager {
 
         match self.sessions.insert(id, session) {
             Some(_) => Err(SessionErr::OverwriteError),
-            None => Ok(SessionOk::SessionId(id)),
+            None => Ok(id),
         }
     }
 
     pub fn create_session(
         &mut self,
         info: SessionInfo,
-    ) -> impl Future<Item = SessionOk, Error = SessionErr> {
+    ) -> impl Future<Item = u64, Error = SessionErr> {
         let (session, fut) = Session::new(info, self.path.join(format!("{}", self.next_id)));
 
-        self.create_session_inner(session, None)
-            .into_future()
-            .and_then(|res| fut.and_then(|()| Ok(res)))
+        self.create_session_inner(session, None).into_future()
     }
 
     pub fn session_info(&self, id: u64) -> SessionResult {
@@ -186,13 +184,13 @@ impl Handler<ListSessions> for SessionsManager {
 }
 
 #[derive(Message, Deserialize, Serialize)]
-#[rtype(result = "SessionResult")]
+#[rtype(result = "Result<u64, SessionErr>")]
 pub struct CreateSession {
     pub info: SessionInfo,
 }
 
 impl Handler<CreateSession> for SessionsManager {
-    type Result = ActorResponse<SessionsManager, SessionOk, SessionErr>;
+    type Result = ActorResponse<SessionsManager, u64, SessionErr>;
 
     fn handle(&mut self, msg: CreateSession, _ctx: &mut Context<Self>) -> Self::Result {
         ActorResponse::async(self.create_session(msg.info).into_actor(self))
