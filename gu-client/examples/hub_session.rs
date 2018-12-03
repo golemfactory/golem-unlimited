@@ -20,15 +20,12 @@ fn main() {
                         .environment("hd"),
                 ).and_then(|hub_session| {
                     println!("New hub session ready: {}.", hub_session.session_id);
-                    //hub_session
-                    //    .add_peers(&["a", "b", "c"])
-                    //    .and_then(|result| Ok(println!("{:?}", result)))
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
                 }).and_then(|(hub_session, blob)| {
-                    println!("Blob: {:#?}", blob);
+                    println!("New blob: {:#?}", blob);
                     future::ok(hub_session.clone()).join(hub_session.add_peers(&["a", "b", "c"]))
                 }).and_then(|(_hub_session, _)| {
-                    println!("Successfully added.");
+                    println!("Successfully added peers.");
                     future::ok(())
                 }).map_err(|e| {
                     println!("An error occurred: {:#?}.", e);

@@ -5,23 +5,22 @@ extern crate gu_client;
 extern crate gu_net;
 
 use actix::Arbiter;
-use futures::Future;
+use futures::{future, Future};
 use gu_client::async::Driver;
 
 fn main() {
-    let driver = Driver::from_addr("10.30.8.179:61622");
+    let driver = Driver::from_addr("127.0.0.1:61622");
     actix::System::run(move || {
         Arbiter::spawn(
             driver
                 .list_peers()
                 .and_then(|peers| {
-                    peers.for_each(|peer| println!("peer={:?}", peer.node_id));
-                    Ok(actix::System::current().stop())
-                }).map_err(|_| {
-                    println!("Error while listing peers.");
-                    actix::System::current().stop();
+                    peers.for_each(|peer| println!("peer_id={:#?}", peer.node_id));
+                    future::ok(())
+                }).map_err(|e| {
+                    println!("Error while listing peers: {:#?}.", e);
                     ()
-                }),
+                }).then(|_| future::ok(actix::System::current().stop())),
         );
     });
 }

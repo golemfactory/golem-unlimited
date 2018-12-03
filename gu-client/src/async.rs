@@ -52,11 +52,12 @@ impl Driver {
         }
     }
     /// creates a new hub session
+    /// assumption: url is /sessions, hub session is in the response body
     pub fn new_session(
         &self,
         session_info_builder: SessionInfoBuilder,
     ) -> impl Future<Item = HubSession, Error = Error> {
-        let sessions_url = format!("{}{}", self.driver_inner.url, "sessions");
+        let sessions_url = format!("{}sessions", self.driver_inner.url);
         let session_info = match session_info_builder.build() {
             Ok(r) => r,
             _ => return future::Either::A(future::err(Error::InvalidHubSessionParameters)),
@@ -88,8 +89,9 @@ impl Driver {
     }
     pub fn auth_app<T: Into<String>, U: Into<String>>(&self, _app_name: T, _token: Option<U>) {}
     /// returns all peers connected to the hub
+    /// assumption: url is /peer
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
-        let url = format!("{}{}", self.driver_inner.url, "peer");
+        let url = format!("{}peer", self.driver_inner.url);
         return match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
                 r.send()
@@ -115,14 +117,15 @@ pub struct HubSession {
 
 impl HubSession {
     /// adds peers to the hub
+    /// assumption: url is /sessions/{session_id}/peer
     pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = (), Error = Error>
     where
         T: IntoIterator<Item = U>,
         U: AsRef<str>,
     {
         let add_url = format!(
-            "{}{}/{}/peer",
-            self.driver.driver_inner.url, "sessions", self.session_id
+            "{}sessions/{}/peer",
+            self.driver.driver_inner.url, self.session_id
         );
         let peer_vec: Vec<String> = peers.into_iter().map(|peer| peer.as_ref().into()).collect();
         let request = match client::ClientRequest::post(add_url).json(peer_vec) {
@@ -137,20 +140,16 @@ impl HubSession {
                 .and_then(|response| match response.status().as_u16() {
                     404 => future::Either::A(future::err(Error::SessionNotFound(session_id_copy))),
                     500 => future::Either::A(future::err(Error::InternalError)),
-                    _ => {
-                        future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
-                    }
-                }).and_then(|body| {
-                    println!("{:?}", body);
-                    future::ok(())
+                    _ => future::Either::B(future::ok(())),
                 }),
         )
     }
     /// creates a new blob
+    /// assumption: url is /sessions/{session_id}/blob, blob_id is in the response body
     pub fn new_blob(&self) -> impl Future<Item = Blob, Error = Error> {
         let new_blob_url = format!(
-            "{}{}/{}/blob",
-            self.driver.driver_inner.url, "sessions", self.session_id
+            "{}sessions/{}/blob",
+            self.driver.driver_inner.url, self.session_id
         );
         let request = match client::ClientRequest::post(new_blob_url).finish() {
             Ok(r) => r,
@@ -165,8 +164,6 @@ impl HubSession {
                     201 => future::Either::A(response.body().map_err(|_| Error::CannotCreateBlob)),
                     _ => future::Either::B(future::err(Error::InternalError)),
                 }).and_then(|body| {
-                    println!("BLOB:{:?}###", body);
-                    /* TODO test if blob_id is in the body of the answer */
                     future::ok(Blob {
                         hub_session: hub_session_copy,
                         blob_id: match str::from_utf8(&body.to_vec()) {
@@ -178,13 +175,9 @@ impl HubSession {
         )
     }
     /// gets a peer by its id
+    /// assumption: url is /peer/{peer_id}
     pub fn peer<T: Into<String>>(&self, peer_id: T) -> impl Future<Item = Peer, Error = Error> {
-        let url = format!(
-            "{}{}/{}",
-            self.driver.driver_inner.url,
-            "peer",
-            peer_id.into()
-        );
+        let url = format!("{}peer/{}", self.driver.driver_inner.url, peer_id.into());
         let hub_session_copy = self.clone();
         return match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
@@ -229,15 +222,15 @@ pub struct Peer {
 }
 
 impl Peer {
-    /* TODO work in progress */
+    /// creates new peer session
+    /// assumption: url is /sessions/{session_id}/peer/{peer_id}/peer_sessions (was: /hd)
     pub fn new_session(
         &self,
         builder: PeerSessionInfoBuilder,
     ) -> impl Future<Item = PeerSession, Error = Error> {
         let url = format!(
-            "{}{}/{}/peer/{}/peer_sessions", /* TODO check if /peer_sessions or /hd */
+            "{}sessions/{}/peer/{}/peer_sessions",
             self.hub_session.driver.driver_inner.url,
-            "sessions",
             self.hub_session.session_id,
             self.peer_info.node_id.to_string()
         );
