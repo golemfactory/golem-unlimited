@@ -53,7 +53,7 @@ impl Module for PeerModule {
             State::List => {
                 System::run(|| {
                     Arbiter::spawn(
-                        HubClient::get("/peer")
+                        HubClient::get("/peers")
                             .and_then(|r: Vec<PeerInfo>| Ok(format_peer_table(r)))
                             .map_err(|e| error!("{}", e))
                             .then(|_r| Ok(System::current().stop())),
@@ -64,7 +64,7 @@ impl Module for PeerModule {
     }
 
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
-        app.scope("/peer", scope)
+        app.scope("/peers", scope)
     }
 }
 

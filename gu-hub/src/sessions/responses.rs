@@ -66,13 +66,9 @@ impl From<MailboxError> for SessionErr {
     }
 }
 
-impl actix_web::ResponseError for SessionErr {
+impl actix_web::ResponseError for SessionErr {}
 
-}
-
-impl ::std::error::Error for SessionErr {
-
-}
+impl ::std::error::Error for SessionErr {}
 
 impl Into<HttpResponse> for SessionOk {
     fn into(self) -> HttpResponse {

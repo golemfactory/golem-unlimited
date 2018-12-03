@@ -19,7 +19,7 @@ security:
   - serviceToken: []
   - systemName: []
 paths:
-  /peer:
+  /peers:
     get:
       tags:
         - peer-info
@@ -37,7 +37,7 @@ paths:
             type: array
             items:
               $ref: '#/definitions/PeerInfo'
-  /peer/{nodeId}:
+  /peers/{nodeId}:
     parameters:
       - $ref: '#/parameters/nodeId'
     get:
@@ -50,6 +50,42 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/PeerInfo'
+  /peers/{nodeId}/deployments:
+    parameters:
+      - $ref: '#/parameters/nodeId'
+      - $ref: '#/parameters/deploymentId'
+
+    post:
+      parameters:
+        - name: sessionSpec
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PeerSessionSpec'
+
+      responses:
+        '201':
+          description: created
+          headers:
+            location:
+              type: string
+              format: uri
+              description: 'Uri of new peer session'
+          schema:
+            type: string
+            description: exec environment session instance id
+        '404':
+          description: peer not found
+    get:
+      responses:
+        200:
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/PeerSessionSpec'
+        404:
+          description: peer not found
 
   /sessions:
     get:
@@ -72,6 +108,13 @@ paths:
         - hub-session
       operationId: createHubSession
       summary: 'Creates new hub session.'
+      description: |-
+        Allowed fileds:
+
+        * name        - human readable session name
+        * expires     - session expiration timestamp
+        * allocation  - resource allocation mode.
+
       consumes:
         - application/json
       produces:
@@ -178,7 +221,7 @@ paths:
           description: Session not found
         '409':
           description: Conflicting version
-  '/sessions/{sessionId}/peer':
+  '/sessions/{sessionId}/peers':
     parameters:
       - $ref: '#/parameters/sessionId'
     post:
@@ -210,11 +253,12 @@ paths:
           description: Session not found
         '500':
           description: Internal Error
-  '/sessions/{sessionId}/peer/{nodeId}/peer-sessions':
+  '/sessions/{sessionId}/peers/{nodeId}/deployments':
     post:
       tags:
         - peer-session
       operationId: createPeerSession
+      summary: 'Creates new deploymnet'
       parameters:
         - $ref: '#/parameters/sessionId'
         - $ref: '#/parameters/nodeId'
@@ -236,7 +280,7 @@ paths:
             description: exec environment session instance id
         '404':
           description: not found (session / peer)
-  '/sessions/{sessionId}/peer/{nodeId}/peer-sessions/{deploymentId}':
+  '/sessions/{sessionId}/peers/{nodeId}/deployments/{deploymentId}':
     parameters:
       - $ref: '#/parameters/sessionId'
       - $ref: '#/parameters/nodeId'
@@ -269,7 +313,7 @@ paths:
         204:
           description: Deleted
 
-  /sessions/{sessionId}/blob:
+  /sessions/{sessionId}/blobs:
     parameters:
       - $ref: '#/parameters/sessionId'
     post:
@@ -300,14 +344,10 @@ paths:
         404:
           description: 'Session not found'
 
-  /sessions/{sessionId}/blob/{blobId}:
+  /sessions/{sessionId}/blobs/{blobId}:
     parameters:
       - $ref: '#/parameters/sessionId'
-      - name: blobId
-        description: 'Blob identifier'
-        type: string
-        in: path
-        required: true
+      - $ref: '#/parameters/blobId'
     put:
       tags:
         - lob-man
@@ -582,3 +622,9 @@ parameters:
     required: true
     type: string
     pattern: '0x[0-9a-f]{40}'
+  blobId:
+    name: blobId
+    description: 'Blob identifier'
+    type: string
+    in: path
+    required: true

@@ -1,8 +1,8 @@
 mod blob;
 mod manager;
+mod model;
 mod module;
 mod responses;
 mod session;
-mod model;
 
 pub use self::module::SessionsModule;

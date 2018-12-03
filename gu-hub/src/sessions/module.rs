@@ -1,4 +1,3 @@
-use gu_actix::prelude::*;
 use actix::{Handler, MailboxError, Message, SystemService};
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
@@ -6,6 +5,7 @@ use actix_web::{
     Responder, Result as ActixResult, Scope,
 };
 use futures::future::Future;
+use gu_actix::prelude::*;
 use gu_base::Module;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -86,14 +86,15 @@ fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
 }
 
 fn crate_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
-    use actix_web::{HttpRequest, HttpResponse, http::ContentEncoding, Json};
+    use actix_web::{http::ContentEncoding, HttpRequest, HttpResponse, Json};
 
     request_json(r)
-        .and_then(|info: SessionInfo|
-            SessionsManager::from_registry().send(CreateSession { info }).flatten_fut()
+        .and_then(|info: SessionInfo| {
+            SessionsManager::from_registry()
+                .send(CreateSession { info })
+                .flatten_fut()
                 .from_err()
-        )
-        .and_then(|v| Ok(HttpResponse::Ok().json(v)))
+        }).and_then(|v| Ok(HttpResponse::Ok().json(v)))
         .responder()
 }
 

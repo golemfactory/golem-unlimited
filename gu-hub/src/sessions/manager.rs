@@ -83,7 +83,11 @@ impl SessionsManager {
         }
     }
 
-    fn create_session_inner(&mut self, session: Session, id: Option<u64>) -> Result<u64, SessionErr> {
+    fn create_session_inner(
+        &mut self,
+        session: Session,
+        id: Option<u64>,
+    ) -> Result<u64, SessionErr> {
         let id = match id {
             None => self.next_id,
             Some(v) => v,
