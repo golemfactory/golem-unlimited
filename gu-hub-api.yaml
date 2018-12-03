@@ -170,7 +170,8 @@ paths:
       responses:
         200:
           description: OK
-
+        404:
+          description: 'Session Not found'
     delete:
       tags:
         - hub-session
@@ -352,6 +353,7 @@ paths:
       tags:
         - lob-man
       operationId: uploadBlob
+      summary: Uploads a binary content to the hub.
       parameters:
         - name: body
           in: body
@@ -367,6 +369,9 @@ paths:
       tags:
         - lob-man
       operationId: downloadBlob
+      summary: Downloads binary content from the hub
+      produces:
+        - 'application/octet-stream'
       responses:
         200:
           description: OK
