@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 
 use actix_web::{client, HttpMessage};
+use bytes::Bytes;
 use error::Error;
+use futures::stream::Stream;
 use futures::{future, Future};
 use gu_net::rpc::peer::PeerInfo;
-use std::path::Path;
 use std::str;
 use std::sync::Arc;
 
@@ -207,10 +208,34 @@ pub struct Blob {
     blob_id: String,
 }
 
+struct StreamError<T: std::error::Error> {
+    inner: T,
+}
+
 impl Blob {
-    pub fn upload(&self, _path: &Path) {
-        /* TODO PUT /sessions/{session-id}/blob/{blob-id} uploads blob */
-        /* TODO stream z futures-0.1.25 */
+    /// uploads blob represented by a stream
+    pub fn upload_from_stream<S, T>(&self, stream: S) -> impl Future<Item = (), Error = Error>
+    where
+        S: Stream<Item = Bytes, Error = T> + 'static,
+        T: Into<actix_web::Error>,
+    {
+        let url = format!(
+            "{}sessions/{}/blob/{}",
+            self.hub_session.driver.driver_inner.url, self.hub_session.session_id, self.blob_id
+        );
+        let request = match client::ClientRequest::post(url).streaming(stream) {
+            Ok(r) => r,
+            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
+        };
+        future::Either::B(
+            request
+                .send()
+                .map_err(|_| Error::CannotSendRequest)
+                .and_then(|response| match response.status().as_u16() {
+                    200 => future::ok(()),
+                    _ => future::err(Error::InternalError),
+                }),
+        )
     }
 }
 

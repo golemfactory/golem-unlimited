@@ -1,6 +1,7 @@
 //! Rust API for Golem Unlimited
 extern crate actix;
 extern crate actix_web;
+extern crate bytes;
 extern crate futures;
 extern crate gu_net;
 #[macro_use]
