@@ -19,7 +19,7 @@ fn main() {
                         .name("my session")
                         .environment("hd"),
                 ).and_then(|hub_session| {
-                    println!("New hub session ready: {}.", hub_session.session_id);
+                    println!("New hub session ready: {:#?}.", hub_session);
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
                 }).and_then(|(hub_session, blob)| {
                     println!("New blob: {:#?}", blob);

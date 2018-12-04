@@ -113,7 +113,7 @@ impl Driver {
 #[derive(Clone, Debug)]
 pub struct HubSession {
     driver: Driver,
-    pub session_id: String,
+    session_id: String,
 }
 
 impl HubSession {
