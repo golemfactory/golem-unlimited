@@ -88,7 +88,7 @@ impl Handler<Exec> for SyncExec {
                             );
                             Ok(ExecResult::Run(output))
                         } else {
-                            Err(ErrorKind::ExecutionError(executable, args).into())
+                            Err(ErrorKind::ExecutionError(executable, args, output).into())
                         }
                     }
                     Err(e) => Err(e.into()),
@@ -110,7 +110,7 @@ error_chain!(
 
     errors {
         MailboxError(e : MailboxError){}
-        ExecutionError(exec: String, args: Vec<String>) {
+        ExecutionError(exec: String, args: Vec<String>, output: process::Output) {
             display("failed to execute command: {}, {:?}", exec, args)
         }
     }
