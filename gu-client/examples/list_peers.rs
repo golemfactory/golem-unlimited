@@ -6,10 +6,10 @@ extern crate gu_net;
 
 use actix::Arbiter;
 use futures::{future, Future};
-use gu_client::async::Driver;
+use gu_client::async::HubConnection;
 
 fn main() {
-    let driver = Driver::from_addr("127.0.0.1:61622");
+    let driver = HubConnection::from_addr("127.0.0.1:61622");
     actix::System::run(move || {
         Arbiter::spawn(
             driver
