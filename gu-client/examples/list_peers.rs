@@ -9,10 +9,10 @@ use futures::{future, Future};
 use gu_client::async::HubConnection;
 
 fn main() {
-    let driver = HubConnection::from_addr("127.0.0.1:61622");
+    let hub_connection = HubConnection::from_addr("127.0.0.1:61622").expect("Invalid address.");
     actix::System::run(move || {
         Arbiter::spawn(
-            driver
+            hub_connection
                 .list_peers()
                 .and_then(|peers| {
                     peers.for_each(|peer| println!("peer_id={:#?}", peer.node_id));

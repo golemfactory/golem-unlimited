@@ -10,7 +10,7 @@ use gu_client::async::SessionInfoBuilder;
 //use gu_net::rpc::peer::PeerInfo;
 
 fn main() {
-    let hub_connection = HubConnection::from_addr("127.0.0.1:61622");
+    let hub_connection = HubConnection::from_addr("127.0.0.1:61622").expect("Invalid address.");
     actix::System::run(move || {
         Arbiter::spawn(
             hub_connection

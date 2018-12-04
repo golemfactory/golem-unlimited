@@ -3,12 +3,14 @@
 pub enum Error {
     CannotCreateBlob,
     CannotCreateRequest,
-    CannotCreateSession,
+    CannotCreateHubSession,
+    CannotCreatePeerSession,
     CannotGetResponseBody,
     CannotSendRequest,
     InternalError,
+    InvalidAddress,
     InvalidHubSessionParameters,
-    InvalidPeerSessionParameters,
     InvalidJSONResponse,
+    InvalidPeerSessionParameters,
     SessionNotFound(String),
 }

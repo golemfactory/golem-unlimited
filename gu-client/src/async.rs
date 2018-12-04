@@ -6,8 +6,10 @@ use error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
 use gu_net::rpc::peer::PeerInfo;
+use gu_net::types::NodeId;
 use std::str;
 use std::sync::Arc;
+use url::Url;
 
 /// Hub session information.
 #[derive(Clone, Serialize, Deserialize, Debug, Default, Builder)]
@@ -40,17 +42,17 @@ pub struct HubConnection {
 
 #[derive(Debug)]
 struct HubConnectionInner {
-    url: String,
+    url: Url,
 }
 
 impl HubConnection {
     /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61621
-    pub fn from_addr<T: Into<String>>(addr: T) -> HubConnection {
-        HubConnection {
-            hub_connection_inner: Arc::new(HubConnectionInner {
-                url: format!("http://{}/", addr.into()),
-            }),
-        }
+    pub fn from_addr<T: Into<String>>(addr: T) -> Result<HubConnection, Error> {
+        Url::parse(&format!("http://{}/", addr.into()))
+            .map_err(|_| Error::InvalidAddress)
+            .map(|url| HubConnection {
+                hub_connection_inner: Arc::new(HubConnectionInner { url: url }),
+            })
     }
     /// creates a new hub session
     /// assumption: url is /sessions, hub session is in the response body
@@ -74,7 +76,7 @@ impl HubConnection {
                 .map_err(|_| Error::CannotSendRequest)
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
-                        return future::Either::A(future::err(Error::CannotCreateSession));
+                        return future::Either::A(future::err(Error::CannotCreateHubSession));
                     }
                     future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
                 }).and_then(|body| {
@@ -183,11 +185,11 @@ impl HubSession {
     }
     /// gets a peer by its id
     /// assumption: url is /peer/{peer_id}
-    pub fn peer<T: Into<String>>(&self, peer_id: T) -> impl Future<Item = Peer, Error = Error> {
+    pub fn peer(&self, peer_id: NodeId) -> impl Future<Item = Peer, Error = Error> {
         let url = format!(
             "{}peer/{}",
             self.hub_connection.hub_connection_inner.url,
-            peer_id.into()
+            peer_id.to_string()
         );
         let hub_session_copy = self.clone();
         return match client::ClientRequest::get(url).finish() {
@@ -286,7 +288,7 @@ impl Peer {
                 .map_err(|_| Error::CannotSendRequest)
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
-                        return future::Either::A(future::err(Error::CannotCreateSession));
+                        return future::Either::A(future::err(Error::CannotCreatePeerSession));
                     }
                     future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
                 }).and_then(|body| {

@@ -10,6 +10,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate derive_builder;
+extern crate url;
 
 /// Asynchronous Rust API for Golem Unlimited
 pub mod async;
