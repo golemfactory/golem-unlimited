@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use actix_web::{client, HttpMessage, http};
+use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
 use error::Error;
 use futures::stream::Stream;
@@ -139,8 +139,12 @@ impl HubSession {
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
                 .and_then(|response| match response.status() {
-                    http::StatusCode::NOT_FOUND => future::Either::A(future::err(Error::SessionNotFound(session_id_copy))),
-                    http::StatusCode::INTERNAL_SERVER_ERROR => future::Either::A(future::err(Error::InternalError)),
+                    http::StatusCode::NOT_FOUND => {
+                        future::Either::A(future::err(Error::SessionNotFound(session_id_copy)))
+                    }
+                    http::StatusCode::INTERNAL_SERVER_ERROR => {
+                        future::Either::A(future::err(Error::InternalError))
+                    }
                     _ => future::Either::B(future::ok(())),
                 }),
         )
@@ -162,7 +166,9 @@ impl HubSession {
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
                 .and_then(|response| match response.status() {
-                    http::StatusCode::CREATED => future::Either::A(response.body().map_err(|_| Error::CannotCreateBlob)),
+                    http::StatusCode::CREATED => {
+                        future::Either::A(response.body().map_err(|_| Error::CannotCreateBlob))
+                    }
                     _ => future::Either::B(future::err(Error::InternalError)),
                 }).and_then(|body| {
                     future::ok(Blob {
