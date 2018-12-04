@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use actix_web::{client, HttpMessage};
+use actix_web::{client, HttpMessage, http};
 use bytes::Bytes;
 use error::Error;
 use futures::stream::Stream;
@@ -73,7 +73,7 @@ impl Driver {
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
                 .and_then(|response| {
-                    if response.status().as_u16() != 201 {
+                    if response.status() != http::StatusCode::CREATED {
                         return future::Either::A(future::err(Error::CannotCreateSession));
                     }
                     future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
@@ -97,8 +97,8 @@ impl Driver {
             Ok(r) => future::Either::A(
                 r.send()
                     .map_err(|_| Error::CannotSendRequest)
-                    .and_then(|response| match response.status().as_u16() {
-                        200 => future::Either::A(
+                    .and_then(|response| match response.status() {
+                        http::StatusCode::OK => future::Either::A(
                             response.json().map_err(|_| Error::InvalidJSONResponse),
                         ),
                         _ => future::Either::B(future::err(Error::InternalError)),
@@ -138,9 +138,9 @@ impl HubSession {
             request
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
-                .and_then(|response| match response.status().as_u16() {
-                    404 => future::Either::A(future::err(Error::SessionNotFound(session_id_copy))),
-                    500 => future::Either::A(future::err(Error::InternalError)),
+                .and_then(|response| match response.status() {
+                    http::StatusCode::NOT_FOUND => future::Either::A(future::err(Error::SessionNotFound(session_id_copy))),
+                    http::StatusCode::INTERNAL_SERVER_ERROR => future::Either::A(future::err(Error::InternalError)),
                     _ => future::Either::B(future::ok(())),
                 }),
         )
@@ -161,8 +161,8 @@ impl HubSession {
             request
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
-                .and_then(|response| match response.status().as_u16() {
-                    201 => future::Either::A(response.body().map_err(|_| Error::CannotCreateBlob)),
+                .and_then(|response| match response.status() {
+                    http::StatusCode::CREATED => future::Either::A(response.body().map_err(|_| Error::CannotCreateBlob)),
                     _ => future::Either::B(future::err(Error::InternalError)),
                 }).and_then(|body| {
                     future::ok(Blob {
@@ -184,8 +184,8 @@ impl HubSession {
             Ok(r) => future::Either::A(
                 r.send()
                     .map_err(|_| Error::CannotSendRequest)
-                    .and_then(|response| match response.status().as_u16() {
-                        200 => future::Either::A(
+                    .and_then(|response| match response.status() {
+                        http::StatusCode::OK => future::Either::A(
                             response.json().map_err(|_| Error::InvalidJSONResponse),
                         ),
                         _ => future::Either::B(future::err(Error::InternalError)),
@@ -231,8 +231,8 @@ impl Blob {
             request
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
-                .and_then(|response| match response.status().as_u16() {
-                    200 => future::ok(()),
+                .and_then(|response| match response.status() {
+                    http::StatusCode::OK => future::ok(()),
                     _ => future::err(Error::InternalError),
                 }),
         )
@@ -273,7 +273,7 @@ impl Peer {
                 .send()
                 .map_err(|_| Error::CannotSendRequest)
                 .and_then(|response| {
-                    if response.status().as_u16() != 201 {
+                    if response.status() != http::StatusCode::CREATED {
                         return future::Either::A(future::err(Error::CannotCreateSession));
                     }
                     future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
