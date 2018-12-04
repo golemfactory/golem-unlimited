@@ -121,7 +121,11 @@ impl Message for GetPeer {
 impl Handler<GetPeer> for PeerManager {
     type Result = MessageResult<GetPeer>;
 
-    fn handle(&mut self, msg: GetPeer, ctx: &mut Self::Context) -> <Self as Handler<GetPeer>>::Result {
+    fn handle(
+        &mut self,
+        msg: GetPeer,
+        ctx: &mut Self::Context,
+    ) -> <Self as Handler<GetPeer>>::Result {
         MessageResult(self.peers.get(&msg.0).cloned())
     }
 }

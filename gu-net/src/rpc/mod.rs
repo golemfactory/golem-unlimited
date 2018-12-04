@@ -5,11 +5,11 @@ pub mod mock;
 mod monitor;
 pub mod peer;
 mod registry;
+pub mod remoting;
 pub mod reply;
 pub mod router;
 mod util;
 pub mod ws;
-pub mod remoting;
 
 mod error {
 
@@ -58,7 +58,7 @@ pub use self::{
         gen_destination_id, public_destination, DestinationId, EmitMessage, MessageId, RouteMessage,
     },
     registry::RemotingSystemService,
+    remoting::{peer, PublicMessage},
     reply::ReplyRouter,
     router::MessageRouter,
-    remoting::{peer, PublicMessage}
 };

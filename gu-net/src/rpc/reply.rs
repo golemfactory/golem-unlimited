@@ -1,8 +1,8 @@
+use super::error::Error as RpcError;
+use super::error::ErrorKind as RpcErrorKind;
 use actix::prelude::*;
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use super::error::Error as RpcError;
-use super::error::ErrorKind as RpcErrorKind;
 
 use super::{
     super::NodeId,
@@ -204,13 +204,10 @@ where
                     expires: None,
                     body: TransportResult::Request(body),
                 }).flatten_fut()
-                .map_err(move |e|
-                    match e.kind() {
-                        RpcErrorKind::NotConnected => SendError::NotConnected(node_id),
-                        _ => SendError::body(e)
-                    }
-                )
-                .into_actor(self)
+                .map_err(move |e| match e.kind() {
+                    RpcErrorKind::NotConnected => SendError::NotConnected(node_id),
+                    _ => SendError::body(e),
+                }).into_actor(self)
                 .and_then(|msg_id, act, ctx| {
                     use futures::unsync::oneshot;
                     let (tx, rx) = oneshot::channel();
@@ -261,13 +258,10 @@ impl Handler<CallRemoteUntyped> for ReplyRouter {
                     expires: None,
                     body: TransportResult::Request(body),
                 }).flatten_fut()
-                .map_err(move |e : RpcError|
-                    match e.kind() {
-                        RpcErrorKind::NotConnected => SendError::NotConnected(node_id),
-                        _ => SendError::body(e)
-                    }
-                )
-                .into_actor(self)
+                .map_err(move |e: RpcError| match e.kind() {
+                    RpcErrorKind::NotConnected => SendError::NotConnected(node_id),
+                    _ => SendError::body(e),
+                }).into_actor(self)
                 .and_then(move |msg_id, act, ctx| {
                     rx.map_err(|_| SendError::Canceled)
                         .and_then(|route_msg| parse_body(route_msg.body))
@@ -277,4 +271,3 @@ impl Handler<CallRemoteUntyped> for ReplyRouter {
         )
     }
 }
-

@@ -12,7 +12,6 @@ use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::PublicMessage;
 use std::{fmt, io};
 
-
 pub mod peers;
 pub mod session;
 

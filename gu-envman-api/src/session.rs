@@ -1,4 +1,1 @@
-
-pub struct HubSession {
-
-}
+pub struct HubSession {}
