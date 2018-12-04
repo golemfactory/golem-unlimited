@@ -6,7 +6,7 @@ use futures::{future, prelude::*};
 use gu_actix::prelude::*;
 use gu_envman_api::*;
 use gu_net::rpc::peer::PeerSessionInfo;
-use gu_net::rpc::{RemotingContext, RemotingSystemService};
+use gu_net::rpc::{RemotingContext, RemotingSystemService, PublicMessage};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 

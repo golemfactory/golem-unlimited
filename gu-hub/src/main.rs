@@ -1,5 +1,6 @@
 extern crate gu_actix;
 extern crate gu_base;
+extern crate gu_envman_api;
 extern crate gu_ethkey;
 extern crate gu_event_bus;
 extern crate gu_hardware;

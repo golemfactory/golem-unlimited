@@ -400,6 +400,56 @@ definitions:
         type: array
         items:
           type: string
+
+  PeerDetails:
+    properties:
+      nodeName:
+        type: string
+        description: Node name or hostname from reverse dns if node name is not set
+      peerAddr:
+        type: string
+        description: 'node address from current connection formated as <ip-addr>:<port>'
+      nodeId:
+        type: string
+        description: node public key hash in etherium format
+        example: '0x875f272d3b9e7b55a5784a131a60bf3d7a42c73c'
+        readOnly: true
+      tags:
+        type: array
+        items:
+          type: string
+      sessions:
+        type: array
+        items:
+          $ref: '#/definitions/DeploymentInfo'
+
+  DeploymentInfo:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/DeploymentStatus'
+      tags:
+        type: array
+        items:
+          type: string
+        uniqueItems: true
+      note:
+        type: string
+      processes:
+        $ref: '#/definitions/ProcessCollection'
+
+  DeploymentStatus:
+    type: string
+    enum:
+      - pending
+      - created
+      - running
+      - configured
+      - destroying
+
   HubSession:
     properties:
       id:
@@ -583,6 +633,21 @@ definitions:
             type: string
             format: date-time
 
+
+  ProcessCollection:
+    type: object
+    additionalProperties:
+      items:
+        $ref: '#/definitions/ProcessInfo'
+
+  ProcessInfo:
+    type: object
+    properties:
+      tags:
+        type: array
+        items:
+          type: string
+        uniqueItems: true
 
 securityDefinitions:
   serviceToken:

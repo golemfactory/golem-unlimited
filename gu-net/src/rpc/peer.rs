@@ -111,3 +111,17 @@ impl Handler<ListPeers> for PeerManager {
         MessageResult(self.peers.values().cloned().collect())
     }
 }
+
+pub struct GetPeer(pub NodeId);
+
+impl Message for GetPeer {
+    type Result = Option<PeerInfo>;
+}
+
+impl Handler<GetPeer> for PeerManager {
+    type Result = MessageResult<GetPeer>;
+
+    fn handle(&mut self, msg: GetPeer, ctx: &mut Self::Context) -> <Self as Handler<GetPeer>>::Result {
+        MessageResult(self.peers.get(&msg.0).cloned())
+    }
+}

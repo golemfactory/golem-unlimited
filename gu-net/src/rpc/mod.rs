@@ -9,6 +9,7 @@ pub mod reply;
 pub mod router;
 mod util;
 pub mod ws;
+pub mod remoting;
 
 mod error {
 
@@ -59,4 +60,5 @@ pub use self::{
     registry::RemotingSystemService,
     reply::ReplyRouter,
     router::MessageRouter,
+    remoting::{peer, PublicMessage}
 };

@@ -9,7 +9,12 @@ extern crate serde_json;
 
 use actix::prelude::*;
 use gu_net::rpc::peer::PeerSessionInfo;
+use gu_net::rpc::PublicMessage;
 use std::{fmt, io};
+
+
+pub mod peers;
+pub mod session;
 
 /// Errors
 // impl note: can not use error_chain bc it does not support SerDe
@@ -72,8 +77,8 @@ pub struct CreateSession {
     pub note: Option<String>,
 }
 
-impl CreateSession {
-    pub const ID: u32 = 37;
+impl PublicMessage for CreateSession {
+    const ID: u32 = 37;
 }
 
 /// returns session_id
@@ -126,11 +131,11 @@ impl Message for SessionUpdate {
     type Result = Result<Vec<String>, Vec<String>>;
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub struct GetSessions {}
 
-impl GetSessions {
-    pub const ID: u32 = 39;
+impl PublicMessage for GetSessions {
+    const ID: u32 = 39;
 }
 
 impl Message for GetSessions {
