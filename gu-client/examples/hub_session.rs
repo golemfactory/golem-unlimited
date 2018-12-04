@@ -5,15 +5,15 @@ extern crate gu_client;
 
 use actix::Arbiter;
 use futures::{future, Future};
-use gu_client::async::Driver;
+use gu_client::async::HubConnection;
 use gu_client::async::SessionInfoBuilder;
 //use gu_net::rpc::peer::PeerInfo;
 
 fn main() {
-    let driver = Driver::from_addr("127.0.0.1:61622");
+    let hub_connection = HubConnection::from_addr("127.0.0.1:61622");
     actix::System::run(move || {
         Arbiter::spawn(
-            driver
+            hub_connection
                 .new_session(
                     SessionInfoBuilder::default()
                         .name("my session")
