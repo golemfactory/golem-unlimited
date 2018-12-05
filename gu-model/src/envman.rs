@@ -1,19 +1,7 @@
-extern crate actix;
-#[macro_use]
-extern crate serde_derive;
-extern crate actix_web;
-extern crate gu_net;
-extern crate serde;
-#[cfg(test)]
-extern crate serde_json;
-
 use actix::prelude::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::PublicMessage;
 use std::{fmt, io};
-
-pub mod peers;
-pub mod session;
 
 /// Errors
 // impl note: can not use error_chain bc it does not support SerDe

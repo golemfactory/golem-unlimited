@@ -9,7 +9,7 @@ use actix_web::{
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::{cli, App, ArgMatches, Decorator, Module, SubCommand};
-use gu_envman_api::peers as peers_api;
+use gu_model::peers as peers_api;
 use gu_net::{
     rpc::{peer::PeerInfo, public_destination, reply::CallRemote, reply::CallRemoteUntyped},
     NodeId,
@@ -76,8 +76,10 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .route("", http::Method::GET, list_peers)
         .resource("/{nodeId}", |r| r.get().with(fetch_peer))
-        .resource("/{nodeId}/deployments", |r| r.get().with(fetch_deployments))
-        .route("/send-to", http::Method::POST, peer_send)
+        .resource("/{nodeId}/deployments", |r| {
+            r.get().with(fetch_deployments);
+            r.post().with(new_deployment)
+        }).route("/send-to", http::Method::POST, peer_send)
         .route(
             "/send-to/{nodeId}/{destinationId}",
             http::Method::POST,
@@ -122,11 +124,12 @@ fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
 }
 
 fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
-    use gu_envman_api::GetSessions;
+    use gu_model::deployment::DeploymentInfo;
+    use gu_model::envman::GetSessions;
     use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
 
     peer(info.node_id)
-        .into_endpoint::<GetSessions>()
+        .into_endpoint()
         .send(GetSessions::default())
         .map_err(|e| match e {
             SendError::NoDestination => actix_web::error::ErrorNotFound("peer not found"),
@@ -135,7 +138,34 @@ fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
             }
             _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
         }).and_then(|session_result| match session_result {
-            Ok(sessions) => Ok(HttpResponse::Ok().json(sessions)),
+            Ok(sessions) => Ok(HttpResponse::Ok().json(
+                sessions
+                    .into_iter()
+                    .map(|s| s.into())
+                    .collect::<Vec<DeploymentInfo>>(),
+            )),
+            Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
+        }).responder()
+}
+
+fn new_deployment(
+    info: Path<PeerPath>,
+    body: Json<gu_model::envman::CreateSession>,
+) -> impl Responder {
+    use gu_model::envman::{CreateSession, Image};
+    use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
+
+    peer(info.node_id)
+        .into_endpoint()
+        .send(body.into_inner())
+        .map_err(|e| match e {
+            SendError::NoDestination => actix_web::error::ErrorNotFound("peer not found"),
+            SendError::NotConnected(node_id) => {
+                actix_web::error::ErrorNotFound(format!("Peer not found {:?}", node_id))
+            }
+            _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
+        }).and_then(|session_result| match session_result {
+            Ok(session_id) => Ok(HttpResponse::Ok().json(session_id)),
             Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
         }).responder()
 }

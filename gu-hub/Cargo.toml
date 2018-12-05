@@ -14,7 +14,7 @@ gu-lan = { path = "../gu-lan" }
 gu-ethkey = { path = "../gu-ethkey"}
 gu-hardware = { path = "../gu-hardware" }
 gu-event-bus = { path = "../gu-event-bus" }
-gu-envman-api = { path = "../gu-envman-api" }
+gu-model = { path = "../gu-model" }
 
 clap = "2.32"
 log="0.4"

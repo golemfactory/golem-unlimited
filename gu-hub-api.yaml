@@ -53,9 +53,11 @@ paths:
   /peers/{nodeId}/deployments:
     parameters:
       - $ref: '#/parameters/nodeId'
-      - $ref: '#/parameters/deploymentId'
 
     post:
+      tags:
+        - peer-info
+      operationId: 'createDeploymentOnPeer'
       parameters:
         - name: sessionSpec
           in: body
@@ -77,13 +79,16 @@ paths:
         '404':
           description: peer not found
     get:
+      tags:
+        - peer-info
+      operationId: 'listPeerDeployments'
       responses:
         200:
           description: OK
           schema:
             type: array
             items:
-              $ref: '#/definitions/PeerSessionSpec'
+              $ref: '#/definitions/DeploymentInfo'
         404:
           description: peer not found
 
