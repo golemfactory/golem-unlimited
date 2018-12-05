@@ -49,7 +49,7 @@ impl HubConnection {
     /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61621
     pub fn from_addr<T: Into<String>>(addr: T) -> Result<HubConnection, Error> {
         Url::parse(&format!("http://{}/", addr.into()))
-            .map_err(|_| Error::InvalidAddress)
+            .map_err(|e| Error::InvalidAddress(e.to_string()))
             .map(|url| HubConnection {
                 hub_connection_inner: Arc::new(HubConnectionInner { url: url }),
             })
@@ -63,28 +63,42 @@ impl HubConnection {
         let sessions_url = format!("{}sessions", self.hub_connection_inner.url);
         let session_info = match session_info_builder.build() {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::InvalidHubSessionParameters)),
+            Err(e) => {
+                return future::Either::A(future::err(Error::InvalidHubSessionParameters(
+                    e.to_string(),
+                )))
+            }
         };
         let request = match client::ClientRequest::post(sessions_url).json(session_info) {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
+            Err(e) => {
+                return future::Either::A(future::err(Error::CannotCreateRequest(e.to_string())))
+            }
         };
         let hub_connection_for_session = self.clone();
         future::Either::B(
             request
                 .send()
-                .map_err(|_| Error::CannotSendRequest)
+                .map_err(|e| Error::CannotSendRequest(e.to_string()))
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
-                        return future::Either::A(future::err(Error::CannotCreateHubSession));
+                        return future::Either::A(future::err(Error::CannotCreateHubSession(
+                            format!("HTTP Error: {}.", response.status()),
+                        )));
                     }
-                    future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
+                    future::Either::B(
+                        response
+                            .body()
+                            .map_err(|e| Error::CannotGetResponseBody(e.to_string())),
+                    )
                 }).and_then(|body| {
                     future::ok(HubSession {
                         hub_connection: hub_connection_for_session,
                         session_id: match str::from_utf8(&body.to_vec()) {
                             Ok(str) => str.to_string(),
-                            _ => return future::err(Error::CannotGetResponseBody),
+                            Err(e) => {
+                                return future::err(Error::CannotGetResponseBody(e.to_string()))
+                            }
                         },
                     })
                 }),
@@ -95,19 +109,24 @@ impl HubConnection {
     /// assumption: url is /peer
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
         let url = format!("{}peer", self.hub_connection_inner.url);
-        return match client::ClientRequest::get(url).finish() {
+        match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
                 r.send()
-                    .map_err(|_| Error::CannotSendRequest)
+                    .map_err(|e| Error::CannotSendRequest(e.to_string()))
                     .and_then(|response| match response.status() {
                         http::StatusCode::OK => future::Either::A(
-                            response.json().map_err(|_| Error::InvalidJSONResponse),
+                            response
+                                .json()
+                                .map_err(|e| Error::InvalidJSONResponse(e.to_string())),
                         ),
-                        _ => future::Either::B(future::err(Error::InternalError)),
+                        status => future::Either::B(future::err(Error::InternalError(format!(
+                            "HTTP Error: {}.",
+                            status
+                        )))),
                     }).and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
             ),
-            _ => future::Either::B(future::err(Error::CannotCreateRequest)),
-        };
+            Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e.to_string()))),
+        }
     }
 }
 
@@ -133,20 +152,22 @@ impl HubSession {
         let peer_vec: Vec<String> = peers.into_iter().map(|peer| peer.as_ref().into()).collect();
         let request = match client::ClientRequest::post(add_url).json(peer_vec) {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
+            Err(e) => {
+                return future::Either::A(future::err(Error::CannotCreateRequest(e.to_string())))
+            }
         };
         let session_id_copy = self.session_id.clone();
         future::Either::B(
             request
                 .send()
-                .map_err(|_| Error::CannotSendRequest)
+                .map_err(|e| Error::CannotSendRequest(e.to_string()))
                 .and_then(|response| match response.status() {
                     http::StatusCode::NOT_FOUND => {
                         future::Either::A(future::err(Error::SessionNotFound(session_id_copy)))
                     }
-                    http::StatusCode::INTERNAL_SERVER_ERROR => {
-                        future::Either::A(future::err(Error::InternalError))
-                    }
+                    http::StatusCode::INTERNAL_SERVER_ERROR => future::Either::A(future::err(
+                        Error::InternalError(format!("HTTP Error: {}.", response.status())),
+                    )),
                     _ => future::Either::B(future::ok(())),
                 }),
         )
@@ -160,24 +181,33 @@ impl HubSession {
         );
         let request = match client::ClientRequest::post(new_blob_url).finish() {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
+            Err(e) => {
+                return future::Either::A(future::err(Error::CannotCreateRequest(e.to_string())))
+            }
         };
         let hub_session_copy = self.clone();
         future::Either::B(
             request
                 .send()
-                .map_err(|_| Error::CannotSendRequest)
+                .map_err(|e| Error::CannotSendRequest(e.to_string()))
                 .and_then(|response| match response.status() {
-                    http::StatusCode::CREATED => {
-                        future::Either::A(response.body().map_err(|_| Error::CannotCreateBlob))
-                    }
-                    _ => future::Either::B(future::err(Error::InternalError)),
+                    http::StatusCode::CREATED => future::Either::A(
+                        response
+                            .body()
+                            .map_err(|e| Error::CannotCreateBlob(e.to_string())),
+                    ),
+                    status => future::Either::B(future::err(Error::InternalError(format!(
+                        "HTTP Error: {}.",
+                        status
+                    )))),
                 }).and_then(|body| {
                     future::ok(Blob {
                         hub_session: hub_session_copy,
                         blob_id: match str::from_utf8(&body.to_vec()) {
                             Ok(str) => str.to_string(),
-                            _ => return future::err(Error::CannotGetResponseBody),
+                            Err(e) => {
+                                return future::err(Error::CannotGetResponseBody(e.to_string()))
+                            }
                         },
                     })
                 }),
@@ -195,12 +225,17 @@ impl HubSession {
         return match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
                 r.send()
-                    .map_err(|_| Error::CannotSendRequest)
+                    .map_err(|e| Error::CannotSendRequest(e.to_string()))
                     .and_then(|response| match response.status() {
                         http::StatusCode::OK => future::Either::A(
-                            response.json().map_err(|_| Error::InvalidJSONResponse),
+                            response
+                                .json()
+                                .map_err(|e| Error::InvalidJSONResponse(e.to_string())),
                         ),
-                        _ => future::Either::B(future::err(Error::InternalError)),
+                        status => future::Either::B(future::err(Error::InternalError(format!(
+                            "HTTP Error: {}.",
+                            status
+                        )))),
                     }).and_then(|answer_json: PeerInfo| {
                         future::ok(Peer {
                             peer_info: answer_json,
@@ -208,7 +243,7 @@ impl HubSession {
                         })
                     }),
             ),
-            _ => future::Either::B(future::err(Error::CannotCreateRequest)),
+            Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e.to_string()))),
         };
     }
 }
@@ -239,15 +274,17 @@ impl Blob {
         );
         let request = match client::ClientRequest::post(url).streaming(stream) {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
+            Err(e) => {
+                return future::Either::A(future::err(Error::CannotCreateRequest(e.to_string())))
+            }
         };
         future::Either::B(
             request
                 .send()
-                .map_err(|_| Error::CannotSendRequest)
+                .map_err(|e| Error::CannotSendRequest(e.to_string()))
                 .and_then(|response| match response.status() {
                     http::StatusCode::OK => future::ok(()),
-                    _ => future::err(Error::InternalError),
+                    status => future::err(Error::InternalError(format!("HTTP Error: {}.", status))),
                 }),
         )
     }
@@ -275,28 +312,42 @@ impl Peer {
         );
         let session_info = match builder.build() {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::InvalidPeerSessionParameters)),
+            Err(e) => {
+                return future::Either::A(future::err(Error::InvalidPeerSessionParameters(
+                    e.to_string(),
+                )))
+            }
         };
         let request = match client::ClientRequest::post(url).json(session_info) {
             Ok(r) => r,
-            _ => return future::Either::A(future::err(Error::CannotCreateRequest)),
+            Err(e) => {
+                return future::Either::A(future::err(Error::CannotCreateRequest(e.to_string())))
+            }
         };
         let peer_copy = self.clone();
         future::Either::B(
             request
                 .send()
-                .map_err(|_| Error::CannotSendRequest)
+                .map_err(|e| Error::CannotSendRequest(e.to_string()))
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
-                        return future::Either::A(future::err(Error::CannotCreatePeerSession));
+                        return future::Either::A(future::err(Error::CannotCreatePeerSession(
+                            format!("HTTP Error: {}.", response.status()),
+                        )));
                     }
-                    future::Either::B(response.body().map_err(|_| Error::CannotGetResponseBody))
+                    future::Either::B(
+                        response
+                            .body()
+                            .map_err(|e| Error::CannotGetResponseBody(e.to_string())),
+                    )
                 }).and_then(|body| {
                     future::ok(PeerSession {
                         peer: peer_copy,
                         session_id: match str::from_utf8(&body.to_vec()) {
                             Ok(str) => str.to_string(),
-                            _ => return future::err(Error::CannotGetResponseBody),
+                            Err(e) => {
+                                return future::err(Error::CannotGetResponseBody(e.to_string()))
+                            }
                         },
                     })
                 }),
