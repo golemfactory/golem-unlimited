@@ -255,10 +255,6 @@ pub struct Blob {
     blob_id: String,
 }
 
-struct StreamError<T: std::error::Error> {
-    inner: T,
-}
-
 impl Blob {
     /// uploads blob represented by a stream
     pub fn upload_from_stream<S, T>(&self, stream: S) -> impl Future<Item = (), Error = Error>
