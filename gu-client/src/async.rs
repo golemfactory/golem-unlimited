@@ -63,15 +63,11 @@ impl HubConnection {
         let sessions_url = format!("{}sessions", self.hub_connection_inner.url);
         let session_info = match session_info_builder.build() {
             Ok(r) => r,
-            Err(e) => {
-                return future::Either::A(future::err(Error::InvalidHubSessionParameters(e)))
-            }
+            Err(e) => return future::Either::A(future::err(Error::InvalidHubSessionParameters(e))),
         };
         let request = match client::ClientRequest::post(sessions_url).json(session_info) {
             Ok(r) => r,
-            Err(e) => {
-                return future::Either::A(future::err(Error::CannotCreateRequest(e)))
-            }
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
         };
         let hub_connection_for_session = self.clone();
         future::Either::B(
@@ -84,19 +80,13 @@ impl HubConnection {
                             format!("HTTP Error: {}.", response.status()),
                         )));
                     }
-                    future::Either::B(
-                        response
-                            .body()
-                            .map_err(|e| Error::CannotGetResponseBody(e)),
-                    )
+                    future::Either::B(response.body().map_err(|e| Error::CannotGetResponseBody(e)))
                 }).and_then(|body| {
                     future::ok(HubSession {
                         hub_connection: hub_connection_for_session,
                         session_id: match str::from_utf8(&body.to_vec()) {
                             Ok(str) => str.to_string(),
-                            Err(e) => {
-                                return future::err(Error::CannotConvertToUTF8(e))
-                            }
+                            Err(e) => return future::err(Error::CannotConvertToUTF8(e)),
                         },
                     })
                 }),
@@ -113,9 +103,7 @@ impl HubConnection {
                     .map_err(|e| Error::CannotSendRequest(e))
                     .and_then(|response| match response.status() {
                         http::StatusCode::OK => future::Either::A(
-                            response
-                                .json()
-                                .map_err(|e| Error::InvalidJSONResponse(e)),
+                            response.json().map_err(|e| Error::InvalidJSONResponse(e)),
                         ),
                         status => future::Either::B(future::err(Error::InternalError(format!(
                             "HTTP Error: {}.",
@@ -150,9 +138,7 @@ impl HubSession {
         let peer_vec: Vec<String> = peers.into_iter().map(|peer| peer.as_ref().into()).collect();
         let request = match client::ClientRequest::post(add_url).json(peer_vec) {
             Ok(r) => r,
-            Err(e) => {
-                return future::Either::A(future::err(Error::CannotCreateRequest(e)))
-            }
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
         };
         let session_id_copy = self.session_id.clone();
         future::Either::B(
@@ -179,9 +165,7 @@ impl HubSession {
         );
         let request = match client::ClientRequest::post(new_blob_url).finish() {
             Ok(r) => r,
-            Err(e) => {
-                return future::Either::A(future::err(Error::CannotCreateRequest(e)))
-            }
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
         };
         let hub_session_copy = self.clone();
         future::Either::B(
@@ -189,11 +173,9 @@ impl HubSession {
                 .send()
                 .map_err(|e| Error::CannotSendRequest(e))
                 .and_then(|response| match response.status() {
-                    http::StatusCode::CREATED => future::Either::A(
-                        response
-                            .body()
-                            .map_err(|e| Error::CannotCreateBlob(e)),
-                    ),
+                    http::StatusCode::CREATED => {
+                        future::Either::A(response.body().map_err(|e| Error::CannotCreateBlob(e)))
+                    }
                     status => future::Either::B(future::err(Error::InternalError(format!(
                         "HTTP Error: {}.",
                         status
@@ -203,9 +185,7 @@ impl HubSession {
                         hub_session: hub_session_copy,
                         blob_id: match str::from_utf8(&body.to_vec()) {
                             Ok(str) => str.to_string(),
-                            Err(e) => {
-                                return future::err(Error::CannotConvertToUTF8(e))
-                            }
+                            Err(e) => return future::err(Error::CannotConvertToUTF8(e)),
                         },
                     })
                 }),
@@ -226,9 +206,7 @@ impl HubSession {
                     .map_err(|e| Error::CannotSendRequest(e))
                     .and_then(|response| match response.status() {
                         http::StatusCode::OK => future::Either::A(
-                            response
-                                .json()
-                                .map_err(|e| Error::InvalidJSONResponse(e)),
+                            response.json().map_err(|e| Error::InvalidJSONResponse(e)),
                         ),
                         status => future::Either::B(future::err(Error::InternalError(format!(
                             "HTTP Error: {}.",
@@ -268,9 +246,7 @@ impl Blob {
         );
         let request = match client::ClientRequest::post(url).streaming(stream) {
             Ok(r) => r,
-            Err(e) => {
-                return future::Either::A(future::err(Error::CannotCreateRequest(e)))
-            }
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
         };
         future::Either::B(
             request
@@ -306,15 +282,11 @@ impl Peer {
         );
         let session_info = match builder.build() {
             Ok(r) => r,
-            Err(e) => {
-                return future::Either::A(future::err(Error::InvalidPeerSessionParameters(e)))
-            }
+            Err(e) => return future::Either::A(future::err(Error::InvalidPeerSessionParameters(e))),
         };
         let request = match client::ClientRequest::post(url).json(session_info) {
             Ok(r) => r,
-            Err(e) => {
-                return future::Either::A(future::err(Error::CannotCreateRequest(e)))
-            }
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
         };
         let peer_copy = self.clone();
         future::Either::B(
@@ -327,19 +299,13 @@ impl Peer {
                             format!("HTTP Error: {}.", response.status()),
                         )));
                     }
-                    future::Either::B(
-                        response
-                            .body()
-                            .map_err(|e| Error::CannotGetResponseBody(e)),
-                    )
+                    future::Either::B(response.body().map_err(|e| Error::CannotGetResponseBody(e)))
                 }).and_then(|body| {
                     future::ok(PeerSession {
                         peer: peer_copy,
                         session_id: match str::from_utf8(&body.to_vec()) {
                             Ok(str) => str.to_string(),
-                            Err(e) => {
-                                return future::err(Error::CannotConvertToUTF8(e))
-                            }
+                            Err(e) => return future::err(Error::CannotConvertToUTF8(e)),
                         },
                     })
                 }),
