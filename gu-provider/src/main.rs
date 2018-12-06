@@ -46,7 +46,6 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 fn main() {
     GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
         LogModule
-            .chain(server::ServerModule::new())
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
@@ -54,5 +53,6 @@ fn main() {
             .chain(connect::module())
             .chain(permission::module())
             .chain(AutocompleteModule::new())
+            .chain(server::ServerModule::new())
     );
 }
