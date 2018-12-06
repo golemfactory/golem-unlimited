@@ -76,4 +76,4 @@ http://<hub-ip>:61622/app/index.html
 
 
 # How to Contribute to Unlimited
-[Here](../../wiki/Contributing) you can find information in order to give us feedback and contribute to the project.
+[Here](../../wiki/Contributing) you can find information how to give us feedback and contribute to the project.
