@@ -10,6 +10,7 @@ use futures::{
 };
 use gu_base::files::{read_async, write_async};
 use sha1::Sha1;
+use std::fmt::Debug;
 use std::{
     collections::BTreeMap,
     fs::{self, File},
@@ -17,7 +18,6 @@ use std::{
     ops::Deref,
     path::PathBuf,
 };
-use std::fmt::Debug;
 
 struct FileLockActor {
     to_notify: Vec<Sender<()>>,
@@ -260,8 +260,14 @@ impl Blob {
         }
     }
 
-    pub fn write<Payload, Error>(self, fut: Payload) -> impl Future<Item = SessionOk, Error = SessionErr>
-    where Payload : Stream<Item=bytes::Bytes, Error=Error>, Error : Debug {
+    pub fn write<Payload, Error>(
+        self,
+        fut: Payload,
+    ) -> impl Future<Item = SessionOk, Error = SessionErr>
+    where
+        Payload: Stream<Item = bytes::Bytes, Error = Error>,
+        Error: Debug,
+    {
         self.lock
             .send(WriteAccessRequest)
             .map_err(|e| SessionErr::MailboxError(e.to_string()))

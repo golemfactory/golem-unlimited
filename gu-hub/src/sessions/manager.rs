@@ -75,12 +75,10 @@ impl SessionsManager {
         }
     }
 
-    fn session_mut_fn<R, F>(
-        &mut self,
-        id: u64,
-        f: F,
-    ) -> Result<R, SessionErr>
-    where F: FnOnce(&mut Session) -> Result<R, SessionErr>,{
+    fn session_mut_fn<R, F>(&mut self, id: u64, f: F) -> Result<R, SessionErr>
+    where
+        F: FnOnce(&mut Session) -> Result<R, SessionErr>,
+    {
         self.version += 1;
         match self.sessions.get_mut(&id) {
             Some(s) => f(s),

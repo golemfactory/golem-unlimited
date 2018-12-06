@@ -167,25 +167,23 @@ fn create_blob_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
                         use actix_web::multipart::MultipartItem;
 
                         match part {
-                            MultipartItem::Field(payload) => {
-                                futures::future::Either::B(
+                            MultipartItem::Field(payload) => futures::future::Either::B(
                                 blob.write(payload)
                                     .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
                                     .and_then(move |_| {
                                         blobs.push(blob_id);
                                         Ok(blobs)
-                                    }))
-                            }
-                            _ => {
-                                futures::future::Either::A(futures::future::ok(blobs))
-                            }
+                                    }),
+                            ),
+                            _ => futures::future::Either::A(futures::future::ok(blobs)),
                         }
                     })
             }).map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
             .and_then(move |blobs| Ok(HttpResponse::Ok().json(blobs)))
             .responder()
     } else {
-        session_manager.send(CreateBlob { session })
+        session_manager
+            .send(CreateBlob { session })
             .flatten_fut()
             .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
             .and_then(|(blob_id, blob)| Ok(HttpResponse::Ok().json(blob_id)))
