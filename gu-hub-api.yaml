@@ -5,13 +5,10 @@ info:
   version: 1.0.0
 host: '127.0.0.1:61622'
 tags:
-  - name: hub-session
+  - name: session
     description: HUB Session managment.
-  - name: peer-info
+  - name: peer
     description: Unlimited network peer info managment.
-  - name: peer-session
-  - name: lob-man
-    description: Large objects managment
 
 schemes:
   - http
@@ -22,7 +19,7 @@ paths:
   /peers:
     get:
       tags:
-        - peer-info
+        - peer
       operationId: listPeers
       summary: Returns a list hub peers.
       parameters:
@@ -42,7 +39,7 @@ paths:
       - $ref: '#/parameters/nodeId'
     get:
       tags:
-        - peer-info
+        - peer
       operationId: getPeerDetails
       summary: 'Returns detailed peer info'
       responses:
@@ -56,7 +53,7 @@ paths:
 
     post:
       tags:
-        - peer-info
+        - peer
       operationId: 'createDeploymentOnPeer'
       parameters:
         - name: sessionSpec
@@ -80,7 +77,7 @@ paths:
           description: peer not found
     get:
       tags:
-        - peer-info
+        - peer
       operationId: 'listPeerDeployments'
       responses:
         200:
@@ -95,7 +92,7 @@ paths:
   /sessions:
     get:
       tags:
-        - hub-session
+        - session
       summary: Lists current hub sessions.
       operationId: listHubSessions
       parameters:
@@ -110,7 +107,7 @@ paths:
               $ref: '#/definitions/HubSession'
     post:
       tags:
-        - hub-session
+        - session
       operationId: createHubSession
       summary: 'Creates new hub session.'
       description: |-
@@ -125,15 +122,17 @@ paths:
       produces:
         - application/json
       parameters:
-        - name: newSessionSpec
+        - name: body
           in: body
+          required: true
           schema:
             $ref: '#/definitions/HubSession'
       responses:
         '201':
           description: Session created
           schema:
-            type: string
+            type: integer
+            format: int64
             description: Created hub session id
         '500':
           description: Error
@@ -146,7 +145,7 @@ paths:
       - $ref: '#/parameters/sessionId'
     get:
       tags:
-        - hub-session
+        - session
       summary: Gets hub session info
       operationId: getHubSession
       responses:
@@ -162,7 +161,8 @@ paths:
             type: string
     patch:
       tags:
-        - hub-session
+        - session
+      operationId: updateHubSession
       summary: 'Hub session update'
       consumes:
         - application/json
@@ -179,7 +179,8 @@ paths:
           description: 'Session Not found'
     delete:
       tags:
-        - hub-session
+        - session
+      operationId: deleteHubSession
       responses:
         204:
           description: Deleted
@@ -190,7 +191,7 @@ paths:
       - $ref: '#/parameters/sessionId'
     get:
       tags:
-        - hub-session
+        - session
       summary: Gets configuration from stash
       operationId: getHubSessionConfig
       responses:
@@ -204,7 +205,7 @@ paths:
           description: Internal Error
     put:
       tags:
-        - hub-session
+        - session
       summary: Sets configuration stash
       operationId: setHubSessionConfig
       parameters:
@@ -218,11 +219,8 @@ paths:
         '200':
           description: OK
           schema:
-            type: object
-            properties:
-              version:
-                type: integer
-            additionalProperties: true
+            type: integer
+            format: int64
         '404':
           description: Session not found
         '409':
@@ -232,11 +230,11 @@ paths:
       - $ref: '#/parameters/sessionId'
     post:
       tags:
-        - hub-session
+        - session
       summary: Manually adds peers to hub session
       operationId: addHubSessionPeers
       parameters:
-        - name: peer_list
+        - name: body
           in: body
           required: true
           schema:
@@ -262,7 +260,7 @@ paths:
   '/sessions/{sessionId}/peers/{nodeId}/deployments':
     post:
       tags:
-        - peer-session
+        - session
       operationId: createPeerSession
       summary: 'Creates new deploymnet'
       parameters:
@@ -293,7 +291,7 @@ paths:
       - $ref: '#/parameters/deploymentId'
     patch:
       tags:
-        - peer-session
+        - session
       operationId: updatePeerSession
       summary: 'Sends multiple commands for peer'
       consumes:
@@ -313,7 +311,7 @@ paths:
           description: OK
     delete:
       tags:
-        - peer-session
+        - session
       operationId: deletePeerSession
       responses:
         204:
@@ -324,20 +322,33 @@ paths:
       - $ref: '#/parameters/sessionId'
     post:
       tags:
-        - lob-man
+        - session
       operationId: createBlob
       summary: 'Creates new lob'
+      consumes:
+        - multipart/form-data
+      parameters:
+        - name: body
+          in: formData
+          type: file
+          required: false
       responses:
         201:
           description: Created
           schema:
-            type: string
+            allOf:
+              - type: integer
+                format: int64
+              - type: array
+                items:
+                  type: integer
+                  format: int64
             description: 'BLob uniq id'
         404:
           description: 'Session not found'
     get:
       tags:
-        - lob-man
+        - session
       operationId: listHubSessionBlobs
       summary: 'Lists currently allocated lobs'
       responses:
@@ -356,7 +367,7 @@ paths:
       - $ref: '#/parameters/blobId'
     put:
       tags:
-        - lob-man
+        - session
       operationId: uploadBlob
       summary: Uploads a binary content to the hub.
       parameters:
@@ -372,7 +383,7 @@ paths:
           description: OK
     get:
       tags:
-        - lob-man
+        - session
       operationId: downloadBlob
       summary: Downloads binary content from the hub
       produces:
@@ -382,6 +393,17 @@ paths:
           description: OK
           schema:
             type: file
+            format: binary
+    delete:
+      tags:
+        - session
+      operationId: deleteBlob
+      responses:
+        201:
+          description: Deleted
+        404:
+          description: Not found
+
 
 
 definitions:
@@ -569,10 +591,10 @@ definitions:
   ConfigStash:
     description: 'Free style configuration object'
     type: object
-    properties:
-      version:
-        type: integer
-        description: Version number
+#    properties:
+#      version:
+#        type: integer
+#        description: Version number
     additionalProperties: {}
 
   EnvType:

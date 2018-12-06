@@ -17,6 +17,7 @@ use std::{
     ops::Deref,
     path::PathBuf,
 };
+use std::fmt::Debug;
 
 struct FileLockActor {
     to_notify: Vec<Sender<()>>,
@@ -259,7 +260,8 @@ impl Blob {
         }
     }
 
-    pub fn write(self, fut: Payload) -> impl Future<Item = SessionOk, Error = SessionErr> {
+    pub fn write<Payload, Error>(self, fut: Payload) -> impl Future<Item = SessionOk, Error = SessionErr>
+    where Payload : Stream<Item=bytes::Bytes, Error=Error>, Error : Debug {
         self.lock
             .send(WriteAccessRequest)
             .map_err(|e| SessionErr::MailboxError(e.to_string()))
