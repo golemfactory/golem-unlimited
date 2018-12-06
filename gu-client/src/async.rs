@@ -49,7 +49,7 @@ impl HubConnection {
     /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61621
     pub fn from_addr<T: Into<String>>(addr: T) -> Result<HubConnection, Error> {
         Url::parse(&format!("http://{}/", addr.into()))
-            .map_err(|e| Error::InvalidAddress(e))
+            .map_err(Error::InvalidAddress)
             .map(|url| HubConnection {
                 hub_connection_inner: Arc::new(HubConnectionInner { url: url }),
             })
@@ -73,14 +73,14 @@ impl HubConnection {
         future::Either::B(
             request
                 .send()
-                .map_err(|e| Error::CannotSendRequest(e))
+                .map_err(Error::CannotSendRequest)
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
                         return future::Either::A(future::err(Error::CannotCreateHubSession(
                             format!("HTTP Error: {}.", response.status()),
                         )));
                     }
-                    future::Either::B(response.body().map_err(|e| Error::CannotGetResponseBody(e)))
+                    future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
                 }).and_then(|body| {
                     future::ok(HubSession {
                         hub_connection: hub_connection_for_session,
@@ -100,11 +100,11 @@ impl HubConnection {
         match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
                 r.send()
-                    .map_err(|e| Error::CannotSendRequest(e))
+                    .map_err(Error::CannotSendRequest)
                     .and_then(|response| match response.status() {
-                        http::StatusCode::OK => future::Either::A(
-                            response.json().map_err(|e| Error::InvalidJSONResponse(e)),
-                        ),
+                        http::StatusCode::OK => {
+                            future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                        }
                         status => future::Either::B(future::err(Error::InternalError(format!(
                             "HTTP Error: {}.",
                             status
@@ -144,7 +144,7 @@ impl HubSession {
         future::Either::B(
             request
                 .send()
-                .map_err(|e| Error::CannotSendRequest(e))
+                .map_err(Error::CannotSendRequest)
                 .and_then(|response| match response.status() {
                     http::StatusCode::NOT_FOUND => {
                         future::Either::A(future::err(Error::SessionNotFound(session_id_copy)))
@@ -171,10 +171,10 @@ impl HubSession {
         future::Either::B(
             request
                 .send()
-                .map_err(|e| Error::CannotSendRequest(e))
+                .map_err(Error::CannotSendRequest)
                 .and_then(|response| match response.status() {
                     http::StatusCode::CREATED => {
-                        future::Either::A(response.body().map_err(|e| Error::CannotCreateBlob(e)))
+                        future::Either::A(response.body().map_err(Error::CannotCreateBlob))
                     }
                     status => future::Either::B(future::err(Error::InternalError(format!(
                         "HTTP Error: {}.",
@@ -203,11 +203,11 @@ impl HubSession {
         return match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
                 r.send()
-                    .map_err(|e| Error::CannotSendRequest(e))
+                    .map_err(Error::CannotSendRequest)
                     .and_then(|response| match response.status() {
-                        http::StatusCode::OK => future::Either::A(
-                            response.json().map_err(|e| Error::InvalidJSONResponse(e)),
-                        ),
+                        http::StatusCode::OK => {
+                            future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                        }
                         status => future::Either::B(future::err(Error::InternalError(format!(
                             "HTTP Error: {}.",
                             status
@@ -251,7 +251,7 @@ impl Blob {
         future::Either::B(
             request
                 .send()
-                .map_err(|e| Error::CannotSendRequest(e))
+                .map_err(Error::CannotSendRequest)
                 .and_then(|response| match response.status() {
                     http::StatusCode::OK => future::ok(()),
                     status => future::err(Error::InternalError(format!("HTTP Error: {}.", status))),
@@ -292,14 +292,14 @@ impl Peer {
         future::Either::B(
             request
                 .send()
-                .map_err(|e| Error::CannotSendRequest(e))
+                .map_err(Error::CannotSendRequest)
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
                         return future::Either::A(future::err(Error::CannotCreatePeerSession(
                             format!("HTTP Error: {}.", response.status()),
                         )));
                     }
-                    future::Either::B(response.body().map_err(|e| Error::CannotGetResponseBody(e)))
+                    future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
                 }).and_then(|body| {
                     future::ok(PeerSession {
                         peer: peer_copy,
