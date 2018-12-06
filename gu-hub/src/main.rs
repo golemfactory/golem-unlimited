@@ -45,14 +45,10 @@ mod server;
 mod sessions;
 
 fn main() {
-    let config_module = gu_persist::config::ConfigModule::new();
-
     GuApp(|| App::new("Golem Unlimited").version(VERSION)).run(
         LogModule
-            .chain(daemon_module::DaemonModule::hub(
-                config_module.work_dir().to_path_buf(),
-            )).chain(server::ServerModule::new())
-            .chain(config_module)
+            .chain(server::ServerModule::new())
+            .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(plugins::PluginModule::new())
