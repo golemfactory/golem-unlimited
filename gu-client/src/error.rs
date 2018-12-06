@@ -1,16 +1,17 @@
 /// Errors returned by Rust API for Golem Unlimited
 #[derive(Debug)]
 pub enum Error {
-    CannotCreateBlob(String),
-    CannotCreateRequest(String),
+    CannotCreateBlob(actix_web::error::PayloadError),
+    CannotConvertToUTF8(std::str::Utf8Error),
+    CannotCreateRequest(actix_web::Error),
     CannotCreateHubSession(String),
     CannotCreatePeerSession(String),
-    CannotGetResponseBody(String),
-    CannotSendRequest(String),
+    CannotGetResponseBody(actix_web::error::PayloadError),
+    CannotSendRequest(actix_web::client::SendRequestError),
     InternalError(String),
-    InvalidAddress(String),
+    InvalidAddress(url::ParseError),
     InvalidHubSessionParameters(String),
-    InvalidJSONResponse(String),
+    InvalidJSONResponse(actix_web::error::JsonPayloadError),
     InvalidPeerSessionParameters(String),
     SessionNotFound(String),
 }
