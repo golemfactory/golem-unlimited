@@ -19,7 +19,7 @@ extern crate libc;
 #[cfg(unix)]
 pub mod daemon;
 #[cfg(unix)]
-pub mod daemon_module;
+pub mod daemon_lib;
 
 pub mod cli;
 pub mod files;

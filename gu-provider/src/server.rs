@@ -4,13 +4,17 @@
 use actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
+use connect::ListingType;
 use connect::{
-    self, AutoMdns, Connect, ConnectManager, ConnectionChange, ConnectionChangeMessage, Disconnect,
-    ListingType,
+    self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
+    ConnectionChangeMessage, Disconnect, ListSockets,
 };
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{daemon_module::DaemonModule, Decorator, Module};
+use gu_base::{
+    daemon_lib::{DaemonCommand, DaemonHandler},
+    Decorator, Module,
+};
 use gu_ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
@@ -84,11 +88,15 @@ impl HasSectionId for ProviderConfig {
     const SECTION_ID: &'static str = "provider-server-cfg";
 }
 
-pub struct ServerModule;
+pub struct ServerModule {
+    daemon_command: DaemonCommand,
+}
 
 impl ServerModule {
     pub fn new() -> Self {
-        ServerModule
+        ServerModule {
+            daemon_command: DaemonCommand::None,
+        }
     }
 }
 
@@ -98,21 +106,23 @@ fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
     node_id
 }
 
-use actix_web;
-use connect::{ConnectModeMessage, ListSockets};
-
 impl Module for ServerModule {
-    fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
-        false
+    fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
+        app.subcommand(DaemonHandler::subcommand())
+    }
+
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        self.daemon_command = DaemonHandler::consume(matches);
+
+        self.daemon_command != DaemonCommand::None
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
         use gu_base;
-
         let dec = decorator.clone();
-        let daemon_module: &DaemonModule = dec.extract().unwrap();
+        let config_module: &ConfigModule = dec.extract().unwrap();
 
-        if !daemon_module.run() {
+        if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
             return;
         }
 
