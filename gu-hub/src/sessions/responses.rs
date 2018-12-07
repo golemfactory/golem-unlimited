@@ -1,3 +1,4 @@
+use actix::prelude::*;
 use actix_web::{
     dev::HttpResponseBuilder,
     error::InternalError,
@@ -53,6 +54,22 @@ pub enum SessionErr {
     MailboxError(String),
 }
 
+impl ::std::fmt::Display for SessionErr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+        write!(f, "session error")
+    }
+}
+
+impl From<MailboxError> for SessionErr {
+    fn from(e: MailboxError) -> Self {
+        SessionErr::MailboxError(format!("{}", e))
+    }
+}
+
+impl actix_web::ResponseError for SessionErr {}
+
+impl ::std::error::Error for SessionErr {}
+
 impl Into<HttpResponse> for SessionOk {
     fn into(self) -> HttpResponse {
         match self {
@@ -94,10 +111,10 @@ impl Into<HttpResponse> for SessionErr {
     }
 }
 
-impl Into<ActixError> for SessionErr {
+/*impl Into<ActixError> for SessionErr {
     fn into(self) -> ActixError {
         error!("{:?}", &self);
 
         InternalError::from_response("", Into::<HttpResponse>::into(self)).into()
     }
-}
+}*/
