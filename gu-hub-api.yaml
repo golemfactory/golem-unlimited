@@ -88,6 +88,7 @@ paths:
               $ref: '#/definitions/DeploymentInfo'
         404:
           description: peer not found
+  
 
   /sessions:
     get:
@@ -349,7 +350,7 @@ paths:
     get:
       tags:
         - session
-      operationId: listHubSessionBlobs
+      operationId: listBlobs
       summary: 'Lists currently allocated lobs'
       responses:
         200:
