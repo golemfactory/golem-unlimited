@@ -111,7 +111,7 @@ error_chain!(
     errors {
         MailboxError(e : MailboxError){}
         ExecutionError(exec: String, args: Vec<String>, output: process::Output) {
-            display("failed to execute command: {}, {:?}", exec, args)
+             display("failed to execute command: {}, {:?}, {:?}", exec, args, output)
         }
     }
 );
