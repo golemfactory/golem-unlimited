@@ -46,7 +46,7 @@ paths:
         200:
           description: OK
           schema:
-            $ref: '#/definitions/PeerInfo'
+            $ref: '#/definitions/PeerDetails'
   /peers/{nodeId}/deployments:
     parameters:
       - $ref: '#/parameters/nodeId'
@@ -54,13 +54,13 @@ paths:
     post:
       tags:
         - peer
-      operationId: 'createDeploymentOnPeer'
+      operationId: 'createDeployment'
       parameters:
-        - name: sessionSpec
+        - name: spec
           in: body
           required: true
           schema:
-            $ref: '#/definitions/PeerSessionSpec'
+            $ref: '#/definitions/DeploymentSpec'
 
       responses:
         '201':
@@ -78,7 +78,7 @@ paths:
     get:
       tags:
         - peer
-      operationId: 'listPeerDeployments'
+      operationId: 'listDeployments'
       responses:
         200:
           description: OK
@@ -94,7 +94,7 @@ paths:
       tags:
         - session
       summary: Lists current hub sessions.
-      operationId: listHubSessions
+      operationId: listSessions
       parameters:
         - $ref: '#/parameters/limit'
         - $ref: '#/parameters/offset'
@@ -108,7 +108,7 @@ paths:
     post:
       tags:
         - session
-      operationId: createHubSession
+      operationId: createSession
       summary: 'Creates new hub session.'
       description: |-
         Allowed fileds:
@@ -147,7 +147,7 @@ paths:
       tags:
         - session
       summary: Gets hub session info
-      operationId: getHubSession
+      operationId: getSession
       responses:
         '200':
           description: OK
@@ -162,7 +162,7 @@ paths:
     patch:
       tags:
         - session
-      operationId: updateHubSession
+      operationId: updateSession
       summary: 'Hub session update'
       consumes:
         - application/json
@@ -180,7 +180,7 @@ paths:
     delete:
       tags:
         - session
-      operationId: deleteHubSession
+      operationId: deleteSession
       responses:
         204:
           description: Deleted
@@ -193,7 +193,7 @@ paths:
       tags:
         - session
       summary: Gets configuration from stash
-      operationId: getHubSessionConfig
+      operationId: getConfig
       responses:
         '200':
           description: OK
@@ -207,7 +207,7 @@ paths:
       tags:
         - session
       summary: Sets configuration stash
-      operationId: setHubSessionConfig
+      operationId: setConfig
       parameters:
         - name: config
           description: New config stash value
@@ -232,7 +232,7 @@ paths:
       tags:
         - session
       summary: Manually adds peers to hub session
-      operationId: addHubSessionPeers
+      operationId: addSessionPeers
       parameters:
         - name: body
           in: body
@@ -261,7 +261,7 @@ paths:
     post:
       tags:
         - session
-      operationId: createPeerSession
+      operationId: createDeploymnet
       summary: 'Creates new deploymnet'
       parameters:
         - $ref: '#/parameters/sessionId'
@@ -270,7 +270,7 @@ paths:
           in: body
           required: true
           schema:
-            $ref: '#/definitions/PeerSessionSpec'
+            $ref: '#/definitions/DeploymentSpec'
       responses:
         '201':
           description: created
@@ -292,7 +292,7 @@ paths:
     patch:
       tags:
         - session
-      operationId: updatePeerSession
+      operationId: updateDeployment
       summary: 'Sends multiple commands for peer'
       consumes:
         - application/json
@@ -312,7 +312,7 @@ paths:
     delete:
       tags:
         - session
-      operationId: deletePeerSession
+      operationId: deleteDeploymnet
       responses:
         204:
           description: Deleted
@@ -507,7 +507,7 @@ definitions:
         items:
           type: string
           pattern: '^[a-zA-Z][a-zA-Z0-9_:-]*$'
-  PeerSessionSpec:
+  DeploymentSpec:
     properties:
       envType:
         $ref: '#/definitions/EnvType'
