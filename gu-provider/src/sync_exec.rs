@@ -130,6 +130,30 @@ mod test {
     use gu_actix::flatten::FlattenFuture;
 
     #[test]
+    fn test_sync_exec_fail() {
+        System::run(|| {
+            Arbiter::spawn(
+                SyncExecManager::from_registry()
+                    .send(Exec::Run {
+                        executable: "/bin/ls".into(),
+                        args: vec!["/1234567890asdfghjkl".into()],
+                    }).flatten_fut()
+                    .and_then(|o: ExecResult| match o {
+                        ExecResult::Run(o) => {
+                            assert!(!o.status.success());
+                            assert_eq!(o.status.code(), Some(2));
+                            assert_eq!(String::from_utf8_lossy(&o.stdout), "");
+                            assert_eq!(String::from_utf8_lossy(&o.stderr), "ls: cannot access '/1234567890asdfghjkl': No such file or directory\n");
+                            Ok(())
+                        }
+                        r => panic!("wrong result: {:?}", r),
+                    }).map_err(|_| ())
+                    .then(|_| Ok(System::current().stop())),
+            )
+        });
+    }
+
+    #[test]
     fn test_sync_exec_echo() {
         System::run(|| {
             Arbiter::spawn(
