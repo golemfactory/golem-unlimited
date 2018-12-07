@@ -50,7 +50,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                 $scope.hub = ok
             }
         });
-        $http.get('/peer').then(r => {
+        $http.get('/peers').then(r => {
             $scope.peers = r.data;
         });
      };
@@ -63,7 +63,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
   })
   .service('hubApi', function($http) {
         function callRemote(nodeId, destinationId, body) {
-            return $http.post('/peer/send-to/' + nodeId + '/' + destinationId, {b: body}).then(r => r.data);
+            return $http.post('/peers/send-to/' + nodeId + '/' + destinationId, {b: body}).then(r => r.data);
         }
 
         return { callRemote: callRemote};
