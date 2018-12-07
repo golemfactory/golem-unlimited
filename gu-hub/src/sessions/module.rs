@@ -1,11 +1,18 @@
 use actix::{Handler, MailboxError, Message, SystemService};
+use actix_web::Path;
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
-    http, App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse,
+    http,
+    http::ContentEncoding,
+    http::StatusCode,
+    App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json,
     Responder, Result as ActixResult, Scope,
 };
 use futures::future::Future;
+use futures::stream::Stream;
+use gu_actix::prelude::*;
 use gu_base::Module;
+use gu_model::session::HubSessionSpec;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sessions::{manager::*, responses::*, session::SessionInfo};
@@ -21,26 +28,26 @@ impl Module for SessionsModule {
 
 fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
-        .route("", http::Method::GET, list_scope)
-        .route("", http::Method::POST, crate_scope)
-        .route("/{sessionId}", http::Method::GET, info_scope)
+        .resource("", |r| {
+            r.name("hub-sessions");
+            r.get().with(list_sessions);
+            r.post().with_async_config(create_session, |(cfg,)| {
+                cfg.limit(4096);
+            });
+        }).route("/{sessionId}", http::Method::GET, info_scope)
         .route("/{sessionId}", http::Method::DELETE, delete_scope)
-        .route("/{sessionId}/config", http::Method::PUT, set_config_scope)
-        .route("/{sessionId}/config", http::Method::GET, get_config_scope)
-        .route("/{sessionId}/blob", http::Method::POST, create_blob_scope)
-        .route(
-            "/{sessionId}/blob/{blobId}",
-            http::Method::DELETE,
-            delete_blob_scope,
-        ).route(
-            "/{sessionId}/blob/{blobId}",
-            http::Method::PUT,
-            upload_scope,
-        ).route(
-            "/{sessionId}/blob/{blobId}",
-            http::Method::GET,
-            download_scope,
-        )
+        .resource("/{sessionId}/config", |r| {
+            r.get().with_async(get_config);
+            r.put().with_async(set_config);
+        }).resource("/{sessionId}/blobs", |r| {
+            r.name("hub-session-blobs");
+            r.post().with(create_blob_scope);
+        }).resource("/{sessionId}/blobs/{blobId}", |r| {
+            r.name("hub-session-blob");
+            r.get().with(download_scope);
+            r.put().with(upload_scope);
+            r.delete().with(delete_blob_scope);
+        })
 }
 
 fn manager_request<H, M>(msg: M) -> impl Future<Item = HttpResponse, Error = ActixError>
@@ -72,6 +79,12 @@ fn get_param<S>(r: &HttpRequest<S>, name: &'static str) -> ActixResult<u64> {
         .map_err(|_| ErrorBadRequest("Cannot parse parameter"))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionPath {
+    session_id: u64,
+}
+
 fn session_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
     get_param(r, "sessionId")
 }
@@ -80,14 +93,26 @@ fn blob_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
     get_param(r, "blobId")
 }
 
-fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
+fn list_sessions<S>(_r: HttpRequest<S>) -> impl Responder {
     manager_request::<SessionsManager, _>(ListSessions).responder()
 }
 
-fn crate_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
-    request_json(r)
-        .and_then(|info: SessionInfo| manager_request::<SessionsManager, _>(CreateSession { info }))
-        .responder()
+fn create_session(
+    spec: Json<HubSessionSpec>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> + 'static {
+    let info = SessionInfo {
+        name: spec.into_inner().name,
+    };
+
+    SessionsManager::from_registry()
+        .send(CreateSession { info })
+        .flatten_fut()
+        .from_err()
+        .and_then(|session_id| {
+            Ok(HttpResponse::build(StatusCode::CREATED)
+                .header("Location", format!("/sessions/{}", session_id))
+                .json(session_id))
+        })
 }
 
 fn info_scope<S>(r: HttpRequest<S>) -> impl Responder {
@@ -102,25 +127,68 @@ fn delete_scope<S>(r: HttpRequest<S>) -> impl Responder {
     manager_request::<SessionsManager, _>(DeleteSession { session }).responder()
 }
 
-fn get_config_scope<S>(r: HttpRequest<S>) -> impl Responder {
-    let session = session_id(&r).map_err(|e| return e).unwrap();
-
-    manager_request::<SessionsManager, _>(GetMetadata { session }).responder()
+fn get_config(
+    path: Path<SessionPath>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(GetMetadata {
+            session: path.session_id,
+        }).flatten_fut()
+        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+        .and_then(|metadata| Ok(HttpResponse::Ok().json(metadata)))
 }
 
-fn set_config_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
-    let session = session_id(&r).map_err(|e| return e).unwrap();
-
-    request_json(r)
-        .and_then(move |metadata: Value| {
-            manager_request::<SessionsManager, _>(SetMetadata { session, metadata })
-        }).responder()
+fn set_config(
+    (path, body): (Path<SessionPath>, Json<gu_model::session::Metadata>),
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(SetMetadata {
+            session: path.session_id,
+            metadata: body.into_inner(),
+        }).flatten_fut()
+        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+        .and_then(|new_version| Ok(HttpResponse::Ok().json(new_version)))
 }
 
-fn create_blob_scope<S>(r: HttpRequest<S>) -> impl Responder {
+fn create_blob_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let session = session_id(&r).map_err(|e| return e).unwrap();
 
-    manager_request::<SessionsManager, _>(CreateBlob { session }).responder()
+    let session_manager = SessionsManager::from_registry();
+
+    if r.content_type() == "multipart/form-data" {
+        r.multipart()
+            .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+            .fold(Vec::new(), move |mut blobs, part| {
+                session_manager
+                    .send(CreateBlob { session })
+                    .flatten_fut()
+                    .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+                    .and_then(|(blob_id, blob)| {
+                        use actix_web::multipart::MultipartItem;
+
+                        match part {
+                            MultipartItem::Field(payload) => futures::future::Either::B(
+                                blob.write(payload)
+                                    .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+                                    .and_then(move |_| {
+                                        blobs.push(blob_id);
+                                        Ok(blobs)
+                                    }),
+                            ),
+                            _ => futures::future::Either::A(futures::future::ok(blobs)),
+                        }
+                    })
+            }).map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+            .and_then(move |blobs| Ok(HttpResponse::Ok().json(blobs)))
+            .responder()
+    } else {
+        session_manager
+            .send(CreateBlob { session })
+            .flatten_fut()
+            .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+            .and_then(|(blob_id, blob)| Ok(HttpResponse::Ok().json(blob_id)))
+            .responder()
+    }
 }
 
 fn delete_blob_scope<S>(r: HttpRequest<S>) -> impl Responder {
@@ -128,14 +196,6 @@ fn delete_blob_scope<S>(r: HttpRequest<S>) -> impl Responder {
     let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
 
     manager_request::<SessionsManager, _>(DeleteBlob { session, blob_id }).responder()
-}
-
-fn flatten<F>(fut: F) -> impl Future<Item = SessionOk, Error = SessionErr>
-where
-    F: Future<Item = SessionResult, Error = MailboxError>,
-{
-    fut.map_err(|e| SessionErr::MailboxError(e.to_string()))
-        .and_then(|res: SessionResult| res)
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
@@ -152,7 +212,7 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
     let manager = SessionsManager::from_registry();
 
-    let blob_fut = flatten(manager.send(GetBlob { session, blob_id }));
+    let blob_fut = manager.send(GetBlob { session, blob_id }).flatten_fut();
     let res_fut = blob_fut
         .and_then(move |res: SessionOk| match res {
             SessionOk::Blob(blob) => blob.write(r.payload()),
@@ -169,7 +229,7 @@ fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
     let manager = SessionsManager::from_registry();
 
-    let blob_fut = flatten(manager.send(GetBlob { session, blob_id }));
+    let blob_fut = manager.send(GetBlob { session, blob_id }).flatten_fut();
     let res_fut = blob_fut
         .and_then(move |res: SessionOk| match res {
             SessionOk::Blob(blob) => blob.read(),
