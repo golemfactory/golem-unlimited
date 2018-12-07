@@ -122,7 +122,6 @@ impl From<MailboxError> for Error {
     }
 }
 
-/*
 #[cfg(test)]
 mod test {
     use super::{Exec, ExecResult, SyncExecManager};
@@ -131,7 +130,7 @@ mod test {
     use gu_actix::flatten::FlattenFuture;
 
     #[test]
-    fn test_sync_exec_date() {
+    fn test_sync_exec_echo() {
         System::run(|| {
             Arbiter::spawn(
                 SyncExecManager::from_registry()
@@ -153,13 +152,4 @@ mod test {
             )
         });
     }
-
-    //    #[test]
-    //    fn test_map_and_map_err() {
-    //        let mut v = Vec::new();
-    //        Ok("foo".to_string())
-    //            .map(|i| {v.push(i); v})
-    //            .map_err(|e : String| {v.push(e); v});
-    //    }
 }
-*/
