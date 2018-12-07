@@ -1,3 +1,5 @@
+use super::error::Error as RpcError;
+use super::error::ErrorKind as RpcErrorKind;
 use actix::prelude::*;
 use futures::prelude::*;
 use gu_actix::prelude::*;
@@ -19,6 +21,7 @@ use std::{collections::HashMap, error::Error, fmt, io};
 
 #[derive(Debug)]
 pub enum SendError {
+    NotConnected(NodeId),
     GenBody(Box<Error + Send>),
     ParseBody(Option<Box<Error + Send>>, String),
     MailBox(MailboxError),
@@ -40,6 +43,7 @@ impl SendError {
 impl Error for SendError {
     fn description(&self) -> &str {
         match self {
+            SendError::NotConnected(node_id) => "not connected",
             SendError::Canceled => "canceled",
             SendError::GenBody(e) => e.description(),
             SendError::ParseBody(Some(e), _) => e.description(),
@@ -61,6 +65,7 @@ impl Error for SendError {
 impl fmt::Display for SendError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
+            SendError::NotConnected(node_id) => write!(f, "peer {:?} not connected", node_id),
             SendError::GenBody(e) => write!(f, "gen body error: {}", e),
             SendError::ParseBody(Some(e), b) => write!(f, "parse response {} :: {}", e, b),
             SendError::ParseBody(None, b) => write!(f, "parse request :: {}", b),
@@ -143,7 +148,7 @@ impl Handler<RouteMessage<Result<String, TransportError>>> for ReplyRouter {
     }
 }
 
-pub struct CallRemote<T>(NodeId, DestinationId, T)
+pub struct CallRemote<T>(pub NodeId, pub DestinationId, pub T)
 where
     T: Message;
 
@@ -186,6 +191,8 @@ where
             Err(e) => return ActorResponse::reply(Err(SendError::body(e))),
         };
 
+        let node_id = msg.0;
+
         ActorResponse::async(
             MessageRouter::from_registry()
                 .send(EmitMessage {
@@ -197,8 +204,10 @@ where
                     expires: None,
                     body: TransportResult::Request(body),
                 }).flatten_fut()
-                .map_err(|e| SendError::body(e))
-                .into_actor(self)
+                .map_err(move |e| match e.kind() {
+                    RpcErrorKind::NotConnected => SendError::NotConnected(node_id),
+                    _ => SendError::body(e),
+                }).into_actor(self)
                 .and_then(|msg_id, act, ctx| {
                     use futures::unsync::oneshot;
                     let (tx, rx) = oneshot::channel();
@@ -236,6 +245,7 @@ impl Handler<CallRemoteUntyped> for ReplyRouter {
 
         let (tx, rx) = oneshot::channel();
         self.reply_map.insert(cid.into(), tx);
+        let node_id = msg.0;
 
         ActorResponse::async(
             MessageRouter::from_registry()
@@ -248,8 +258,10 @@ impl Handler<CallRemoteUntyped> for ReplyRouter {
                     expires: None,
                     body: TransportResult::Request(body),
                 }).flatten_fut()
-                .map_err(|e| SendError::body(e))
-                .into_actor(self)
+                .map_err(move |e: RpcError| match e.kind() {
+                    RpcErrorKind::NotConnected => SendError::NotConnected(node_id),
+                    _ => SendError::body(e),
+                }).into_actor(self)
                 .and_then(move |msg_id, act, ctx| {
                     rx.map_err(|_| SendError::Canceled)
                         .and_then(|route_msg| parse_body(route_msg.body))

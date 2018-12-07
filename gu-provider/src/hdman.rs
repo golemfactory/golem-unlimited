@@ -8,7 +8,7 @@ use actix_web::error::ErrorInternalServerError;
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::files::read_async;
-use gu_envman_api::*;
+use gu_model::envman::*;
 use gu_net::rpc::{
     peer::{PeerSessionInfo, PeerSessionStatus},
     *,

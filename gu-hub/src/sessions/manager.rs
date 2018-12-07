@@ -5,6 +5,7 @@ use actix::{
     Actor, ActorResponse, Context, Handler, MessageResult, Supervised, SystemService, WrapFuture,
 };
 use futures::{future, Future, IntoFuture};
+use gu_model::session::Metadata;
 use gu_persist::config::ConfigModule;
 use serde_json::Value;
 use sessions::{
@@ -64,18 +65,20 @@ impl SessionsManager {
         ))
     }
 
-    fn session_fn<F: FnOnce(&Session) -> SessionResult>(&self, id: u64, f: F) -> SessionResult {
+    fn session_fn<R, F>(&self, id: u64, f: F) -> Result<R, SessionErr>
+    where
+        F: FnOnce(&Session) -> Result<R, SessionErr>,
+    {
         match self.sessions.get(&id) {
             Some(s) => f(s),
             None => Err(SessionErr::SessionNotFoundError),
         }
     }
 
-    fn session_mut_fn<F: FnOnce(&mut Session) -> SessionResult>(
-        &mut self,
-        id: u64,
-        f: F,
-    ) -> SessionResult {
+    fn session_mut_fn<R, F>(&mut self, id: u64, f: F) -> Result<R, SessionErr>
+    where
+        F: FnOnce(&mut Session) -> Result<R, SessionErr>,
+    {
         self.version += 1;
         match self.sessions.get_mut(&id) {
             Some(s) => f(s),
@@ -83,7 +86,11 @@ impl SessionsManager {
         }
     }
 
-    fn create_session_inner(&mut self, session: Session, id: Option<u64>) -> SessionResult {
+    fn create_session_inner(
+        &mut self,
+        session: Session,
+        id: Option<u64>,
+    ) -> Result<u64, SessionErr> {
         let id = match id {
             None => self.next_id,
             Some(v) => v,
@@ -93,19 +100,17 @@ impl SessionsManager {
 
         match self.sessions.insert(id, session) {
             Some(_) => Err(SessionErr::OverwriteError),
-            None => Ok(SessionOk::SessionId(id)),
+            None => Ok(id),
         }
     }
 
     pub fn create_session(
         &mut self,
         info: SessionInfo,
-    ) -> impl Future<Item = SessionOk, Error = SessionErr> {
+    ) -> impl Future<Item = u64, Error = SessionErr> {
         let (session, fut) = Session::new(info, self.path.join(format!("{}", self.next_id)));
 
-        self.create_session_inner(session, None)
-            .into_future()
-            .and_then(|res| fut.and_then(|()| Ok(res)))
+        self.create_session_inner(session, None).into_future()
     }
 
     pub fn session_info(&self, id: u64) -> SessionResult {
@@ -121,15 +126,15 @@ impl SessionsManager {
         }
     }
 
-    pub fn get_config(&self, id: u64) -> SessionResult {
-        self.session_fn(id, |s| s.metadata())
+    pub fn get_config(&self, id: u64) -> Result<Metadata, SessionErr> {
+        self.session_fn(id, |s| Ok(s.metadata().clone()))
     }
 
     pub fn set_config(
         &mut self,
         id: u64,
-        val: Value,
-    ) -> impl Future<Item = SessionOk, Error = SessionErr> {
+        val: Metadata,
+    ) -> impl Future<Item = u64, Error = SessionErr> {
         self.version += 1;
         match self.sessions.get_mut(&id) {
             None => future::Either::A(future::err(SessionErr::SessionNotFoundError)),
@@ -137,7 +142,7 @@ impl SessionsManager {
         }
     }
 
-    pub fn create_blob(&mut self, id: u64) -> SessionResult {
+    pub fn create_blob(&mut self, id: u64) -> Result<(u64, Blob), SessionErr> {
         self.session_mut_fn(id, |s| s.new_blob())
     }
 
@@ -186,13 +191,13 @@ impl Handler<ListSessions> for SessionsManager {
 }
 
 #[derive(Message, Deserialize, Serialize)]
-#[rtype(result = "SessionResult")]
+#[rtype(result = "Result<u64, SessionErr>")]
 pub struct CreateSession {
     pub info: SessionInfo,
 }
 
 impl Handler<CreateSession> for SessionsManager {
-    type Result = ActorResponse<SessionsManager, SessionOk, SessionErr>;
+    type Result = ActorResponse<SessionsManager, u64, SessionErr>;
 
     fn handle(&mut self, msg: CreateSession, _ctx: &mut Context<Self>) -> Self::Result {
         ActorResponse::async(self.create_session(msg.info).into_actor(self))
@@ -236,28 +241,28 @@ impl Handler<DeleteSession> for SessionsManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "SessionResult")]
+#[rtype(result = "Result<Metadata, SessionErr>")]
 pub struct GetMetadata {
     pub session: u64,
 }
 
 impl Handler<GetMetadata> for SessionsManager {
-    type Result = MessageResult<GetMetadata>;
+    type Result = Result<Metadata, SessionErr>;
 
-    fn handle(&mut self, msg: GetMetadata, _ctx: &mut Context<Self>) -> MessageResult<GetMetadata> {
-        MessageResult(self.get_config(msg.session))
+    fn handle(&mut self, msg: GetMetadata, _ctx: &mut Context<Self>) -> Self::Result {
+        self.get_config(msg.session)
     }
 }
 
 #[derive(Message)]
-#[rtype(result = "SessionResult")]
+#[rtype(result = "Result<u64, SessionErr>")]
 pub struct SetMetadata {
     pub session: u64,
-    pub metadata: Value,
+    pub metadata: Metadata,
 }
 
 impl Handler<SetMetadata> for SessionsManager {
-    type Result = ActorResponse<SessionsManager, SessionOk, SessionErr>;
+    type Result = ActorResponse<SessionsManager, u64, SessionErr>;
 
     fn handle(&mut self, msg: SetMetadata, _ctx: &mut Context<Self>) -> Self::Result {
         ActorResponse::async(self.set_config(msg.session, msg.metadata).into_actor(self))
@@ -265,16 +270,16 @@ impl Handler<SetMetadata> for SessionsManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "SessionResult")]
+#[rtype(result = "Result<(u64, Blob), SessionErr>")]
 pub struct CreateBlob {
     pub session: u64,
 }
 
 impl Handler<CreateBlob> for SessionsManager {
-    type Result = MessageResult<CreateBlob>;
+    type Result = Result<(u64, Blob), SessionErr>;
 
-    fn handle(&mut self, msg: CreateBlob, _ctx: &mut Context<Self>) -> MessageResult<CreateBlob> {
-        MessageResult(self.create_blob(msg.session))
+    fn handle(&mut self, msg: CreateBlob, _ctx: &mut Context<Self>) -> Self::Result {
+        self.create_blob(msg.session)
     }
 }
 
