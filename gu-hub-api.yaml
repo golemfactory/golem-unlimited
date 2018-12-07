@@ -69,7 +69,7 @@ paths:
             location:
               type: string
               format: uri
-              description: 'Uri of new peer session'
+              description: 'Uri of new deployment'
           schema:
             type: string
             description: exec environment session instance id
@@ -235,14 +235,14 @@ paths:
       summary: Manually adds peers to hub session
       operationId: addSessionPeers
       parameters:
-        - name: body
-          in: body
-          required: true
-          schema:
-            type: array
-            items:
-              type: string
-            uniqueItems: true
+      - name: peerSet
+        in: body
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
       responses:
         '200':
           description: OK - peers added
@@ -251,9 +251,10 @@ paths:
             items:
               type: string
               description: peer id
+            uniqueItems: true
             example:
               - '0xb6804992598b9260a5b4ad553f98c3851cf2d18e'
-            description: list of session nodes after add
+            description: set of session nodes after add
         '404':
           description: Session not found
         '500':
@@ -267,7 +268,7 @@ paths:
       parameters:
         - $ref: '#/parameters/sessionId'
         - $ref: '#/parameters/nodeId'
-        - name: sessionSpec
+      - name: deploymentSpec
           in: body
           required: true
           schema:
@@ -279,7 +280,7 @@ paths:
             location:
               type: string
               format: uri
-              description: 'Uri of new peer session'
+              description: 'Uri of new deployment'
           schema:
             type: string
             description: exec environment session instance id
@@ -525,7 +526,7 @@ definitions:
         description: human readable name
       tags:
         type: array
-        description: peer session tags
+        description: deployment tags
         uniqueItems: true
         items:
           type: string
