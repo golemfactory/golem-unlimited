@@ -170,7 +170,8 @@ impl<T: 'static + Send + Sync> Actor for EventHubWorker<T> {
                     upsert_value(&mut act.subscribers, path, (sub_id, addr))
                 }
                 fut::ok(())
-            }).wait(ctx)
+            })
+            .wait(ctx)
     }
 }
 

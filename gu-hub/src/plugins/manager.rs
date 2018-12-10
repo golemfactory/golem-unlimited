@@ -65,7 +65,8 @@ impl PluginManager {
                     None => Installed,
                     Some(_a) => Overwritten,
                 }
-            }).unwrap_or_else(|e| e)
+            })
+            .unwrap_or_else(|e| e)
     }
 
     fn uninstall_plugin(&mut self, name: &String) {
@@ -231,11 +232,13 @@ impl Handler<InstallPlugin> for PluginManager {
                     parser
                         .validate_and_load_metadata(self.gu_version.clone())
                         .map_err(|e| InvalidMetadata(e))
-                }).and_then(|metadata| {
+                })
+                .and_then(|metadata| {
                     let name = metadata.name();
                     self.save_plugin_file(name, msg.bytes.into_inner().as_ref())
                         .map(|_| self.load_zip(&name.to_string()))
-                }).unwrap_or_else(|a| a),
+                })
+                .unwrap_or_else(|a| a),
         )
     }
 }

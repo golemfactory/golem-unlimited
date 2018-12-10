@@ -79,7 +79,7 @@ angular.module('gu').service('sessionMan', function ($http, $log, $q, hubApi, hd
 
     function send(node_id) {
         return function (destination, body) {
-            return $http.post('/peer/send-to', [node_id, destination, body]).then(r => r.data
+            return $http.post('/peers/send-to', [node_id, destination, body]).then(r => r.data
             )
                 ;
         }
@@ -94,7 +94,7 @@ angular.module('gu').service('sessionMan', function ($http, $log, $q, hubApi, hd
             ;
         }
         else {
-            peersPromise = $http.get('/peer').then(r => r.data)
+            peersPromise = $http.get('/peers').then(r => r.data)
             ;
         }
 

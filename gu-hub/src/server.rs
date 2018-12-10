@@ -168,7 +168,8 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")
                             .expect("cannot provide static files"),
-                    ).scope("/m", mock::scope)
+                    )
+                    .scope("/m", mock::scope)
                     .resource("/ws/", |r| r.route().f(chat_route)),
             )
         });

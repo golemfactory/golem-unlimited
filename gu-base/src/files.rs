@@ -43,7 +43,8 @@ impl FilePoolHandler {
         future::result(match msg.range {
             Some(range) => ChunkedReadFile::new_ranged(msg.file, self.pool.clone(), range),
             None => ChunkedReadFile::new(msg.file, self.pool.clone()),
-        }).flatten_stream()
+        })
+        .flatten_stream()
     }
 
     pub fn untar_archive<P: AsRef<Path> + ToOwned>(
@@ -113,12 +114,14 @@ fn stream_with_positions<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E
         .and_then(|file| {
             Ok(WithPositions::new(
                 input_stream.map_err(|e: E| format!("Input stream error {:?}", e)),
-            ).and_then(move |(x, pos)| {
+            )
+            .and_then(move |(x, pos)| {
                 file.try_clone()
                     .and_then(|file| Ok((x, pos, file)))
                     .map_err(|e| format!("File clone error {:?}", e))
             }))
-        }).flatten_stream()
+        })
+        .flatten_stream()
 }
 
 pub fn write_async_with_sha1<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(
@@ -129,7 +132,8 @@ pub fn write_async_with_sha1<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path
         .fold(Sha1::new(), move |mut sha, (x, pos, file)| {
             sha.update(x.as_ref());
             write_bytes(x, pos, file).and_then(|_| Ok(sha))
-        }).and_then(|sha| Ok(sha.digest().to_string()))
+        })
+        .and_then(|sha| Ok(sha.digest().to_string()))
 }
 
 pub fn write_async<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(

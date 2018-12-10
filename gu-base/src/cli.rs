@@ -11,13 +11,16 @@ lazy_static! {
         .separators(
             &[format::LinePosition::Top],
             format::LineSeparator::new('─', '┬', '┌', '┐')
-        ).separators(
+        )
+        .separators(
             &[format::LinePosition::Intern],
             format::LineSeparator::new('─', '┼', '├', '┤')
-        ).separators(
+        )
+        .separators(
             &[format::LinePosition::Bottom],
             format::LineSeparator::new('─', '┴', '└', '┘')
-        ).padding(1, 1)
+        )
+        .padding(1, 1)
         .build();
 }
 

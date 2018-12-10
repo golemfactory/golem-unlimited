@@ -1,26 +1,49 @@
 use bytes::Bytes;
+use chrono::DateTime;
+use chrono::Utc;
 use futures::{future::IntoFuture, stream, Future, Stream};
 use gu_base::files::{read_async, write_async};
+use gu_model::session::Metadata;
+use gu_net::NodeId;
 use serde_json::{self, Value};
 use sessions::{
     blob::Blob,
     responses::{SessionErr, SessionOk, SessionResult},
 };
-use std::{cmp, collections::HashMap, fs, io, path::PathBuf};
+use std::{
+    cmp,
+    collections::{HashMap, HashSet},
+    fs, io,
+    path::PathBuf,
+};
 
 pub struct Session {
     info: SessionInfo,
-    state: Value,
+    state: Metadata,
     path: PathBuf,
     next_id: u64,
     storage: HashMap<u64, Blob>,
     version: u64,
+    peers: HashMap<NodeId, PeerState>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SessionInfo {
-    name: String,
-    environment: String,
+    pub name: Option<String>,
+    pub created: DateTime<Utc>,
+}
+
+impl Default for SessionInfo {
+    fn default() -> Self {
+        SessionInfo {
+            name: None,
+            created: Utc::now(),
+        }
+    }
+}
+
+struct PeerState {
+    deployments: HashSet<String>,
 }
 
 pub(crate) fn entries_id_iter(path: &PathBuf) -> impl Iterator<Item = u64> {
@@ -42,7 +65,8 @@ pub(crate) fn entries_id_iter(path: &PathBuf) -> impl Iterator<Item = u64> {
                             })
                         })
                 })
-        }).filter(|res| res.is_ok())
+        })
+        .filter(|res| res.is_ok())
         .map(|id| id.unwrap())
 }
 
@@ -57,11 +81,12 @@ impl Session {
 
         let session = Session {
             info,
-            state: Value::Null,
+            state: Metadata::default(),
             path: path.clone(),
             next_id: 0,
             storage: HashMap::new(),
             version: 0,
+            peers: HashMap::new(),
         };
 
         let fut = fs::DirBuilder::new()
@@ -78,13 +103,18 @@ impl Session {
     }
 
     pub fn from_existing(path: PathBuf) -> impl Future<Item = Self, Error = String> {
+        let info_fut = read_async(path.join(".info")).concat2().and_then(|a| {
+            serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| e.to_string())
+        });
+
         let mut s = Session {
             info: SessionInfo::default(),
-            state: Value::Null,
+            state: Metadata::default(),
             path: path.clone(),
             next_id: 0,
             storage: HashMap::new(),
             version: 0,
+            peers: HashMap::new(),
         };
 
         entries_id_iter(&path).for_each(|id| {
@@ -93,13 +123,9 @@ impl Session {
                 .map_err(|e| error!("{:?}", e));
         });
 
-        let info_fut = read_async(path.join(".info")).concat2().and_then(|a| {
-            serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| e.to_string())
+        let config_fut = read_async(path.join(".json")).concat2().and_then(|a| {
+            serde_json::from_slice::<Metadata>(a.as_ref()).map_err(|e| e.to_string())
         });
-
-        let config_fut = read_async(path.join(".json"))
-            .concat2()
-            .and_then(|a| serde_json::from_slice::<Value>(a.as_ref()).map_err(|e| e.to_string()));
 
         info_fut.join(config_fut).and_then(|(info, state)| {
             s.info = info;
@@ -112,25 +138,32 @@ impl Session {
         self.info.clone()
     }
 
-    pub fn metadata(&self) -> SessionResult {
-        Ok(SessionOk::SessionJson(self.state.clone().into()))
+    pub fn metadata(&self) -> &Metadata {
+        &self.state
     }
 
-    pub fn set_metadata(
-        &mut self,
-        val: Value,
-    ) -> impl Future<Item = SessionOk, Error = SessionErr> {
+    pub fn set_metadata(&mut self, val: Metadata) -> impl Future<Item = u64, Error = SessionErr> {
+        if self.state.version == val.version {
+            self.state = val;
+            self.state.version += 1;
+        } else {
+            return futures::future::Either::B(Err(SessionErr::OverwriteError).into_future());
+        }
         self.version += 1;
-        self.state = val.clone();
 
-        write_async(
-            stream::once::<_, ()>(Ok(Bytes::from(val.to_string()))),
-            self.path.join(".json"),
-        ).map_err(|e| SessionErr::FileError(e))
-        .and_then(|_| Ok(SessionOk::Ok))
+        let new_state_version = self.state.version;
+
+        futures::future::Either::A(
+            write_async(
+                stream::once::<_, ()>(Ok(Bytes::from(serde_json::to_vec(&self.state).unwrap()))),
+                self.path.join(".json"),
+            )
+            .map_err(|e| SessionErr::FileError(e))
+            .and_then(move |_| Ok(new_state_version)),
+        )
     }
 
-    fn new_blob_inner(&mut self, blob: Blob, id: Option<u64>) -> SessionResult {
+    fn new_blob_inner(&mut self, blob: Blob, id: Option<u64>) -> Result<(u64, Blob), SessionErr> {
         let id = match id {
             None => self.next_id,
             Some(v) => v,
@@ -138,13 +171,13 @@ impl Session {
         self.next_id = cmp::max(id, self.next_id) + 1;
         self.version += 1;
 
-        match self.storage.insert(id, blob) {
+        match self.storage.insert(id, blob.clone()) {
             Some(_) => Err(SessionErr::OverwriteError),
-            None => Ok(SessionOk::BlobId(id)),
+            None => Ok((id, blob)),
         }
     }
 
-    pub fn new_blob(&mut self) -> SessionResult {
+    pub fn new_blob(&mut self) -> Result<(u64, Blob), SessionErr> {
         let blob = Blob::new(self.path.join(format!("{}", self.next_id)))
             .map_err(|e| SessionErr::FileError(e.to_string()))?;
         self.new_blob_inner(blob, None)

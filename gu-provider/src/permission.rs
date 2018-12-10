@@ -62,8 +62,10 @@ impl Module for PermissionModule {
                     Arg::with_name("hub-addr")
                         .required(false)
                         .help("<ip>:<port> of hub"),
-                ]).about("allows provider to be managed by group"),
-        ).subcommand(SubCommand::with_name("configure"))
+                ])
+                .about("allows provider to be managed by group"),
+        )
+        .subcommand(SubCommand::with_name("configure"))
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
@@ -122,7 +124,8 @@ impl Module for PermissionModule {
                                 config_manager
                                     .send(SetConfig::new(new_config))
                                     .flatten_fut()
-                            }).map_err(|_| System::current().stop())
+                            })
+                            .map_err(|_| System::current().stop())
                             .and_then(|_r| Ok(System::current().stop())),
                     );
                 });
@@ -213,7 +216,8 @@ fn run_configure() {
                             }
                         }
                     }
-                }).map_err(|_| System::current().stop())
+                })
+                .map_err(|_| System::current().stop())
                 .and_then(|_r| Ok(System::current().stop())),
         );
     });
