@@ -218,7 +218,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     let keys = SafeEthKey::load_or_generate(
                         ConfigModule::new().keystore_path(),
                         &"".into(),
-                    ).unwrap();
+                    )
+                    .unwrap();
 
                     let _ = server.bind(config.p2p_addr()).unwrap().start();
 
@@ -277,7 +278,8 @@ impl Handler<ConnectModeMessage> for ProviderServer {
                             (None, None) => None,
                             _ => Some(()),
                         })
-                    }).into_actor(self),
+                    })
+                    .into_actor(self),
             );
         }
 

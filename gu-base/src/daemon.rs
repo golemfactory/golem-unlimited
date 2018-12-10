@@ -91,7 +91,8 @@ impl DaemonProcess {
             .map(|_| {
                 let _ = out.write("Daemon started successfully\n".as_ref());
                 true
-            }).map_err(|e| format!("Daemon creation error: {}", e))
+            })
+            .map_err(|e| format!("Daemon creation error: {}", e))
     }
 
     pub fn stop(&self) -> Result<(), String> {
@@ -159,7 +160,8 @@ fn write_pid_file(path: &Path) -> Result<(), String> {
         file.write(buf.as_bytes())
             .map(|_| {
                 Box::leak(Box::new(file));
-            }).map_err(|_| "Pid file write error".to_string())
+            })
+            .map_err(|_| "Pid file write error".to_string())
     }
 }
 

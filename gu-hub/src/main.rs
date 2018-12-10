@@ -49,7 +49,6 @@ mod sessions;
 fn main() {
     GuApp(|| App::new("Golem Unlimited").version(VERSION)).run(
         LogModule
-            .chain(server::ServerModule::new())
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
@@ -57,6 +56,7 @@ fn main() {
             .chain(sessions::SessionsModule::default())
             .chain(proxy_service::module())
             .chain(peer::PeerModule::new())
-            .chain(AutocompleteModule::new()),
+            .chain(AutocompleteModule::new())
+            .chain(server::ServerModule::new()),
     );
 }

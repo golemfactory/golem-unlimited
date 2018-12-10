@@ -1,4 +1,6 @@
 use bytes::Bytes;
+use chrono::DateTime;
+use chrono::Utc;
 use futures::{future::IntoFuture, stream, Future, Stream};
 use gu_base::files::{read_async, write_async};
 use gu_model::session::Metadata;
@@ -25,9 +27,19 @@ pub struct Session {
     peers: HashMap<NodeId, PeerState>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SessionInfo {
     pub name: Option<String>,
+    pub created: DateTime<Utc>,
+}
+
+impl Default for SessionInfo {
+    fn default() -> Self {
+        SessionInfo {
+            name: None,
+            created: Utc::now(),
+        }
+    }
 }
 
 struct PeerState {
@@ -53,7 +65,8 @@ pub(crate) fn entries_id_iter(path: &PathBuf) -> impl Iterator<Item = u64> {
                             })
                         })
                 })
-        }).filter(|res| res.is_ok())
+        })
+        .filter(|res| res.is_ok())
         .map(|id| id.unwrap())
 }
 
@@ -90,6 +103,10 @@ impl Session {
     }
 
     pub fn from_existing(path: PathBuf) -> impl Future<Item = Self, Error = String> {
+        let info_fut = read_async(path.join(".info")).concat2().and_then(|a| {
+            serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| e.to_string())
+        });
+
         let mut s = Session {
             info: SessionInfo::default(),
             state: Metadata::default(),
@@ -104,10 +121,6 @@ impl Session {
             let _ = s
                 .new_blob_inner(Blob::from_existing(path.join(format!("{}", id))), Some(id))
                 .map_err(|e| error!("{:?}", e));
-        });
-
-        let info_fut = read_async(path.join(".info")).concat2().and_then(|a| {
-            serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| e.to_string())
         });
 
         let config_fut = read_async(path.join(".json")).concat2().and_then(|a| {
@@ -144,7 +157,8 @@ impl Session {
             write_async(
                 stream::once::<_, ()>(Ok(Bytes::from(serde_json::to_vec(&self.state).unwrap()))),
                 self.path.join(".json"),
-            ).map_err(|e| SessionErr::FileError(e))
+            )
+            .map_err(|e| SessionErr::FileError(e))
             .and_then(move |_| Ok(new_state_version)),
         )
     }
@@ -200,11 +214,4 @@ impl Session {
             false => Ok(()),
         }
     }
-}
-
-#[derive(Message)]
-
-pub struct AddPeers {
-    session_id: u64,
-    peers: Vec<NodeId>,
 }

@@ -13,17 +13,6 @@ use sessions::{blob::Blob, manager::EnumeratedSessionInfo, session::SessionInfo}
 
 pub type SessionResult = Result<SessionOk, SessionErr>;
 
-pub fn to_response<A, B>(res: Result<A, B>) -> HttpResponse
-where
-    A: Into<HttpResponse>,
-    B: Into<HttpResponse>,
-{
-    match res {
-        Ok(a) => a.into(),
-        Err(e) => e.into(),
-    }
-}
-
 fn include_version(mut build: HttpResponseBuilder, v: u64) -> HttpResponseBuilder {
     let val = HeaderValue::from_str(&format!("{}", v)).expect("Invalid ETag");
     build.header(ETAG, val);

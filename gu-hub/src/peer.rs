@@ -79,7 +79,8 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .resource("/{nodeId}/deployments", |r| {
             r.get().with(fetch_deployments);
             r.post().with(new_deployment)
-        }).route("/send-to", http::Method::POST, peer_send)
+        })
+        .route("/send-to", http::Method::POST, peer_send)
         .route(
             "/send-to/{nodeId}/{destinationId}",
             http::Method::POST,
@@ -96,7 +97,8 @@ fn list_peers<S>(_r: HttpRequest<S>) -> impl Responder {
         .and_then(|res| {
             //debug!("res={:?}", res);
             Ok(HttpResponse::Ok().json(res))
-        }).responder()
+        })
+        .responder()
 }
 
 #[derive(Deserialize)]
@@ -120,7 +122,8 @@ fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
                 tags: info.tags.into_iter().collect(),
                 sessions: Vec::new(),
             })),
-        }).responder()
+        })
+        .responder()
 }
 
 fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
@@ -137,7 +140,8 @@ fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
                 actix_web::error::ErrorNotFound(format!("Peer not found {:?}", node_id))
             }
             _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
-        }).and_then(|session_result| match session_result {
+        })
+        .and_then(|session_result| match session_result {
             Ok(sessions) => Ok(HttpResponse::Ok().json(
                 sessions
                     .into_iter()
@@ -145,7 +149,8 @@ fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
                     .collect::<Vec<DeploymentInfo>>(),
             )),
             Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
-        }).responder()
+        })
+        .responder()
 }
 
 fn new_deployment(
@@ -164,10 +169,12 @@ fn new_deployment(
                 actix_web::error::ErrorNotFound(format!("Peer not found {:?}", node_id))
             }
             _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
-        }).and_then(|session_result| match session_result {
+        })
+        .and_then(|session_result| match session_result {
             Ok(session_id) => Ok(HttpResponse::Ok().json(session_id)),
             Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
-        }).responder()
+        })
+        .responder()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -190,7 +197,8 @@ fn call_remote_ep(
             node_id,
             public_destination(destination_id),
             arg,
-        )).flatten_fut()
+        ))
+        .flatten_fut()
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| Ok(HttpResponse::Ok().json(res)))
 }

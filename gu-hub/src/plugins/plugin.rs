@@ -76,7 +76,8 @@ impl PluginMetadata {
             .filter_map(|json_value| match json_value {
                 JsonValue::Object(ht) => ht.get(key),
                 _ => None,
-            }).filter_map(|cfg_value| serde_json::from_value(cfg_value.clone()).ok())
+            })
+            .filter_map(|cfg_value| serde_json::from_value(cfg_value.clone()).ok())
             .collect()
     }
 }
