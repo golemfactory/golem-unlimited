@@ -15,7 +15,7 @@ use gu_base::Module;
 use gu_model::session::HubSessionSpec;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use sessions::{manager::*, responses::*, session::SessionInfo};
+use sessions::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
 
 #[derive(Default)]
 pub struct SessionsModule {}
@@ -30,14 +30,27 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .resource("", |r| {
             r.name("hub-sessions");
-            r.get().with(list_sessions);
+
+            r.get().with_async(|()| {
+                SessionsManager::from_registry()
+                    .send(manager::List)
+                    .flatten_fut()
+                    .from_err::<actix_web::Error>()
+                    .and_then(|sessions| Ok(HttpResponse::Ok().json(sessions)))
+            });
             r.post().with_async_config(create_session, |(cfg,)| {
                 cfg.limit(4096);
             });
         })
         .resource("/{sessionId}", |r| {
             r.get().with_async(get_session);
-            r.delete().with(delete_scope)
+            r.delete().with_async(|path: Path<SessionPath>| {
+                SessionsManager::from_registry()
+                    .send(manager::Delete::with_session_id(path.session_id))
+                    .flatten_fut()
+                    .from_err::<actix_web::Error>()
+                    .and_then(|()| Ok(HttpResponse::NoContent()))
+            })
         })
         .resource("/{sessionId}/config", |r| {
             r.name("hub-session-config");
@@ -52,29 +65,18 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             r.name("hub-session-blob");
             r.get().with(download_scope);
             r.put().with(upload_scope);
-            r.delete().with(delete_blob_scope);
+            r.delete().with_async(|path: Path<SessionBlobPath>| {
+                let blob_id = path.blob_id;
+
+                SessionsManager::from_registry()
+                    .send(manager::Update::new(path.session_id, move |session| {
+                        session.delete_blob(blob_id)
+                    }))
+                    .flatten_fut()
+                    .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+                    .and_then(|r| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()))
+            });
         })
-}
-
-fn manager_request<H, M>(msg: M) -> impl Future<Item = HttpResponse, Error = ActixError>
-where
-    H: Handler<M> + SystemService,
-    M: Message<Result = SessionResult> + Send + 'static,
-{
-    H::from_registry()
-        .send(msg)
-        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
-        .and_then(|res: SessionResult| Ok(to_response(res)))
-}
-
-fn request_json<S, M>(r: HttpRequest<S>) -> impl Future<Item = M, Error = ActixError>
-where
-    S: 'static,
-    M: Send + DeserializeOwned + 'static,
-{
-    r.json()
-        .map_err(|e| ErrorInternalServerError(format!("Cannot parse body: {}", e)))
-        .and_then(|msg: M| Ok(msg))
 }
 
 fn get_param<S>(r: &HttpRequest<S>, name: &'static str) -> ActixResult<u64> {
@@ -91,16 +93,19 @@ struct SessionPath {
     session_id: u64,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionBlobPath {
+    session_id: u64,
+    blob_id: u64,
+}
+
 fn session_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
     get_param(r, "sessionId")
 }
 
 fn blob_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
     get_param(r, "blobId")
-}
-
-fn list_sessions<S>(_r: HttpRequest<S>) -> impl Responder {
-    manager_request::<SessionsManager, _>(ListSessions).responder()
 }
 
 fn create_session(
@@ -111,7 +116,7 @@ fn create_session(
     };
 
     SessionsManager::from_registry()
-        .send(CreateSession { info })
+        .send(manager::Create::from_info(info))
         .flatten_fut()
         .from_err()
         .and_then(|session_id| {
@@ -125,25 +130,21 @@ fn get_session(
     path: Path<SessionPath>,
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
     SessionsManager::from_registry()
-        .send(Update::new(path.session_id, |session| Ok(session.info())))
+        .send(manager::Update::new(path.session_id, |session| {
+            Ok(session.info())
+        }))
         .flatten_fut()
         .from_err()
         .and_then(|session_details| Ok(HttpResponse::Ok().json(session_details)))
-}
-
-fn delete_scope<S>(r: HttpRequest<S>) -> impl Responder {
-    let session = session_id(&r).map_err(|e| return e).unwrap();
-
-    manager_request::<SessionsManager, _>(DeleteSession { session }).responder()
 }
 
 fn get_config(
     path: Path<SessionPath>,
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
     SessionsManager::from_registry()
-        .send(GetMetadata {
-            session: path.session_id,
-        })
+        .send(manager::Update::new(path.session_id, |session| {
+            Ok(session.metadata().clone())
+        }))
         .flatten_fut()
         .from_err()
         .and_then(|metadata| Ok(HttpResponse::Ok().json(metadata)))
@@ -152,11 +153,11 @@ fn get_config(
 fn set_config(
     (path, body): (Path<SessionPath>, Json<gu_model::session::Metadata>),
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    let new_metadata = body.into_inner();
     SessionsManager::from_registry()
-        .send(SetMetadata {
-            session: path.session_id,
-            metadata: body.into_inner(),
-        })
+        .send(manager::Update::new(path.session_id, |session| {
+            session.set_metadata(new_metadata)
+        }))
         .flatten_fut()
         .from_err()
         .and_then(|new_version| Ok(HttpResponse::Ok().json(new_version)))
@@ -172,7 +173,7 @@ fn create_blob_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
             .fold(Vec::new(), move |mut blobs, part| {
                 session_manager
-                    .send(CreateBlob { session })
+                    .send(manager::CreateBlob { session })
                     .flatten_fut()
                     .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
                     .and_then(|(blob_id, blob)| {
@@ -196,28 +197,12 @@ fn create_blob_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             .responder()
     } else {
         session_manager
-            .send(CreateBlob { session })
+            .send(manager::CreateBlob { session })
             .flatten_fut()
             .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
             .and_then(|(blob_id, blob)| Ok(HttpResponse::Ok().json(blob_id)))
             .responder()
     }
-}
-
-fn delete_blob_scope<S>(r: HttpRequest<S>) -> impl Responder {
-    let session = session_id(&r).map_err(|e| return e).unwrap();
-    let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
-
-    SessionsManager::from_registry()
-        .send(Update::new(session, move |session| {
-            session.delete_blob(blob_id)
-        }))
-        .flatten_fut()
-        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
-        .and_then(|r| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()))
-        .responder()
-
-    //manager_request::<SessionsManager, _>(DeleteBlob { session, blob_id }).responder()
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
@@ -234,7 +219,9 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
     let manager = SessionsManager::from_registry();
 
-    let blob_fut = manager.send(GetBlob { session, blob_id }).flatten_fut();
+    let blob_fut = manager
+        .send(manager::GetBlob { session, blob_id })
+        .flatten_fut();
     let res_fut = blob_fut
         .and_then(move |res: SessionOk| match res {
             SessionOk::Blob(blob) => blob.write(r.payload()),
@@ -252,7 +239,9 @@ fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
     let manager = SessionsManager::from_registry();
 
-    let blob_fut = manager.send(GetBlob { session, blob_id }).flatten_fut();
+    let blob_fut = manager
+        .send(manager::GetBlob { session, blob_id })
+        .flatten_fut();
     let res_fut = blob_fut
         .and_then(move |res: SessionOk| match res {
             SessionOk::Blob(blob) => blob.read(),

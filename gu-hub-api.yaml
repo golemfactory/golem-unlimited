@@ -235,14 +235,14 @@ paths:
       summary: Manually adds peers to hub session
       operationId: addSessionPeers
       parameters:
-      - name: peerSet
-        in: body
-        required: true
-        schema:
-          type: array
-          items:
-            type: string
-          uniqueItems: true
+        - name: peerSet
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+            uniqueItems: true
       responses:
         '200':
           description: OK - peers added
@@ -268,7 +268,7 @@ paths:
       parameters:
         - $ref: '#/parameters/sessionId'
         - $ref: '#/parameters/nodeId'
-      - name: deploymentSpec
+        - name: deploymentSpec
           in: body
           required: true
           schema:
