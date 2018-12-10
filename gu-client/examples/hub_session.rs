@@ -18,19 +18,24 @@ fn main() {
                     SessionInfoBuilder::default()
                         .name("my session")
                         .environment("hd"),
-                ).and_then(|hub_session| {
+                )
+                .and_then(|hub_session| {
                     println!("New hub session ready: {:#?}.", hub_session);
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
-                }).and_then(|(hub_session, blob)| {
+                })
+                .and_then(|(hub_session, blob)| {
                     println!("New blob: {:#?}", blob);
                     future::ok(hub_session.clone()).join(hub_session.add_peers(&["a", "b", "c"]))
-                }).and_then(|(_hub_session, _)| {
+                })
+                .and_then(|(_hub_session, _)| {
                     println!("Successfully added peers.");
                     future::ok(())
-                }).map_err(|e| {
+                })
+                .map_err(|e| {
                     println!("An error occurred: {:#?}.", e);
                     ()
-                }).then(|_| {
+                })
+                .then(|_| {
                     actix::System::current().stop();
                     Ok(())
                 }),

@@ -81,7 +81,8 @@ impl HubConnection {
                         )));
                     }
                     future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
-                }).and_then(|body| {
+                })
+                .and_then(|body| {
                     future::ok(HubSession {
                         hub_connection: hub_connection_for_session,
                         session_id: match str::from_utf8(&body.to_vec()) {
@@ -109,7 +110,8 @@ impl HubConnection {
                             "HTTP Error: {}.",
                             status
                         )))),
-                    }).and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
+                    })
+                    .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
             ),
             Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
         }
@@ -180,7 +182,8 @@ impl HubSession {
                         "HTTP Error: {}.",
                         status
                     )))),
-                }).and_then(|body| {
+                })
+                .and_then(|body| {
                     future::ok(Blob {
                         hub_session: hub_session_copy,
                         blob_id: match str::from_utf8(&body.to_vec()) {
@@ -212,7 +215,8 @@ impl HubSession {
                             "HTTP Error: {}.",
                             status
                         )))),
-                    }).and_then(|answer_json: PeerInfo| {
+                    })
+                    .and_then(|answer_json: PeerInfo| {
                         future::ok(Peer {
                             peer_info: answer_json,
                             hub_session: hub_session_copy,
@@ -300,7 +304,8 @@ impl Peer {
                         )));
                     }
                     future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
-                }).and_then(|body| {
+                })
+                .and_then(|body| {
                     future::ok(PeerSession {
                         peer: peer_copy,
                         session_id: match str::from_utf8(&body.to_vec()) {

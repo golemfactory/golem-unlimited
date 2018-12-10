@@ -17,10 +17,12 @@ fn main() {
                 .and_then(|peers| {
                     peers.for_each(|peer| println!("peer_id={:#?}", peer.node_id));
                     future::ok(())
-                }).map_err(|e| {
+                })
+                .map_err(|e| {
                     println!("Error while listing peers: {:#?}.", e);
                     ()
-                }).then(|_| future::ok(actix::System::current().stop())),
+                })
+                .then(|_| future::ok(actix::System::current().stop())),
         );
     });
 }
