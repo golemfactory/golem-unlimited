@@ -18,7 +18,7 @@ pub struct SessionsManager {
 impl Actor for SessionsManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
+    fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
         let path = ConfigModule::new().work_dir().join("sessions");
 
         fs::DirBuilder::new()
@@ -102,7 +102,7 @@ where
 {
     type Result = ActorResponse<SessionsManager, R, SessionErr>;
 
-    fn handle(&mut self, msg: Update<Fact>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Update<Fact>, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(session) = self.sessions.get_mut(&msg.session_id) {
             let command = msg.command;
             let result = command(session).into_future();
@@ -173,7 +173,7 @@ impl SessionsManager {
         &mut self,
         info: SessionInfo,
     ) -> impl Future<Item = u64, Error = SessionErr> {
-        let (session, fut) = Session::new(info, self.path.join(format!("{}", self.next_id)));
+        let (session, _fut) = Session::new(info, self.path.join(format!("{}", self.next_id)));
 
         self.create_session_inner(session, None).into_future()
     }

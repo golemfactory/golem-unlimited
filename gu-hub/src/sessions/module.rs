@@ -74,7 +74,7 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     }))
                     .flatten_fut()
                     .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
-                    .and_then(|r| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()))
+                    .and_then(|_r| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()))
             });
         })
 }
@@ -200,7 +200,7 @@ fn create_blob_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             .send(manager::CreateBlob { session })
             .flatten_fut()
             .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
-            .and_then(|(blob_id, blob)| Ok(HttpResponse::Ok().json(blob_id)))
+            .and_then(|(blob_id, _blob)| Ok(HttpResponse::Ok().json(blob_id)))
             .responder()
     }
 }
