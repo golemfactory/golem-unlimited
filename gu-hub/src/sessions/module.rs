@@ -36,7 +36,14 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     .send(manager::List)
                     .flatten_fut()
                     .from_err::<actix_web::Error>()
-                    .and_then(|sessions| Ok(HttpResponse::Ok().json(sessions)))
+                    .and_then(|sessions| Ok(HttpResponse::Ok().json(
+                        sessions.into_iter().map(|(session_id, session_info)| gu_model::session::SessionDetails {
+                            id: session_id,
+                            created: Some(session_info.created),
+                            name: session_info.name,
+                            .. gu_model::session::SessionDetails::default()
+                        }).collect::<Vec<gu_model::session::SessionDetails>>()
+                    )))
             });
             r.post().with_async_config(create_session, |(cfg,)| {
                 cfg.limit(4096);
@@ -113,6 +120,7 @@ fn create_session(
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> + 'static {
     let info = SessionInfo {
         name: spec.into_inner().name,
+        created: chrono::Utc::now()
     };
 
     SessionsManager::from_registry()

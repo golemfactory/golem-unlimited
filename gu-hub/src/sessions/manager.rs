@@ -207,17 +207,19 @@ impl Supervised for SessionsManager {}
 impl SystemService for SessionsManager {}
 
 #[derive(Message)]
-#[rtype(result = "Result<Vec<SessionInfo>, SessionErr>")]
+#[rtype(result = "Result<Vec<(u64, SessionInfo)>, SessionErr>")]
 pub struct List;
 
 impl Handler<List> for SessionsManager {
-    type Result = Result<Vec<SessionInfo>, SessionErr>;
+    type Result = Result<Vec<(u64, SessionInfo)>, SessionErr>;
 
     fn handle(&mut self, _msg: List, _ctx: &mut Context<Self>) -> Self::Result {
         Ok(self
             .sessions
-            .values()
-            .map(|session| session.info())
+            .iter()
+            .map(|(session_id, session)| {
+                (*session_id, session.info())
+            })
             .collect())
     }
 }

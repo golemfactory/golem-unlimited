@@ -41,6 +41,23 @@ pub struct Metadata {
     pub entry: Map<String, JsonValue>,
 }
 
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDetails {
+    pub id : u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub allocation: AllocationMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub tags: Tags,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

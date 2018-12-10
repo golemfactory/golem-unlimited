@@ -14,6 +14,8 @@ use std::{
     fs, io,
     path::PathBuf,
 };
+use chrono::DateTime;
+use chrono::Utc;
 
 pub struct Session {
     info: SessionInfo,
@@ -25,9 +27,19 @@ pub struct Session {
     peers: HashMap<NodeId, PeerState>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SessionInfo {
     pub name: Option<String>,
+    pub created : DateTime<Utc>
+}
+
+impl Default for SessionInfo{
+    fn default() -> Self {
+        SessionInfo {
+            name: None,
+            created: Utc::now()
+        }
+    }
 }
 
 struct PeerState {
@@ -91,6 +103,10 @@ impl Session {
     }
 
     pub fn from_existing(path: PathBuf) -> impl Future<Item = Self, Error = String> {
+        let info_fut = read_async(path.join(".info")).concat2().and_then(|a| {
+            serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| e.to_string())
+        });
+
         let mut s = Session {
             info: SessionInfo::default(),
             state: Metadata::default(),
@@ -107,9 +123,6 @@ impl Session {
                 .map_err(|e| error!("{:?}", e));
         });
 
-        let info_fut = read_async(path.join(".info")).concat2().and_then(|a| {
-            serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| e.to_string())
-        });
 
         let config_fut = read_async(path.join(".json")).concat2().and_then(|a| {
             serde_json::from_slice::<Metadata>(a.as_ref()).map_err(|e| e.to_string())
