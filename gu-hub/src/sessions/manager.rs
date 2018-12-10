@@ -115,9 +115,6 @@ where
 }
 
 use super::session::Session;
-use actix::{
-    Actor, ActorResponse, Context, Handler, MessageResult, Supervised, SystemService, WrapFuture,
-};
 use futures::{future, Future, IntoFuture};
 use gu_model::session::Metadata;
 use gu_persist::config::ConfigModule;
@@ -127,6 +124,7 @@ use sessions::{
     responses::{SessionErr, SessionOk, SessionResult},
     session::{entries_id_iter, SessionInfo},
 };
+
 use std::{cmp, collections::HashMap, fs, path::PathBuf};
 
 impl SessionsManager {
@@ -217,9 +215,7 @@ impl Handler<List> for SessionsManager {
         Ok(self
             .sessions
             .iter()
-            .map(|(session_id, session)| {
-                (*session_id, session.info())
-            })
+            .map(|(session_id, session)| (*session_id, session.info()))
             .collect())
     }
 }

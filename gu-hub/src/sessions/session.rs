@@ -1,4 +1,6 @@
 use bytes::Bytes;
+use chrono::DateTime;
+use chrono::Utc;
 use futures::{future::IntoFuture, stream, Future, Stream};
 use gu_base::files::{read_async, write_async};
 use gu_model::session::Metadata;
@@ -14,8 +16,6 @@ use std::{
     fs, io,
     path::PathBuf,
 };
-use chrono::DateTime;
-use chrono::Utc;
 
 pub struct Session {
     info: SessionInfo,
@@ -30,14 +30,14 @@ pub struct Session {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SessionInfo {
     pub name: Option<String>,
-    pub created : DateTime<Utc>
+    pub created: DateTime<Utc>,
 }
 
-impl Default for SessionInfo{
+impl Default for SessionInfo {
     fn default() -> Self {
         SessionInfo {
             name: None,
-            created: Utc::now()
+            created: Utc::now(),
         }
     }
 }
@@ -122,7 +122,6 @@ impl Session {
                 .new_blob_inner(Blob::from_existing(path.join(format!("{}", id))), Some(id))
                 .map_err(|e| error!("{:?}", e));
         });
-
 
         let config_fut = read_async(path.join(".json")).concat2().and_then(|a| {
             serde_json::from_slice::<Metadata>(a.as_ref()).map_err(|e| e.to_string())
