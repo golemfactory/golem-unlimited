@@ -41,11 +41,10 @@ pub struct Metadata {
     pub entry: Map<String, JsonValue>,
 }
 
-
 #[derive(Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDetails {
-    pub id : u64,
+    pub id: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
