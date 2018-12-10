@@ -132,7 +132,8 @@ impl HdMan {
                 .filter_map(|(id, child)| match child.try_wait() {
                     Ok(Some(_exit_st)) => Some(id.clone()),
                     _ => None,
-                }).collect();
+                })
+                .collect();
 
             let some_finished = !finished.is_empty();
             for f in finished {
@@ -229,7 +230,8 @@ impl Handler<CreateSession> for HdMan {
                         fut::ok(sess_id)
                     }
                     Err(e) => fut::err(e),
-                }).map_err(move |e, act, _ctx| match act.destroy_session(&session_id) {
+                })
+                .map_err(move |e, act, _ctx| match act.destroy_session(&session_id) {
                     Ok(_) => Error::IoError(format!("creating session error: {:?}", e)),
                     Err(e) => e,
                 }),
@@ -244,9 +246,9 @@ impl Handler<SessionUpdate> for HdMan {
 
     fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
         if !self.sessions.contains_key(&msg.session_id) {
-            return ActorResponse::reply(Err(vec![
-                Error::NoSuchSession(msg.session_id).to_string(),
-            ]));
+            return ActorResponse::reply(Err(
+                vec![Error::NoSuchSession(msg.session_id).to_string()],
+            ));
         }
 
         let mut future_chain: Box<
@@ -268,7 +270,8 @@ impl Handler<SessionUpdate> for HdMan {
                             .map_err(|e| {
                                 vc.push(e.to_string());
                                 vc
-                            }).into_actor(act)
+                            })
+                            .into_actor(act)
                             .and_then(move |result, act, _ctx| {
                                 info!("sync cmd result: {:?}", result);
                                 if let ExecResult::Run(output) = result {
@@ -302,10 +305,12 @@ impl Handler<SessionUpdate> for HdMan {
                             .and_then(|child_id| {
                                 v.push(child_id);
                                 Ok(fut::ok(v))
-                            }).or_else(|e| {
+                            })
+                            .or_else(|e| {
                                 vc.push(e.to_string());
                                 Ok(fut::err(vc))
-                            }).map_err(|e: Error| e)
+                            })
+                            .map_err(|e: Error| e)
                             .unwrap()
                     }));
                 }
@@ -318,10 +323,12 @@ impl Handler<SessionUpdate> for HdMan {
                                 Some(child) => fut::Either::A(
                                     fut::wrap_future(
                                         SyncExecManager::from_registry().send(Exec::Kill(child)),
-                                    ).map_err(|e, _act: &mut Self, _ctx| {
+                                    )
+                                    .map_err(|e, _act: &mut Self, _ctx| {
                                         vc.push(format!("{}", e));
                                         vc
-                                    }).and_then(
+                                    })
+                                    .and_then(
                                         move |result, act, _ctx| {
                                             if let Ok(ExecResult::Kill(output)) = result {
                                                 match act.get_session_mut(&session_id) {
@@ -425,7 +432,8 @@ fn handle_download_file(
                     v.push(e.to_string());
                     Err(v)
                 }
-            }).into_actor(act)
+            })
+            .into_actor(act)
     })
 }
 
@@ -449,11 +457,13 @@ fn handle_upload_file(
                             } else {
                                 Err(format!("Unsuccessful file upload: {}", res.status()))
                             }
-                        }).map_err(|e| {
+                        })
+                        .map_err(|e| {
                             v.push(e.to_string());
                             v
                         })
-                    }).into_actor(act),
+                    })
+                    .into_actor(act),
             ),
             Err(e) => {
                 v.push(e.to_string());
@@ -483,7 +493,8 @@ impl Handler<GetSessions> for HdMan {
                 tags: Vec::from_iter(session.tags.clone().into_iter()),
                 note: session.note.clone(),
                 processes: session.processes.keys().cloned().collect(),
-            }).collect())
+            })
+            .collect())
     }
 }
 

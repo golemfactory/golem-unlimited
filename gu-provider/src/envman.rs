@@ -124,7 +124,8 @@ impl Handler<SessionUpdate> for EnvMan {
                 r.send(SessionUpdate {
                     session_id: session_id.into(),
                     commands: msg.commands,
-                }).map_err(|_e| Vec::new())
+                })
+                .map_err(|_e| Vec::new())
                 .flatten_fut()
                 .into_actor(self),
             ),
@@ -146,7 +147,8 @@ impl Handler<GetSessions> for EnvMan {
                 .map(|session| PeerSessionInfo {
                     id: format!("{}::{}", prefix, session.id),
                     ..session
-                }).collect()
+                })
+                .collect()
         }
 
         let j = future::join_all(
@@ -159,7 +161,8 @@ impl Handler<GetSessions> for EnvMan {
                         .map_err(|_| ())
                         .flatten_fut()
                         .and_then(|sessions| Ok(add_sessions_prefix(prefix, sessions)))
-                }).collect::<Vec<_>>(),
+                })
+                .collect::<Vec<_>>(),
         );
 
         ActorResponse::async(
@@ -188,7 +191,8 @@ impl Handler<DestroySession> for EnvMan {
                     .send(DestroySession {
                         session_id: session_id.into(),
                         ..msg
-                    }).flatten_fut()
+                    })
+                    .flatten_fut()
                     .into_actor(self),
             ),
             None => ActorResponse::reply(Err(Error::UnknownEnv(prefix.into()))),

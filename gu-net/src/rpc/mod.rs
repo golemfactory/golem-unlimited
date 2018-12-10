@@ -15,7 +15,7 @@ mod error {
 
     use quick_protobuf;
 
-    error_chain!{
+    error_chain! {
 
         errors {
             NotConnected

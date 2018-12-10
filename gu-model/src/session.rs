@@ -69,7 +69,8 @@ mod test {
             entry: vec![
                 ("ala".to_owned(), json!(17)),
                 ("kot".to_owned(), json!({"a": 7})),
-            ].into_iter()
+            ]
+            .into_iter()
             .collect(),
         };
 

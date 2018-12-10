@@ -122,7 +122,8 @@ impl Handler<HardwareQuery> for HardwareActor {
                         hostname,
                         num_cores: num_cpus::get_physical(),
                     })
-                }).into_actor(self),
+                })
+                .into_actor(self),
         )
     }
 }

@@ -34,15 +34,21 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             r.post().with_async_config(create_session, |(cfg,)| {
                 cfg.limit(4096);
             });
-        }).route("/{sessionId}", http::Method::GET, info_scope)
-        .route("/{sessionId}", http::Method::DELETE, delete_scope)
+        })
+        .resource("/{sessionId}", |r| {
+            r.get().with_async(get_session);
+            r.delete().with(delete_scope)
+        })
         .resource("/{sessionId}/config", |r| {
+            r.name("hub-session-config");
             r.get().with_async(get_config);
             r.put().with_async(set_config);
-        }).resource("/{sessionId}/blobs", |r| {
+        })
+        .resource("/{sessionId}/blobs", |r| {
             r.name("hub-session-blobs");
             r.post().with(create_blob_scope);
-        }).resource("/{sessionId}/blobs/{blobId}", |r| {
+        })
+        .resource("/{sessionId}/blobs/{blobId}", |r| {
             r.name("hub-session-blob");
             r.get().with(download_scope);
             r.put().with(upload_scope);
@@ -115,10 +121,14 @@ fn create_session(
         })
 }
 
-fn info_scope<S>(r: HttpRequest<S>) -> impl Responder {
-    let session = session_id(&r).map_err(|e| return e).unwrap();
-
-    manager_request::<SessionsManager, _>(GetSessionInfo { session }).responder()
+fn get_session(
+    path: Path<SessionPath>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(Update::new(path.session_id, |session| Ok(session.info())))
+        .flatten_fut()
+        .from_err()
+        .and_then(|session_details| Ok(HttpResponse::Ok().json(session_details)))
 }
 
 fn delete_scope<S>(r: HttpRequest<S>) -> impl Responder {
@@ -133,8 +143,9 @@ fn get_config(
     SessionsManager::from_registry()
         .send(GetMetadata {
             session: path.session_id,
-        }).flatten_fut()
-        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+        })
+        .flatten_fut()
+        .from_err()
         .and_then(|metadata| Ok(HttpResponse::Ok().json(metadata)))
 }
 
@@ -145,8 +156,9 @@ fn set_config(
         .send(SetMetadata {
             session: path.session_id,
             metadata: body.into_inner(),
-        }).flatten_fut()
-        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+        })
+        .flatten_fut()
+        .from_err()
         .and_then(|new_version| Ok(HttpResponse::Ok().json(new_version)))
 }
 
@@ -178,7 +190,8 @@ fn create_blob_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
                             _ => futures::future::Either::A(futures::future::ok(blobs)),
                         }
                     })
-            }).map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+            })
+            .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
             .and_then(move |blobs| Ok(HttpResponse::Ok().json(blobs)))
             .responder()
     } else {
@@ -195,7 +208,16 @@ fn delete_blob_scope<S>(r: HttpRequest<S>) -> impl Responder {
     let session = session_id(&r).map_err(|e| return e).unwrap();
     let blob_id = blob_id(&r).map_err(|e| return e).unwrap();
 
-    manager_request::<SessionsManager, _>(DeleteBlob { session, blob_id }).responder()
+    SessionsManager::from_registry()
+        .send(Update::new(session, move |session| {
+            session.delete_blob(blob_id)
+        }))
+        .flatten_fut()
+        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+        .and_then(|r| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()))
+        .responder()
+
+    //manager_request::<SessionsManager, _>(DeleteBlob { session, blob_id }).responder()
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
@@ -217,7 +239,8 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
         .and_then(move |res: SessionOk| match res {
             SessionOk::Blob(blob) => blob.write(r.payload()),
             _ => unreachable!(),
-        }).and_then(|result| Ok(Into::<HttpResponse>::into(result)));
+        })
+        .and_then(|result| Ok(Into::<HttpResponse>::into(result)));
 
     session_future_responder(res_fut)
 }
@@ -234,12 +257,14 @@ fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
         .and_then(move |res: SessionOk| match res {
             SessionOk::Blob(blob) => blob.read(),
             _oth => unreachable!(),
-        }).and_then(move |(n, sha)| {
+        })
+        .and_then(move |(n, sha)| {
             n.respond_to(&r)
                 .and_then(|mut r| {
                     r.headers_mut().insert(ETAG, sha);
                     Ok(r)
-                }).map_err(|e| SessionErr::FileError(e.to_string()))
+                })
+                .map_err(|e| SessionErr::FileError(e.to_string()))
         });
 
     session_future_responder(res_fut)

@@ -161,7 +161,8 @@ mod test {
                     .send(Exec::Run {
                         executable: "/bin/echo".into(),
                         args: vec!["zima".into()],
-                    }).flatten_fut()
+                    })
+                    .flatten_fut()
                     .and_then(|o: ExecResult| match o {
                         ExecResult::Run(o) => {
                             assert!(o.status.success());
@@ -171,7 +172,8 @@ mod test {
                             Ok(())
                         }
                         r => panic!("wrong result: {:?}", r),
-                    }).map_err(|e| panic!("error: {}", e))
+                    })
+                    .map_err(|e| panic!("error: {}", e))
                     .then(|_| Ok(System::current().stop())),
             )
         });

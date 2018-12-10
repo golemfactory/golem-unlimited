@@ -323,7 +323,8 @@ where
                                     .map_err(move |e| error::ErrorKind::Json(e).into())
                             }),
                     )
-                }).into_actor(self),
+                })
+                .into_actor(self),
         )
     }
 }
