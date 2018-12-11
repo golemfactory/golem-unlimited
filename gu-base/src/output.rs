@@ -3,6 +3,18 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use env_logger;
 use std::env;
 
+static mut LISTING_FORMAT: ListingFormat = ListingFormat::Table;
+
+#[derive(Clone, Copy)]
+pub(crate) enum ListingFormat {
+    Json,
+    Table,
+}
+
+pub(crate) fn listing_format() -> ListingFormat {
+    unsafe { LISTING_FORMAT }
+}
+
 pub struct LogModule;
 
 impl LogModule {
@@ -19,6 +31,11 @@ impl Module for LogModule {
                 .multiple(true)
                 .help("Sets the level of verbosity"),
         )
+        .arg(
+            Arg::with_name("json")
+                .long("json")
+                .help("Sets the output format to json"),
+        )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
@@ -33,6 +50,10 @@ impl Module for LogModule {
                 _ => env::set_var("RUST_LOG", "debug"),
             }
         }
+        if matches.is_present("json") {
+            unsafe { LISTING_FORMAT = ListingFormat::Json }
+        }
+
         env_logger::init();
         false
     }
