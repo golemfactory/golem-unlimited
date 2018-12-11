@@ -1,6 +1,6 @@
 use actix::{fut, prelude::*};
 use gu_actix::*;
-use std::{io, process};
+use std::{io, path::PathBuf, process};
 
 /// Synchronous executor
 pub struct SyncExec;
@@ -40,6 +40,7 @@ pub enum Exec {
     Run {
         executable: String,
         args: Vec<String>,
+        cwd: PathBuf,
     },
     Kill(process::Child),
 }
@@ -75,10 +76,18 @@ impl Handler<Exec> for SyncExec {
     fn handle(&mut self, msg: Exec, _ctx: &mut Self::Context) -> Self::Result {
         debug!("synchronously executing: {:?}", &msg);
         match msg {
-            Exec::Run { executable, args } => {
+            Exec::Run {
+                executable,
+                args,
+                cwd,
+            } => {
                 // TODO: critical section
                 // TODO: env::set_current_dir(&base_dir)?;
-                match process::Command::new(&executable).args(&args).output() {
+                let output = process::Command::new(&executable)
+                    .current_dir(&cwd)
+                    .args(&args)
+                    .output();
+                match output {
                     Ok(output) => {
                         if output.status.success() {
                             debug!(
@@ -137,6 +146,7 @@ mod test {
                     .send(Exec::Run {
                         executable: "/bin/ls".into(),
                         args: vec!["/1234567890asdfghjkl".into()],
+                        cwd: "/".into()
                     }).flatten_fut()
                     .and_then(|o: ExecResult| match o {
                         ExecResult::Run(o) => {
@@ -161,6 +171,7 @@ mod test {
                     .send(Exec::Run {
                         executable: "/bin/echo".into(),
                         args: vec!["zima".into()],
+                        cwd: "/".into(),
                     })
                     .flatten_fut()
                     .and_then(|o: ExecResult| match o {
@@ -168,6 +179,33 @@ mod test {
                             assert!(o.status.success());
                             assert_eq!(o.status.code(), Some(0));
                             assert_eq!(String::from_utf8_lossy(&o.stdout), "zima\n");
+                            assert_eq!(String::from_utf8_lossy(&o.stderr), "");
+                            Ok(())
+                        }
+                        r => panic!("wrong result: {:?}", r),
+                    })
+                    .map_err(|e| panic!("error: {}", e))
+                    .then(|_| Ok(System::current().stop())),
+            )
+        });
+    }
+
+    #[test]
+    fn test_sync_exec_pwd() {
+        System::run(|| {
+            Arbiter::spawn(
+                SyncExecManager::from_registry()
+                    .send(Exec::Run {
+                        executable: "/bin/pwd".into(),
+                        args: vec![],
+                        cwd: "/var/tmp".into(),
+                    })
+                    .flatten_fut()
+                    .and_then(|o: ExecResult| match o {
+                        ExecResult::Run(o) => {
+                            assert!(o.status.success());
+                            assert_eq!(o.status.code(), Some(0));
+                            assert_eq!(String::from_utf8_lossy(&o.stdout), "/var/tmp\n");
                             assert_eq!(String::from_utf8_lossy(&o.stderr), "");
                             Ok(())
                         }

@@ -257,6 +257,7 @@ impl Handler<SessionUpdate> for HdMan {
 
         for cmd in msg.commands {
             let session_id = msg.session_id.clone();
+            let session_dir = self.get_session_path(&session_id).to_owned();
 
             match cmd {
                 Command::Exec { executable, args } => {
@@ -265,7 +266,11 @@ impl Handler<SessionUpdate> for HdMan {
                         let mut vc = v.clone();
                         info!("executing sync: {} {:?}", executable, args);
                         SyncExecManager::from_registry()
-                            .send(Exec::Run { executable, args })
+                            .send(Exec::Run {
+                                executable,
+                                args,
+                                cwd: session_dir,
+                            })
                             .flatten_fut()
                             .map_err(|e| {
                                 vc.push(e.to_string());
