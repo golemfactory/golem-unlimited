@@ -229,20 +229,20 @@ impl Handler<Create> for SessionsManager {
 }
 
 impl Handler<Delete> for SessionsManager {
-    type Result = Result<(), SessionErr>;
+    type Result = ActorResponse<SessionsManager, (), SessionErr>;
 
-    fn handle(&mut self, msg: Delete, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: Delete, ctx: &mut Context<Self>) -> Self::Result {
         let mut session = match self.sessions.remove(&msg.session_id) {
-            None => return Err(SessionErr::SessionNotFoundError),
+            None => return ActorResponse::reply(Err(SessionErr::SessionNotFoundError)),
             Some(session) => session,
         };
 
         // TODO: This should by async
-        session
-            .clean_directory()
-            .map_err(|e| SessionErr::FileError(e.to_string()))?;
-
-        Ok(())
+        match session.clean_directory() {
+            Ok(_) => (),
+            Err(e) => return ActorResponse::reply(Err(SessionErr::FileError(e.to_string()))),
+        }
+        ActorResponse::async(session.drop_deployments().into_actor(self))
     }
 }
 

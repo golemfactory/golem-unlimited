@@ -31,6 +31,8 @@ pub struct Session {
 pub struct SessionInfo {
     pub name: Option<String>,
     pub created: DateTime<Utc>,
+    pub expire: Option<DateTime<Utc>>,
+    pub tags: Option<HashSet<String>>,
 }
 
 impl Default for SessionInfo {
@@ -38,10 +40,13 @@ impl Default for SessionInfo {
         SessionInfo {
             name: None,
             created: Utc::now(),
+            expire: None,
+            tags: None,
         }
     }
 }
 
+#[derive(Default)]
 struct PeerState {
     deployments: HashSet<String>,
 }
@@ -214,4 +219,62 @@ impl Session {
             false => Ok(()),
         }
     }
+
+    pub fn drop_deployments(&mut self) -> impl Future<Item = (), Error = SessionErr> {
+        futures::future::join_all(
+            self.peers
+                .iter_mut()
+                .map(|(node_id_ref, peer_info)| {
+                    let node_id = *node_id_ref;
+                    peer_info
+                        .deployments
+                        .drain()
+                        .map(move |session_id| drop_peer_deployment(node_id, session_id))
+                })
+                .flatten()
+                .collect::<Vec<_>>(),
+        )
+        .and_then(|results| Ok(()))
+    }
+
+    pub fn add_peers<Nodes: IntoIterator<Item = NodeId>>(
+        &mut self,
+        peers: Nodes,
+    ) -> impl Future<Item = Vec<NodeId>, Error = SessionErr> {
+        for node_id in peers.into_iter() {
+            if !self.peers.contains_key(&node_id) {
+                let _ = self.peers.insert(node_id, PeerState::default());
+            }
+        }
+        futures::future::ok(self.peers.keys().cloned().collect())
+    }
+
+    pub fn peers(&self) -> Vec<NodeId> {
+        self.peers.keys().cloned().collect()
+    }
+
+    pub fn create_deployment(
+        &mut self,
+        node_id: NodeId,
+        spec: gu_model::envman::CreateSession,
+    ) -> impl Future<Item = String, Error = SessionErr> {
+        if let Some(mut peer) = self.peers.get_mut(&node_id) {
+            unimplemented!()
+        } else {
+            futures::future::err(SessionErr::SessionNotFoundError)
+        }
+    }
+}
+
+fn drop_peer_deployment(
+    node_id: NodeId,
+    session_id: String,
+) -> impl Future<Item = (), Error = SessionErr> {
+    use gu_model::envman::DestroySession;
+    use gu_net::rpc::peer;
+
+    peer(node_id)
+        .into_endpoint()
+        .send(DestroySession { session_id })
+        .then(|_| Ok(()))
 }

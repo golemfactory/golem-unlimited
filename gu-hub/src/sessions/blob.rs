@@ -1,5 +1,7 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
+use gu_actix::prelude::*;
+
 use super::responses::*;
 use actix::{Actor, ActorResponse, Addr, AsyncContext, Context, Handler, Recipient, WrapFuture};
 use actix_web::{dev::Payload, fs::NamedFile, http::header::HeaderValue};
@@ -47,6 +49,10 @@ impl FileLockActor {
     }
 }
 
+use std::sync::atomic::{AtomicIsize, Ordering};
+
+static mut LOCK_CTN: AtomicIsize = AtomicIsize::new(0);
+
 impl Default for FileLockActor {
     fn default() -> Self {
         let x: Box<Future<Item = Sha1, Error = SessionErr> + Send> =
@@ -65,6 +71,20 @@ impl Default for FileLockActor {
 
 impl Actor for FileLockActor {
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
+        unsafe {
+            let v = LOCK_CTN.fetch_add(1, Ordering::SeqCst);
+            debug!("lock ctn: {}", v)
+        }
+    }
+
+    fn stopped(&mut self, ctx: &mut <Self as Actor>::Context) {
+        unsafe {
+            let v = LOCK_CTN.fetch_add(-1, Ordering::SeqCst);
+            debug!("unlock ctn: {}", v)
+        }
+    }
 }
 
 #[derive(Message)]
@@ -208,10 +228,10 @@ fn recalculate_sha1(path: PathBuf) -> impl Future<Item = Sha1, Error = SessionEr
 fn write_dag_future(
     queue: &mut BTreeMap<(u64, u64), Shared<Box<Future<Item = (), Error = ()> + Send>>>,
 ) -> impl Future<Item = (), Error = SessionErr> + Send {
-    use std::u64::{MAX, MIN};
+    use std::u64;
 
-    let write_begin = MIN;
-    let write_end = MAX;
+    let write_begin = u64::MIN;
+    let write_end = u64::MAX;
     let mut wait_list = Vec::new();
     let mut remove_list = Vec::new();
 
@@ -273,8 +293,7 @@ impl Blob {
     {
         self.lock
             .send(WriteAccessRequest)
-            .map_err(|e| SessionErr::MailboxError(e.to_string()))
-            .and_then(|a| a)
+            .flatten_fut()
             .and_then(move |_access: WriteAccess| {
                 write_async(fut, self.path.clone()).map_err(|e| SessionErr::FileError(e))
             })
@@ -298,6 +317,7 @@ impl Blob {
             })
     }
 
+    // TODO: Async?
     pub fn clean_file(&self) -> io::Result<()> {
         match (&self.path).exists() {
             true => fs::remove_file(&self.path),

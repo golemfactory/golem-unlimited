@@ -13,6 +13,7 @@ use futures::stream::Stream;
 use gu_actix::prelude::*;
 use gu_base::Module;
 use gu_model::session::HubSessionSpec;
+use gu_net::NodeId;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sessions::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
@@ -91,6 +92,47 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     .and_then(|_r| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()))
             });
         })
+        .resource("/{sessionId}/peers", |r| {
+            r.post()
+                .with_async(|(path, nodes): (Path<SessionPath>, Json<Vec<NodeId>>)| {
+                    SessionsManager::from_registry()
+                        .send(manager::Update::new(path.session_id, move |session| {
+                            session.add_peers(nodes.into_inner())
+                        }))
+                        .flatten_fut()
+                        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+                        .and_then(|peers| Ok(HttpResponse::Ok().json(peers)))
+                });
+
+            r.get().with_async(|path: Path<SessionPath>| {
+                SessionsManager::from_registry()
+                    .send(manager::Update::new(path.session_id, move |session| {
+                        let peers = session.peers();
+                        Ok(peers
+                            .into_iter()
+                            .map(|node_id| gu_model::peers::PeerInfo {
+                                node_id: node_id,
+                                ..gu_model::peers::PeerInfo::default()
+                            })
+                            .collect())
+                    }))
+                    .flatten_fut()
+                    .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+                    .and_then(|peers: Vec<_>| Ok(HttpResponse::Ok().json(peers)))
+            })
+        })
+        .resource("/{sessionId}/peers/{nodeId}/deployments", |r| {
+            r.post().with_async(
+                |(path, body): (Path<SessionNodePath>, Json<gu_model::envman::CreateSession>)| {
+                    SessionsManager::from_registry()
+                        .send(manager::Update::new(path.session_id, move |session| {
+                            session.create_deployment(path.node_id, body.into_inner())
+                        }))
+                        .flatten_fut()
+                        .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
+                },
+            )
+        })
 }
 
 fn get_param<S>(r: &HttpRequest<S>, name: &'static str) -> ActixResult<u64> {
@@ -114,6 +156,13 @@ struct SessionBlobPath {
     blob_id: u64,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionNodePath {
+    session_id: u64,
+    node_id: NodeId,
+}
+
 fn session_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
     get_param(r, "sessionId")
 }
@@ -128,6 +177,8 @@ fn create_session(
     let info = SessionInfo {
         name: spec.into_inner().name,
         created: chrono::Utc::now(),
+        expire: None,
+        tags: None,
     };
 
     SessionsManager::from_registry()
