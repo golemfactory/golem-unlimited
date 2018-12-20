@@ -5,9 +5,9 @@ use actix::prelude::*;
 use futures::{future, prelude::*};
 use gu_actix::prelude::*;
 use gu_base;
-use gu_envman_api::*;
+use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
-use gu_net::rpc::{RemotingContext, RemotingSystemService};
+use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
@@ -125,7 +125,8 @@ impl Handler<SessionUpdate> for EnvMan {
                 r.send(SessionUpdate {
                     session_id: session_id.into(),
                     commands: msg.commands,
-                }).map_err(|_e| Vec::new())
+                })
+                .map_err(|_e| Vec::new())
                 .flatten_fut()
                 .into_actor(self),
             ),
@@ -147,7 +148,8 @@ impl Handler<GetSessions> for EnvMan {
                 .map(|session| PeerSessionInfo {
                     id: format!("{}::{}", prefix, session.id),
                     ..session
-                }).collect()
+                })
+                .collect()
         }
 
         let j = future::join_all(
@@ -160,7 +162,8 @@ impl Handler<GetSessions> for EnvMan {
                         .map_err(|_| ())
                         .flatten_fut()
                         .and_then(|sessions| Ok(add_sessions_prefix(prefix, sessions)))
-                }).collect::<Vec<_>>(),
+                })
+                .collect::<Vec<_>>(),
         );
 
         ActorResponse::async(
@@ -189,7 +192,8 @@ impl Handler<DestroySession> for EnvMan {
                     .send(DestroySession {
                         session_id: session_id.into(),
                         ..msg
-                    }).flatten_fut()
+                    })
+                    .flatten_fut()
                     .into_actor(self),
             ),
             None => ActorResponse::reply(Err(Error::UnknownEnv(prefix.into()))),

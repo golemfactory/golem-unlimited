@@ -38,7 +38,7 @@ gu-persist = { path = "../gu-persist" }
 gu-lan = { path = "../gu-lan"}
 gu-ethkey = { path = "../gu-ethkey"}
 gu-hardware = { path = "../gu-hardware"}
-gu-envman-api = { path = "../gu-envman-api" }
+gu-model = { path = "../gu-model" }
 
 
 async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger" }

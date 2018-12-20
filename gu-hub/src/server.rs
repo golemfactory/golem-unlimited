@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use clap::{App, ArgMatches, SubCommand};
+use clap::{App, ArgMatches};
 use gu_actix::*;
 use std::{borrow::Cow, net::ToSocketAddrs, sync::Arc};
 
@@ -10,7 +10,10 @@ use actix::{
 };
 use actix_web;
 use futures::Future;
-use gu_base::{daemon_module::DaemonModule, Decorator, Module};
+use gu_base::{
+    daemon_lib::{DaemonCommand, DaemonHandler},
+    Decorator, Module,
+};
 use gu_ethkey::prelude::*;
 use gu_net::{
     rpc::{self, mock},
@@ -70,14 +73,14 @@ impl config::HasSectionId for HubConfig {
 }
 
 pub struct ServerModule {
-    active: bool,
+    daemon_command: DaemonCommand,
     config_path: Option<String>,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
-            active: false,
+            daemon_command: DaemonCommand::None,
             config_path: None,
         }
     }
@@ -85,26 +88,23 @@ impl ServerModule {
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-        app.subcommand(SubCommand::with_name("server").about("Hub server management"))
+        app.subcommand(DaemonHandler::subcommand())
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        let config_path = match matches.value_of("config-dir") {
+        self.config_path = match matches.value_of("config-dir") {
             Some(v) => Some(v.to_string()),
             None => None,
         };
 
-        if let Some(_m) = matches.subcommand_matches("server") {
-            self.active = true;
-            self.config_path = config_path.to_owned();
-        }
-        false
+        self.daemon_command = DaemonHandler::consume(matches);
+        self.daemon_command != DaemonCommand::None
     }
 
     fn run<D: Decorator + 'static + Sync + Send>(&self, decorator: D) {
-        let daemon: &DaemonModule = decorator.extract().unwrap();
+        let config_module: &ConfigModule = decorator.extract().unwrap();
 
-        if !daemon.run() {
+        if !DaemonHandler::hub(self.daemon_command, config_module.work_dir()).run() {
             return;
         }
 
@@ -168,7 +168,8 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")
                             .expect("cannot provide static files"),
-                    ).scope("/m", mock::scope)
+                    )
+                    .scope("/m", mock::scope)
                     .resource("/ws/", |r| r.route().f(chat_route)),
             )
         });

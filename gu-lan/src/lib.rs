@@ -117,8 +117,10 @@ pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
                             None
                         }
                     }
-                }).collect())
-        }).map_err(|_e| ())
+                })
+                .collect())
+        })
+        .map_err(|_e| ())
 }
 
 use mdns::{Responder, Service};

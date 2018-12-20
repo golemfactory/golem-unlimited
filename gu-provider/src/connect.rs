@@ -147,10 +147,7 @@ impl Module for ConnectModule {
             _ => State::None,
         };
 
-        match self.state {
-            State::None => false,
-            _ => true,
-        }
+        self.state != State::None
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
@@ -165,7 +162,8 @@ impl Module for ConnectModule {
                     ProviderClient::post_json(
                         endpoint.to_string(),
                         Vec::from_iter(a.into_iter().map(|x| format!("{}:{}", x.ip(), x.port()))),
-                    ).and_then(|()| Ok(()))
+                    )
+                    .and_then(|()| Ok(()))
                     .map_err(|e| error!("state {:?}", e))
                     .then(|_r| Ok(System::current().stop())),
                 ),
@@ -186,7 +184,8 @@ impl Module for ConnectModule {
                                     .filter(|e| match listing_type {
                                         ListingType::All => true,
                                         lt => e.1 == lt,
-                                    }).map(|e| {
+                                    })
+                                    .map(|e| {
                                         row![
                                             match e.0 {
                                                 SocketAddr::V4(_) => "V4",
@@ -199,7 +198,8 @@ impl Module for ConnectModule {
                                     }),
                             );
                             Ok(())
-                        }).map_err(|e| error!("list {:?}", e))
+                        })
+                        .map_err(|e| error!("list {:?}", e))
                         .then(|_r| Ok(System::current().stop())),
                 ),
                 _ => unimplemented!(),
@@ -223,7 +223,8 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     "/connect",
                     method.clone(),
                     connect_lambda(ConnectionChange::Connect),
-                ).route(
+                )
+                .route(
                     "/disconnect",
                     method,
                     connect_lambda(ConnectionChange::Disconnect),
@@ -237,15 +238,18 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                 .route("/pending", http::Method::GET, list_scope)
                 .route("/connected", http::Method::GET, list_scope)
                 .route("/all", http::Method::GET, list_scope)
-        }).route(
+        })
+        .route(
             "/mode/auto",
             http::Method::PUT,
             mode_lambda(ConnectMode::Auto),
-        ).route(
+        )
+        .route(
             "/mode/manual",
             http::Method::PUT,
             mode_lambda(ConnectMode::Manual),
-        ).nested("/", edit_connection_scope(http::Method::POST))
+        )
+        .nested("/", edit_connection_scope(http::Method::POST))
 }
 
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -260,13 +264,15 @@ fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
         .send(ListSockets)
         .map_err(|e| {
             ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
-        }).and_then(|result| {
+        })
+        .and_then(|result| {
             result
                 .and_then(|list| Ok(HttpResponse::Ok().json(list)))
                 .map_err(|e| {
                     ErrorInternalServerError(format!("Error during message processing {:?}", e))
                 })
-        }).responder()
+        })
+        .responder()
 }
 
 fn mode_scope<S>(r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
@@ -274,18 +280,22 @@ fn mode_scope<S>(r: HttpRequest<S>, m: &ConnectMode) -> impl Responder {
         .send(ConnectModeMessage {
             mode: m.clone(),
             save: parse_save_param(&r),
-        }).map_err(|e| {
+        })
+        .map_err(|e| {
             ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
-        }).and_then(|result| {
+        })
+        .and_then(|result| {
             result
                 .and_then(|_| {
                     Ok(HttpResponse::Ok()
                         .content_type("application/json")
                         .body("null"))
-                }).map_err(|e| {
+                })
+                .map_err(|e| {
                     ErrorInternalServerError(format!("Error during message processing {:?}", e))
                 })
-        }).responder()
+        })
+        .responder()
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -321,19 +331,23 @@ fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
             .map_err(|e| {
                 ErrorInternalServerError(format!("Mailbox error during message processing {:?}", e))
             })
-    }).and_then(|result| {
+    })
+    .and_then(|result| {
         result
             .and_then(|_| {
                 Ok(HttpResponse::Ok()
                     .content_type("application/json")
                     .body("null"))
-            }).map_err(|e| {
+            })
+            .map_err(|e| {
                 ErrorInternalServerError(format!("Error during message processing {:?}", e))
             })
-    }).map_err(|e| {
+    })
+    .map_err(|e| {
         error!("{}", e);
         e
-    }).responder()
+    })
+    .responder()
 }
 
 fn parse_save_param<S>(r: &HttpRequest<S>) -> bool {
@@ -412,7 +426,8 @@ where
             } else {
                 future::Either::B(future::ok(None))
             }
-        }).map_err(|e| e.to_string())
+        })
+        .map_err(|e| e.to_string())
 }
 
 fn edit_config_list(
@@ -583,7 +598,8 @@ impl Handler<AutoMdns> for ConnectManager {
                     .send(SubscribeInstance {
                         service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),
                         rec: ctx.address().recipient(),
-                    }).flatten_fut()
+                    })
+                    .flatten_fut()
                     .map_err(|e| format!("{}", e))
                     .into_actor(self)
                     .and_then(|res, act: &mut Self, _ctx| {

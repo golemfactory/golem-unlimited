@@ -23,8 +23,8 @@ extern crate serde;
 extern crate serde_derive;
 #[cfg(feature = "env-docker")]
 extern crate async_docker;
-extern crate gu_envman_api;
 
+extern crate gu_model;
 #[macro_use]
 extern crate serde_json;
 extern crate tar;
@@ -60,9 +60,7 @@ fn main() {
 
     GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
         LogModule
-            .chain(daemon_module::DaemonModule::provider(
-                config_module.work_dir().to_path_buf(),
-            )).chain(config_module)
+            .chain(config_module)
             .chain(dockerman::module())
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())

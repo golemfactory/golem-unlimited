@@ -54,5 +54,6 @@ pub trait RemotingSystemService: Actor<Context = RemotingContext<Self>> + Defaul
         //start_actor(Self::default())
         /*RemotingRegistry::from_registry().send(GetAddr::default())
             .wait().unwrap()
-        */    }
+        */
+    }
 }

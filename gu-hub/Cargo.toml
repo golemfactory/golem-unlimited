@@ -14,7 +14,7 @@ gu-lan = { path = "../gu-lan" }
 gu-ethkey = { path = "../gu-ethkey"}
 gu-hardware = { path = "../gu-hardware" }
 gu-event-bus = { path = "../gu-event-bus" }
-
+gu-model = { path = "../gu-model" }
 
 clap = "2.32"
 log="0.4"
@@ -38,6 +38,7 @@ sha1 = "0.6.0"
 mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
 
 prettytable-rs="0.7"
+chrono = { version = "0.4", features = ["serde"] }
 
 [features]
 default=["actix-web/rust-tls"]

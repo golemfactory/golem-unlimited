@@ -6,7 +6,7 @@ use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_envman_api::*;
+use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -60,7 +60,15 @@ impl Handler<CreateSession> for DockerMan {
                     .with_open_stdin(true)
                     .with_attach_stdin(true)
                     .with_attach_stderr(true)
-                    .with_attach_stdout(true);
+                    .with_attach_stdout(true)
+                    .with_volumes(
+                        [("/workspace".to_string(), json!({}))]
+                            .to_vec()
+                            .into_iter()
+                            .collect(),
+                    )
+                    .with_host_config(async_docker::models::ContainerSummaryInnerHostConfig::new());
+
                 //--.with_volumes([("/gu-data".to_string(), json!({}))].to_vec().into_iter().collect());
 
                 info!("config: {:?}", &opts);
@@ -86,7 +94,7 @@ impl Handler<SessionUpdate> for DockerMan {
         msg: SessionUpdate,
         ctx: &mut Self::Context,
     ) -> <Self as Handler<SessionUpdate>>::Result {
-        unimplemented!()
+        unimplemented!();
     }
 }
 
@@ -110,7 +118,20 @@ impl Handler<DestroySession> for DockerMan {
         msg: DestroySession,
         ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
-        unimplemented!()
+        let container_id = msg.session_id.into();
+
+        let api = match self.docker_api {
+            Some(ref api) => api,
+            _ => return ActorResponse::reply(Err(Error::UnknownEnv("docker".into()))),
+        };
+
+        ActorResponse::async(
+            api.container(container_id)
+                .delete()
+                .map_err(|e| Error::Error("docker error".into()))
+                .and_then(|_| Ok("done".into()))
+                .into_actor(self),
+        )
     }
 }
 

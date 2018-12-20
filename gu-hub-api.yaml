@@ -1,0 +1,729 @@
+swagger: '2.0'
+info:
+  title: Golem unlimited low level hub API
+  description: API description in Markdown.
+  version: 1.0.0
+host: '127.0.0.1:61622'
+tags:
+  - name: session
+    description: HUB Session managment.
+  - name: peer
+    description: Unlimited network peer info managment.
+
+schemes:
+  - http
+security:
+  - serviceToken: []
+  - systemName: []
+paths:
+  /peers:
+    get:
+      tags:
+        - peer
+      operationId: listPeers
+      summary: Returns a list hub peers.
+      parameters:
+        - $ref: '#/parameters/offset'
+        - $ref: '#/parameters/limit'
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/PeerInfo'
+  /peers/{nodeId}:
+    parameters:
+      - $ref: '#/parameters/nodeId'
+    get:
+      tags:
+        - peer
+      operationId: getPeerDetails
+      summary: 'Returns detailed peer info'
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/PeerDetails'
+  /peers/{nodeId}/deployments:
+    parameters:
+      - $ref: '#/parameters/nodeId'
+
+    post:
+      tags:
+        - peer
+      operationId: 'createDeployment'
+      parameters:
+        - name: spec
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/DeploymentSpec'
+
+      responses:
+        '201':
+          description: created
+          headers:
+            location:
+              type: string
+              format: uri
+              description: 'Uri of new deployment'
+          schema:
+            type: string
+            description: exec environment session instance id
+        '404':
+          description: peer not found
+    get:
+      tags:
+        - peer
+      operationId: 'listDeployments'
+      responses:
+        200:
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/DeploymentInfo'
+        404:
+          description: peer not found
+
+
+  /sessions:
+    get:
+      tags:
+        - session
+      summary: Lists current hub sessions.
+      operationId: listSessions
+      parameters:
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/offset'
+      responses:
+        '200':
+          description: OK list sessions
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/HubSession'
+    post:
+      tags:
+        - session
+      operationId: createSession
+      summary: 'Creates new hub session.'
+      description: |-
+        Allowed fileds:
+
+        * name        - human readable session name
+        * expires     - session expiration timestamp
+        * allocation  - resource allocation mode.
+
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/HubSession'
+      responses:
+        '201':
+          description: Session created
+          schema:
+            type: integer
+            format: int64
+            description: Created hub session id
+        '500':
+          description: Error
+          schema:
+            type: string
+            description: Error message
+
+  '/sessions/{sessionId}':
+    parameters:
+      - $ref: '#/parameters/sessionId'
+    get:
+      tags:
+        - session
+      summary: Gets hub session info
+      operationId: getSession
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/HubSession'
+        '404':
+          description: Session not found
+        '500':
+          description: Internal Error
+          schema:
+            type: string
+    patch:
+      tags:
+        - session
+      operationId: updateSession
+      summary: 'Hub session update'
+      consumes:
+        - application/json
+      parameters:
+        - name: changes
+          in: body
+          schema:
+            $ref: '#/definitions/HubSessionCommand'
+
+      responses:
+        200:
+          description: OK
+        404:
+          description: 'Session Not found'
+    delete:
+      tags:
+        - session
+      operationId: deleteSession
+      responses:
+        204:
+          description: Deleted
+        404:
+          description: 'Session not found'
+  '/sessions/{sessionId}/config':
+    parameters:
+      - $ref: '#/parameters/sessionId'
+    get:
+      tags:
+        - session
+      summary: Gets configuration from stash
+      operationId: getConfig
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/ConfigStash'
+        '404':
+          description: Session not found
+        '500':
+          description: Internal Error
+    put:
+      tags:
+        - session
+      summary: Sets configuration stash
+      operationId: setConfig
+      parameters:
+        - name: config
+          description: New config stash value
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ConfigStash'
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: integer
+            format: int64
+        '404':
+          description: Session not found
+        '409':
+          description: Conflicting version
+  '/sessions/{sessionId}/peers':
+    parameters:
+      - $ref: '#/parameters/sessionId'
+    post:
+      tags:
+        - session
+      summary: Manually adds peers to hub session
+      operationId: addSessionPeers
+      parameters:
+        - name: peerSet
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+            uniqueItems: true
+      responses:
+        '200':
+          description: OK - peers added
+          schema:
+            type: array
+            items:
+              type: string
+              description: peer id
+            uniqueItems: true
+            example:
+              - '0xb6804992598b9260a5b4ad553f98c3851cf2d18e'
+            description: set of session nodes after add
+        '404':
+          description: Session not found
+        '500':
+          description: Internal Error
+  '/sessions/{sessionId}/peers/{nodeId}/deployments':
+    post:
+      tags:
+        - session
+      operationId: createDeploymnet
+      summary: 'Creates new deploymnet'
+      parameters:
+        - $ref: '#/parameters/sessionId'
+        - $ref: '#/parameters/nodeId'
+        - name: deploymentSpec
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/DeploymentSpec'
+      responses:
+        '201':
+          description: created
+          headers:
+            location:
+              type: string
+              format: uri
+              description: 'Uri of new deployment'
+          schema:
+            type: string
+            description: exec environment session instance id
+        '404':
+          description: not found (session / peer)
+  '/sessions/{sessionId}/peers/{nodeId}/deployments/{deploymentId}':
+    parameters:
+      - $ref: '#/parameters/sessionId'
+      - $ref: '#/parameters/nodeId'
+      - $ref: '#/parameters/deploymentId'
+    patch:
+      tags:
+        - session
+      operationId: updateDeployment
+      summary: 'Sends multiple commands for peer'
+      consumes:
+        - application/json
+      produces: 
+        - application/json
+      parameters:
+        - name: commands
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Command'
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - session
+      operationId: deleteDeploymnet
+      responses:
+        204:
+          description: Deleted
+
+  /sessions/{sessionId}/blobs:
+    parameters:
+      - $ref: '#/parameters/sessionId'
+    post:
+      tags:
+        - session
+      operationId: createBlob
+      summary: 'Creates new lob'
+      consumes:
+        - multipart/form-data
+      parameters:
+        - name: body
+          in: formData
+          type: file
+          required: false
+      responses:
+        201:
+          description: Created
+          schema:
+            allOf:
+              - type: integer
+                format: int64
+              - type: array
+                items:
+                  type: integer
+                  format: int64
+            description: 'BLob uniq id'
+        404:
+          description: 'Session not found'
+    get:
+      tags:
+        - session
+      operationId: listBlobs
+      summary: 'Lists currently allocated lobs'
+      responses:
+        200:
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/BlobInfo'
+        404:
+          description: 'Session not found'
+
+  /sessions/{sessionId}/blobs/{blobId}:
+    parameters:
+      - $ref: '#/parameters/sessionId'
+      - $ref: '#/parameters/blobId'
+    put:
+      tags:
+        - session
+      operationId: uploadBlob
+      summary: Uploads a binary content to the hub.
+      parameters:
+        - name: body
+          in: body
+          schema:
+            type: string
+            format: binary
+      consumes:
+        - application/octet-stream
+      responses:
+        200:
+          description: OK
+    get:
+      tags:
+        - session
+      operationId: downloadBlob
+      summary: Downloads binary content from the hub
+      produces:
+        - 'application/octet-stream'
+      responses:
+        200:
+          description: OK
+          schema:
+            type: file
+            format: binary
+    delete:
+      tags:
+        - session
+      operationId: deleteBlob
+      responses:
+        201:
+          description: Deleted
+        404:
+          description: Not found
+
+
+
+definitions:
+  PeerInfo:
+    description: General information about GU subnetwork node
+    required:
+      - peerAddr
+    properties:
+      nodeName:
+        type: string
+        description: Node name or hostname from reverse dns if node name is not set
+      peerAddr:
+        type: string
+        description: 'node address from current connection formated as <ip-addr>:<port>'
+      nodeId:
+        type: string
+        description: node public key hash in etherium format
+        example: '0x875f272d3b9e7b55a5784a131a60bf3d7a42c73c'
+        readOnly: true
+      tags:
+        type: array
+        items:
+          type: string
+
+  PeerDetails:
+    properties:
+      nodeName:
+        type: string
+        description: Node name or hostname from reverse dns if node name is not set
+      peerAddr:
+        type: string
+        description: 'node address from current connection formated as <ip-addr>:<port>'
+      nodeId:
+        type: string
+        description: node public key hash in etherium format
+        example: '0x875f272d3b9e7b55a5784a131a60bf3d7a42c73c'
+        readOnly: true
+      tags:
+        type: array
+        items:
+          type: string
+      sessions:
+        type: array
+        items:
+          $ref: '#/definitions/DeploymentInfo'
+
+  DeploymentInfo:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/DeploymentStatus'
+      tags:
+        type: array
+        items:
+          type: string
+        uniqueItems: true
+      note:
+        type: string
+      processes:
+        $ref: '#/definitions/ProcessCollection'
+
+  DeploymentStatus:
+    type: string
+    enum:
+      - pending
+      - created
+      - running
+      - configured
+      - destroying
+
+  HubSession:
+    properties:
+      id:
+        type: string
+        description: Uniqe HUB Session identifier
+        example: 47f1dc88-0282-4ac3-f765-02b303e8c278
+        readOnly: true
+      created:
+        type: string
+        description: Session creation timestamp
+        format: date-time
+        readOnly: true
+      expires:
+        type: string
+        format: date-time
+      allocation:
+        type: string
+        description: resource allocation mode
+        enum:
+          - manual
+          - auto
+      name:
+        type: string
+        description: optional human readable name
+      tags:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          pattern: '^[a-zA-Z][a-zA-Z0-9_:-]*$'
+  DeploymentSpec:
+    properties:
+      envType:
+        $ref: '#/definitions/EnvType'
+      image:
+        properties:
+          hash:
+            type: string
+            description: Consistency hash
+          url:
+            type: string
+            description: Image location spec
+      name:
+        type: string
+        description: human readable name
+      tags:
+        type: array
+        description: deployment tags
+        uniqueItems: true
+        items:
+          type: string
+  Command:
+    type: object
+    properties:
+      exec:
+        $ref: '#/definitions/ExecCommand'
+      start:
+        $ref: '#/definitions/StartCommand'
+      stop:
+        $ref: '#/definitions/StopCommand'
+      addTags:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+      delTags:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+      downloadFile:
+        $ref: '#/definitions/DownloadFileCommand'
+      uploadFile:
+        $ref: '#/definitions/UploadFileCommand'
+  ExecCommand:
+    description: synchronous exec of session entry point
+    type: object
+    properties:
+      executable:
+        type: string
+      args:
+        type: array
+        items:
+          type: string
+  StartCommand:
+    properties:
+      executable:
+        type: string
+      args:
+        type: array
+        items:
+          type: string
+  StopCommand:
+    properties:
+      childId:
+        description: 'id of asynchronous process, started with StartCommand'
+        type: string
+  DownloadFileCommand:
+    properties:
+      uri:
+        type: string
+        format: url
+      filePath:
+        type: string
+  UploadFileCommand:
+    properties:
+      uri:
+        type: string
+        format: url
+      filePath:
+        type: string
+  ConfigStash:
+    description: 'Free style configuration object'
+    type: object
+#    properties:
+#      version:
+#        type: integer
+#        description: Version number
+    additionalProperties: {}
+
+  EnvType:
+    description: |-
+      Exec environment type.
+
+      * hd - Host Direct mode
+      * docker - Docker Container mode
+      * wasm - WebAssembly mode
+      * vm - virtual machine mode.
+
+    type: string
+    enum:
+      - hd
+      - docker
+      - wasm
+      - graphne
+      - vm
+  BlobInfo:
+    type: object
+    description: 'Binary large object basic information'
+    required:
+      - id
+    properties:
+      id:
+        type: string
+        description: 'blob id'
+      hash:
+        type: string
+        description: 'SHA3-256 of blob contents if calculated'
+      size:
+        type: integer
+        format: int64
+        description: 'blob size in bytes'
+      tags:
+        type: array
+        description: 'Additional tags'
+        items:
+          type: string
+        uniqueItems: true
+      name:
+        type: string
+        description: 'optional human readable blob name'
+
+  HubSessionCommand:
+    type: object
+    discriminator: commandType
+    required:
+      - commandType
+    properties:
+      commandType:
+        type: string
+      ts:
+        type: string
+        format: date-time
+
+  HubSessionTouchCommand:
+    allOf:
+      - $ref: '#/definitions/HubSessionCommand'
+      - type: object
+        properties:
+          keepUntil:
+            type: string
+            format: date-time
+
+
+  ProcessCollection:
+    type: object
+    additionalProperties:
+      items:
+        $ref: '#/definitions/ProcessInfo'
+
+  ProcessInfo:
+    type: object
+    properties:
+      tags:
+        type: array
+        items:
+          type: string
+        uniqueItems: true
+
+securityDefinitions:
+  serviceToken:
+    type: apiKey
+    in: header
+    name: X-GU-APIKEY
+    description: 'Service token'
+  systemName:
+    type: apiKey
+    in: header
+    name: X-GU-APPNAME
+    description: 'Integration identifier'
+parameters:
+  limit:
+    name: limit
+    type: integer
+    in: query
+    allowEmptyValue: true
+    default: 50
+  offset:
+    name: offset
+    type: integer
+    in: query
+    allowEmptyValue: true
+    default: 0
+  sessionId:
+    name: sessionId
+    description: 'HUB session id'
+    type: integer
+    format: int64
+    in: path
+    required: true
+  deploymentId:
+    name: deploymentId
+    type: string
+    in: path
+    required: true
+  nodeId:
+    name: nodeId
+    description: 'GU Network node identifier'
+    in: path
+    required: true
+    type: string
+    pattern: '0x[0-9a-f]{40}'
+  blobId:
+    name: blobId
+    description: 'Blob identifier'
+    type: string
+    in: path
+    required: true

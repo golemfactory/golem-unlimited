@@ -1,3 +1,4 @@
+use actix::prelude::*;
 use actix_web::{
     dev::HttpResponseBuilder,
     error::InternalError,
@@ -11,17 +12,6 @@ use serde_json::Value;
 use sessions::{blob::Blob, manager::EnumeratedSessionInfo, session::SessionInfo};
 
 pub type SessionResult = Result<SessionOk, SessionErr>;
-
-pub fn to_response<A, B>(res: Result<A, B>) -> HttpResponse
-where
-    A: Into<HttpResponse>,
-    B: Into<HttpResponse>,
-{
-    match res {
-        Ok(a) => a.into(),
-        Err(e) => e.into(),
-    }
-}
 
 fn include_version(mut build: HttpResponseBuilder, v: u64) -> HttpResponseBuilder {
     let val = HeaderValue::from_str(&format!("{}", v)).expect("Invalid ETag");
@@ -52,6 +42,22 @@ pub enum SessionErr {
     FileError(String),
     MailboxError(String),
 }
+
+impl ::std::fmt::Display for SessionErr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+        write!(f, "session error")
+    }
+}
+
+impl From<MailboxError> for SessionErr {
+    fn from(e: MailboxError) -> Self {
+        SessionErr::MailboxError(format!("{}", e))
+    }
+}
+
+impl actix_web::ResponseError for SessionErr {}
+
+impl ::std::error::Error for SessionErr {}
 
 impl Into<HttpResponse> for SessionOk {
     fn into(self) -> HttpResponse {
@@ -94,10 +100,10 @@ impl Into<HttpResponse> for SessionErr {
     }
 }
 
-impl Into<ActixError> for SessionErr {
+/*impl Into<ActixError> for SessionErr {
     fn into(self) -> ActixError {
         error!("{:?}", &self);
 
         InternalError::from_response("", Into::<HttpResponse>::into(self)).into()
     }
-}
+}*/

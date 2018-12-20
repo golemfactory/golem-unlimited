@@ -51,7 +51,8 @@ impl Handler<SubMessage> for Receiver {
             cont.send(SubscribeInstance {
                 service: msg.service,
                 rec,
-            }).flatten_fut()
+            })
+            .flatten_fut()
             .map_err(|_| ())
             .into_actor(self)
             .and_then(|res, act, _ctx| fut::ok(act.set.push(res))),
@@ -85,14 +86,16 @@ fn main() {
             receiver
                 .send(SubMessage {
                     service: gu_lan::ServiceDescription::new("gu-provider", "_unlimited._tcp"),
-                }).then(|_| Ok(())),
+                })
+                .then(|_| Ok(())),
         );
 
         Arbiter::spawn(
             receiver
                 .send(SubMessage {
                     service: gu_lan::ServiceDescription::new("gu-hub", "_unlimited._tcp"),
-                }).then(|_| Ok(())),
+                })
+                .then(|_| Ok(())),
         );
     });
 }

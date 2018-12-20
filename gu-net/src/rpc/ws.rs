@@ -248,7 +248,8 @@ impl Client {
             .map_err(|e| {
                 error!("connect: {}", e);
                 ()
-            }).map(move |(reader, writer)| {
+            })
+            .map(move |(reader, writer)| {
                 let addr = Client::create(move |ctx| {
                     Client::add_stream(reader, ctx);
                     info!("connected");
@@ -421,7 +422,8 @@ pub fn start_connection(
         node_id,
         peer_address,
         connection: None,
-    }.start()
+    }
+    .start()
 }
 
 impl ConnectionSupervisor {
@@ -448,7 +450,8 @@ impl ConnectionSupervisor {
                 .map(|r, act: &mut ConnectionSupervisor, ctx| {
                     debug!("set connection!");
                     act.connection = Some(r);
-                }).map_err(|err, act, ctx| {
+                })
+                .map_err(|err, act, ctx| {
                     error!("fatal, restart, {:?}", &err);
                 }),
         );

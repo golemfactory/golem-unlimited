@@ -79,7 +79,8 @@ impl Actor for ProxyManager {
                             } else {
                                 Some((name, service))
                             }
-                        }).for_each(|(name, service)| act.configure(name, service.into_iter()));
+                        })
+                        .for_each(|(name, service)| act.configure(name, service.into_iter()));
                     fut::ok(())
                 }),
         );

@@ -1,3 +1,5 @@
+//! HUB Session API implementation.
+
 mod blob;
 mod manager;
 mod module;

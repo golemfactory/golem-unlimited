@@ -91,7 +91,8 @@ impl Module for LanModule {
                     SubCommand::with_name("list")
                         .about("Lists available instances")
                         .arg(instance),
-                ).about("Lan services"),
+                )
+                .about("Lan services"),
         )
     }
 
