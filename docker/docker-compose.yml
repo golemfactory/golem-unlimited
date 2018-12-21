@@ -1,0 +1,21 @@
+version: "2"
+services:
+  provider:
+    build: provider
+    networks:
+      - network
+
+  hub:
+    build: hub
+    networks:
+      - network
+
+  test:
+    build: test
+    depends_on:
+      - "provider"
+      - "hub"
+
+networks:
+  network:
+    driver: macvlan
