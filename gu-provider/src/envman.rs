@@ -10,11 +10,13 @@ use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use serde_json::Value as JsonValue;
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
 /// Actor
 #[derive(Default)]
 struct EnvMan {
-    create_map: BTreeMap<String, Recipient<CreateSession>>,
+    create_map: BTreeMap<String, Box<CreateSender>>,
     session_update_map: BTreeMap<String, Recipient<SessionUpdate>>,
     get_sessions_map: BTreeMap<String, Recipient<GetSessions>>,
     destroy_session_map: BTreeMap<String, Recipient<DestroySession>>,
@@ -24,7 +26,7 @@ impl Actor for EnvMan {
     type Context = RemotingContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.bind::<CreateSession>(CreateSession::ID);
+        ctx.bind::<CreateSession<JsonValue>>(CreateSession::<JsonValue>::ID);
         ctx.bind::<SessionUpdate>(SessionUpdate::ID);
         ctx.bind::<GetSessions>(GetSessions::ID);
         ctx.bind::<DestroySession>(DestroySession::ID);
@@ -33,9 +35,25 @@ impl Actor for EnvMan {
 
 impl RemotingSystemService for EnvMan {}
 
-pub trait EnvManService:
-    Handler<CreateSession> + Handler<SessionUpdate> + Handler<GetSessions> + Handler<DestroySession>
+pub trait EnvManService
 {
+    type CreateOptions : Serialize + DeserializeOwned + Default + Send;
+}
+
+trait CreateSender {
+    fn send(&self, msg : CreateSession<JsonValue>) -> Box<Future<Item=String, Error=Error>>;
+}
+
+struct CreateRecipient<T : EnvManService>(Recipient<CreateSession<T::CreateOptions>>);
+
+impl<T : EnvManService + 'static> CreateSender for CreateRecipient<T> {
+    fn send(&self, msg: CreateSession<JsonValue>) -> Box<Future<Item=String, Error=Error>> {
+        let options = serde_json::from_value(msg.options).unwrap();
+        Future::boxed(self.0.send(CreateSession {
+            env_type: msg.env_type, image: msg.image, name: msg.name, tags: msg.tags, note: msg.note, options})
+            .flatten_fut())
+
+    }
 }
 
 struct Register<T>
@@ -53,10 +71,11 @@ where
     type Result = ();
 }
 
-impl<T> Handler<Register<T>> for EnvMan
+impl<T, Options : Serialize + DeserializeOwned + Default + Send + 'static> Handler<Register<T>> for EnvMan
 where
-    T: Actor + EnvManService,
-    T::Context: actix::dev::ToEnvelope<T, CreateSession>,
+    T: Actor + EnvManService<CreateOptions=Options>,
+    T : Handler<CreateSession<Options>> + Handler<SessionUpdate> + Handler<GetSessions> + Handler<DestroySession>,
+    T::Context: actix::dev::ToEnvelope<T, CreateSession<T::CreateOptions>>,
     T::Context: actix::dev::ToEnvelope<T, SessionUpdate>,
     T::Context: actix::dev::ToEnvelope<T, GetSessions>,
     T::Context: actix::dev::ToEnvelope<T, DestroySession>,
@@ -70,7 +89,7 @@ where
     ) -> <Self as Handler<Register<T>>>::Result {
         let env_type: String = msg.env_type.into();
         self.create_map
-            .insert(env_type.clone(), msg.address.clone().recipient());
+            .insert(env_type.clone(), Box::new(CreateRecipient::<T>(msg.address.clone().recipient())));
         self.session_update_map
             .insert(env_type.clone(), msg.address.clone().recipient());
         self.get_sessions_map
@@ -87,20 +106,19 @@ fn extract_prefix(s: &str) -> Result<(&str, &str), Error> {
     return Err(Error::NoSuchSession(s.to_owned()));
 }
 
-impl Handler<CreateSession> for EnvMan {
+impl Handler<CreateSession<JsonValue>> for EnvMan {
     type Result = ActorResponse<EnvMan, String, Error>;
 
     fn handle(
         &mut self,
-        msg: CreateSession,
+        msg: CreateSession<JsonValue>,
         _ctx: &mut Self::Context,
-    ) -> <Self as Handler<CreateSession>>::Result {
+    ) -> Self::Result {
         let env_type = msg.env_type.clone();
         if let Some(address) = self.create_map.get(&env_type) {
             return ActorResponse::async(
                 address
                     .send(msg)
-                    .flatten_fut()
                     .and_then(move |session_id| Ok(format!("{}::{}", env_type, session_id)))
                     .into_actor(self),
             );
@@ -201,11 +219,13 @@ impl Handler<DestroySession> for EnvMan {
     }
 }
 
-pub fn register<A, IntoCowStr>(env_type: IntoCowStr, address: Addr<A>)
+pub fn register<A, IntoCowStr, Options>(env_type: IntoCowStr, address: Addr<A>)
 where
     IntoCowStr: Into<Cow<'static, str>>,
-    A: Actor + EnvManService,
-    A::Context: actix::dev::ToEnvelope<A, CreateSession>,
+    Options : Serialize + DeserializeOwned + Default + Send + 'static,
+    A: Actor + EnvManService<CreateOptions=Options>,
+    A : Handler<CreateSession<Options>> + Handler<SessionUpdate> + Handler<GetSessions> + Handler<DestroySession>,
+    A::Context: actix::dev::ToEnvelope<A, CreateSession<A::CreateOptions>>,
     A::Context: actix::dev::ToEnvelope<A, SessionUpdate>,
     A::Context: actix::dev::ToEnvelope<A, GetSessions>,
     A::Context: actix::dev::ToEnvelope<A, DestroySession>,

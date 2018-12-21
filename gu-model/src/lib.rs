@@ -9,6 +9,7 @@ extern crate gu_net;
 extern crate serde;
 
 pub mod envman;
+pub mod dockerman;
 
 pub mod deployment;
 pub mod peers;

@@ -37,7 +37,9 @@ impl Actor for DockerMan {
     }
 }
 
-impl envman::EnvManService for DockerMan {}
+impl envman::EnvManService for DockerMan {
+    type CreateOptions = ();
+}
 
 impl Handler<CreateSession> for DockerMan {
     type Result = ActorResponse<DockerMan, String, Error>;

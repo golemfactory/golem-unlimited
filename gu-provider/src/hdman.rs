@@ -31,7 +31,9 @@ pub struct HdMan {
     sessions_dir: PathBuf,
 }
 
-impl envman::EnvManService for HdMan {}
+impl envman::EnvManService for HdMan {
+    type CreateOptions = ();
+}
 
 impl Actor for HdMan {
     type Context = RemotingContext<Self>;
@@ -186,7 +188,7 @@ impl SessionInfo {
     }
 }
 
-impl Handler<CreateSession> for HdMan {
+impl Handler<CreateSession<()>> for HdMan {
     type Result = ActorResponse<HdMan, String, Error>;
 
     fn handle(
