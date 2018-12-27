@@ -56,14 +56,14 @@ pub struct Image {
 /// Message for session creation: local provisioning: downloads and unpacks the binaries
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateSession<Options=()> {
+pub struct CreateSession<Options = ()> {
     pub env_type: String,
     pub image: Image,
     pub name: String,
     pub tags: Vec<String>,
     pub note: Option<String>,
     #[serde(default)]
-    pub options : Options
+    pub options: Options,
 }
 
 impl<Options> PublicMessage for CreateSession<Options> {

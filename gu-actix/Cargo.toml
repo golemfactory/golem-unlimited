@@ -3,6 +3,9 @@ name = "gu-actix"
 version = "0.1.0"
 
 [dependencies]
-
 futures = "0.1"
+actix = "0.7"
+
+[dev-dependencies]
+tokio-timer = "0.2.8"
 
