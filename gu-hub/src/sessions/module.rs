@@ -215,7 +215,7 @@ fn create_blob_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             .send(manager::CreateBlob { session })
             .flatten_fut()
             .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
-            .and_then(|(blob_id, _blob)| Ok(HttpResponse::Ok().json(blob_id)))
+            .and_then(|(blob_id, _blob)| Ok(HttpResponse::Created().json(blob_id)))
             .responder()
     }
 }
