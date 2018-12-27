@@ -11,6 +11,7 @@ pub enum Error {
     CannotDeletePeerSession(actix_web::http::StatusCode),
     CannotGetResponseBody(actix_web::error::PayloadError),
     CannotListHubSessions(actix_web::http::StatusCode),
+    CannotListSessionPeers(actix_web::http::StatusCode),
     CannotSendRequest(actix_web::client::SendRequestError),
     InternalError(String),
     InvalidAddress(url::ParseError),

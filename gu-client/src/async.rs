@@ -247,6 +247,31 @@ impl HubSession {
             Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
         };
     }
+    /// returns all session peers
+    pub fn list_session_peers(
+        &self,
+    ) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
+        let url = format!(
+            "{}sessions/{}/peers",
+            self.hub_connection.hub_connection_inner.url, self.session_id
+        );
+        let request = match client::ClientRequest::get(url).finish() {
+            Ok(r) => r,
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
+        };
+        future::Either::B(
+            request
+                .send()
+                .map_err(Error::CannotSendRequest)
+                .and_then(|response| match response.status() {
+                    http::StatusCode::OK => {
+                        future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                    }
+                    status => future::Either::B(future::err(Error::CannotListSessionPeers(status))),
+                })
+                .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
+        )
+    }
     /// deletes hub session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
         let remove_url = format!(
