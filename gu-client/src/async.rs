@@ -293,13 +293,13 @@ pub struct Peer {
 
 impl Peer {
     /// creates new peer session
-    /// assumption: url is /sessions/{session_id}/peer/{peer_id}/peer_sessions (was: /hd)
+    /// assumption: url is /sessions/{session_id}/peer/{peer_id}/deployments (was: /hd, /peer_sessions)
     pub fn new_session(
         &self,
         builder: PeerSessionInfoBuilder,
     ) -> impl Future<Item = PeerSession, Error = Error> {
         let url = format!(
-            "{}sessions/{}/peer/{}/peer_sessions",
+            "{}sessions/{}/peer/{}/deployments",
             self.hub_session.hub_connection.hub_connection_inner.url,
             self.hub_session.session_id,
             self.peer_info.node_id.to_string()
