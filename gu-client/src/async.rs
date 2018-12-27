@@ -223,7 +223,7 @@ impl HubSession {
         };
     }
     /// deletes hub session
-    fn delete(self) -> impl Future<Item = (), Error = Error> {
+    pub fn delete(self) -> impl Future<Item = (), Error = Error> {
         let remove_url = format!(
             "{}sessions/{}",
             self.hub_connection.hub_connection_inner.url, self.session_id
@@ -275,6 +275,28 @@ impl Blob {
                 .and_then(|response| match response.status() {
                     http::StatusCode::OK => future::ok(()),
                     status => future::err(Error::InternalError(format!("HTTP Error: {}.", status))),
+                }),
+        )
+    }
+    /// deletes blob
+    pub fn delete(self) -> impl Future<Item = (), Error = Error> {
+        let remove_url = format!(
+            "{}sessions/{}/blobs/{}",
+            self.hub_session.hub_connection.hub_connection_inner.url,
+            self.hub_session.session_id,
+            self.blob_id
+        );
+        let request = match client::ClientRequest::delete(remove_url).finish() {
+            Ok(r) => r,
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
+        };
+        future::Either::B(
+            request
+                .send()
+                .map_err(Error::CannotSendRequest)
+                .and_then(|response| match response.status() {
+                    http::StatusCode::OK => future::ok(()),
+                    status_code => future::err(Error::CannotDeleteBlob(status_code)),
                 }),
         )
     }
@@ -342,7 +364,7 @@ pub struct PeerSession {
 
 impl PeerSession {
     /// deletes peer session
-    fn delete(self) -> impl Future<Item = (), Error = Error> {
+    pub fn delete(self) -> impl Future<Item = (), Error = Error> {
         let remove_url = format!(
             "{}sessions/{}/peers/{}/deployments/{}",
             self.peer
