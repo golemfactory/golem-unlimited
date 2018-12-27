@@ -5,6 +5,7 @@ authors = ["Filip <filip@golem.network>"]
 
 [dependencies]
 gu-net = { path="../gu-net" }
+gu-model = { path="../gu-model" }
 actix = "0.7"
 actix-web = "0.7"
 bytes = "0.4.10"

@@ -5,6 +5,7 @@ use bytes::Bytes;
 use error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
+use gu_model::session::HubSessionSpec;
 use gu_net::rpc::peer::PeerInfo;
 use gu_net::types::NodeId;
 use std::str;
@@ -125,6 +126,30 @@ pub struct HubSession {
 }
 
 impl HubSession {
+    /// returns all hub sessions
+    pub fn list_sessions(
+        &self,
+    ) -> impl Future<Item = impl Iterator<Item = HubSessionSpec>, Error = Error> {
+        let url = format!("{}sessions", self.hub_connection.hub_connection_inner.url);
+        match client::ClientRequest::get(url).finish() {
+            Ok(r) => future::Either::A(
+                r.send()
+                    .map_err(Error::CannotSendRequest)
+                    .and_then(|response| match response.status() {
+                        http::StatusCode::OK => {
+                            future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                        }
+                        status => {
+                            future::Either::B(future::err(Error::CannotListHubSessions(status)))
+                        }
+                    })
+                    .and_then(|answer_json: Vec<HubSessionSpec>| {
+                        future::ok(answer_json.into_iter())
+                    }),
+            ),
+            Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
+        }
+    }
     /// adds peers to the hub
     pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = (), Error = Error>
     where

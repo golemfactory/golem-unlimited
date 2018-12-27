@@ -2,11 +2,13 @@ extern crate actix;
 extern crate actix_web;
 extern crate futures;
 extern crate gu_client;
+extern crate gu_model;
 
 use actix::Arbiter;
 use futures::{future, Future};
 use gu_client::async::HubConnection;
 use gu_client::async::SessionInfoBuilder;
+use gu_model::session::HubSessionSpec;
 //use gu_net::rpc::peer::PeerInfo;
 
 fn main() {
@@ -21,6 +23,13 @@ fn main() {
                 )
                 .and_then(|hub_session| {
                     println!("New hub session ready: {:#?}.", hub_session);
+                    future::ok(hub_session.clone()).join(hub_session.list_sessions())
+                })
+                .and_then(|(hub_session, list_of_sessions)| {
+                    println!(
+                        "List of all sessions: {:#?}.",
+                        serde_json::to_string(&list_of_sessions.collect::<Vec<HubSessionSpec>>())
+                    );
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
                 })
                 .and_then(|(hub_session, blob)| {

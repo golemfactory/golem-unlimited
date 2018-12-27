@@ -3,6 +3,7 @@ extern crate actix;
 extern crate actix_web;
 extern crate bytes;
 extern crate futures;
+extern crate gu_model;
 extern crate gu_net;
 #[macro_use]
 extern crate serde_derive;
