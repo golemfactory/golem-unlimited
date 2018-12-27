@@ -263,8 +263,8 @@ paths:
     post:
       tags:
         - session
-      operationId: createDeploymnet
-      summary: 'Creates new deploymnet'
+      operationId: createDeployment
+      summary: 'Creates new deployment'
       parameters:
         - $ref: '#/parameters/sessionId'
         - $ref: '#/parameters/nodeId'
@@ -314,7 +314,7 @@ paths:
     delete:
       tags:
         - session
-      operationId: deleteDeploymnet
+      operationId: deleteDeployment
       responses:
         204:
           description: Deleted
