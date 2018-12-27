@@ -95,9 +95,8 @@ impl HubConnection {
     }
     pub fn auth_app<T: Into<String>, U: Into<String>>(&self, _app_name: T, _token: Option<U>) {}
     /// returns all peers connected to the hub
-    /// assumption: url is /peer
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
-        let url = format!("{}peer", self.hub_connection_inner.url);
+        let url = format!("{}peers", self.hub_connection_inner.url);
         match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
                 r.send()
@@ -127,14 +126,13 @@ pub struct HubSession {
 
 impl HubSession {
     /// adds peers to the hub
-    /// assumption: url is /sessions/{session_id}/peer
     pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = (), Error = Error>
     where
         T: IntoIterator<Item = U>,
         U: AsRef<str>,
     {
         let add_url = format!(
-            "{}sessions/{}/peer",
+            "{}sessions/{}/peers",
             self.hub_connection.hub_connection_inner.url, self.session_id
         );
         let peer_vec: Vec<String> = peers.into_iter().map(|peer| peer.as_ref().into()).collect();
@@ -159,10 +157,9 @@ impl HubSession {
         )
     }
     /// creates a new blob
-    /// assumption: url is /sessions/{session_id}/blob, blob_id is in the response body
     pub fn new_blob(&self) -> impl Future<Item = Blob, Error = Error> {
         let new_blob_url = format!(
-            "{}sessions/{}/blob",
+            "{}sessions/{}/blobs",
             self.hub_connection.hub_connection_inner.url, self.session_id
         );
         let request = match client::ClientRequest::post(new_blob_url).finish() {
@@ -195,10 +192,9 @@ impl HubSession {
         )
     }
     /// gets a peer by its id
-    /// assumption: url is /peer/{peer_id}
     pub fn peer(&self, peer_id: NodeId) -> impl Future<Item = Peer, Error = Error> {
         let url = format!(
-            "{}peer/{}",
+            "{}peers/{}",
             self.hub_connection.hub_connection_inner.url,
             peer_id.to_string()
         );
@@ -263,7 +259,7 @@ impl Blob {
         T: Into<actix_web::Error>,
     {
         let url = format!(
-            "{}sessions/{}/blob/{}",
+            "{}sessions/{}/blobs/{}",
             self.hub_session.hub_connection.hub_connection_inner.url,
             self.hub_session.session_id,
             self.blob_id
@@ -293,13 +289,13 @@ pub struct Peer {
 
 impl Peer {
     /// creates new peer session
-    /// assumption: url is /sessions/{session_id}/peer/{peer_id}/deployments (was: /hd, /peer_sessions)
+    /// assumption: url is /sessions/{session_id}/peers/{peer_id}/deployments (was: /hd, /peer_sessions)
     pub fn new_session(
         &self,
         builder: PeerSessionInfoBuilder,
     ) -> impl Future<Item = PeerSession, Error = Error> {
         let url = format!(
-            "{}sessions/{}/peer/{}/deployments",
+            "{}sessions/{}/peers/{}/deployments",
             self.hub_session.hub_connection.hub_connection_inner.url,
             self.hub_session.session_id,
             self.peer_info.node_id.to_string()
