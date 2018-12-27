@@ -226,6 +226,26 @@ impl HubSession {
             Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
         };
     }
+    /// deletes hub session
+    fn delete(self) -> impl Future<Item = (), Error = Error> {
+        let remove_url = format!(
+            "{}sessions/{}",
+            self.hub_connection.hub_connection_inner.url, self.session_id
+        );
+        let request = match client::ClientRequest::delete(remove_url).finish() {
+            Ok(r) => r,
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
+        };
+        future::Either::B(
+            request
+                .send()
+                .map_err(Error::CannotSendRequest)
+                .and_then(|response| match response.status() {
+                    http::StatusCode::OK => future::ok(()),
+                    status_code => future::err(Error::CannotDeleteHubSession(status_code)),
+                }),
+        )
+    }
 }
 
 /// Large binary object.
@@ -322,4 +342,34 @@ impl Peer {
 pub struct PeerSession {
     peer: Peer,
     session_id: String,
+}
+
+impl PeerSession {
+    /// deletes peer session
+    fn delete(self) -> impl Future<Item = (), Error = Error> {
+        let remove_url = format!(
+            "{}sessions/{}/peers/{}/deployments/{}",
+            self.peer
+                .hub_session
+                .hub_connection
+                .hub_connection_inner
+                .url,
+            self.peer.hub_session.session_id,
+            self.peer.peer_info.node_id.to_string(),
+            self.session_id,
+        );
+        let request = match client::ClientRequest::delete(remove_url).finish() {
+            Ok(r) => r,
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
+        };
+        future::Either::B(
+            request
+                .send()
+                .map_err(Error::CannotSendRequest)
+                .and_then(|response| match response.status() {
+                    http::StatusCode::OK => future::ok(()),
+                    status_code => future::err(Error::CannotDeletePeerSession(status_code)),
+                }),
+        )
+    }
 }

@@ -6,6 +6,8 @@ pub enum Error {
     CannotCreateRequest(actix_web::Error),
     CannotCreateHubSession(String),
     CannotCreatePeerSession(String),
+    CannotDeleteHubSession(actix_web::http::StatusCode),
+    CannotDeletePeerSession(actix_web::http::StatusCode),
     CannotGetResponseBody(actix_web::error::PayloadError),
     CannotSendRequest(actix_web::client::SendRequestError),
     InternalError(String),
