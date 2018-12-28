@@ -1,4 +1,4 @@
-use actix::prelude::*;
+use actix::{fut,prelude::*};
 use futures::prelude::*;
 use futures::unsync::oneshot;
 use std::ops::Deref;
