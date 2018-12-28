@@ -47,13 +47,13 @@ impl Handler<CreateSession> for DockerMan {
     fn handle(
         &mut self,
         msg: CreateSession,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
         debug!("create session for: {}", &msg.image.url);
 
         match self.docker_api {
             Some(ref api) => {
-                let Image { url, hash } = msg.image;
+                let Image { url, hash: _ } = msg.image;
 
                 //let docker_image = api.image(url.as_ref().into());
                 let opts = ContainerConfig::new()
@@ -93,8 +93,8 @@ impl Handler<SessionUpdate> for DockerMan {
 
     fn handle(
         &mut self,
-        msg: SessionUpdate,
-        ctx: &mut Self::Context,
+        _msg: SessionUpdate,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<SessionUpdate>>::Result {
         unimplemented!();
     }
@@ -105,8 +105,8 @@ impl Handler<GetSessions> for DockerMan {
 
     fn handle(
         &mut self,
-        msg: GetSessions,
-        ctx: &mut Self::Context,
+        _msg: GetSessions,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<GetSessions>>::Result {
         ActorResponse::reply(Ok(Vec::new()))
     }
@@ -118,7 +118,7 @@ impl Handler<DestroySession> for DockerMan {
     fn handle(
         &mut self,
         msg: DestroySession,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
         let container_id = msg.session_id.into();
 
@@ -130,7 +130,7 @@ impl Handler<DestroySession> for DockerMan {
         ActorResponse::async(
             api.container(container_id)
                 .delete()
-                .map_err(|e| Error::Error("docker error".into()))
+                .map_err(|_e| Error::Error("docker error".into()))
                 .and_then(|_| Ok("done".into()))
                 .into_actor(self),
         )

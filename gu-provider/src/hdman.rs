@@ -437,7 +437,7 @@ fn handle_download_file(
     future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
     uri: String,
     file_path: PathBuf,
-    format: ResourceFormat,
+    _format: ResourceFormat,
 ) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
     future_chain.and_then(move |mut v, act, _ctx| {
         download(uri.as_ref(), file_path, false)
@@ -459,7 +459,7 @@ fn handle_upload_file(
     future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
     uri: String,
     file_path: PathBuf,
-    format: ResourceFormat,
+    _format: ResourceFormat,
 ) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
     future_chain.and_then(move |mut v, act, _ctx| {
         match client::put(uri.clone())

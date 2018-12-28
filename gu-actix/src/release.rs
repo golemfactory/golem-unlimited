@@ -55,7 +55,7 @@ struct AsyncResourceManager {
 impl Actor for AsyncResourceManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
+    fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
         //eprintln!("rm start");
     }
 
@@ -110,10 +110,10 @@ impl<T: AsyncRelease> Handler<DropHandle<T>> for AsyncResourceManager {
     fn handle(
         &mut self,
         msg: DropHandle<T>,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> <Self as Handler<DropHandle<T>>>::Result {
         self.inc();
-        ActorResponse::async(msg.0.release().into_actor(self).then(|_, act, ctx| {
+        ActorResponse::async(msg.0.release().into_actor(self).then(|_, act, _ctx| {
             act.dec();
             fut::ok(())
         }))
@@ -151,9 +151,9 @@ mod test {
     fn test_release() {
         let _ = System::run(|| {
             {
-                let a = Handle::new(new_item());
+                let _a = Handle::new(new_item());
                 eprintln!("c={}", counter.load(Ordering::Relaxed));
-                let b = Handle::new(new_item());
+                let _b = Handle::new(new_item());
                 eprintln!("c={}", counter.load(Ordering::Relaxed));
             }
             eprintln!("c={}", counter.load(Ordering::Relaxed));
