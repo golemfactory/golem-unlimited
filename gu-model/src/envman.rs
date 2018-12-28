@@ -82,6 +82,19 @@ pub struct SessionUpdate {
     pub commands: Vec<Command>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum ResourceFormat {
+    Raw,
+    Tar
+}
+
+impl Default for ResourceFormat {
+    fn default() -> Self {
+        ResourceFormat::Raw
+    }
+}
+
 #[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Command {
@@ -90,12 +103,14 @@ pub enum Command {
         executable: String,
         args: Vec<String>,
     },
+    Open,
+    Close,
     Start {
         // return child process id
         executable: String,
         args: Vec<String>,
-        // TODO: consider adding tags here
     },
+
     #[serde(rename_all = "camelCase")]
     Stop {
         child_id: String,
@@ -105,10 +120,14 @@ pub enum Command {
     DownloadFile {
         uri: String,
         file_path: String,
+        #[serde(default)]
+        format : ResourceFormat,
     },
     UploadFile {
         uri: String,
         file_path: String,
+        #[serde(default)]
+        format : ResourceFormat,
     },
 }
 
