@@ -86,7 +86,7 @@ pub struct SessionUpdate {
 #[serde(rename_all = "camelCase")]
 pub enum ResourceFormat {
     Raw,
-    Tar
+    Tar,
 }
 
 impl Default for ResourceFormat {
@@ -121,13 +121,13 @@ pub enum Command {
         uri: String,
         file_path: String,
         #[serde(default)]
-        format : ResourceFormat,
+        format: ResourceFormat,
     },
     UploadFile {
         uri: String,
         file_path: String,
         #[serde(default)]
-        format : ResourceFormat,
+        format: ResourceFormat,
     },
 }
 

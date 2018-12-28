@@ -69,7 +69,7 @@ impl Handler<CreateSession> for DockerMan {
                             .into_iter()
                             .collect(),
                     )
-                    .with_host_config(async_docker::models::ContainerSummaryInnerHostConfig::new());
+                    .with_host_config(async_docker::models::HostConfig::new());
 
                 //--.with_volumes([("/gu-data".to_string(), json!({}))].to_vec().into_iter().collect());
 

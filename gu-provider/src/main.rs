@@ -35,6 +35,7 @@ extern crate prettytable;
 use clap::App;
 use gu_base::*;
 
+mod async_tar;
 mod connect;
 pub mod envman;
 mod hdman;

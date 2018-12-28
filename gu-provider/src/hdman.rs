@@ -262,6 +262,8 @@ impl Handler<SessionUpdate> for HdMan {
             let session_dir = self.get_session_path(&session_id).to_owned();
 
             match cmd {
+                Command::Open => (),
+                Command::Close => (),
                 Command::Exec { executable, args } => {
                     let executable = self.get_session_exec_path(&session_id, &executable);
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
@@ -409,13 +411,21 @@ impl Handler<SessionUpdate> for HdMan {
                         }
                     }));
                 }
-                Command::DownloadFile { uri, file_path } => {
+                Command::DownloadFile {
+                    uri,
+                    file_path,
+                    format,
+                } => {
                     let path = self.get_session_path(&session_id).join(file_path);
-                    future_chain = Box::new(handle_download_file(future_chain, uri, path));
+                    future_chain = Box::new(handle_download_file(future_chain, uri, path, format));
                 }
-                Command::UploadFile { uri, file_path } => {
+                Command::UploadFile {
+                    uri,
+                    file_path,
+                    format,
+                } => {
                     let path = self.get_session_path(&session_id).join(file_path);
-                    future_chain = Box::new(handle_upload_file(future_chain, uri, path));
+                    future_chain = Box::new(handle_upload_file(future_chain, uri, path, format));
                 }
             }
         }
@@ -427,6 +437,7 @@ fn handle_download_file(
     future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
     uri: String,
     file_path: PathBuf,
+    format: ResourceFormat,
 ) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
     future_chain.and_then(move |mut v, act, _ctx| {
         download(uri.as_ref(), file_path, false)
@@ -448,6 +459,7 @@ fn handle_upload_file(
     future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
     uri: String,
     file_path: PathBuf,
+    format: ResourceFormat,
 ) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
     future_chain.and_then(move |mut v, act, _ctx| {
         match client::put(uri.clone())
