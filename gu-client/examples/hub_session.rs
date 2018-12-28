@@ -21,9 +21,9 @@ fn main() {
                         .name("my session")
                         .environment("hd"),
                 )
-                .and_then(|hub_session| {
+                .and_then(move |hub_session| {
                     println!("New hub session ready: {:#?}.", hub_session);
-                    future::ok(hub_session.clone()).join(hub_session.list_sessions())
+                    future::ok(hub_session.clone()).join(hub_connection.list_sessions())
                 })
                 .and_then(|(hub_session, list_of_sessions)| {
                     println!(

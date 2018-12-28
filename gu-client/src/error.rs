@@ -9,6 +9,7 @@ pub enum Error {
     CannotDeleteBlob(actix_web::http::StatusCode),
     CannotDeleteHubSession(actix_web::http::StatusCode),
     CannotDeletePeerSession(actix_web::http::StatusCode),
+    CannotGetHubSession(actix_web::http::StatusCode),
     CannotGetResponseBody(actix_web::error::PayloadError),
     CannotListHubSessions(actix_web::http::StatusCode),
     CannotListSessionPeers(actix_web::http::StatusCode),

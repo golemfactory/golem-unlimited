@@ -116,21 +116,11 @@ impl HubConnection {
             Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
         }
     }
-}
-
-/// Hub session.
-#[derive(Clone, Debug)]
-pub struct HubSession {
-    hub_connection: HubConnection,
-    session_id: String,
-}
-
-impl HubSession {
-    /// returns all hub sessions
+    /// returns information about all hub sessions
     pub fn list_sessions(
         &self,
     ) -> impl Future<Item = impl Iterator<Item = HubSessionSpec>, Error = Error> {
-        let url = format!("{}sessions", self.hub_connection.hub_connection_inner.url);
+        let url = format!("{}sessions", self.hub_connection_inner.url);
         match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
                 r.send()
@@ -150,6 +140,23 @@ impl HubSession {
             Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
         }
     }
+    /// returns hub session object
+    pub fn hub_session<T: Into<String>>(&self, session_id: T) -> HubSession {
+        HubSession {
+            hub_connection: self.clone(),
+            session_id: session_id.into(),
+        }
+    }
+}
+
+/// Hub session.
+#[derive(Clone, Debug)]
+pub struct HubSession {
+    hub_connection: HubConnection,
+    session_id: String,
+}
+
+impl HubSession {
     /// adds peers to the hub
     pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = (), Error = Error>
     where
@@ -271,6 +278,29 @@ impl HubSession {
                 })
                 .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
         )
+    }
+    /// gets information about hub session
+    pub fn info(&self) -> impl Future<Item = HubSessionSpec, Error = Error> {
+        let url = format!(
+            "{}sessions/{}",
+            self.hub_connection.hub_connection_inner.url, self.session_id
+        );
+        match client::ClientRequest::get(url).finish() {
+            Ok(r) => future::Either::A(
+                r.send()
+                    .map_err(Error::CannotSendRequest)
+                    .and_then(|response| match response.status() {
+                        http::StatusCode::OK => {
+                            future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                        }
+                        status => {
+                            future::Either::B(future::err(Error::CannotGetHubSession(status)))
+                        }
+                    })
+                    .and_then(|answer_json: HubSessionSpec| future::ok(answer_json)),
+            ),
+            Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
+        }
     }
     /// deletes hub session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
