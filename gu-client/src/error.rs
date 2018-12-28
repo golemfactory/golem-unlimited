@@ -13,6 +13,7 @@ pub enum Error {
     CannotGetResponseBody(actix_web::error::PayloadError),
     CannotListHubSessions(actix_web::http::StatusCode),
     CannotListSessionPeers(actix_web::http::StatusCode),
+    CannotReceiveBlob(actix_web::error::PayloadError),
     CannotSendRequest(actix_web::client::SendRequestError),
     InternalError(String),
     InvalidAddress(url::ParseError),

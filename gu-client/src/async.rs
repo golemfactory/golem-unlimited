@@ -358,6 +358,25 @@ impl Blob {
                 }),
         )
     }
+    /// downloads blob
+    pub fn download(&self) -> impl Stream {
+        let url = format!(
+            "{}sessions/{}/blobs/{}",
+            self.hub_session.hub_connection.hub_connection_inner.url,
+            self.hub_session.session_id,
+            self.blob_id
+        );
+        future::result(client::ClientRequest::get(url).finish())
+            .map_err(|e| Error::CannotCreateRequest(e))
+            .and_then(|request| request.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => {
+                    future::ok(response.payload().map_err(|e| Error::CannotReceiveBlob(e)))
+                }
+                status => future::err(Error::InternalError(format!("HTTP Error: {}.", status))),
+            })
+            .flatten_stream()
+    }
     /// deletes blob
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
         let remove_url = format!(
