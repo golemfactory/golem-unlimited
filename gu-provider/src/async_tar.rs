@@ -1,19 +1,18 @@
-
-use futures::prelude::*;
 use futures::future;
+use futures::prelude::*;
 
-use std::io;
-use std::cmp::min;
 use bytes::Bytes;
+use std::cmp::min;
+use std::io;
 use tar::Archive;
 
 pub struct FakeBuffer {
-    bytes : Vec<u8>,
-    eof: bool
+    bytes: Vec<u8>,
+    eof: bool,
 }
 
 impl FakeBuffer {
-    fn append(&mut self, bytes : &Bytes) {
+    fn append(&mut self, bytes: &Bytes) {
         self.bytes.extend_from_slice(bytes.as_ref())
     }
 
@@ -31,26 +30,25 @@ impl io::Read for FakeBuffer {
         };
 
         if len == 0 {
-            return Ok(0)
+            return Ok(0);
         }
 
         if self.bytes.len() <= buf.len() {
             buf[0..len].copy_from_slice(&self.bytes[0..len]);
             let _ = self.bytes.drain(0..len);
             Ok(len)
-        }
-        else {
+        } else {
             Err(io::ErrorKind::WouldBlock.into())
         }
     }
 }
 
 pub struct EntryStream<T> {
-    upstream  : T,
-    archive : Archive<FakeBuffer>,
+    upstream: T,
+    archive: Archive<FakeBuffer>,
 }
 
-impl<'a, T : Stream<Item=Bytes>> Stream for &'a mut EntryStream<T> {
+impl<'a, T: Stream<Item = Bytes>> Stream for &'a mut EntryStream<T> {
     type Item = tar::Entry<'a, FakeBuffer>;
     type Error = ();
 
