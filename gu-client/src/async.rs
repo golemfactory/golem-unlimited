@@ -373,7 +373,7 @@ impl Blob {
             self.hub_session.session_id,
             self.blob_id
         );
-        let request = match client::ClientRequest::post(url).streaming(stream) {
+        let request = match client::ClientRequest::put(url).streaming(stream) {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
         };
