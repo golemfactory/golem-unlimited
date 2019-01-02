@@ -5,7 +5,7 @@ use bytes::Bytes;
 use error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
-use gu_actix::release::AsyncRelease;
+use gu_actix::release::{AsyncRelease, Handle};
 use gu_model::session::BlobInfo;
 use gu_model::session::{HubSessionSpec, Metadata};
 use gu_net::rpc::peer::PeerInfo;
@@ -62,7 +62,7 @@ impl HubConnection {
     pub fn new_session(
         &self,
         session_info_builder: SessionInfoBuilder,
-    ) -> impl Future<Item = HubSession, Error = Error> {
+    ) -> impl Future<Item = Handle<HubSession>, Error = Error> {
         let sessions_url = format!("{}sessions", self.hub_connection_inner.url);
         let session_info = match session_info_builder.build() {
             Ok(r) => r,
@@ -86,13 +86,13 @@ impl HubConnection {
                     future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
                 })
                 .and_then(|body| {
-                    future::ok(HubSession {
+                    future::ok(Handle::new(HubSession {
                         hub_connection: hub_connection_for_session,
                         session_id: match str::from_utf8(&body.to_vec()) {
                             Ok(str) => str.to_string(),
                             Err(e) => return future::err(Error::CannotConvertToUTF8(e)),
                         },
-                    })
+                    }))
                 }),
         )
     }

@@ -10,9 +10,10 @@ pub trait AsyncRelease: Send + 'static {
     fn release(self) -> Self::Result;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Handle<T: AsyncRelease>(Arc<Inner<T>>);
 
+#[derive(Debug)]
 struct Inner<T: AsyncRelease>(Option<T>);
 
 impl<T: AsyncRelease> Inner<T> {
