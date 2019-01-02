@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Filip <filip@golem.network>"]
 
 [dependencies]
+gu-actix = { path="../gu-actix" }
 gu-net = { path="../gu-net" }
 gu-model = { path="../gu-model" }
 actix = "0.7"

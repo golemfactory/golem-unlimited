@@ -5,6 +5,7 @@ use bytes::Bytes;
 use error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
+use gu_actix::release::AsyncRelease;
 use gu_model::session::BlobInfo;
 use gu_model::session::{HubSessionSpec, Metadata};
 use gu_net::rpc::peer::PeerInfo;
@@ -371,6 +372,13 @@ impl HubSession {
     }
 }
 
+impl AsyncRelease for HubSession {
+    type Result = Box<Future<Item = (), Error = Error>>;
+    fn release(self) -> Self::Result {
+        Box::new(self.delete())
+    }
+}
+
 /// Large binary object.
 #[derive(Debug)]
 pub struct Blob {
@@ -535,5 +543,12 @@ impl PeerSession {
                     status_code => future::err(Error::CannotDeletePeerSession(status_code)),
                 }),
         )
+    }
+}
+
+impl AsyncRelease for PeerSession {
+    type Result = Box<Future<Item = (), Error = Error>>;
+    fn release(self) -> Self::Result {
+        Box::new(self.delete())
     }
 }

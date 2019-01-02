@@ -4,7 +4,7 @@ use futures::unsync::oneshot;
 use std::ops::Deref;
 
 pub trait AsyncRelease: Send + 'static {
-    type Result: Future<Item = ()> + Send + 'static;
+    type Result: Future<Item = ()> + 'static;
 
     fn release(self) -> Self::Result;
 }
