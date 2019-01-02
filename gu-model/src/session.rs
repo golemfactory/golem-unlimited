@@ -32,7 +32,7 @@ impl Default for AllocationMode {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
     #[serde(default)]

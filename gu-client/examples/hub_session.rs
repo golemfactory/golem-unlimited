@@ -3,6 +3,7 @@ extern crate actix_web;
 extern crate futures;
 extern crate gu_client;
 extern crate gu_model;
+extern crate serde_json;
 
 use actix::Arbiter;
 use futures::{future, Future};
@@ -23,6 +24,17 @@ fn main() {
                 )
                 .and_then(move |hub_session| {
                     println!("New hub session ready: {:#?}.", hub_session);
+                    future::ok(hub_session.clone()).join(hub_session.config())
+                })
+                .and_then(move |(hub_session, mut config)| {
+                    println!("Session configuration: {:#?}.", config);
+                    config
+                        .entry
+                        .insert("my_key".to_string(), serde_json::json!("my_value"));
+                    future::ok(hub_session.clone()).join(hub_session.set_config(config))
+                })
+                .and_then(move |(hub_session, _)| {
+                    println!("Successfully saved configuration.");
                     future::ok(hub_session.clone()).join(hub_connection.list_sessions())
                 })
                 .and_then(|(hub_session, list_of_sessions)| {

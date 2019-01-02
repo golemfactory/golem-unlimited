@@ -5,7 +5,7 @@ use bytes::Bytes;
 use error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
-use gu_model::session::HubSessionSpec;
+use gu_model::session::{HubSessionSpec, Metadata};
 use gu_net::rpc::peer::PeerInfo;
 use gu_net::types::NodeId;
 use std::str;
@@ -297,10 +297,39 @@ impl HubSession {
                             future::Either::B(future::err(Error::CannotGetHubSession(status)))
                         }
                     })
-                    .and_then(|answer_json: HubSessionSpec| future::ok(answer_json)),
             ),
             Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
         }
+    }
+    /// sets hub session config
+    pub fn set_config(&self, config: Metadata) -> impl Future<Item = (), Error = Error> {
+        let url = format!(
+            "{}sessions/{}/config",
+            self.hub_connection.hub_connection_inner.url, self.session_id
+        );
+        future::result(client::ClientRequest::put(url).json(config))
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|request| request.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => future::ok(()),
+                status => future::err(Error::CannotSetHubSessionConfig(status)),
+            })
+    }
+    /// gets hub session config
+    pub fn config(&self) -> impl Future<Item = Metadata, Error = Error> {
+        let url = format!(
+            "{}sessions/{}/config",
+            self.hub_connection.hub_connection_inner.url, self.session_id
+        );
+        future::result(client::ClientRequest::get(url).finish())
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|request| request.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => {
+                    future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                }
+                status => future::Either::B(future::err(Error::CannotGetHubSessionConfig(status))),
+            })
     }
     /// deletes hub session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
