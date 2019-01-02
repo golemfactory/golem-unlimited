@@ -279,6 +279,34 @@ impl HubSession {
                 .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
         )
     }
+    /*
+    // TODO not implemented on the server; add BlobInfo and GET for /sessions/{id}/blobs
+    /// returns all session blobs
+    pub fn list_session_blobs(
+        &self,
+    ) -> impl Future<Item = impl Iterator<Item = BlobInfo>, Error = Error> {
+        let url = format!(
+            "{}sessions/{}/blobs",
+            self.hub_connection.hub_connection_inner.url, self.session_id
+        );
+        let request = match client::ClientRequest::get(url).finish() {
+            Ok(r) => r,
+            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
+        };
+        future::Either::B(
+            request
+                .send()
+                .map_err(Error::CannotSendRequest)
+                .and_then(|response| match response.status() {
+                    http::StatusCode::OK => {
+                        future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                    }
+                    status => future::Either::B(future::err(Error::CannotListSessionBlobs(status))),
+                })
+                .and_then(|answer_json: Vec<BlobInfo>| future::ok(answer_json.into_iter())),
+        )
+    }
+    */
     /// gets information about hub session
     pub fn info(&self) -> impl Future<Item = HubSessionSpec, Error = Error> {
         let url = format!(
@@ -286,18 +314,14 @@ impl HubSession {
             self.hub_connection.hub_connection_inner.url, self.session_id
         );
         match client::ClientRequest::get(url).finish() {
-            Ok(r) => future::Either::A(
-                r.send()
-                    .map_err(Error::CannotSendRequest)
-                    .and_then(|response| match response.status() {
-                        http::StatusCode::OK => {
-                            future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
-                        }
-                        status => {
-                            future::Either::B(future::err(Error::CannotGetHubSession(status)))
-                        }
-                    })
-            ),
+            Ok(r) => future::Either::A(r.send().map_err(Error::CannotSendRequest).and_then(
+                |response| match response.status() {
+                    http::StatusCode::OK => {
+                        future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                    }
+                    status => future::Either::B(future::err(Error::CannotGetHubSession(status))),
+                },
+            )),
             Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
         }
     }
