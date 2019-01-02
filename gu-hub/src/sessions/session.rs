@@ -3,7 +3,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use futures::{future::IntoFuture, stream, Future, Stream};
 use gu_base::files::{read_async, write_async};
-use gu_model::session::Metadata;
+use gu_model::session::{BlobInfo, Metadata};
 use gu_net::NodeId;
 use serde_json::{self, Value};
 use sessions::{
@@ -205,6 +205,13 @@ impl Session {
             Some(Err(e)) => Err(SessionErr::FileError(e.to_string())),
             None => Ok(SessionOk::BlobAlreadyDeleted),
         }
+    }
+
+    pub fn list_blobs(&self) -> Vec<BlobInfo> {
+        self.storage
+            .keys()
+            .map(|e| BlobInfo { id: e.to_string() })
+            .collect()
     }
 
     pub fn clean_directory(&mut self) -> io::Result<()> {

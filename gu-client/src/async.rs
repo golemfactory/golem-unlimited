@@ -5,6 +5,7 @@ use bytes::Bytes;
 use error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
+use gu_model::session::BlobInfo;
 use gu_model::session::{HubSessionSpec, Metadata};
 use gu_net::rpc::peer::PeerInfo;
 use gu_net::types::NodeId;
@@ -255,9 +256,7 @@ impl HubSession {
         };
     }
     /// returns all session peers
-    pub fn list_session_peers(
-        &self,
-    ) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
+    pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
         let url = format!(
             "{}sessions/{}/peers",
             self.hub_connection.hub_connection_inner.url, self.session_id
@@ -279,12 +278,8 @@ impl HubSession {
                 .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
         )
     }
-    /*
-    // TODO not implemented on the server; add BlobInfo and GET for /sessions/{id}/blobs
     /// returns all session blobs
-    pub fn list_session_blobs(
-        &self,
-    ) -> impl Future<Item = impl Iterator<Item = BlobInfo>, Error = Error> {
+    pub fn list_blobs(&self) -> impl Future<Item = impl Iterator<Item = BlobInfo>, Error = Error> {
         let url = format!(
             "{}sessions/{}/blobs",
             self.hub_connection.hub_connection_inner.url, self.session_id
@@ -306,7 +301,6 @@ impl HubSession {
                 .and_then(|answer_json: Vec<BlobInfo>| future::ok(answer_json.into_iter())),
         )
     }
-    */
     /// gets information about hub session
     pub fn info(&self) -> impl Future<Item = HubSessionSpec, Error = Error> {
         let url = format!(

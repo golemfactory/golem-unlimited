@@ -74,6 +74,7 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .resource("/{sessionId}/blobs", |r| {
             r.name("hub-session-blobs");
             r.post().with(create_blob_scope);
+            r.get().with_async(list_blobs);
         })
         .resource("/{sessionId}/blobs/{blobId}", |r| {
             r.name("hub-session-blob");
@@ -218,6 +219,18 @@ fn create_blob_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             .and_then(|(blob_id, _blob)| Ok(HttpResponse::Created().json(blob_id)))
             .responder()
     }
+}
+
+fn list_blobs(
+    path: Path<SessionPath>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::Update::new(path.session_id, |session| {
+            Ok(session.list_blobs())
+        }))
+        .flatten_fut()
+        .from_err()
+        .and_then(|list| Ok(HttpResponse::Ok().json(list)))
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder

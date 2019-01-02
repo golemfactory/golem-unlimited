@@ -4,7 +4,7 @@ use chrono::prelude::*;
 use chrono::DateTime;
 use serde_json::Value as JsonValue;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HubSessionSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -17,7 +17,7 @@ pub struct HubSessionSpec {
     pub tags: Tags,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum AllocationMode {
     #[serde(rename = "auto")]
@@ -55,6 +55,12 @@ pub struct SessionDetails {
     pub name: Option<String>,
     #[serde(default)]
     pub tags: Tags,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BlobInfo {
+    pub id: String,
 }
 
 #[cfg(test)]

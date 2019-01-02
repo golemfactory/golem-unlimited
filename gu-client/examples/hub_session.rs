@@ -9,7 +9,7 @@ use actix::Arbiter;
 use futures::{future, Future};
 use gu_client::async::HubConnection;
 use gu_client::async::SessionInfoBuilder;
-use gu_model::session::HubSessionSpec;
+use gu_model::session::{BlobInfo, HubSessionSpec};
 //use gu_net::rpc::peer::PeerInfo;
 
 fn main() {
@@ -40,12 +40,20 @@ fn main() {
                 .and_then(|(hub_session, list_of_sessions)| {
                     println!(
                         "List of all sessions: {:#?}.",
-                        serde_json::to_string(&list_of_sessions.collect::<Vec<HubSessionSpec>>())
+                        list_of_sessions.collect::<Vec<HubSessionSpec>>()
                     );
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
                 })
                 .and_then(|(hub_session, blob)| {
                     println!("New blob: {:#?}", blob);
+                    future::ok(hub_session.clone()).join(hub_session.new_blob())
+                })
+                .and_then(|(hub_session, blob)| {
+                    println!("Another blob: {:#?}", blob);
+                    future::ok(hub_session.clone()).join(hub_session.list_blobs())
+                })
+                .and_then(|(hub_session, blobs)| {
+                    println!("All blobs: {:#?}", blobs.collect::<Vec<BlobInfo>>());
                     future::ok(hub_session.clone()).join(hub_session.add_peers(&["a", "b", "c"]))
                 })
                 .and_then(|(_hub_session, _)| {
