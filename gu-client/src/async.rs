@@ -396,11 +396,11 @@ impl Blob {
             self.blob_id
         );
         future::result(client::ClientRequest::get(url).finish())
-            .map_err(|e| Error::CannotCreateRequest(e))
+            .map_err(Error::CannotCreateRequest)
             .and_then(|request| request.send().map_err(Error::CannotSendRequest))
             .and_then(|response| match response.status() {
                 http::StatusCode::OK => {
-                    future::ok(response.payload().map_err(|e| Error::CannotReceiveBlob(e)))
+                    future::ok(response.payload().map_err(Error::CannotReceiveBlob))
                 }
                 status => future::err(Error::InternalError(format!("HTTP Error: {}.", status))),
             })
