@@ -23,6 +23,7 @@ use std::{
     path::PathBuf,
     process, result, time,
 };
+use workspace::Workspace;
 
 /// Host direct manager
 pub struct HdMan {
@@ -152,13 +153,11 @@ impl HdMan {
 
 /// internal session representation
 struct SessionInfo {
-    name: String,
+    workspace: Workspace,
     status: PeerSessionStatus,
     /// used to determine proper status when last child is finished
     dirty: bool,
-    tags: HashSet<String>,
     note: Option<String>,
-    work_dir: PathBuf,
     processes: HashMap<String, process::Child>,
 }
 
@@ -183,8 +182,7 @@ impl SessionInfo {
             .values_mut()
             .map(|child| child.wait())
             .collect::<Vec<_>>();
-        debug!("cleaning session dir {:?}", self.work_dir);
-        fs::remove_dir_all(&self.work_dir).map_err(From::from)
+        self.workspace.clear_dir().map_err(From::from)
     }
 }
 
@@ -204,14 +202,14 @@ impl Handler<CreateSession<()>> for HdMan {
             Err(e) => return ActorResponse::reply(Err(e.into())),
         }
         let cache_path = self.get_cache_path(&msg.image.hash);
+        let mut workspace = Workspace::new(msg.name, work_dir.clone());
+        workspace.add_tags(msg.tags);
 
         let session = SessionInfo {
-            name: msg.name,
+            workspace,
             status: PeerSessionStatus::PENDING,
             dirty: false,
-            tags: HashSet::from_iter(msg.tags.into_iter()),
             note: msg.note,
-            work_dir: work_dir.clone(),
             processes: HashMap::new(),
         };
 
@@ -378,11 +376,11 @@ impl Handler<SessionUpdate> for HdMan {
                         match act.get_session_mut(&session_id) {
                             Ok(session) => {
                                 tags.into_iter().for_each(|tag| {
-                                    session.tags.insert(tag);
+                                    session.workspace.add_tags(vec![tag]);
                                 });
                                 v.push(format!(
                                     "tags inserted. Current tags are: {:?}",
-                                    &session.tags
+                                    &session.workspace.get_tags()
                                 ));
                                 fut::ok(v)
                             }
@@ -397,10 +395,10 @@ impl Handler<SessionUpdate> for HdMan {
                     future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
                         match act.get_session_mut(&session_id) {
                             Ok(session) => {
-                                session.tags.retain(|t| !tags.contains(t));
+                                session.workspace.remove_tags(tags);
                                 v.push(format!(
                                     "tags removed. Current tags are: {:?}",
-                                    &session.tags
+                                    &session.workspace.get_tags()
                                 ));
                                 fut::ok(v)
                             }
@@ -507,9 +505,9 @@ impl Handler<GetSessions> for HdMan {
             .iter()
             .map(|(id, session)| PeerSessionInfo {
                 id: id.clone(),
-                name: session.name.clone(),
+                name: session.workspace.get_name().clone(),
                 status: session.status.clone(),
-                tags: Vec::from_iter(session.tags.clone().into_iter()),
+                tags: session.workspace.get_tags(),
                 note: session.note.clone(),
                 processes: session.processes.keys().cloned().collect(),
             })

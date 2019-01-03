@@ -4,11 +4,10 @@
 use actix::prelude::*;
 use futures::{future, prelude::*};
 use gu_actix::prelude::*;
-use gu_base;
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value as JsonValue;
 use std::borrow::Cow;
 use std::collections::BTreeMap;

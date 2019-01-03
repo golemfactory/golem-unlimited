@@ -5,10 +5,8 @@ use actix::prelude::*;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
 use futures::prelude::*;
-use gu_actix::prelude::*;
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
-use serde_json::Value;
 use std::collections::BTreeMap;
 
 // Actor.

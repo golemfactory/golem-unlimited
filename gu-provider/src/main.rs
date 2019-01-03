@@ -45,6 +45,7 @@ mod provision;
 mod server;
 mod status;
 mod sync_exec;
+mod workspace;
 
 #[cfg(feature = "env-docker")]
 mod dockerman;
