@@ -1,13 +1,13 @@
 #![warn(dead_code)]
 
-use std::collections::HashSet;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::fs;
 use std::fs::DirBuilder;
 use std::io;
 use std::iter::FromIterator;
-use std::fs;
+use std::path::PathBuf;
 
 pub trait Volume {
     fn path(&self) -> String;
@@ -41,13 +41,13 @@ impl Workspace {
         Vec::from_iter(self.tags.clone().into_iter())
     }
 
-    pub fn add_tags<T: IntoIterator<Item=String>>(&mut self, tags: T) {
+    pub fn add_tags<T: IntoIterator<Item = String>>(&mut self, tags: T) {
         for tag in tags {
             self.tags.insert(tag);
         }
     }
 
-    pub fn remove_tags<T: IntoIterator<Item=String>>(&mut self, tags: T) {
+    pub fn remove_tags<T: IntoIterator<Item = String>>(&mut self, tags: T) {
         for tag in tags {
             self.tags.remove(&tag);
         }
@@ -79,7 +79,7 @@ impl Workspace {
         let mut result = builder.create(self.path.to_path_buf());
         for dir in self.volumes.iter() {
             result = builder.create(self.path.join(dir)).and_then(|_| result);
-        };
+        }
 
         result
     }
@@ -92,15 +92,15 @@ impl Workspace {
 
 #[cfg(test)]
 mod tests {
-    use workspace::Workspace;
-    use std::path::Path;
     use std::fs;
+    use std::path::Path;
     use std::path::PathBuf;
+    use workspace::Workspace;
 
     #[test]
     fn create_dirs() {
         let path = "/tmp/gu-unlimited/tests";
-        let mut work = Workspace::new("work".to_string(),path.into());
+        let mut work = Workspace::new("work".to_string(), path.into());
 
         work.add_volume("test1".to_string());
         work.add_volume("test2".to_string());
