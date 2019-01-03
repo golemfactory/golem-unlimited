@@ -6,8 +6,8 @@ use error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
 use gu_actix::release::{AsyncRelease, Handle};
-use gu_model::session::BlobInfo;
-use gu_model::session::{HubSessionSpec, Metadata};
+use gu_model::envman::Command;
+use gu_model::session::{BlobInfo, HubSessionSpec, Metadata};
 use gu_net::rpc::peer::PeerInfo;
 use gu_net::types::NodeId;
 use std::str;
@@ -537,9 +537,8 @@ pub struct PeerSession {
 }
 
 impl PeerSession {
-    /* TODO
-    /// updates deployment by sending multiple peer commands
-    pub fn update_deployment(&self) -> impl Future<Item = (), Error = Error> {
+    /// updates deployment session by sending multiple peer commands
+    pub fn update(&self, commands: Vec<Command>) -> impl Future<Item = (), Error = Error> {
         let url = format!(
             "{}sessions/{}/peers/{}/deployments/{}",
             self.peer
@@ -555,8 +554,7 @@ impl PeerSession {
             client::ClientRequest::build()
                 .method(actix_web::http::Method::PATCH)
                 .uri(url)
-                //.json(commands),
-                .finish(),
+                .json(commands),
         )
         .map_err(Error::CannotCreateRequest)
         .and_then(|request| request.send().map_err(Error::CannotSendRequest))
@@ -565,7 +563,6 @@ impl PeerSession {
             status => future::err(Error::CannotUpdateDeployment(status)),
         })
     }
-    */
     /// deletes peer session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
         let remove_url = format!(
