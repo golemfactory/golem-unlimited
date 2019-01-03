@@ -349,6 +349,28 @@ impl HubSession {
                 status => future::Either::B(future::err(Error::CannotGetHubSessionConfig(status))),
             })
     }
+    /* TODO
+    /// updates hub session
+    pub fn update(&self) -> impl Future<Item = (), Error = Error> {
+        let url = format!(
+            "{}sessions/{}",
+            self.hub_connection.hub_connection_inner.url, self.session_id
+        );
+        future::result(
+            client::ClientRequest::build()
+                .method(actix_web::http::Method::PATCH)
+                .uri(url)
+                //.json(command),
+                .finish(),
+        )
+        .map_err(Error::CannotCreateRequest)
+        .and_then(|request| request.send().map_err(Error::CannotSendRequest))
+        .and_then(|response| match response.status() {
+            http::StatusCode::OK => future::ok(()),
+            status => future::err(Error::CannotUpdateHubSession(status)),
+        })
+    }
+    */
     /// deletes hub session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
         let remove_url = format!(
@@ -515,6 +537,35 @@ pub struct PeerSession {
 }
 
 impl PeerSession {
+    /* TODO
+    /// updates deployment by sending multiple peer commands
+    pub fn update_deployment(&self) -> impl Future<Item = (), Error = Error> {
+        let url = format!(
+            "{}sessions/{}/peers/{}/deployments/{}",
+            self.peer
+                .hub_session
+                .hub_connection
+                .hub_connection_inner
+                .url,
+            self.peer.hub_session.session_id,
+            self.peer.peer_info.node_id.to_string(),
+            self.session_id,
+        );
+        future::result(
+            client::ClientRequest::build()
+                .method(actix_web::http::Method::PATCH)
+                .uri(url)
+                //.json(commands),
+                .finish(),
+        )
+        .map_err(Error::CannotCreateRequest)
+        .and_then(|request| request.send().map_err(Error::CannotSendRequest))
+        .and_then(|response| match response.status() {
+            http::StatusCode::OK => future::ok(()),
+            status => future::err(Error::CannotUpdateDeployment(status)),
+        })
+    }
+    */
     /// deletes peer session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
         let remove_url = format!(

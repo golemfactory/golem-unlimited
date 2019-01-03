@@ -18,6 +18,8 @@ pub enum Error {
     CannotReceiveBlob(actix_web::error::PayloadError),
     CannotSendRequest(actix_web::client::SendRequestError),
     CannotSetHubSessionConfig(actix_web::http::StatusCode),
+    CannotUpdateDeployment(actix_web::http::StatusCode),
+    CannotUpdateHubSession(actix_web::http::StatusCode),
     InternalError(String),
     InvalidAddress(url::ParseError),
     InvalidHubSessionParameters(String),
