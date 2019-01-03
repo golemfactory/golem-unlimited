@@ -22,11 +22,11 @@ fn main() {
                         .name("my session")
                         .environment("hd"),
                 )
-                .and_then(move |hub_session| {
+                .and_then(|hub_session| {
                     println!("New hub session ready: {:#?}.", hub_session);
                     future::ok(hub_session.clone()).join(hub_session.config())
                 })
-                .and_then(move |(hub_session, mut config)| {
+                .and_then(|(hub_session, mut config)| {
                     println!("Session configuration: {:#?}.", config);
                     config
                         .entry

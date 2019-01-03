@@ -58,7 +58,6 @@ impl HubConnection {
             })
     }
     /// creates a new hub session
-    /// assumption: url is /sessions, hub session is in the response body
     pub fn new_session(
         &self,
         session_info_builder: SessionInfoBuilder,
@@ -465,7 +464,6 @@ pub struct Peer {
 
 impl Peer {
     /// creates new peer session
-    /// assumption: url is /sessions/{session_id}/peers/{peer_id}/deployments (was: /hd, /peer_sessions)
     pub fn new_session(
         &self,
         builder: PeerSessionInfoBuilder,
