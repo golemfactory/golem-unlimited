@@ -15,10 +15,6 @@ members= [
 	'gu-model',
 ]
 
-#[patch.'https://github.com/tworec/parity-ethereum']
-#ethkey = { path = '../parity-ethereum/ethkey'}
-#ethstore = { path = '../parity-ethereum/ethstore'}
-
 [profile.release]
 codegen-units = 1
 lto=true
