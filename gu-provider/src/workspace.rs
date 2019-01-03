@@ -72,10 +72,11 @@ impl Workspace {
     /// Creates dirs that are included in inner volumes list
     /// They are created as children of a directory provided on Workspace creation
     pub fn create_dirs(&self) -> io::Result<()> {
-        let mut result = Ok(());
         let mut builder = DirBuilder::new();
         builder.recursive(true);
 
+        debug!("creating work dir {:?}", self.path);
+        let mut result = builder.create(self.path.to_path_buf());
         for dir in self.volumes.iter() {
             result = builder.create(self.path.join(dir)).and_then(|_| result);
         };

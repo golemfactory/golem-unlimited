@@ -8,6 +8,7 @@ use futures::prelude::*;
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use std::collections::BTreeMap;
+use workspace::Workspace;
 
 // Actor.
 #[derive(Default)]
@@ -16,7 +17,9 @@ struct DockerMan {
     sessions: BTreeMap<String, DockerSessionInfo>,
 }
 
-struct DockerSessionInfo {}
+struct DockerSessionInfo {
+    workspace: Workspace,
+}
 
 impl Actor for DockerMan {
     type Context = Context<Self>;

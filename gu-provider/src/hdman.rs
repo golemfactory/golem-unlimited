@@ -196,14 +196,15 @@ impl Handler<CreateSession<()>> for HdMan {
     ) -> <Self as Handler<CreateSession>>::Result {
         let session_id = self.generate_session_id();
         let work_dir = self.get_session_path(&session_id);
-        debug!("creating work dir {:?}", work_dir);
-        match fs::create_dir(&work_dir) {
-            Ok(_) => (),
-            Err(e) => return ActorResponse::reply(Err(e.into())),
-        }
+
         let cache_path = self.get_cache_path(&msg.image.hash);
         let mut workspace = Workspace::new(msg.name, work_dir.clone());
         workspace.add_tags(msg.tags);
+
+        match workspace.create_dirs() {
+            Ok(_) => (),
+            Err(e) => return ActorResponse::reply(Err(e.into())),
+        }
 
         let session = SessionInfo {
             workspace,
