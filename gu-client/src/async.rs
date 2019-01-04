@@ -246,6 +246,13 @@ impl HubSession {
                 .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
         )
     }
+    /// gets single blob by its id
+    pub fn blob(&self, blob_id: String) -> Blob {
+        Blob {
+            blob_id: blob_id,
+            hub_session: self.clone(),
+        }
+    }
     /// returns all session blobs
     pub fn list_blobs(&self) -> impl Future<Item = impl Iterator<Item = BlobInfo>, Error = Error> {
         let url = format!(
