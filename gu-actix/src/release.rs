@@ -1,6 +1,9 @@
 use actix::prelude::*;
 use futures::prelude::*;
 use futures::unsync::oneshot;
+use std::cell::Cell;
+use std::cell::Ref;
+use std::cell::RefCell;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -10,22 +13,29 @@ pub trait AsyncRelease: Send + 'static {
     fn release(self) -> Self::Result;
 }
 
-#[derive(Clone)]
 pub struct Handle<T: AsyncRelease>(Arc<Inner<T>>);
 
-struct Inner<T: AsyncRelease>(Option<T>);
+impl<T: AsyncRelease> Clone for Handle<T> {
+    fn clone(&self) -> Self {
+        Handle(self.0.clone())
+    }
+}
+
+struct Inner<T: AsyncRelease> {
+    inner: Option<T>,
+}
 
 impl<T: AsyncRelease> Inner<T> {
-    fn new(t: T) -> Self {
-        Inner(Some(t))
+    fn new(inner: T) -> Self {
+        Inner { inner: Some(inner) }
     }
 
     fn deref_inner(&self) -> &T {
-        self.0.as_ref().unwrap()
+        self.inner.as_ref().unwrap()
     }
 
-    fn into_inner(&mut self) -> T {
-        self.0.take().unwrap()
+    fn into_inner(mut self) -> T {
+        self.inner.take().unwrap()
     }
 }
 
@@ -36,8 +46,11 @@ impl<T: AsyncRelease> Handle<T> {
     }
 
     #[inline]
-    pub fn into_inner(mut self) -> T {
-        unimplemented!()
+    pub fn into_inner(self) -> Option<T> {
+        match Arc::try_unwrap(self.0) {
+            Ok(mut inner) => inner.inner.take(),
+            _ => None,
+        }
     }
 }
 
@@ -51,13 +64,13 @@ impl<T: AsyncRelease> Deref for Handle<T> {
     type Target = T;
 
     fn deref(&self) -> &<Self as Deref>::Target {
-        self.0.deref_inner()
+        self.0.deref().deref_inner()
     }
 }
 
 impl<T: AsyncRelease> Drop for Inner<T> {
     fn drop(&mut self) {
-        if let Some(h) = self.0.take() {
+        if let Some(h) = self.inner.take() {
             AsyncResourceManager::from_registry().do_send(DropHandle(h))
         }
     }
@@ -169,9 +182,11 @@ mod test {
     fn test_release() {
         let _ = System::run(|| {
             {
-                let _a = Handle::new(new_item());
+                let a = Handle::new(new_item());
                 eprintln!("c={}", counter.load(Ordering::Relaxed));
                 let _b = Handle::new(new_item());
+                eprintln!("c={}", counter.load(Ordering::Relaxed));
+                let _c = a.clone();
                 eprintln!("c={}", counter.load(Ordering::Relaxed));
             }
             eprintln!("c={}", counter.load(Ordering::Relaxed));
