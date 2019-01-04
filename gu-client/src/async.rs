@@ -216,36 +216,12 @@ impl HubSession {
                 }),
         )
     }
-    /// gets a peer by its id
-    pub fn peer(&self, peer_id: NodeId) -> impl Future<Item = Peer, Error = Error> {
-        let url = format!(
-            "{}peers/{}",
-            self.hub_connection.hub_connection_inner.url,
-            peer_id.to_string()
-        );
-        let hub_session_copy = self.clone();
-        return match client::ClientRequest::get(url).finish() {
-            Ok(r) => future::Either::A(
-                r.send()
-                    .map_err(Error::CannotSendRequest)
-                    .and_then(|response| match response.status() {
-                        http::StatusCode::OK => {
-                            future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
-                        }
-                        status => future::Either::B(future::err(Error::InternalError(format!(
-                            "HTTP Error: {}.",
-                            status
-                        )))),
-                    })
-                    .and_then(|answer_json: PeerInfo| {
-                        future::ok(Peer {
-                            peer_info: answer_json,
-                            hub_session: hub_session_copy,
-                        })
-                    }),
-            ),
-            Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
-        };
+    /// gets single peer by its id
+    pub fn peer(&self, node_id: NodeId) -> Peer {
+        Peer {
+            node_id: node_id,
+            hub_session: self.clone(),
+        }
     }
     /// returns all session peers
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
@@ -470,7 +446,7 @@ impl Blob {
 #[derive(Clone)]
 pub struct Peer {
     hub_session: HubSession,
-    pub peer_info: PeerInfo,
+    pub node_id: NodeId,
 }
 
 impl Peer {
@@ -483,7 +459,7 @@ impl Peer {
             "{}sessions/{}/peers/{}/deployments",
             self.hub_session.hub_connection.hub_connection_inner.url,
             self.hub_session.session_id,
-            self.peer_info.node_id.to_string()
+            self.node_id.to_string()
         );
         let session_info = match builder.build() {
             Ok(r) => r,
@@ -517,6 +493,24 @@ impl Peer {
                 }),
         )
     }
+    /// gets peer information
+    pub fn info(&self) -> impl Future<Item = PeerInfo, Error = Error> {
+        let url = format!(
+            "{}peers/{}",
+            self.hub_session.hub_connection.hub_connection_inner.url,
+            self.node_id.to_string()
+        );
+        future::result(client::ClientRequest::get(url).finish())
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|request| request.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => {
+                    future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                }
+                status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
+            })
+            .and_then(|answer_json: PeerInfo| future::ok(answer_json))
+    }
 }
 
 /// Peer session.
@@ -536,7 +530,7 @@ impl PeerSession {
                 .hub_connection_inner
                 .url,
             self.peer.hub_session.session_id,
-            self.peer.peer_info.node_id.to_string(),
+            self.peer.node_id.to_string(),
             self.session_id,
         );
         future::result(
@@ -562,7 +556,7 @@ impl PeerSession {
                 .hub_connection_inner
                 .url,
             self.peer.hub_session.session_id,
-            self.peer.peer_info.node_id.to_string(),
+            self.peer.node_id.to_string(),
             self.session_id,
         );
         let request = match client::ClientRequest::delete(remove_url).finish() {
