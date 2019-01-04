@@ -8,7 +8,7 @@ extern crate serde_json;
 use actix::Arbiter;
 use futures::{future, Future};
 use gu_client::async::HubConnection;
-use gu_client::async::SessionInfoBuilder;
+use gu_client::async::HubSessionInfoBuilder;
 use gu_model::session::{BlobInfo, HubSessionSpec};
 //use gu_net::rpc::peer::PeerInfo;
 
@@ -18,7 +18,7 @@ fn main() {
         Arbiter::spawn(
             hub_connection
                 .new_session(
-                    SessionInfoBuilder::default()
+                    HubSessionInfoBuilder::default()
                         .name("my session")
                         .environment("hd"),
                 )

@@ -15,7 +15,7 @@ use url::Url;
 /// Hub session information.
 #[derive(Clone, Serialize, Deserialize, Debug, Default, Builder)]
 #[builder(pattern = "owned", setter(into))]
-pub struct SessionInfo {
+pub struct HubSessionInfo {
     name: String,
     environment: String,
 }
@@ -58,7 +58,7 @@ impl HubConnection {
     /// creates a new hub session
     pub fn new_session(
         &self,
-        session_info_builder: SessionInfoBuilder,
+        session_info_builder: HubSessionInfoBuilder,
     ) -> impl Future<Item = Handle<HubSession>, Error = Error> {
         let sessions_url = format!("{}sessions", self.hub_connection_inner.url);
         let session_info = match session_info_builder.build() {
