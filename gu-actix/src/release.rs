@@ -6,6 +6,7 @@ use std::cell::Ref;
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::fmt;
 
 pub trait AsyncRelease: Send + 'static {
     type Result: Future<Item = ()> + 'static;
@@ -18,6 +19,12 @@ pub struct Handle<T: AsyncRelease>(Arc<Inner<T>>);
 impl<T: AsyncRelease> Clone for Handle<T> {
     fn clone(&self) -> Self {
         Handle(self.0.clone())
+    }
+}
+
+impl<T: AsyncRelease + fmt::Debug> fmt::Debug for Handle<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.0.deref_inner().fmt(fmt)
     }
 }
 
