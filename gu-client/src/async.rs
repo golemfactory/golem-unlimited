@@ -77,7 +77,7 @@ impl HubConnection {
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
                         return future::Either::A(future::err(Error::CannotCreateHubSession(
-                            format!("HTTP Error: {}.", response.status()),
+                            response.status(),
                         )));
                     }
                     future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
@@ -105,10 +105,7 @@ impl HubConnection {
                         http::StatusCode::OK => {
                             future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
                         }
-                        status => future::Either::B(future::err(Error::InternalError(format!(
-                            "HTTP Error: {}.",
-                            status
-                        )))),
+                        status => future::Either::B(future::err(Error::CannotListHubPeers(status))),
                     })
                     .and_then(|answer_json: Vec<PeerInfo>| future::ok(answer_json.into_iter())),
             ),
@@ -181,7 +178,7 @@ impl HubSession {
                         future::Either::A(future::err(Error::SessionNotFound(session_id_copy)))
                     }
                     http::StatusCode::INTERNAL_SERVER_ERROR => future::Either::A(future::err(
-                        Error::InternalError(format!("HTTP Error: {}.", response.status())),
+                        Error::CannotAddPeersToSession(response.status()),
                     )),
                     _ => future::Either::B(future::ok(())),
                 }),
@@ -204,12 +201,9 @@ impl HubSession {
                 .map_err(Error::CannotSendRequest)
                 .and_then(|response| match response.status() {
                     http::StatusCode::CREATED => {
-                        future::Either::A(response.body().map_err(Error::CannotCreateBlob))
+                        future::Either::A(response.body().map_err(Error::CannotGetResponseBody))
                     }
-                    status => future::Either::B(future::err(Error::InternalError(format!(
-                        "HTTP Error: {}.",
-                        status
-                    )))),
+                    status => future::Either::B(future::err(Error::CannotCreateBlob(status))),
                 })
                 .and_then(|body| {
                     future::ok(Blob {
@@ -425,7 +419,7 @@ impl Blob {
                 .map_err(Error::CannotSendRequest)
                 .and_then(|response| match response.status() {
                     http::StatusCode::OK => future::ok(()),
-                    status => future::err(Error::InternalError(format!("HTTP Error: {}.", status))),
+                    status => future::err(Error::CannotUploadBlobFromStream(status)),
                 }),
         )
     }
@@ -442,9 +436,9 @@ impl Blob {
             .and_then(|request| request.send().map_err(Error::CannotSendRequest))
             .and_then(|response| match response.status() {
                 http::StatusCode::OK => {
-                    future::ok(response.payload().map_err(Error::CannotReceiveBlob))
+                    future::ok(response.payload().map_err(Error::CannotReceiveBlobBody))
                 }
-                status => future::err(Error::InternalError(format!("HTTP Error: {}.", status))),
+                status => future::err(Error::CannotReceiveBlob(status)),
             })
             .flatten_stream()
     }
@@ -507,7 +501,7 @@ impl Peer {
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
                         return future::Either::A(future::err(Error::CannotCreatePeerSession(
-                            format!("HTTP Error: {}.", response.status()),
+                            response.status(),
                         )));
                     }
                     future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
