@@ -1,14 +1,12 @@
-#![allow(dead_code)]
-
 use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
 use error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
 use gu_actix::release::{AsyncRelease, Handle};
+use gu_model::peers::PeerInfo;
 use gu_model::session::{BlobInfo, HubSessionSpec, Metadata};
 use gu_model::{envman, session};
-use gu_net::rpc::peer::PeerInfo;
 use gu_net::types::NodeId;
 use std::str;
 use std::sync::Arc;
