@@ -1,16 +1,17 @@
 extern crate actix;
 extern crate actix_web;
+extern crate bytes;
 extern crate futures;
 extern crate gu_client;
 extern crate gu_model;
 extern crate serde_json;
 
 use actix::Arbiter;
-use futures::{future, Future};
+use bytes::Bytes;
+use futures::{future, stream, Future};
 use gu_client::async::HubConnection;
 use gu_client::async::HubSessionInfoBuilder;
 use gu_model::session::{BlobInfo, HubSessionSpec};
-//use gu_net::rpc::peer::PeerInfo;
 
 fn main() {
     let hub_connection = HubConnection::from_addr("127.0.0.1:61622").expect("Invalid address.");
@@ -50,6 +51,15 @@ fn main() {
                 })
                 .and_then(|(hub_session, blob)| {
                     println!("Another blob: {:#?}", blob);
+                    let bytes = Bytes::from("abcde");
+                    let stream = stream::iter_ok::<Vec<Bytes>, actix_web::Error>(vec![
+                        bytes,
+                        Bytes::from("test!"),
+                    ]);
+                    future::ok(hub_session.clone()).join(blob.upload_from_stream(stream))
+                })
+                .and_then(|(hub_session, _)| {
+                    println!("Successfully uploaded blob.");
                     future::ok(hub_session.clone()).join(hub_session.list_blobs())
                 })
                 .and_then(|(hub_session, blobs)| {
