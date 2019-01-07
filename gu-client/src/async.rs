@@ -407,7 +407,7 @@ impl Blob {
         )
     }
     /// downloads blob
-    pub fn download(&self) -> impl Stream {
+    pub fn download(&self) -> impl Stream<Item = Bytes, Error = Error> {
         let url = format!(
             "{}sessions/{}/blobs/{}",
             self.hub_session.hub_connection.hub_connection_inner.url,
