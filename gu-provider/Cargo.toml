@@ -42,6 +42,7 @@ gu-model = { path = "../gu-model" }
 
 
 async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger" }
+tar-async={git="https://github.com/prekucki/tar-async.git"}
 #async_docker={path = "../../async-docker", optional=true }
 
 [package.metadata.deb]

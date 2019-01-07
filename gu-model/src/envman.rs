@@ -82,6 +82,10 @@ pub struct SessionUpdate {
     pub commands: Vec<Command>,
 }
 
+impl PublicMessage for SessionUpdate {
+    const ID: u32 = 38;
+}
+
 #[derive(Serialize, Deserialize, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum ResourceFormat {
@@ -117,12 +121,14 @@ pub enum Command {
     },
     AddTags(Vec<String>),
     DelTags(Vec<String>),
+    #[serde(rename_all = "camelCase")]
     DownloadFile {
         uri: String,
         file_path: String,
         #[serde(default)]
         format: ResourceFormat,
     },
+    #[serde(rename_all = "camelCase")]
     UploadFile {
         uri: String,
         file_path: String,

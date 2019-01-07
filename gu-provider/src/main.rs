@@ -8,6 +8,7 @@ extern crate clap;
 extern crate error_chain;
 extern crate flate2;
 extern crate futures;
+#[macro_use]
 extern crate gu_actix;
 extern crate gu_base;
 extern crate gu_ethkey;
@@ -32,10 +33,11 @@ extern crate uuid;
 #[macro_use]
 extern crate prettytable;
 
+extern crate tar_async;
+
 use clap::App;
 use gu_base::*;
 
-mod async_tar;
 mod connect;
 pub mod envman;
 mod hdman;

@@ -4,9 +4,9 @@ use futures::unsync::oneshot;
 use std::cell::Cell;
 use std::cell::Ref;
 use std::cell::RefCell;
+use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
-use std::fmt;
 
 pub trait AsyncRelease: Send + 'static {
     type Result: Future<Item = ()> + 'static;

@@ -15,6 +15,7 @@ use gu_net::rpc::{
 };
 use gu_persist::config::ConfigModule;
 use id::generate_new_id;
+use provision::download_step;
 use provision::{download, untgz};
 use std::{
     collections::{HashMap, HashSet},
@@ -437,10 +438,10 @@ fn handle_download_file(
     future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
     uri: String,
     file_path: PathBuf,
-    _format: ResourceFormat,
+    format: ResourceFormat,
 ) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
     future_chain.and_then(move |mut v, act, _ctx| {
-        download(uri.as_ref(), file_path, false)
+        download_step(uri.as_ref(), file_path, format)
             .then(move |x| match x {
                 Ok(()) => {
                     v.push(format!("{:?} file downloaded", uri));
