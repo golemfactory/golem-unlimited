@@ -3,7 +3,8 @@ use futures::{future, prelude::*};
 use gu_base::files::{untgz_async, write_async};
 use gu_model::envman::ResourceFormat;
 use std::{
-    path::{Path, PathBuf}, fs,
+    fs,
+    path::{Path, PathBuf},
     time,
 };
 
@@ -23,45 +24,50 @@ pub fn download_step(
         async_try!(fs::create_dir_all(&output_path).map_err(|e| format!("creare dir {}", e)))
     }
 
-    future::Either::A(client_request
-        .send()
-        .map_err(|e| format!("send download request: {}", e))
-        .and_then(move |resp| {
-            match format {
-                ResourceFormat::Raw => future::Either::A(
-                    write_async(resp.payload(), output_path)
-                        .map_err(|_| "writing downloaded file failed".to_string()),
-                ),
-                ResourceFormat::Tar => future::Either::B(
-                    full::decode_tar(resp.payload())
-                        .map_err(|e| format!("tar: {}", e))
-                        .for_each(move |entry| {
-                            let entry_type = entry.header().entry_type().clone();
-                            let path : PathBuf = async_try!(entry.header().path().map_err(|e| format!("payload err: {}", e))).to_owned();
-                            eprintln!("tar-path:{}", path.display());
+    future::Either::A(
+        client_request
+            .send()
+            .map_err(|e| format!("send download request: {}", e))
+            .and_then(move |resp| {
+                match format {
+                    ResourceFormat::Raw => future::Either::A(
+                        write_async(resp.payload(), output_path)
+                            .map_err(|_| "writing downloaded file failed".to_string()),
+                    ),
+                    ResourceFormat::Tar => future::Either::B(
+                        full::decode_tar(resp.payload())
+                            .map_err(|e| format!("tar: {}", e))
+                            .for_each(move |entry| {
+                                let entry_type = entry.header().entry_type().clone();
+                                let path: PathBuf = async_try!(entry
+                                    .header()
+                                    .path()
+                                    .map_err(|e| format!("payload err: {}", e)))
+                                .to_owned();
+                                eprintln!("tar-path:{}", path.display());
 
-
-                            if entry_type.is_dir() { // is directory
-                                use std::fs;
-                                let dir_name = output_path.join(path);
-                                if !dir_name.exists() {
-                                    let _ = async_try!(fs::create_dir_all(dir_name).map_err(|e| format!("io: {}", e)));
+                                if entry_type.is_dir() {
+                                    // is directory
+                                    use std::fs;
+                                    let dir_name = output_path.join(path);
+                                    if !dir_name.exists() {
+                                        let _ = async_try!(fs::create_dir_all(dir_name)
+                                            .map_err(|e| format!("io: {}", e)));
+                                    }
+                                    future::Either::B(future::ok(()))
+                                } else if entry_type.is_file() {
+                                    let out_file = output_path.join(path);
+                                    async_result!(write_async(entry, out_file))
+                                } else {
+                                    // if entry.header().path() { }
+                                    future::Either::B(future::ok(()))
                                 }
-                                future::Either::B(future::ok(()))
-                            }
-                            else if entry_type.is_file() {
-                                let out_file = output_path.join(path);
-                                async_result!(write_async(entry, out_file))
-                            }
-                            else {
-                                // if entry.header().path() { }
-                                future::Either::B(future::ok(()))
-                            }
-                        })
-                        .map(|_| ()),
-                ),
-            }
-        }))
+                            })
+                            .map(|_| ()),
+                    ),
+                }
+            }),
+    )
 }
 
 // TODO: support redirect
