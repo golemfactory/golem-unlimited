@@ -5,6 +5,7 @@ use actix::prelude::*;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
 use futures::prelude::*;
+use gu_model::dockerman::CreateOptions;
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use std::collections::BTreeMap;
@@ -39,22 +40,22 @@ impl Actor for DockerMan {
 }
 
 impl envman::EnvManService for DockerMan {
-    type CreateOptions = ();
+    type CreateOptions = CreateOptions;
 }
 
-impl Handler<CreateSession> for DockerMan {
+impl Handler<CreateSession<CreateOptions>> for DockerMan {
     type Result = ActorResponse<DockerMan, String, Error>;
 
     fn handle(
         &mut self,
-        msg: CreateSession,
+        msg: CreateSession<CreateOptions>,
         _ctx: &mut Self::Context,
-    ) -> <Self as Handler<CreateSession>>::Result {
+    ) -> <Self as Handler<CreateSession<CreateOptions>>>::Result {
         debug!("create session for: {}", &msg.image.url);
 
         match self.docker_api {
             Some(ref api) => {
-                let Image { url, hash: _ } = msg.image;
+                let Image { url, hash } = msg.image;
 
                 //let docker_image = api.image(url.as_ref().into());
                 let opts = ContainerConfig::new()
@@ -94,10 +95,87 @@ impl Handler<SessionUpdate> for DockerMan {
 
     fn handle(
         &mut self,
-        _msg: SessionUpdate,
+        msg: SessionUpdate,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<SessionUpdate>>::Result {
-        unimplemented!();
+        if !self.sessions.contains_key(&msg.session_id) {
+            return ActorResponse::reply(Err(
+                vec![Error::NoSuchSession(msg.session_id).to_string()],
+            ));
+        }
+
+        let mut future_chain: Box<
+            ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = Self>,
+        > = Box::new(fut::ok(Vec::new()));
+
+        for cmd in msg.commands {
+            let session_id = msg.session_id.clone();
+
+            match cmd {
+                Command::Open => (),
+                Command::Close => (),
+                Command::Exec { executable, args } => (),
+                Command::Start { executable, args } => (),
+                Command::Stop { child_id } => (),
+                Command::AddTags(mut tags) => {
+                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                        match act
+                            .sessions
+                            .get_mut(&session_id)
+                            .ok_or(Error::NoSuchSession(session_id.clone()))
+                        {
+                            Ok(session) => {
+                                tags.into_iter().for_each(|tag| {
+                                    session.workspace.add_tags(vec![tag]);
+                                });
+                                v.push(format!(
+                                    "tags inserted. Current tags are: {:?}",
+                                    &session.workspace.get_tags()
+                                ));
+                                fut::ok(v)
+                            }
+                            Err(e) => {
+                                v.push(e.to_string());
+                                fut::err(v)
+                            }
+                        }
+                    }));
+                }
+                Command::DelTags(mut tags) => {
+                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                        match act
+                            .sessions
+                            .get_mut(&session_id)
+                            .ok_or(Error::NoSuchSession(session_id.clone()))
+                        {
+                            Ok(session) => {
+                                session.workspace.remove_tags(tags);
+                                v.push(format!(
+                                    "tags removed. Current tags are: {:?}",
+                                    &session.workspace.get_tags()
+                                ));
+                                fut::ok(v)
+                            }
+                            Err(e) => {
+                                v.push(e.to_string());
+                                fut::err(v)
+                            }
+                        }
+                    }));
+                }
+                Command::DownloadFile {
+                    uri,
+                    file_path,
+                    format,
+                } => (),
+                Command::UploadFile {
+                    uri,
+                    file_path,
+                    format,
+                } => (),
+            }
+        }
+        ActorResponse::async(future_chain)
     }
 }
 

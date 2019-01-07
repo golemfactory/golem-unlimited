@@ -1,7 +1,7 @@
-#![warn(dead_code)]
+#![allow(dead_code)]
 
+use gu_model::dockerman::VolumeDef;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 use std::fs::DirBuilder;
@@ -19,7 +19,7 @@ pub struct Workspace {
     path: PathBuf,
     metadata: Value,
     tags: HashSet<String>,
-    volumes: HashSet<String>,
+    volumes: HashSet<VolumeDef>,
 }
 
 impl Workspace {
@@ -61,11 +61,11 @@ impl Workspace {
         self.metadata = val;
     }
 
-    pub fn add_volume(&mut self, s: String) {
+    pub fn add_volume(&mut self, s: VolumeDef) {
         self.volumes.insert(s);
     }
 
-    pub fn remove_volume(&mut self, s: &String) {
+    pub fn remove_volume(&mut self, s: &VolumeDef) {
         self.volumes.remove(s);
     }
 
@@ -78,7 +78,12 @@ impl Workspace {
         debug!("creating work dir {:?}", self.path);
         let mut result = builder.create(self.path.to_path_buf());
         for dir in self.volumes.iter() {
-            result = builder.create(self.path.join(dir)).and_then(|_| result);
+            match dir.source_dir() {
+                Some(dir) => {
+                    result = builder.create(self.path.join(dir)).and_then(|_| result);
+                }
+                _ => (),
+            }
         }
 
         result
@@ -92,8 +97,7 @@ impl Workspace {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::Path;
+    use gu_model::dockerman::VolumeDef;
     use std::path::PathBuf;
     use workspace::Workspace;
 
@@ -102,8 +106,14 @@ mod tests {
         let path = "/tmp/gu-unlimited/tests";
         let mut work = Workspace::new("work".to_string(), path.into());
 
-        work.add_volume("test1".to_string());
-        work.add_volume("test2".to_string());
+        work.add_volume(VolumeDef::BindRw {
+            src: "test1".to_string(),
+            target: "".to_string(),
+        });
+        work.add_volume(VolumeDef::BindRw {
+            src: "test2".to_string(),
+            target: "".to_string(),
+        });
 
         work.create_dirs().unwrap();
 

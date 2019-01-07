@@ -35,7 +35,7 @@ fn status_handler<S: 'static>(_r: &HttpRequest<S>) -> impl Responder {
         .responder()
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub enum EnvStatus {
     Ready,
     Working,

@@ -5,6 +5,9 @@ use super::{
 use actix::{fut, prelude::*};
 use actix_web::client;
 use actix_web::error::ErrorInternalServerError;
+use deployment::DeployManager;
+use deployment::Destroy;
+use deployment::IntoDeployInfo;
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::files::read_async;
@@ -16,18 +19,42 @@ use gu_net::rpc::{
 use gu_persist::config::ConfigModule;
 use id::generate_new_id;
 use provision::{download, untgz};
-use std::{
-    collections::{HashMap, HashSet},
-    fs,
-    iter::FromIterator,
-    path::PathBuf,
-    process, result, time,
-};
+use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use workspace::Workspace;
+
+impl IntoDeployInfo for SessionInfo {
+    fn convert(&self, id: &String) -> PeerSessionInfo {
+        PeerSessionInfo {
+            id: id.clone(),
+            name: self.workspace.get_name().clone(),
+            status: self.status.clone(),
+            tags: self.workspace.get_tags(),
+            note: self.note.clone(),
+            processes: self.processes.keys().cloned().collect(),
+        }
+    }
+}
+
+impl Destroy for SessionInfo {
+    fn destroy(&mut self) -> Result<(), Error> {
+        debug!("killing all running child processes");
+        let _ = self
+            .processes
+            .values_mut()
+            .map(|child| child.kill())
+            .collect::<Vec<_>>();
+        let _ = self
+            .processes
+            .values_mut()
+            .map(|child| child.wait())
+            .collect::<Vec<_>>();
+        self.workspace.clear_dir().map_err(From::from)
+    }
+}
 
 /// Host direct manager
 pub struct HdMan {
-    sessions: HashMap<String, SessionInfo>,
+    deploys: DeployManager<SessionInfo>,
     cache_dir: PathBuf,
     sessions_dir: PathBuf,
 }
@@ -53,17 +80,6 @@ impl Actor for HdMan {
     }
 }
 
-impl Drop for HdMan {
-    fn drop(&mut self) {
-        let _: Vec<Result<(), Error>> = self
-            .sessions
-            .values_mut()
-            .map(SessionInfo::destroy)
-            .collect();
-        println!("HdMan stopped");
-    }
-}
-
 impl HdMan {
     pub fn start(config: &ConfigModule) -> Addr<Self> {
         let cache_dir = config.cache_dir().to_path_buf().join("images");
@@ -79,14 +95,10 @@ impl HdMan {
             .unwrap();
 
         start_actor(HdMan {
-            sessions: HashMap::new(),
+            deploys: Default::default(),
             cache_dir,
             sessions_dir,
         })
-    }
-
-    fn generate_session_id(&self) -> String {
-        generate_new_id(&self.sessions)
     }
 
     fn get_session_path(&self, session_id: &String) -> PathBuf {
@@ -106,9 +118,9 @@ impl HdMan {
     }
 
     fn get_session_mut(&mut self, session_id: &String) -> Result<&mut SessionInfo, Error> {
-        match self.sessions.get_mut(session_id) {
-            Some(session) => Ok(session),
-            None => Err(Error::NoSuchSession(session_id.clone())),
+        match self.deploys.deploy_mut(session_id) {
+            Ok(session) => Ok(session),
+            Err(_) => Err(Error::NoSuchSession(session_id.clone())),
         }
     }
 
@@ -120,15 +132,8 @@ impl HdMan {
         Ok(self.get_session_mut(&session_id)?.insert_process(child))
     }
 
-    fn destroy_session(&mut self, session_id: &String) -> Result<(), Error> {
-        self.sessions
-            .remove(session_id)
-            .ok_or(Error::NoSuchSession(session_id.clone()))
-            .and_then(|mut s| SessionInfo::destroy(&mut s))
-    }
-
     fn scan_for_processes(&mut self) {
-        for sess_info in self.sessions.values_mut().into_iter() {
+        for sess_info in self.deploys.values_mut() {
             let finished: Vec<String> = sess_info
                 .processes
                 .iter_mut()
@@ -169,24 +174,9 @@ impl SessionInfo {
         self.status = PeerSessionStatus::RUNNING;
         id
     }
-
-    fn destroy(&mut self) -> Result<(), Error> {
-        debug!("killing all running child processes");
-        let _ = self
-            .processes
-            .values_mut()
-            .map(|child| child.kill())
-            .collect::<Vec<_>>();
-        let _ = self
-            .processes
-            .values_mut()
-            .map(|child| child.wait())
-            .collect::<Vec<_>>();
-        self.workspace.clear_dir().map_err(From::from)
-    }
 }
 
-impl Handler<CreateSession<()>> for HdMan {
+impl Handler<CreateSession> for HdMan {
     type Result = ActorResponse<HdMan, String, Error>;
 
     fn handle(
@@ -194,7 +184,7 @@ impl Handler<CreateSession<()>> for HdMan {
         msg: CreateSession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
-        let session_id = self.generate_session_id();
+        let session_id = self.deploys.generate_session_id();
         let work_dir = self.get_session_path(&session_id);
 
         let cache_path = self.get_cache_path(&msg.image.hash);
@@ -215,7 +205,7 @@ impl Handler<CreateSession<()>> for HdMan {
         };
 
         debug!("newly created session id={}", session_id);
-        self.sessions.insert(session_id.clone(), session);
+        self.deploys.insert_deploy(session_id.clone(), session);
 
         debug!("hey! I'm downloading from: {:?}", msg.image);
         let sess_id = session_id.clone();
@@ -232,10 +222,12 @@ impl Handler<CreateSession<()>> for HdMan {
                     }
                     Err(e) => fut::err(e),
                 })
-                .map_err(move |e, act, _ctx| match act.destroy_session(&session_id) {
-                    Ok(_) => Error::IoError(format!("creating session error: {:?}", e)),
-                    Err(e) => e,
-                }),
+                .map_err(
+                    move |e, act, _ctx| match act.deploys.destroy_deploy(&session_id) {
+                        Ok(_) => Error::IoError(format!("creating session error: {:?}", e)),
+                        Err(e) => e,
+                    },
+                ),
         )
     }
 }
@@ -246,7 +238,7 @@ impl Handler<SessionUpdate> for HdMan {
     type Result = ActorResponse<HdMan, Vec<String>, Vec<String>>;
 
     fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
-        if !self.sessions.contains_key(&msg.session_id) {
+        if !self.deploys.contains_deploy(&msg.session_id) {
             return ActorResponse::reply(Err(
                 vec![Error::NoSuchSession(msg.session_id).to_string()],
             ));
@@ -501,18 +493,7 @@ impl Handler<GetSessions> for HdMan {
     type Result = result::Result<Vec<PeerSessionInfo>, ()>;
 
     fn handle(&mut self, _msg: GetSessions, _ctx: &mut Self::Context) -> Self::Result {
-        Ok(self
-            .sessions
-            .iter()
-            .map(|(id, session)| PeerSessionInfo {
-                id: id.clone(),
-                name: session.workspace.get_name().clone(),
-                status: session.status.clone(),
-                tags: session.workspace.get_tags(),
-                note: session.note.clone(),
-                processes: session.processes.keys().cloned().collect(),
-            })
-            .collect())
+        Ok(self.deploys.deploys_info())
     }
 }
 
@@ -524,7 +505,7 @@ impl Handler<DestroySession> for HdMan {
         msg: DestroySession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
-        ActorResponse::async(match self.destroy_session(&msg.session_id) {
+        ActorResponse::async(match self.deploys.destroy_deploy(&msg.session_id) {
             Ok(_) => fut::ok("Session closed".into()),
             Err(e) => fut::err(e),
         })
@@ -539,15 +520,6 @@ impl Handler<status::GetEnvStatus> for HdMan {
         _msg: status::GetEnvStatus,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<status::GetEnvStatus>>::Result {
-        let mut num_proc = 0;
-        for session in self.sessions.values() {
-            debug!("session status = {:?}", session.status);
-            num_proc += session.processes.len();
-        }
-        debug!("result = {}", num_proc);
-        MessageResult(match num_proc {
-            0 => status::EnvStatus::Ready,
-            _ => status::EnvStatus::Working,
-        })
+        MessageResult(self.deploys.status())
     }
 }
