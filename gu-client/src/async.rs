@@ -373,7 +373,7 @@ impl AsyncRelease for HubSession {
 }
 
 /// Large binary object.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Blob {
     hub_session: HubSession,
     blob_id: String,
@@ -521,6 +521,7 @@ impl Peer {
 }
 
 /// Peer session.
+#[derive(Clone)]
 pub struct PeerSession {
     peer: Peer,
     session_id: String,
