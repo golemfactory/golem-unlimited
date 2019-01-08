@@ -8,7 +8,7 @@ extern crate serde_json;
 
 use actix::Arbiter;
 use bytes::Bytes;
-use futures::{future, stream, Future};
+use futures::{future, stream, Future, Stream};
 use gu_client::async::HubConnection;
 use gu_client::async::HubSessionInfoBuilder;
 use gu_model::session::{BlobInfo, HubSessionSpec};
@@ -56,10 +56,15 @@ fn main() {
                         bytes,
                         Bytes::from("test!"),
                     ]);
-                    future::ok(hub_session.clone()).join(blob.upload_from_stream(stream))
+                    future::ok(hub_session.clone())
+                        .join3(blob.upload_from_stream(stream), future::ok(blob.clone()))
                 })
-                .and_then(|(hub_session, _)| {
+                .and_then(|(hub_session, _, blob)| {
                     println!("Successfully uploaded blob.");
+                    future::ok(hub_session.clone()).join(blob.download().collect())
+                })
+                .and_then(|(hub_session, vec)| {
+                    println!("Downloaded blob: {:?}", vec);
                     future::ok(hub_session.clone()).join(hub_session.list_blobs())
                 })
                 .and_then(|(hub_session, blobs)| {

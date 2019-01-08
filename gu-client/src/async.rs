@@ -247,9 +247,9 @@ impl HubSession {
         )
     }
     /// gets single blob by its id
-    pub fn blob(&self, blob_id: String) -> Blob {
+    pub fn blob<T: Into<String>>(&self, blob_id: T) -> Blob {
         Blob {
-            blob_id: blob_id,
+            blob_id: blob_id.into(),
             hub_session: self.clone(),
         }
     }
@@ -373,7 +373,7 @@ impl AsyncRelease for HubSession {
 }
 
 /// Large binary object.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Blob {
     hub_session: HubSession,
     blob_id: String,
@@ -407,7 +407,7 @@ impl Blob {
         )
     }
     /// downloads blob
-    pub fn download(&self) -> impl Stream {
+    pub fn download(&self) -> impl Stream<Item = Bytes, Error = Error> {
         let url = format!(
             "{}sessions/{}/blobs/{}",
             self.hub_session.hub_connection.hub_connection_inner.url,
@@ -521,6 +521,7 @@ impl Peer {
 }
 
 /// Peer session.
+#[derive(Clone)]
 pub struct PeerSession {
     peer: Peer,
     session_id: String,
