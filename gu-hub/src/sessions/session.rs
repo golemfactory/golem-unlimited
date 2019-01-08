@@ -14,7 +14,7 @@ use std::{
     cmp,
     collections::{HashMap, HashSet},
     fs, io,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 pub struct Session {
@@ -205,6 +205,13 @@ impl Session {
             Some(Err(e)) => Err(SessionErr::FileError(e.to_string())),
             None => Ok(SessionOk::BlobAlreadyDeleted),
         }
+    }
+
+    pub fn get_blob_path(&self, id: u64) -> Result<&Path, SessionErr> {
+        self.storage
+            .get(&id)
+            .map(|b| b.path())
+            .ok_or(SessionErr::BlobNotFoundError)
     }
 
     pub fn list_blobs(&self) -> Vec<BlobInfo> {
