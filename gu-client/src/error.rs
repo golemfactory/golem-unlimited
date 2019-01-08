@@ -1,3 +1,5 @@
+use std::{error, fmt};
+
 /// Errors returned by Rust API for Golem Unlimited
 #[derive(Debug)]
 pub enum Error {
@@ -31,3 +33,12 @@ pub enum Error {
     InvalidPeerSessionParameters(String),
     SessionNotFound(String),
 }
+
+impl fmt::Display for Error {
+    // TODO @filipgolem please implement real Display for Error
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl error::Error for Error {}
