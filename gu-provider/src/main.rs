@@ -33,6 +33,8 @@ extern crate uuid;
 #[macro_use]
 extern crate prettytable;
 
+extern crate crossbeam_channel;
+extern crate futures_cpupool;
 extern crate tar_async;
 
 use clap::App;
@@ -47,6 +49,7 @@ mod provision;
 mod server;
 mod status;
 mod sync_exec;
+mod sync_stream;
 
 #[cfg(feature = "env-docker")]
 mod dockerman;

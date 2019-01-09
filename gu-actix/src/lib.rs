@@ -1,11 +1,12 @@
-pub extern crate actix;
-pub extern crate futures;
 
 pub mod flatten;
 pub mod prelude;
 pub mod release;
+pub mod pipe;
 
 pub use self::flatten::{FlattenFuture, FlattenResult};
+
+pub use futures;
 
 #[cfg(test)]
 extern crate tokio_timer;
@@ -16,7 +17,7 @@ macro_rules! async_try {
         match $expr {
             ::std::result::Result::Ok(val) => val,
             ::std::result::Result::Err(err) => {
-                return ::futures::future::Either::B(::futures::future::err(
+                return $crate::futures::future::Either::B(::futures::future::err(
                     ::std::convert::From::from(err),
                 ))
             }

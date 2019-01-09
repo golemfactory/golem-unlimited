@@ -1,5 +1,6 @@
 use actix_web::HttpMessage;
 use futures::{future, prelude::*};
+use gu_base::files::read_async;
 use gu_base::files::{untgz_async, write_async};
 use gu_model::envman::ResourceFormat;
 use std::{
@@ -68,6 +69,50 @@ pub fn download_step(
                 }
             }),
     )
+}
+
+pub fn upload_step(
+    uri: &str,
+    input_path: PathBuf,
+    format: ResourceFormat,
+) -> impl Future<Item = (), Error = String> {
+    use actix_web::{client, error::ErrorInternalServerError};
+
+    let source_stream: Box<dyn Stream<Item = bytes::Bytes, Error = String>> = match format {
+        ResourceFormat::Tar => Box::new(stream_tar(input_path)),
+        ResourceFormat::Raw => Box::new(stream_raw(input_path)),
+    };
+
+    let client_request = async_try!(client::put(uri)
+        .streaming(source_stream.map_err(|e| ErrorInternalServerError(e)))
+        .map_err(|e| format!("{}", e)));
+
+    async_result!(future::ok(()))
+}
+
+pub fn stream_tar(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error = String> {
+    use gu_actix::pipe;
+    use std::fs;
+    use std::thread;
+    use tar::Builder;
+
+    let (tx, rx) = pipe::channel(5);
+
+    thread::spawn(move || {
+        let mut builder = Builder::new(tx);
+        builder.append_dir_all(".", &input_path).unwrap();
+        builder.finish().unwrap();
+    });
+
+    rx.map_err(|e| {
+        eprintln!("error={}", e);
+        e.to_string()
+    })
+
+}
+
+fn stream_raw(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error = String> {
+    read_async(input_path)
 }
 
 // TODO: support redirect

@@ -151,7 +151,7 @@ impl<T: AsyncRelease> Handler<DropHandle<T>> for AsyncResourceManager {
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DropHandle<T>>>::Result {
         self.inc();
-        ActorResponse::async(msg.0.release().into_actor(self).then(|_, act, _ctx| {
+        ActorResponse::r#async(msg.0.release().into_actor(self).then(|_, act, _ctx| {
             act.dec();
             fut::ok(())
         }))
