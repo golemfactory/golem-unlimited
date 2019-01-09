@@ -247,9 +247,9 @@ impl HubSession {
         )
     }
     /// gets single blob by its id
-    pub fn blob(&self, blob_id: String) -> Blob {
+    pub fn blob<T: Into<String>>(&self, blob_id: T) -> Blob {
         Blob {
-            blob_id: blob_id,
+            blob_id: blob_id.into(),
             hub_session: self.clone(),
         }
     }
