@@ -273,8 +273,9 @@ fn download_blob(
         .flatten_fut()
         .from_err()
         .and_then(|path| {
-            println!("path={:?}", path);
-            NamedFile::open(path).map_err(|_| ErrorInternalServerError("File Error".to_string()))
+            NamedFile::open(path)
+                .map(|f| f.set_content_encoding(actix_web::http::ContentEncoding::Identity))
+                .map_err(|_| ErrorInternalServerError("File Error".to_string()))
         })
 }
 
