@@ -2,7 +2,7 @@
 
 use gu_model::dockerman::VolumeDef;
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::fs::DirBuilder;
 use std::io;
@@ -13,12 +13,14 @@ pub trait Volume {
     fn path(&self) -> String;
 }
 
+type Set<K> = BTreeSet<K>;
+
 #[derive(Clone)]
 pub struct Workspace {
     name: String,
     path: PathBuf,
     metadata: Value,
-    tags: HashSet<String>,
+    tags: Set<String>,
     volumes: HashSet<VolumeDef>,
 }
 
@@ -28,7 +30,7 @@ impl Workspace {
             name,
             path,
             metadata: Value::Null,
-            tags: HashSet::new(),
+            tags: Set::new(),
             volumes: HashSet::new(),
         }
     }
@@ -38,7 +40,7 @@ impl Workspace {
     }
 
     pub fn get_tags(&self) -> Vec<String> {
-        Vec::from_iter(self.tags.clone().into_iter())
+        Vec::from_iter(self.tags.iter().cloned())
     }
 
     pub fn add_tags<T: IntoIterator<Item = String>>(&mut self, tags: T) {
