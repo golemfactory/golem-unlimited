@@ -2,6 +2,7 @@ use actix::{Handler, MailboxError, Message, SystemService};
 use actix_web::Path;
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
+    fs::NamedFile,
     http,
     http::ContentEncoding,
     http::StatusCode,
@@ -16,6 +17,7 @@ use gu_model::session::HubSessionSpec;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sessions::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
+use std::path::PathBuf;
 
 #[derive(Default)]
 pub struct SessionsModule {}
@@ -78,7 +80,8 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         })
         .resource("/{sessionId}/blobs/{blobId}", |r| {
             r.name("hub-session-blob");
-            r.get().with(download_scope);
+            //r.get().with(download_scope);
+            r.get().with_async(download_blob);
             r.put().with(upload_scope);
             r.delete().with_async(|path: Path<SessionBlobPath>| {
                 let blob_id = path.blob_id;
@@ -258,6 +261,22 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
         .and_then(|result| Ok(Into::<HttpResponse>::into(result)));
 
     session_future_responder(res_fut)
+}
+
+fn download_blob(
+    path: Path<SessionBlobPath>,
+) -> impl Future<Item = NamedFile, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::Update::new(path.session_id, move |session| {
+            session.get_blob_path(path.blob_id).map(|r| r.to_owned())
+        }))
+        .flatten_fut()
+        .from_err()
+        .and_then(|path| {
+            NamedFile::open(path)
+                .map(|f| f.set_content_encoding(actix_web::http::ContentEncoding::Identity))
+                .map_err(|_| ErrorInternalServerError("File Error".to_string()))
+        })
 }
 
 fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
