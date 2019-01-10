@@ -263,7 +263,7 @@ impl Handler<SessionUpdate> for HdMan {
             let session_dir = self.get_session_path(&session_id).to_owned();
 
             match cmd {
-                Command::Open => (),
+                Command::Open { args } => (),
                 Command::Close => (),
                 Command::Exec { executable, args } => {
                     let executable = self.get_session_exec_path(&session_id, &executable);

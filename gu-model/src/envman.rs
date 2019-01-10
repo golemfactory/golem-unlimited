@@ -107,7 +107,11 @@ pub enum Command {
         executable: String,
         args: Vec<String>,
     },
-    Open,
+    Open {
+        #[serde(default)]
+        #[serde(skip_serializing_if="Vec::is_empty")]
+        args : Vec<String>
+    },
     Close,
     Start {
         // return child process id
