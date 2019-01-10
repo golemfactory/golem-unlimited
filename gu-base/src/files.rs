@@ -105,6 +105,7 @@ impl<S: Stream<Item = Bytes, Error = String>> Stream for WithPositions<S> {
         }
     }
 }
+
 use std::fmt::Debug;
 fn stream_with_positions<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debug>(
     input_stream: Ins,

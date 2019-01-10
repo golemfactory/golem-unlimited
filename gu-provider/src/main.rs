@@ -40,6 +40,7 @@ extern crate tar_async;
 use clap::App;
 use gu_base::*;
 
+mod async_tar;
 mod connect;
 pub mod envman;
 mod hdman;
@@ -50,6 +51,7 @@ mod server;
 mod status;
 mod sync_exec;
 mod sync_stream;
+mod workspace;
 
 #[cfg(feature = "env-docker")]
 mod dockerman;
