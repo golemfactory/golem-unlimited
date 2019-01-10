@@ -39,10 +39,8 @@ impl io::Read for SyncReader<Bytes, io::Error> {
             let is_full = self.rx.is_full();
 
             let r = self.rx.recv();
+            self.task.notify();
 
-            if is_full {
-                self.task.notify()
-            }
 
             match r {
                 Ok(Ok(b)) => self.buffer = Some(b),
