@@ -96,7 +96,7 @@ pub fn stream_tar(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error
     use std::thread;
     use tar::Builder;
 
-    let (tx, rx) = pipe::channel(5);
+    let (tx, rx) = pipe::sync_to_async(5);
 
     thread::spawn(move || {
         let mut builder = Builder::new(tx);
