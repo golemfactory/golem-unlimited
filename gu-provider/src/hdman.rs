@@ -25,6 +25,7 @@ use provision::{download, untgz};
 use std::collections::HashSet;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use workspace::Workspace;
+use provision::upload_step;
 
 impl IntoDeployInfo for SessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -459,35 +460,16 @@ fn handle_upload_file<A: Actor>(
     mut acc: Vec<String>,
     uri: String,
     file_path: PathBuf,
-    _format: ResourceFormat,
+    format: ResourceFormat,
 ) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = A> {
-    match client::put(uri.clone())
-        .streaming(read_async(file_path).map_err(|e| ErrorInternalServerError(e)))
-    {
-        Ok(req) => fut::Either::A(
-            req.send()
-                .map_err(|e| e.to_string())
-                .then(move |x| {
-                    x.and_then(|res| {
-                        if res.status().is_success() {
-                            acc.push(format!("{:?} file uploaded", uri));
-                            Ok(acc.clone())
-                        } else {
-                            Err(format!("Unsuccessful file upload: {}", res.status()))
-                        }
-                    })
-                    .map_err(|e| {
-                        acc.push(e.to_string());
-                        acc
-                    })
-                })
-                .into_actor(act),
-        ),
-        Err(e) => {
-            acc.push(e.to_string());
-            fut::Either::B(fut::err(acc))
+
+    upload_step(&uri, file_path, format).then(move |res| {
+        match res {
+            Ok(_) => acc.push("OK".into()),
+            Err(e) => acc.push(e.to_string())
         }
-    }
+        Ok(acc)
+    }).into_actor(act)
 }
 
 // TODO: implement child process polling and status reporting
