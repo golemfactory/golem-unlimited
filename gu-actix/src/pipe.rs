@@ -41,7 +41,6 @@ impl io::Read for SyncReader<Bytes, io::Error> {
             let r = self.rx.recv();
             self.task.notify();
 
-
             match r {
                 Ok(Ok(b)) => self.buffer = Some(b),
                 Ok(Err(e)) => return Err(e),

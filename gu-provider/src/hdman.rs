@@ -21,11 +21,11 @@ use gu_net::rpc::{
 use gu_persist::config::ConfigModule;
 use id::generate_new_id;
 use provision::download_step;
+use provision::upload_step;
 use provision::{download, untgz};
 use std::collections::HashSet;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use workspace::Workspace;
-use provision::upload_step;
 
 impl IntoDeployInfo for SessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -462,14 +462,15 @@ fn handle_upload_file<A: Actor>(
     file_path: PathBuf,
     format: ResourceFormat,
 ) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = A> {
-
-    upload_step(&uri, file_path, format).then(move |res| {
-        match res {
-            Ok(_) => acc.push("OK".into()),
-            Err(e) => acc.push(e.to_string())
-        }
-        Ok(acc)
-    }).into_actor(act)
+    upload_step(&uri, file_path, format)
+        .then(move |res| {
+            match res {
+                Ok(_) => acc.push("OK".into()),
+                Err(e) => acc.push(e.to_string()),
+            }
+            Ok(acc)
+        })
+        .into_actor(act)
 }
 
 // TODO: implement child process polling and status reporting
