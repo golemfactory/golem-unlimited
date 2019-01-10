@@ -108,7 +108,6 @@ pub fn stream_tar(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error
         eprintln!("error={}", e);
         e.to_string()
     })
-
 }
 
 fn stream_raw(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error = String> {

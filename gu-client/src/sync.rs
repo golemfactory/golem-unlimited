@@ -43,7 +43,7 @@ impl SystemHandle {
     {
         let (tx, rx) = mpsc::channel();
 
-        self.0.do_send(CallWith(tx, f ));
+        self.0.do_send(CallWith(tx, f));
         rx.recv().unwrap()
     }
 }

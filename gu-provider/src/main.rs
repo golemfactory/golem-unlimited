@@ -40,8 +40,8 @@ extern crate tar_async;
 use clap::App;
 use gu_base::*;
 
-mod async_tar;
 mod connect;
+mod deployment;
 pub mod envman;
 mod hdman;
 mod id;

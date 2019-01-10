@@ -112,9 +112,7 @@ impl<W: SyncWriteWorker + Send + 'static> SyncStream<W> {
         }
         if let Some(mut future) = self.pending_work.take() {
             match future.poll() {
-                Ok(Async::Ready(None)) => {
-                    Ok(Async::Ready(self.get_output()))
-                },
+                Ok(Async::Ready(None)) => Ok(Async::Ready(self.get_output())),
                 Ok(Async::Ready(Some(w))) => {
                     self.worker = Some(w);
                     self.poll_chunk()

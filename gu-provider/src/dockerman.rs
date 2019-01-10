@@ -112,7 +112,7 @@ impl Handler<SessionUpdate> for DockerMan {
             let session_id = msg.session_id.clone();
 
             match cmd {
-                Command::Open => (),
+                Command::Open { args } => (),
                 Command::Close => (),
                 Command::Exec { executable, args } => (),
                 Command::Start { executable, args } => (),

@@ -109,8 +109,8 @@ pub enum Command {
     },
     Open {
         #[serde(default)]
-        #[serde(skip_serializing_if="Vec::is_empty")]
-        args : Vec<String>
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        args: Vec<String>,
     },
     Close,
     Start {

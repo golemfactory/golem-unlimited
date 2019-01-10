@@ -22,6 +22,7 @@ use gu_persist::config::ConfigModule;
 use id::generate_new_id;
 use provision::download_step;
 use provision::{download, untgz};
+use std::collections::HashSet;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use workspace::Workspace;
 
@@ -83,17 +84,6 @@ impl Actor for HdMan {
     }
 }
 
-impl Drop for HdMan {
-    fn drop(&mut self) {
-        let _: Vec<Result<(), Error>> = self
-            .sessions
-            .values_mut()
-            .map(SessionInfo::destroy)
-            .collect();
-        println!("HdMan stopped");
-    }
-}
-
 impl HdMan {
     pub fn start(config: &ConfigModule) -> Addr<Self> {
         let cache_dir = config.cache_dir().to_path_buf().join("images");
@@ -113,10 +103,6 @@ impl HdMan {
             cache_dir,
             sessions_dir,
         })
-    }
-
-    fn generate_session_id(&self) -> String {
-        generate_new_id(&self.sessions)
     }
 
     fn get_session_path(&self, session_id: &String) -> PathBuf {
@@ -217,9 +203,7 @@ impl Handler<CreateSession> for HdMan {
             workspace,
             status: PeerSessionStatus::PENDING,
             dirty: false,
-            tags: HashSet::from_iter(msg.tags.into_iter()),
             note: msg.note,
-            work_dir: work_dir.clone(),
             processes: HashMap::new(),
         };
 
@@ -269,18 +253,8 @@ impl Handler<SessionUpdate> for HdMan {
         let r = fut::wrap_stream(stream::iter_ok::<_, Vec<String>>(msg.commands)).fold(
             Vec::new(),
             move |mut acc: Vec<String>, cmd, act: &mut Self, _ctx| {
-        match cmd {
-                Command::Open { args } => (),
-                Command::Close => (),
-                Command::Exec { executable, args } => {
-                    let executable = self.get_session_exec_path(&session_id, &executable);
-                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
-                        let mut vc = v.clone();
-        let r = fut::wrap_stream(stream::iter_ok::<_, Vec<String>>(msg.commands)).fold(
-            Vec::new(),
-            move |mut acc: Vec<String>, cmd, act: &mut Self, _ctx| {
                 match cmd {
-                    Command::Open => Box::new(fut::wrap_future(future::ok(acc))),
+                    Command::Open { args: _args } => Box::new(fut::wrap_future(future::ok(acc))),
                     Command::Close => Box::new(fut::wrap_future(future::ok(acc))),
                     Command::Exec { executable, args } => {
                         let executable = act.get_session_exec_path(&session_id, &executable);
@@ -359,33 +333,33 @@ impl Handler<SessionUpdate> for HdMan {
                                     fut::wrap_future(
                                         SyncExecManager::from_registry().send(Exec::Kill(child)),
                                     )
-                                        .map_err(|e, _act: &mut Self, _ctx| {
-                                            vc.push(format!("{}", e));
-                                            vc
-                                        })
-                                        .and_then(
-                                            move |result, act, _ctx| {
-                                                if let Ok(ExecResult::Kill(output)) = result {
-                                                    match act.get_session_mut(&session_id) {
-                                                        Ok(mut session) => {
-                                                            if session.processes.is_empty() {
-                                                                session.status =
-                                                                    PeerSessionStatus::CONFIGURED;
-                                                            };
-                                                            acc.push(output);
-                                                            fut::ok(acc)
-                                                        }
-                                                        Err(e) => {
-                                                            acc.push(e.to_string());
-                                                            fut::err(acc)
-                                                        }
+                                    .map_err(|e, _act: &mut Self, _ctx| {
+                                        vc.push(format!("{}", e));
+                                        vc
+                                    })
+                                    .and_then(
+                                        move |result, act, _ctx| {
+                                            if let Ok(ExecResult::Kill(output)) = result {
+                                                match act.get_session_mut(&session_id) {
+                                                    Ok(mut session) => {
+                                                        if session.processes.is_empty() {
+                                                            session.status =
+                                                                PeerSessionStatus::CONFIGURED;
+                                                        };
+                                                        acc.push(output);
+                                                        fut::ok(acc)
                                                     }
-                                                } else {
-                                                    acc.push(format!("wrong result {:?}", result));
-                                                    fut::err(acc)
+                                                    Err(e) => {
+                                                        acc.push(e.to_string());
+                                                        fut::err(acc)
+                                                    }
                                                 }
-                                            },
-                                        ),
+                                            } else {
+                                                acc.push(format!("wrong result {:?}", result));
+                                                fut::err(acc)
+                                            }
+                                        },
+                                    ),
                                 ),
                                 None => {
                                     acc.push(Error::NoSuchChild(child_id).to_string());
@@ -418,41 +392,37 @@ impl Handler<SessionUpdate> for HdMan {
                         r
                     }
                     Command::AddTags(tags) => {
-                        let r = Box::new(
-                            match act.get_session_mut(&session_id) {
-                                Ok(session) => {
-                                    session.workspace.add_tags(tags);
-                                    acc.push(format!(
-                                        "tags inserted. Current tags are: {:?}",
-                                        &session.workspace.get_tags()
-                                    ));
-                                    fut::ok(acc)
-                                }
-                                Err(e) => {
-                                    acc.push(e.to_string());
-                                    fut::err(acc)
-                                }
+                        let r = Box::new(match act.get_session_mut(&session_id) {
+                            Ok(session) => {
+                                session.workspace.add_tags(tags);
+                                acc.push(format!(
+                                    "tags inserted. Current tags are: {:?}",
+                                    &session.workspace.get_tags()
+                                ));
+                                fut::ok(acc)
                             }
-                        );
+                            Err(e) => {
+                                acc.push(e.to_string());
+                                fut::err(acc)
+                            }
+                        });
                         r
                     }
                     Command::DelTags(tags) => {
-                        let r = Box::new(
-                            match act.get_session_mut(&session_id) {
-                                Ok(session) => {
-                                    session.workspace.remove_tags(tags);
-                                    acc.push(format!(
-                                        "tags removed. Current tags are: {:?}",
-                                        &session.workspace.get_tags()
-                                    ));
-                                    fut::ok(acc)
-                                }
-                                Err(e) => {
-                                    acc.push(e.to_string());
-                                    fut::err(acc)
-                                }
+                        let r = Box::new(match act.get_session_mut(&session_id) {
+                            Ok(session) => {
+                                session.workspace.remove_tags(tags);
+                                acc.push(format!(
+                                    "tags removed. Current tags are: {:?}",
+                                    &session.workspace.get_tags()
+                                ));
+                                fut::ok(acc)
                             }
-                        );
+                            Err(e) => {
+                                acc.push(e.to_string());
+                                fut::err(acc)
+                            }
+                        });
                         r
                     }
                 }
@@ -469,21 +439,19 @@ fn handle_download_file<A: Actor>(
     uri: String,
     file_path: PathBuf,
     format: ResourceFormat,
-) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
-    future_chain.and_then(move |mut v, act, _ctx| {
-        download_step(uri.as_ref(), file_path, format)
-            .then(move |x| match x {
-                Ok(()) => {
-                    v.push(format!("{:?} file downloaded", uri));
-                    Ok(v)
-                }
-                Err(e) => {
-                    v.push(e.to_string());
-                    Err(v)
-                }
-            })
-            .into_actor(act)
-    })
+) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = A> {
+    download_step(uri.as_ref(), file_path, format)
+        .then(move |x| match x {
+            Ok(()) => {
+                acc.push(format!("{:?} file downloaded", uri));
+                Ok(acc)
+            }
+            Err(e) => {
+                acc.push(e.to_string());
+                Err(acc)
+            }
+        })
+        .into_actor(act)
 }
 
 fn handle_upload_file<A: Actor>(

@@ -1,14 +1,14 @@
-use crossbeam_channel::{self as cb, Receiver, Sender};
-use std::sync::Arc;
-use futures::task::AtomicTask;
-use futures::{Poll, Stream, Async};
-use std::io;
 use bytes::*;
+use crossbeam_channel::{self as cb, Receiver, Sender};
+use futures::task::AtomicTask;
+use futures::{Async, Poll, Stream};
+use std::io;
+use std::sync::Arc;
 
 pub struct SyncReader<T, E> {
     rx: Receiver<Result<T, E>>,
     task: Arc<AtomicTask>,
-    buffer : Option<Bytes>
+    buffer: Option<Bytes>,
 }
 
 pub struct AsyncReader<T, E> {
@@ -55,12 +55,11 @@ impl io::Read for SyncReader<Bytes, io::Error> {
         if buf.len() <= xbuf.len() {
             let chunk = xbuf.split_to(buf.len());
             buf.copy_from_slice(chunk.as_ref());
-            if ! xbuf.is_empty() {
+            if !xbuf.is_empty() {
                 self.buffer = Some(xbuf)
             }
             Ok(buf.len())
-        }
-        else {
+        } else {
             let l = xbuf.len();
             buf[..l].copy_from_slice(xbuf.as_ref());
             Ok(l)
@@ -87,22 +86,25 @@ pub struct AsyncWriter<T, E> {
 
 pub enum WriteError<E> {
     BrokenPipe,
-    Other(E)
+    Other(E),
 }
 
 impl<T, E> futures::Sink for AsyncWriter<T, E> {
     type SinkItem = T;
     type SinkError = WriteError<E>;
 
-    fn start_send(&mut self, item: Self::SinkItem) -> Result<futures::AsyncSink<Self::SinkItem>, Self::SinkError> {
+    fn start_send(
+        &mut self,
+        item: Self::SinkItem,
+    ) -> Result<futures::AsyncSink<Self::SinkItem>, Self::SinkError> {
         match self.tx.as_ref().unwrap().try_send(Ok(item)) {
             Ok(()) => Ok(futures::AsyncSink::Ready),
             Err(cb::TrySendError::Full(Ok(item))) => {
                 self.task.register();
                 Ok(futures::AsyncSink::NotReady(item))
-            },
+            }
             Err(cb::TrySendError::Disconnected(_)) => Err(WriteError::BrokenPipe),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -119,7 +121,8 @@ impl<T, E> futures::Sink for AsyncWriter<T, E> {
 impl io::Write for Writer<Bytes, io::Error> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
         use bytes::Bytes;
-        self.send(Ok(Bytes::from(buf))).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        self.send(Ok(Bytes::from(buf)))
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         Ok(buf.len())
     }
 
@@ -128,52 +131,56 @@ impl io::Write for Writer<Bytes, io::Error> {
     }
 }
 
-
 pub fn sync_to_async<T, E>(cap: usize) -> (Writer<T, E>, AsyncReader<T, E>) {
     let (tx, rx) = cb::bounded(cap);
     let task = Arc::new(AtomicTask::new());
 
-    (Writer {
-        tx,
-        task: task.clone(),
-    }, AsyncReader {
-        rx,
-        task: task.clone(),
-    })
+    (
+        Writer {
+            tx,
+            task: task.clone(),
+        },
+        AsyncReader {
+            rx,
+            task: task.clone(),
+        },
+    )
 }
 
 pub fn async_to_sync<T, E>(cap: usize) -> (AsyncWriter<T, E>, SyncReader<T, E>) {
     let (tx, rx) = cb::bounded(cap);
     let task = Arc::new(AtomicTask::new());
 
-    (AsyncWriter {
-        tx: Some(tx),
-        task: task.clone(),
-    }, SyncReader {
-        rx,
-        task: task.clone(),
-        buffer: None,
-    })
+    (
+        AsyncWriter {
+            tx: Some(tx),
+            task: task.clone(),
+        },
+        SyncReader {
+            rx,
+            task: task.clone(),
+            buffer: None,
+        },
+    )
 }
 
 #[cfg(test)]
 mod tests {
 
+    use super::*;
     use actix::prelude::*;
     use futures::prelude::*;
-    use super::*;
-    use std::{thread, io};
-    use tokio_timer::Interval;
     use std::time::Duration;
+    use std::{io, thread};
+    use tokio_timer::Interval;
 
     #[test]
     fn test_channel_from() {
-
         let (tx, rx) = async_to_sync(1);
 
         thread::spawn(move || {
-            use std::io::{BufReader, BufRead, Read};
-            let mut buf = [0;200];
+            use std::io::{BufRead, BufReader, Read};
+            let mut buf = [0; 200];
             let mut r = BufReader::new(rx);
 
             eprintln!("wait");
@@ -184,18 +191,19 @@ mod tests {
         });
 
         System::run(|| {
-            let f=
-            Interval::new_interval(Duration::from_secs(1)).map(|x| {
-                eprintln!("it {:?}", x);
-                Bytes::from(format!("{:?}\n", x))
-            }).map_err(|e| WriteError::Other(io::Error::new(io::ErrorKind::Other, e)))
-                .forward(tx).then(|_| {
-                System::current().stop();
-                Ok(eprintln!("done"))
-            });
+            let f = Interval::new_interval(Duration::from_secs(1))
+                .map(|x| {
+                    eprintln!("it {:?}", x);
+                    Bytes::from(format!("{:?}\n", x))
+                })
+                .map_err(|e| WriteError::Other(io::Error::new(io::ErrorKind::Other, e)))
+                .forward(tx)
+                .then(|_| {
+                    System::current().stop();
+                    Ok(eprintln!("done"))
+                });
             Arbiter::spawn(f)
         });
-
     }
 
 }
