@@ -8,6 +8,8 @@ use actix_web::error::ErrorInternalServerError;
 use deployment::DeployManager;
 use deployment::Destroy;
 use deployment::IntoDeployInfo;
+use futures::future;
+use futures::future::{loop_fn, Loop};
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::files::read_async;
@@ -186,11 +188,10 @@ impl Handler<CreateSession> for HdMan {
     ) -> <Self as Handler<CreateSession>>::Result {
         let session_id = self.deploys.generate_session_id();
         let work_dir = self.get_session_path(&session_id);
-
         let cache_path = self.get_cache_path(&msg.image.hash);
+
         let mut workspace = Workspace::new(msg.name, work_dir.clone());
         workspace.add_tags(msg.tags);
-
         match workspace.create_dirs() {
             Ok(_) => (),
             Err(e) => return ActorResponse::reply(Err(e.into())),
@@ -243,244 +244,252 @@ impl Handler<SessionUpdate> for HdMan {
                 vec![Error::NoSuchSession(msg.session_id).to_string()],
             ));
         }
+        use futures::stream;
+        let session_id = msg.session_id.clone();
+        let session_dir = self.get_session_path(&session_id).to_owned();
 
-        let mut future_chain: Box<
-            ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = Self>,
-        > = Box::new(fut::ok(Vec::new()));
+        let r = fut::wrap_stream(stream::iter_ok::<_, Vec<String>>(msg.commands)).fold(
+            Vec::new(),
+            move |mut acc: Vec<String>, cmd, act: &mut Self, _ctx| {
+                match cmd {
+                    Command::Open => Box::new(fut::wrap_future(future::ok(acc))),
+                    Command::Close => Box::new(fut::wrap_future(future::ok(acc))),
+                    Command::Exec { executable, args } => {
+                        let executable = act.get_session_exec_path(&session_id, &executable);
+                        let session_id = session_id.clone();
 
-        for cmd in msg.commands {
-            let session_id = msg.session_id.clone();
-            let session_dir = self.get_session_path(&session_id).to_owned();
-
-            match cmd {
-                Command::Open => (),
-                Command::Close => (),
-                Command::Exec { executable, args } => {
-                    let executable = self.get_session_exec_path(&session_id, &executable);
-                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
-                        let mut vc = v.clone();
                         info!("executing sync: {} {:?}", executable, args);
-                        SyncExecManager::from_registry()
-                            .send(Exec::Run {
-                                executable,
-                                args,
-                                cwd: session_dir,
-                            })
-                            .flatten_fut()
-                            .map_err(|e| {
-                                vc.push(e.to_string());
-                                vc
-                            })
-                            .into_actor(act)
-                            .and_then(move |result, act, _ctx| {
-                                info!("sync cmd result: {:?}", result);
-                                if let ExecResult::Run(output) = result {
-                                    v.push(String::from_utf8_lossy(&output.stdout).to_string());
-                                }
-                                match act.get_session_mut(&session_id) {
-                                    Ok(session) => {
-                                        session.dirty = true;
-                                        fut::ok(v)
-                                    }
+                        let r: Box<ActorFuture<Item = _, Error = _, Actor = _>> = Box::new(
+                            SyncExecManager::from_registry()
+                                .send(Exec::Run {
+                                    executable,
+                                    args,
+                                    cwd: session_dir.clone(),
+                                })
+                                .flatten_fut()
+                                .into_actor(act)
+                                .then(move |result, act, _ctx| match result {
                                     Err(e) => {
-                                        v.push(e.to_string());
-                                        fut::err(v)
+                                        acc.push(e.to_string());
+                                        fut::Either::A(fut::err(acc))
                                     }
-                                }
-                            })
-                    }));
-                }
-                Command::Start { executable, args } => {
-                    let executable = self.get_session_exec_path(&session_id, &executable);
-                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
+                                    Ok(res) => {
+                                        info!("sync cmd result: {:?}", res);
+                                        if let ExecResult::Run(output) = res {
+                                            acc.push(
+                                                String::from_utf8_lossy(&output.stdout).to_string(),
+                                            );
+                                        }
+
+                                        fut::Either::B(act.deploys.modify_deploy(
+                                            &session_id,
+                                            acc,
+                                            |acc, session| {
+                                                session.dirty = true;
+                                                acc
+                                            },
+                                        ))
+                                    }
+                                }),
+                        );
+                        r
+                    }
+                    Command::Start { executable, args } => {
+                        let executable = act.get_session_exec_path(&session_id, &executable);
+
                         info!("executing async: {} {:?}", executable, args);
                         // TODO: critical section
                         // TODO: env::set_current_dir(&base_dir)?;
-                        let mut vc = v.clone();
-                        process::Command::new(&executable)
+
+                        let child_res = process::Command::new(&executable)
                             .args(&args)
                             .spawn()
                             .map_err(|e| Error::IoError(e.to_string()))
-                            .and_then(|child| act.insert_child(&session_id, child))
-                            .and_then(|child_id| {
-                                v.push(child_id);
-                                Ok(fut::ok(v))
-                            })
-                            .or_else(|e| {
-                                vc.push(e.to_string());
-                                Ok(fut::err(vc))
-                            })
-                            .map_err(|e: Error| e)
-                            .unwrap()
-                    }));
-                }
-                Command::Stop { child_id } => {
-                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
-                        let mut vc = v.clone();
+                            .and_then(|child| act.insert_child(&session_id, child));
+
+                        let r: Box<ActorFuture<Item = _, Error = _, Actor = _>> =
+                            Box::new(match child_res {
+                                Ok(id) => {
+                                    acc.push(id);
+                                    fut::ok(acc)
+                                }
+                                Err(e) => {
+                                    acc.push(e.to_string());
+                                    fut::err(acc)
+                                }
+                            });
+                        r
+                    }
+                    Command::Stop { child_id } => {
+                        let mut vc = acc.clone();
+                        let session_id = session_id.clone();
+
                         info!("killing: {:?}", &child_id);
-                        match act.get_session_mut(&session_id) {
+                        let r = Box::new(match act.get_session_mut(&session_id) {
                             Ok(session) => match session.processes.remove(&child_id) {
                                 Some(child) => fut::Either::A(
                                     fut::wrap_future(
                                         SyncExecManager::from_registry().send(Exec::Kill(child)),
                                     )
-                                    .map_err(|e, _act: &mut Self, _ctx| {
-                                        vc.push(format!("{}", e));
-                                        vc
-                                    })
-                                    .and_then(
-                                        move |result, act, _ctx| {
-                                            if let Ok(ExecResult::Kill(output)) = result {
-                                                match act.get_session_mut(&session_id) {
-                                                    Ok(mut session) => {
-                                                        if session.processes.is_empty() {
-                                                            session.status =
-                                                                PeerSessionStatus::CONFIGURED;
-                                                        };
-                                                        v.push(output);
-                                                        fut::ok(v)
+                                        .map_err(|e, _act: &mut Self, _ctx| {
+                                            vc.push(format!("{}", e));
+                                            vc
+                                        })
+                                        .and_then(
+                                            move |result, act, _ctx| {
+                                                if let Ok(ExecResult::Kill(output)) = result {
+                                                    match act.get_session_mut(&session_id) {
+                                                        Ok(mut session) => {
+                                                            if session.processes.is_empty() {
+                                                                session.status =
+                                                                    PeerSessionStatus::CONFIGURED;
+                                                            };
+                                                            acc.push(output);
+                                                            fut::ok(acc)
+                                                        }
+                                                        Err(e) => {
+                                                            acc.push(e.to_string());
+                                                            fut::err(acc)
+                                                        }
                                                     }
-                                                    Err(e) => {
-                                                        v.push(e.to_string());
-                                                        fut::err(v)
-                                                    }
+                                                } else {
+                                                    acc.push(format!("wrong result {:?}", result));
+                                                    fut::err(acc)
                                                 }
-                                            } else {
-                                                v.push(format!("wrong result {:?}", result));
-                                                fut::err(v)
-                                            }
-                                        },
-                                    ),
+                                            },
+                                        ),
                                 ),
                                 None => {
-                                    v.push(Error::NoSuchChild(child_id).to_string());
-                                    fut::Either::B(fut::err(v))
+                                    acc.push(Error::NoSuchChild(child_id).to_string());
+                                    fut::Either::B(fut::err(acc))
                                 }
                             },
                             Err(e) => {
-                                v.push(e.to_string());
-                                fut::Either::B(fut::err(v))
+                                acc.push(e.to_string());
+                                fut::Either::B(fut::err(acc))
                             }
-                        }
-                    }));
-                }
-                Command::AddTags(mut tags) => {
-                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
-                        match act.get_session_mut(&session_id) {
-                            Ok(session) => {
-                                tags.into_iter().for_each(|tag| {
-                                    session.workspace.add_tags(vec![tag]);
-                                });
-                                v.push(format!(
-                                    "tags inserted. Current tags are: {:?}",
-                                    &session.workspace.get_tags()
-                                ));
-                                fut::ok(v)
+                        });
+                        r
+                    }
+                    Command::DownloadFile {
+                        uri,
+                        file_path,
+                        format,
+                    } => {
+                        let path = act.get_session_path(&session_id).join(file_path);
+                        let r = Box::new(handle_download_file(act, acc, uri, path, format));
+                        r
+                    }
+                    Command::UploadFile {
+                        uri,
+                        file_path,
+                        format,
+                    } => {
+                        let path = act.get_session_path(&session_id).join(file_path);
+                        let r = Box::new(handle_upload_file(act, acc, uri, path, format));
+                        r
+                    }
+                    Command::AddTags(tags) => {
+                        let r = Box::new(
+                            match act.get_session_mut(&session_id) {
+                                Ok(session) => {
+                                    session.workspace.add_tags(tags);
+                                    acc.push(format!(
+                                        "tags inserted. Current tags are: {:?}",
+                                        &session.workspace.get_tags()
+                                    ));
+                                    fut::ok(acc)
+                                }
+                                Err(e) => {
+                                    acc.push(e.to_string());
+                                    fut::err(acc)
+                                }
                             }
-                            Err(e) => {
-                                v.push(e.to_string());
-                                fut::err(v)
+                        );
+                        r
+                    }
+                    Command::DelTags(tags) => {
+                        let r = Box::new(
+                            match act.get_session_mut(&session_id) {
+                                Ok(session) => {
+                                    session.workspace.remove_tags(tags);
+                                    acc.push(format!(
+                                        "tags removed. Current tags are: {:?}",
+                                        &session.workspace.get_tags()
+                                    ));
+                                    fut::ok(acc)
+                                }
+                                Err(e) => {
+                                    acc.push(e.to_string());
+                                    fut::err(acc)
+                                }
                             }
-                        }
-                    }));
+                        );
+                        r
+                    }
                 }
-                Command::DelTags(mut tags) => {
-                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
-                        match act.get_session_mut(&session_id) {
-                            Ok(session) => {
-                                session.workspace.remove_tags(tags);
-                                v.push(format!(
-                                    "tags removed. Current tags are: {:?}",
-                                    &session.workspace.get_tags()
-                                ));
-                                fut::ok(v)
-                            }
-                            Err(e) => {
-                                v.push(e.to_string());
-                                fut::err(v)
-                            }
-                        }
-                    }));
-                }
-                Command::DownloadFile {
-                    uri,
-                    file_path,
-                    format,
-                } => {
-                    let path = self.get_session_path(&session_id).join(file_path);
-                    future_chain = Box::new(handle_download_file(future_chain, uri, path, format));
-                }
-                Command::UploadFile {
-                    uri,
-                    file_path,
-                    format,
-                } => {
-                    let path = self.get_session_path(&session_id).join(file_path);
-                    future_chain = Box::new(handle_upload_file(future_chain, uri, path, format));
-                }
-            }
-        }
-        ActorResponse::async(future_chain)
+            },
+        );
+
+        ActorResponse::async(r)
     }
 }
 
-fn handle_download_file(
-    future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
+fn handle_download_file<A: Actor>(
+    act: &A,
+    mut acc: Vec<String>,
     uri: String,
     file_path: PathBuf,
     _format: ResourceFormat,
-) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
-    future_chain.and_then(move |mut v, act, _ctx| {
-        download(uri.as_ref(), file_path, false)
-            .then(move |x| match x {
-                Ok(()) => {
-                    v.push(format!("{:?} file downloaded", uri));
-                    Ok(v)
-                }
-                Err(e) => {
-                    v.push(e.to_string());
-                    Err(v)
-                }
-            })
-            .into_actor(act)
-    })
+) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = A> {
+    download(uri.as_ref(), file_path, false)
+        .then(move |x| match x {
+            Ok(()) => {
+                acc.push(format!("{:?} file downloaded", uri));
+                Ok(acc)
+            }
+            Err(e) => {
+                acc.push(e.to_string());
+                Err(acc)
+            }
+        })
+        .into_actor(act)
 }
 
-fn handle_upload_file(
-    future_chain: Box<ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan>>,
+fn handle_upload_file<A: Actor>(
+    act: &A,
+    mut acc: Vec<String>,
     uri: String,
     file_path: PathBuf,
     _format: ResourceFormat,
-) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = HdMan> {
-    future_chain.and_then(move |mut v, act, _ctx| {
-        match client::put(uri.clone())
-            .streaming(read_async(file_path).map_err(|e| ErrorInternalServerError(e)))
-        {
-            Ok(req) => fut::Either::A(
-                req.send()
-                    .map_err(|e| e.to_string())
-                    .then(move |x| {
-                        x.and_then(|res| {
-                            if res.status().is_success() {
-                                v.push(format!("{:?} file uploaded", uri));
-                                Ok(v.clone())
-                            } else {
-                                Err(format!("Unsuccessful file upload: {}", res.status()))
-                            }
-                        })
-                        .map_err(|e| {
-                            v.push(e.to_string());
-                            v
-                        })
+) -> impl ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = A> {
+    match client::put(uri.clone())
+        .streaming(read_async(file_path).map_err(|e| ErrorInternalServerError(e)))
+    {
+        Ok(req) => fut::Either::A(
+            req.send()
+                .map_err(|e| e.to_string())
+                .then(move |x| {
+                    x.and_then(|res| {
+                        if res.status().is_success() {
+                            acc.push(format!("{:?} file uploaded", uri));
+                            Ok(acc.clone())
+                        } else {
+                            Err(format!("Unsuccessful file upload: {}", res.status()))
+                        }
                     })
-                    .into_actor(act),
-            ),
-            Err(e) => {
-                v.push(e.to_string());
-                fut::Either::B(fut::err(v))
-            }
+                    .map_err(|e| {
+                        acc.push(e.to_string());
+                        acc
+                    })
+                })
+                .into_actor(act),
+        ),
+        Err(e) => {
+            acc.push(e.to_string());
+            fut::Either::B(fut::err(acc))
         }
-    })
+    }
 }
 
 // TODO: implement child process polling and status reporting

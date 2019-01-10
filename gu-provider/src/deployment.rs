@@ -1,3 +1,4 @@
+use actix::fut;
 use gu_model::envman::Error;
 use gu_net::rpc::peer::PeerSessionInfo;
 use id::generate_new_id;
@@ -88,6 +89,24 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
         {
             true => status::EnvStatus::Ready,
             false => status::EnvStatus::Working,
+        }
+    }
+
+    pub fn modify_deploy<F, A>(
+        &mut self,
+        deploy_id: &String,
+        mut acc: Vec<String>,
+        f: F,
+    ) -> fut::FutureResult<Vec<String>, Vec<String>, A>
+    where
+        F: FnOnce(Vec<String>, &mut T) -> Vec<String>,
+    {
+        match self.deploy_mut(deploy_id) {
+            Ok(session) => fut::ok(f(acc, session)),
+            Err(e) => {
+                acc.push(e.to_string());
+                fut::err(acc)
+            }
         }
     }
 }
