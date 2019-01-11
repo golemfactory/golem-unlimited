@@ -80,8 +80,8 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         })
         .resource("/{sessionId}/blobs/{blobId}", |r| {
             r.name("hub-session-blob");
-            //r.get().with(download_scope);
-            r.get().with_async(download_blob);
+            r.get().with(download_scope);
+            /* r.get().with_async(download_blob); */
             r.put().with(upload_scope);
             r.delete().with_async(|path: Path<SessionBlobPath>| {
                 let blob_id = path.blob_id;
@@ -263,6 +263,7 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     session_future_responder(res_fut)
 }
 
+/*
 fn download_blob(
     path: Path<SessionBlobPath>,
 ) -> impl Future<Item = NamedFile, Error = actix_web::Error> {
@@ -278,6 +279,7 @@ fn download_blob(
                 .map_err(|_| ErrorInternalServerError("File Error".to_string()))
         })
 }
+*/
 
 fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     use actix_web::http::header::ETAG;
@@ -298,6 +300,7 @@ fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             n.respond_to(&r)
                 .and_then(|mut r| {
                     r.headers_mut().insert(ETAG, sha);
+                    r.set_content_encoding(actix_web::http::ContentEncoding::Identity);
                     Ok(r)
                 })
                 .map_err(|e| SessionErr::FileError(e.to_string()))
