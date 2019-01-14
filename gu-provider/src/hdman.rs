@@ -24,9 +24,9 @@ use provision::download_step;
 use provision::upload_step;
 use provision::{download, untgz};
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use workspace::Workspace;
-use std::sync::Arc;
 
 impl IntoDeployInfo for SessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -516,13 +516,16 @@ impl Handler<status::GetEnvStatus> for HdMan {
 }
 
 impl HdMan {
-
-    fn command_start(&mut self, session_id : Arc<String>, args : Vec<String>, ctx : &mut <Self as Actor>::Context) -> ActorResponse<Self, String, String> {
+    fn command_start(
+        &mut self,
+        session_id: Arc<String>,
+        args: Vec<String>,
+        ctx: &mut <Self as Actor>::Context,
+    ) -> ActorResponse<Self, String, String> {
         ActorResponse::reply(Ok("Opened".into()))
     }
 
-    fn command_stop(&mut self, session_id : Arc<String>) -> ActorResponse<Self, String, String> {
+    fn command_stop(&mut self, session_id: Arc<String>) -> ActorResponse<Self, String, String> {
         ActorResponse::reply(Ok("Closed".into()))
     }
-
 }
