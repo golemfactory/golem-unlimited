@@ -4,23 +4,44 @@ use super::envman;
 use actix::prelude::*;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
+use deployment::DeployManager;
+use deployment::Destroy;
+use deployment::IntoDeployInfo;
+use futures::future;
 use futures::prelude::*;
 use gu_model::dockerman::CreateOptions;
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
+use gu_net::rpc::peer::PeerSessionStatus;
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use workspace::Workspace;
 
 // Actor.
 #[derive(Default)]
 struct DockerMan {
     docker_api: Option<Box<DockerApi>>,
-    sessions: BTreeMap<String, DockerSessionInfo>,
+    deploys: DeployManager<DockerSessionInfo>,
 }
 
 struct DockerSessionInfo {
     workspace: Workspace,
 }
+
+impl IntoDeployInfo for DockerSessionInfo {
+    fn convert(&self, id: &String) -> PeerSessionInfo {
+        PeerSessionInfo {
+            id: id.clone(),
+            name: self.workspace.get_name().clone(),
+            status: PeerSessionStatus::CREATED,
+            tags: self.workspace.get_tags(),
+            note: None,
+            processes: HashSet::new(),
+        }
+    }
+}
+
+impl Destroy for DockerSessionInfo {}
 
 impl Actor for DockerMan {
     type Context = Context<Self>;
@@ -90,92 +111,93 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
     }
 }
 
+fn run_command(
+    docker_man: &mut DockerMan,
+    session_id: String,
+    command: Command,
+) -> Box<ActorFuture<Actor = DockerMan, Item = String, Error = String>> {
+    match command {
+        Command::Open => Box::new(fut::ok("Open mock".to_string())),
+        Command::Close => Box::new(fut::ok("Close mock".to_string())),
+        Command::Exec { executable, args } => Box::new(fut::ok("Exec mock".to_string())),
+        Command::Start { executable, args } => Box::new(fut::ok("Start mock".to_string())),
+        Command::Stop { child_id } => Box::new(fut::ok("Stop mock".to_string())),
+        Command::DownloadFile {
+            uri,
+            file_path,
+            format,
+        } => Box::new(fut::ok("Download mock".to_string())),
+        Command::UploadFile {
+            uri,
+            file_path,
+            format,
+        } => Box::new(fut::ok("Upload mock".to_string())),
+        Command::AddTags(tags) => Box::new(fut::result(
+            docker_man
+                .deploys
+                .deploy_mut(&session_id)
+                .map(|session| {
+                    session.workspace.add_tags(tags);
+                    format!(
+                        "tags inserted. Current tags are: {:?}",
+                        &session.workspace.get_tags()
+                    )
+                })
+                .map_err(|e| e.to_string()),
+        )),
+        Command::DelTags(tags) => Box::new(fut::result(
+            docker_man
+                .deploys
+                .deploy_mut(&session_id)
+                .map(|session| {
+                    session.workspace.remove_tags(tags);
+                    format!(
+                        "tags inserted. Current tags are: {:?}",
+                        &session.workspace.get_tags()
+                    )
+                })
+                .map_err(|e| e.to_string()),
+        )),
+    }
+}
+
+fn run_commands(
+    hd_man: &mut DockerMan,
+    session_id: String,
+    commands: Vec<Command>,
+) -> impl ActorFuture<Actor = DockerMan, Item = Vec<String>, Error = Vec<String>> {
+    let f: Box<dyn ActorFuture<Actor = DockerMan, Item = Vec<String>, Error = Vec<String>>> =
+        Box::new(future::ok(Vec::new()).into_actor(hd_man));
+
+    commands.into_iter().fold(f, |acc, command| {
+        let session_id = session_id.clone();
+        Box::new(acc.and_then(|mut vec, act, _ctx| {
+            run_command(act, session_id, command).then(move |i, _, _| match i {
+                Ok(a) => {
+                    vec.push(a);
+                    fut::ok(vec)
+                }
+                Err(a) => {
+                    vec.push(a);
+                    fut::err(vec)
+                }
+            })
+        }))
+    })
+}
+
 impl Handler<SessionUpdate> for DockerMan {
     type Result = ActorResponse<DockerMan, Vec<String>, Vec<String>>;
 
-    fn handle(
-        &mut self,
-        msg: SessionUpdate,
-        _ctx: &mut Self::Context,
-    ) -> <Self as Handler<SessionUpdate>>::Result {
-        if !self.sessions.contains_key(&msg.session_id) {
+    fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
+        if !self.deploys.contains_deploy(&msg.session_id) {
             return ActorResponse::reply(Err(
                 vec![Error::NoSuchSession(msg.session_id).to_string()],
             ));
         }
+        let session_id = msg.session_id.clone();
 
-        let mut future_chain: Box<
-            ActorFuture<Item = Vec<String>, Error = Vec<String>, Actor = Self>,
-        > = Box::new(fut::ok(Vec::new()));
-
-        for cmd in msg.commands {
-            let session_id = msg.session_id.clone();
-
-            match cmd {
-                Command::Open => (),
-                Command::Close => (),
-                Command::Exec { executable, args } => (),
-                Command::Start { executable, args } => (),
-                Command::Stop { child_id } => (),
-                Command::AddTags(mut tags) => {
-                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
-                        match act
-                            .sessions
-                            .get_mut(&session_id)
-                            .ok_or(Error::NoSuchSession(session_id.clone()))
-                        {
-                            Ok(session) => {
-                                tags.into_iter().for_each(|tag| {
-                                    session.workspace.add_tags(vec![tag]);
-                                });
-                                v.push(format!(
-                                    "tags inserted. Current tags are: {:?}",
-                                    &session.workspace.get_tags()
-                                ));
-                                fut::ok(v)
-                            }
-                            Err(e) => {
-                                v.push(e.to_string());
-                                fut::err(v)
-                            }
-                        }
-                    }));
-                }
-                Command::DelTags(mut tags) => {
-                    future_chain = Box::new(future_chain.and_then(move |mut v, act, _ctx| {
-                        match act
-                            .sessions
-                            .get_mut(&session_id)
-                            .ok_or(Error::NoSuchSession(session_id.clone()))
-                        {
-                            Ok(session) => {
-                                session.workspace.remove_tags(tags);
-                                v.push(format!(
-                                    "tags removed. Current tags are: {:?}",
-                                    &session.workspace.get_tags()
-                                ));
-                                fut::ok(v)
-                            }
-                            Err(e) => {
-                                v.push(e.to_string());
-                                fut::err(v)
-                            }
-                        }
-                    }));
-                }
-                Command::DownloadFile {
-                    uri,
-                    file_path,
-                    format,
-                } => (),
-                Command::UploadFile {
-                    uri,
-                    file_path,
-                    format,
-                } => (),
-            }
-        }
-        ActorResponse::async(future_chain)
+        ActorResponse::async(run_commands(self, session_id, msg.commands))
     }
 }
 
@@ -187,7 +209,7 @@ impl Handler<GetSessions> for DockerMan {
         _msg: GetSessions,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<GetSessions>>::Result {
-        ActorResponse::reply(Ok(Vec::new()))
+        ActorResponse::reply(Ok(self.deploys.deploys_info()))
     }
 }
 

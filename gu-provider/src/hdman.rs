@@ -23,7 +23,7 @@ use provision::{download, untgz};
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use workspace::Workspace;
 
-impl IntoDeployInfo for SessionInfo {
+impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
         PeerSessionInfo {
             id: id.clone(),
@@ -36,7 +36,7 @@ impl IntoDeployInfo for SessionInfo {
     }
 }
 
-impl Destroy for SessionInfo {
+impl Destroy for HdSessionInfo {
     fn destroy(&mut self) -> Result<(), Error> {
         debug!("killing all running child processes");
         let _ = self
@@ -55,7 +55,7 @@ impl Destroy for SessionInfo {
 
 /// Host direct manager
 pub struct HdMan {
-    deploys: DeployManager<SessionInfo>,
+    deploys: DeployManager<HdSessionInfo>,
     cache_dir: PathBuf,
     sessions_dir: PathBuf,
 }
@@ -118,7 +118,7 @@ impl HdMan {
             .unwrap()
     }
 
-    fn get_session_mut(&mut self, session_id: &String) -> Result<&mut SessionInfo, Error> {
+    fn get_session_mut(&mut self, session_id: &String) -> Result<&mut HdSessionInfo, Error> {
         match self.deploys.deploy_mut(session_id) {
             Ok(session) => Ok(session),
             Err(_) => Err(Error::NoSuchSession(session_id.clone())),
@@ -158,7 +158,7 @@ impl HdMan {
 }
 
 /// internal session representation
-struct SessionInfo {
+struct HdSessionInfo {
     workspace: Workspace,
     status: PeerSessionStatus,
     /// used to determine proper status when last child is finished
@@ -167,7 +167,7 @@ struct SessionInfo {
     processes: HashMap<String, process::Child>,
 }
 
-impl SessionInfo {
+impl HdSessionInfo {
     fn insert_process(&mut self, child: process::Child) -> String {
         let id = generate_new_id(&self.processes);
         self.processes.insert(id.clone(), child);
@@ -196,7 +196,7 @@ impl Handler<CreateSession> for HdMan {
             Err(e) => return ActorResponse::reply(Err(e.into())),
         }
 
-        let session = SessionInfo {
+        let session = HdSessionInfo {
             workspace,
             status: PeerSessionStatus::PENDING,
             dirty: false,
@@ -254,8 +254,8 @@ fn run_command(
                         cwd: session_dir.clone(),
                     })
                     .flatten_fut()
+                    .map_err(move |e| e.to_string())
                     .into_actor(hd_man)
-                    .map_err(move |e, _act, _ctx| e.to_string())
                     .and_then(move |res, act, _ctx| {
                         info!("sync cmd result: {:?}", res);
                         let result = if let ExecResult::Run(output) = res {
