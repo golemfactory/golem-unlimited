@@ -235,6 +235,23 @@ impl Session {
         self.peers.extend(new_peers);
     }
 
+    pub fn create_deployment(
+        &mut self,
+        node_id: NodeId,
+        session_info: gu_model::envman::CreateSession,
+    ) -> bool {
+        if self.peers.get(&node_id).is_none() {
+            return false;
+        }
+        /*let new_peers = peers
+            .into_iter()
+            .filter(|p| !self.peers.get(p).is_none())
+            .map(|peer| (peer, PeerState::default()))
+            .collect::<Vec<_>>();
+        self.peers.extend(new_peers);*/
+        true
+    }
+
     pub fn clean_directory(&mut self) -> io::Result<()> {
         self.version += 1;
         match (&self.path).exists() {

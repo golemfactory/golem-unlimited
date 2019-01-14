@@ -4,8 +4,7 @@ use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
     fs::NamedFile,
     http,
-    http::ContentEncoding,
-    http::StatusCode,
+    http::{ContentEncoding, Method, StatusCode},
     App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json,
     Responder, Result as ActixResult, Scope,
 };
@@ -101,6 +100,17 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             r.get().with_async(list_peers);
             r.post().with_async(add_peers);
         })
+        .resource("/{sessionId}/peers/{nodeId}/deployments", |r| {
+            r.name("hub-session-peers-deployments");
+            r.post().with_async(create_deployment);
+        })
+    /*
+    .resource("/{sessionId}/peers/{nodeId}/deployments/{deploymentId}", |r| {
+        r.name("hub-session-peers-deployment");
+        r.delete().with_async(delete_deployment);
+        r.method(Method::PATCH).with_async(update_deployment);
+    })
+    */
 }
 
 fn get_param<S>(r: &HttpRequest<S>, name: &'static str) -> ActixResult<u64> {
@@ -122,6 +132,13 @@ struct SessionPath {
 struct SessionBlobPath {
     session_id: u64,
     blob_id: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionPeerPath {
+    session_id: u64,
+    node_id: NodeId,
 }
 
 fn session_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
@@ -264,6 +281,25 @@ fn add_peers(
         .flatten_fut()
         .from_err()
         .and_then(|_| Ok(HttpResponse::Ok().finish()))
+}
+
+fn create_deployment(
+    (path, body): (Path<SessionPeerPath>, Json<gu_model::envman::CreateSession>),
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::Update::new(path.session_id, move |session| {
+            Ok(session.create_deployment(path.node_id, body.into_inner()))
+        }))
+        .flatten_fut()
+        .from_err()
+        .and_then(|success| {
+            Ok((if success {
+                HttpResponse::Created()
+            } else {
+                HttpResponse::NotFound()
+            })
+            .finish())
+        })
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
