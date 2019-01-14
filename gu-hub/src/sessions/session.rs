@@ -42,6 +42,7 @@ impl Default for SessionInfo {
     }
 }
 
+#[derive(Default)]
 struct PeerState {
     deployments: HashSet<String>,
 }
@@ -219,6 +220,19 @@ impl Session {
             .keys()
             .map(|e| BlobInfo { id: e.to_string() })
             .collect()
+    }
+
+    pub fn list_peers(&self) -> Vec<String> {
+        self.peers.keys().map(|e| e.to_string()).collect()
+    }
+
+    pub fn add_peers(&mut self, peers: Vec<NodeId>) {
+        let new_peers = peers
+            .into_iter()
+            .filter(|p| !self.peers.get(p).is_none())
+            .map(|peer| (peer, PeerState::default()))
+            .collect::<Vec<_>>();
+        self.peers.extend(new_peers);
     }
 
     pub fn clean_directory(&mut self) -> io::Result<()> {

@@ -14,6 +14,7 @@ use futures::stream::Stream;
 use gu_actix::prelude::*;
 use gu_base::Module;
 use gu_model::session::HubSessionSpec;
+use gu_net::NodeId;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sessions::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
@@ -94,6 +95,11 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
                     .and_then(|_r| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()))
             });
+        })
+        .resource("/{sessionId}/peers", |r| {
+            r.name("hub-session-peers");
+            r.get().with_async(list_peers);
+            r.post().with_async(add_peers);
         })
 }
 
@@ -234,6 +240,30 @@ fn list_blobs(
         .flatten_fut()
         .from_err()
         .and_then(|list| Ok(HttpResponse::Ok().json(list)))
+}
+
+fn list_peers(
+    path: Path<SessionPath>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::Update::new(path.session_id, |session| {
+            Ok(session.list_peers())
+        }))
+        .flatten_fut()
+        .from_err()
+        .and_then(|list| Ok(HttpResponse::Ok().json(list)))
+}
+
+fn add_peers(
+    (path, body): (Path<SessionPath>, Json<Vec<NodeId>>),
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::Update::new(path.session_id, |session| {
+            Ok(session.add_peers(body.into_inner()))
+        }))
+        .flatten_fut()
+        .from_err()
+        .and_then(|list| Ok(HttpResponse::Ok().finish()))
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
