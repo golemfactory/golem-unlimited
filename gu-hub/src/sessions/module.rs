@@ -263,7 +263,7 @@ fn add_peers(
         }))
         .flatten_fut()
         .from_err()
-        .and_then(|list| Ok(HttpResponse::Ok().finish()))
+        .and_then(|_| Ok(HttpResponse::Ok().finish()))
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
