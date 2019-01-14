@@ -16,7 +16,7 @@ use std::{
     fs::{self, File},
     io,
     ops::Deref,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 struct FileLockActor {
@@ -261,6 +261,10 @@ impl Blob {
             path: path.clone(),
             lock: FileLockActor::new(path, false).start(),
         }
+    }
+
+    pub fn path(&self) -> &Path {
+        self.path.as_ref()
     }
 
     pub fn write<Payload, Error>(

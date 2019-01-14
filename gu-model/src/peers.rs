@@ -4,7 +4,7 @@ use gu_net::NodeId;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PeerInfo {
     pub node_id: NodeId,
@@ -13,7 +13,7 @@ pub struct PeerInfo {
     pub tags: Tags,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PeerDetails {
     pub node_id: NodeId,

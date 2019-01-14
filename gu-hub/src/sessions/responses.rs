@@ -8,6 +8,7 @@ use actix_web::{
     },
     Error as ActixError, HttpResponse,
 };
+use gu_model::session::BlobInfo;
 use serde_json::Value;
 use sessions::{blob::Blob, manager::EnumeratedSessionInfo, session::SessionInfo};
 
