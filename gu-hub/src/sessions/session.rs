@@ -1,11 +1,12 @@
+use actix_web::HttpResponse;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
-use futures::{future::IntoFuture, stream, Future, Stream};
+use futures::{future, prelude::*, stream};
 use gu_base::files::{read_async, write_async};
 use gu_model::session::{BlobInfo, Metadata};
-use gu_net::NodeId;
-use serde_json::{self, Value};
+use gu_net::{rpc::peer, NodeId};
+use serde_json;
 use sessions::{
     blob::Blob,
     responses::{SessionErr, SessionOk, SessionResult},
@@ -208,12 +209,12 @@ impl Session {
         }
     }
 
-    pub fn get_blob_path(&self, id: u64) -> Result<&Path, SessionErr> {
+    /*pub fn get_blob_path(&self, id: u64) -> Result<&Path, SessionErr> {
         self.storage
             .get(&id)
             .map(|b| b.path())
             .ok_or(SessionErr::BlobNotFoundError)
-    }
+    }*/
 
     pub fn list_blobs(&self) -> Vec<BlobInfo> {
         self.storage
@@ -235,21 +236,30 @@ impl Session {
         self.peers.extend(new_peers);
     }
 
+    pub fn add_deployment(&mut self, node_id: NodeId, deployment_id: String) {
+        let _ = self
+            .peers
+            .get_mut(&node_id)
+            .and_then(|node_info| Some(node_info.deployments.insert(deployment_id)));
+    }
+
     pub fn create_deployment(
         &mut self,
         node_id: NodeId,
-        session_info: gu_model::envman::CreateSession,
-    ) -> bool {
+        body: gu_model::envman::CreateSession,
+    ) -> impl Future<Item = String, Error = SessionErr> {
         if self.peers.get(&node_id).is_none() {
-            return false;
+            return future::Either::A(future::err(SessionErr::NodeNotFound(node_id)));
         }
-        /*let new_peers = peers
-            .into_iter()
-            .filter(|p| !self.peers.get(p).is_none())
-            .map(|peer| (peer, PeerState::default()))
-            .collect::<Vec<_>>();
-        self.peers.extend(new_peers);*/
-        true
+        future::Either::B(
+            peer(node_id)
+                .into_endpoint()
+                .send(body)
+                .map_err(|_| SessionErr::CannotCreatePeerDeployment)
+                .and_then(|v| {
+                    future::result(v).map_err(|_| SessionErr::CannotCreatePeerDeployment)
+                }),
+        )
     }
 
     pub fn clean_directory(&mut self) -> io::Result<()> {

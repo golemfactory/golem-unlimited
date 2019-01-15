@@ -286,19 +286,27 @@ fn add_peers(
 fn create_deployment(
     (path, body): (Path<SessionPeerPath>, Json<gu_model::envman::CreateSession>),
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    let node_id = path.node_id;
     SessionsManager::from_registry()
-        .send(manager::Update::new(path.session_id, move |session| {
-            Ok(session.create_deployment(path.node_id, body.into_inner()))
-        }))
+        .send(manager::CreateDeployment::new(
+            path.session_id,
+            path.node_id,
+            body.into_inner(),
+        ))
         .flatten_fut()
         .from_err()
-        .and_then(|success| {
-            Ok((if success {
-                HttpResponse::Created()
-            } else {
-                HttpResponse::NotFound()
-            })
-            .finish())
+        .and_then(move |peer_session_id| {
+            Ok(HttpResponse::Created()
+                .header(
+                    "Location",
+                    format!(
+                        "/sessions/{}/peers/{}/deployments/{}",
+                        path.session_id,
+                        node_id.to_string(),
+                        peer_session_id,
+                    ),
+                )
+                .json(peer_session_id))
         })
 }
 
