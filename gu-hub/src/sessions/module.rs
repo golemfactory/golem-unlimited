@@ -14,6 +14,7 @@ use futures::stream::Stream;
 use gu_actix::prelude::*;
 use gu_base::Module;
 use gu_model::session::HubSessionSpec;
+use gu_net::NodeId;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sessions::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
@@ -80,8 +81,8 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         })
         .resource("/{sessionId}/blobs/{blobId}", |r| {
             r.name("hub-session-blob");
-            //r.get().with(download_scope);
-            r.get().with_async(download_blob);
+            r.get().with(download_scope);
+            /* r.get().with_async(download_blob); */
             r.put().with(upload_scope);
             r.delete().with_async(|path: Path<SessionBlobPath>| {
                 let blob_id = path.blob_id;
@@ -94,6 +95,11 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     .map_err(|e| ErrorInternalServerError(format!("err: {}", e)))
                     .and_then(|_r| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()))
             });
+        })
+        .resource("/{sessionId}/peers", |r| {
+            r.name("hub-session-peers");
+            r.get().with_async(list_peers);
+            r.post().with_async(add_peers);
         })
 }
 
@@ -236,6 +242,30 @@ fn list_blobs(
         .and_then(|list| Ok(HttpResponse::Ok().json(list)))
 }
 
+fn list_peers(
+    path: Path<SessionPath>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::Update::new(path.session_id, |session| {
+            Ok(session.list_peers())
+        }))
+        .flatten_fut()
+        .from_err()
+        .and_then(|list| Ok(HttpResponse::Ok().json(list)))
+}
+
+fn add_peers(
+    (path, body): (Path<SessionPath>, Json<Vec<NodeId>>),
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::Update::new(path.session_id, |session| {
+            Ok(session.add_peers(body.into_inner()))
+        }))
+        .flatten_fut()
+        .from_err()
+        .and_then(|_| Ok(HttpResponse::Ok().finish()))
+}
+
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
 where
     F: Future<Item = R, Error = E> + 'static,
@@ -263,6 +293,7 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     session_future_responder(res_fut)
 }
 
+/*
 fn download_blob(
     path: Path<SessionBlobPath>,
 ) -> impl Future<Item = NamedFile, Error = actix_web::Error> {
@@ -278,6 +309,7 @@ fn download_blob(
                 .map_err(|_| ErrorInternalServerError("File Error".to_string()))
         })
 }
+*/
 
 fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
     use actix_web::http::header::ETAG;
@@ -298,6 +330,7 @@ fn download_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             n.respond_to(&r)
                 .and_then(|mut r| {
                     r.headers_mut().insert(ETAG, sha);
+                    r.set_content_encoding(actix_web::http::ContentEncoding::Identity);
                     Ok(r)
                 })
                 .map_err(|e| SessionErr::FileError(e.to_string()))

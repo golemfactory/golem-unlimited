@@ -69,7 +69,9 @@ fn main() {
                 })
                 .and_then(|(hub_session, blobs)| {
                     println!("All blobs: {:#?}", blobs.collect::<Vec<BlobInfo>>());
-                    future::ok(hub_session.clone()).join(hub_session.add_peers(&["a", "b", "c"]))
+                    future::ok(hub_session.clone()).join(
+                        hub_session.add_peers(&["0x2e908c75bbc34997c7464ea2f9118cb5de19f0a6"]),
+                    )
                 })
                 .and_then(|(_hub_session, _)| {
                     println!("Successfully added peers.");
