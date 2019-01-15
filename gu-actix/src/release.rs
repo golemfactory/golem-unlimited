@@ -1,25 +1,63 @@
 use actix::prelude::*;
 use futures::prelude::*;
 use futures::unsync::oneshot;
+use std::cell::Cell;
+use std::cell::Ref;
+use std::cell::RefCell;
+use std::fmt;
 use std::ops::Deref;
+use std::sync::Arc;
 
 pub trait AsyncRelease: Send + 'static {
-    type Result: Future<Item = ()> + Send + 'static;
+    type Result: Future<Item = ()> + 'static;
 
     fn release(self) -> Self::Result;
 }
 
-pub struct Handle<T: AsyncRelease>(Option<T>);
+pub struct Handle<T: AsyncRelease>(Arc<Inner<T>>);
+
+impl<T: AsyncRelease> Clone for Handle<T> {
+    fn clone(&self) -> Self {
+        Handle(self.0.clone())
+    }
+}
+
+impl<T: AsyncRelease + fmt::Debug> fmt::Debug for Handle<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.0.deref_inner().fmt(fmt)
+    }
+}
+
+struct Inner<T: AsyncRelease> {
+    inner: Option<T>,
+}
+
+impl<T: AsyncRelease> Inner<T> {
+    fn new(inner: T) -> Self {
+        Inner { inner: Some(inner) }
+    }
+
+    fn deref_inner(&self) -> &T {
+        self.inner.as_ref().unwrap()
+    }
+
+    fn into_inner(mut self) -> T {
+        self.inner.take().unwrap()
+    }
+}
 
 impl<T: AsyncRelease> Handle<T> {
     #[inline]
     pub fn new(resource: T) -> Handle<T> {
-        Handle(Some(resource))
+        Handle(Arc::new(Inner::new(resource)))
     }
 
     #[inline]
-    pub fn into_inner(mut self) -> T {
-        self.0.take().unwrap()
+    pub fn into_inner(self) -> Option<T> {
+        match Arc::try_unwrap(self.0) {
+            Ok(mut inner) => inner.inner.take(),
+            _ => None,
+        }
     }
 }
 
@@ -33,13 +71,13 @@ impl<T: AsyncRelease> Deref for Handle<T> {
     type Target = T;
 
     fn deref(&self) -> &<Self as Deref>::Target {
-        self.0.as_ref().unwrap()
+        self.0.deref().deref_inner()
     }
 }
 
-impl<T: AsyncRelease> Drop for Handle<T> {
+impl<T: AsyncRelease> Drop for Inner<T> {
     fn drop(&mut self) {
-        if let Some(h) = self.0.take() {
+        if let Some(h) = self.inner.take() {
             AsyncResourceManager::from_registry().do_send(DropHandle(h))
         }
     }
@@ -113,7 +151,7 @@ impl<T: AsyncRelease> Handler<DropHandle<T>> for AsyncResourceManager {
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DropHandle<T>>>::Result {
         self.inc();
-        ActorResponse::async(msg.0.release().into_actor(self).then(|_, act, _ctx| {
+        ActorResponse::r#async(msg.0.release().into_actor(self).then(|_, act, _ctx| {
             act.dec();
             fut::ok(())
         }))
@@ -151,9 +189,11 @@ mod test {
     fn test_release() {
         let _ = System::run(|| {
             {
-                let _a = Handle::new(new_item());
+                let a = Handle::new(new_item());
                 eprintln!("c={}", counter.load(Ordering::Relaxed));
                 let _b = Handle::new(new_item());
+                eprintln!("c={}", counter.load(Ordering::Relaxed));
+                let _c = a.clone();
                 eprintln!("c={}", counter.load(Ordering::Relaxed));
             }
             eprintln!("c={}", counter.load(Ordering::Relaxed));

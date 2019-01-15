@@ -117,7 +117,7 @@ fn run_command(
     command: Command,
 ) -> Box<ActorFuture<Actor = DockerMan, Item = String, Error = String>> {
     match command {
-        Command::Open => Box::new(fut::ok("Open mock".to_string())),
+        Command::Open { args } => Box::new(fut::ok("Open mock".to_string())),
         Command::Close => Box::new(fut::ok("Close mock".to_string())),
         Command::Exec { executable, args } => Box::new(fut::ok("Exec mock".to_string())),
         Command::Start { executable, args } => Box::new(fut::ok("Start mock".to_string())),

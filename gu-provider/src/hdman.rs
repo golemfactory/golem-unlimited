@@ -19,7 +19,10 @@ use gu_net::rpc::{
 };
 use gu_persist::config::ConfigModule;
 use id::generate_new_id;
+use provision::download_step;
+use provision::upload_step;
 use provision::{download, untgz};
+use std::collections::HashSet;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use workspace::Workspace;
 
@@ -238,7 +241,7 @@ fn run_command(
     command: Command,
 ) -> Box<ActorFuture<Actor = HdMan, Item = String, Error = String>> {
     match command {
-        Command::Open => Box::new(fut::ok("Open mock".to_string())),
+        Command::Open { args } => Box::new(fut::ok("Open mock".to_string())),
         Command::Close => Box::new(fut::ok("Close mock".to_string())),
         Command::Exec { executable, args } => {
             let executable = hd_man.get_session_exec_path(&session_id, &executable);

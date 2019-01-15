@@ -15,4 +15,10 @@ impl VolumeDef {
             VolumeDef::BindRw { src, target } => Some(src),
         }
     }
+
+    pub fn target_dir(&self) -> Option<&String> {
+        match self {
+            VolumeDef::BindRw { src, target } => Some(target),
+        }
+    }
 }

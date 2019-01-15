@@ -3,7 +3,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use futures::{future::IntoFuture, stream, Future, Stream};
 use gu_base::files::{read_async, write_async};
-use gu_model::session::Metadata;
+use gu_model::session::{BlobInfo, Metadata};
 use gu_net::NodeId;
 use serde_json::{self, Value};
 use sessions::{
@@ -14,7 +14,7 @@ use std::{
     cmp,
     collections::{HashMap, HashSet},
     fs, io,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 pub struct Session {
@@ -205,6 +205,20 @@ impl Session {
             Some(Err(e)) => Err(SessionErr::FileError(e.to_string())),
             None => Ok(SessionOk::BlobAlreadyDeleted),
         }
+    }
+
+    pub fn get_blob_path(&self, id: u64) -> Result<&Path, SessionErr> {
+        self.storage
+            .get(&id)
+            .map(|b| b.path())
+            .ok_or(SessionErr::BlobNotFoundError)
+    }
+
+    pub fn list_blobs(&self) -> Vec<BlobInfo> {
+        self.storage
+            .keys()
+            .map(|e| BlobInfo { id: e.to_string() })
+            .collect()
     }
 
     pub fn clean_directory(&mut self) -> io::Result<()> {

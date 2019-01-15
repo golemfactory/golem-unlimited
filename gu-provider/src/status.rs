@@ -10,9 +10,22 @@ pub fn module() -> impl Module {
 
 struct StatusModule;
 
+#[derive(Deserialize)]
+struct SmPath {
+    p: String,
+}
+
 impl Module for StatusModule {
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
-        app.handler("/status", status_handler)
+        eprintln!("sm!");
+        app.handler("/status", status_handler).resource("/sm", |r| {
+            r.get().with(|p: actix_web::Query<SmPath>| {
+                HttpResponse::Ok().streaming(
+                    super::provision::stream_tar(p.into_inner().p.into())
+                        .map_err(|e| actix_web::error::ErrorInternalServerError(e)),
+                )
+            })
+        })
     }
 }
 
