@@ -9,6 +9,7 @@ use actix_web::{
     Error as ActixError, HttpResponse,
 };
 use gu_model::session::BlobInfo;
+use gu_net::NodeId;
 use serde_json::Value;
 use sessions::{blob::Blob, manager::EnumeratedSessionInfo, session::SessionInfo};
 
@@ -42,6 +43,10 @@ pub enum SessionErr {
     DirectoryCreationError(String),
     FileError(String),
     MailboxError(String),
+    NodeNotFound(NodeId),
+    DeploymentNotFound(String),
+    CannotCreatePeerDeployment,
+    CannotDeletePeerDeployment,
 }
 
 impl ::std::fmt::Display for SessionErr {
@@ -96,6 +101,18 @@ impl Into<HttpResponse> for SessionErr {
             }
             SessionErr::MailboxError(s) => {
                 HttpResponse::InternalServerError().body(format!("Actix mailbox error: {}", s))
+            }
+            SessionErr::CannotCreatePeerDeployment => {
+                HttpResponse::InternalServerError().body(format!("Cannot create peer deployment."))
+            }
+            SessionErr::CannotDeletePeerDeployment => {
+                HttpResponse::InternalServerError().body(format!("Cannot delete peer deployment."))
+            }
+            SessionErr::NodeNotFound(node_id) => {
+                HttpResponse::NotFound().body(format!("Node not found {:?}.", node_id))
+            }
+            SessionErr::DeploymentNotFound(node_id) => {
+                HttpResponse::NotFound().body(format!("Deployment not found {:?}.", node_id))
             }
         }
     }

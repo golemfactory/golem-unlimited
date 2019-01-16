@@ -5,6 +5,7 @@
 use actix::prelude::*;
 use futures::prelude::*;
 use gu_actix::prelude::*;
+use gu_net::NodeId;
 use std::marker::PhantomData;
 
 #[derive(Default)]
@@ -303,5 +304,98 @@ impl Handler<DeleteBlob> for SessionsManager {
 
     fn handle(&mut self, msg: DeleteBlob, _ctx: &mut Context<Self>) -> MessageResult<DeleteBlob> {
         MessageResult(self.delete_blob(msg.session, msg.blob_id))
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<String, SessionErr>")]
+pub struct CreateDeployment {
+    session_id: u64,
+    node_id: NodeId,
+    deployment_desc: gu_model::envman::CreateSession,
+}
+
+impl CreateDeployment {
+    pub fn new(
+        session_id: u64,
+        node_id: NodeId,
+        deployment_desc: gu_model::envman::CreateSession,
+    ) -> CreateDeployment {
+        CreateDeployment {
+            session_id: session_id,
+            node_id: node_id,
+            deployment_desc: deployment_desc,
+        }
+    }
+}
+
+impl Handler<CreateDeployment> for SessionsManager {
+    type Result = ActorResponse<SessionsManager, String, SessionErr>;
+
+    fn handle(&mut self, msg: CreateDeployment, _ctx: &mut Self::Context) -> Self::Result {
+        let session_id = msg.session_id;
+        let node_id = msg.node_id.clone();
+
+        if let Some(session) = self.sessions.get_mut(&msg.session_id) {
+            ActorResponse::async(
+                fut::wrap_future(session.create_deployment(msg.node_id, msg.deployment_desc))
+                    .and_then(move |deployment_id, act: &mut SessionsManager, _ctx| {
+                        act.sessions
+                            .get_mut(&session_id)
+                            .unwrap()
+                            .add_deployment(node_id, deployment_id.clone());
+                        fut::ok(deployment_id)
+                    }),
+            )
+        } else {
+            ActorResponse::reply(Err(SessionErr::SessionNotFoundError))
+        }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<(), SessionErr>")]
+pub struct DeleteDeployment {
+    session_id: u64,
+    node_id: NodeId,
+    deployment_id: String,
+}
+
+impl DeleteDeployment {
+    pub fn new(session_id: u64, node_id: NodeId, deployment_id: String) -> DeleteDeployment {
+        DeleteDeployment {
+            session_id: session_id,
+            node_id: node_id,
+            deployment_id: deployment_id,
+        }
+    }
+}
+
+impl Handler<DeleteDeployment> for SessionsManager {
+    type Result = ActorResponse<SessionsManager, (), SessionErr>;
+
+    fn handle(&mut self, msg: DeleteDeployment, _ctx: &mut Self::Context) -> Self::Result {
+        let session_id = msg.session_id;
+        let node_id = msg.node_id.clone();
+        let deployment_id = msg.deployment_id.clone();
+
+        if let Some(session) = self.sessions.get_mut(&msg.session_id) {
+            ActorResponse::async(
+                fut::wrap_future(session.delete_deployment(msg.node_id, msg.deployment_id))
+                    .and_then(move |_, act: &mut SessionsManager, _ctx| {
+                        if !(act
+                            .sessions
+                            .get_mut(&session_id)
+                            .unwrap()
+                            .remove_deployment(node_id, deployment_id.clone()))
+                        {
+                            return fut::err(SessionErr::DeploymentNotFound(deployment_id));
+                        }
+                        fut::ok(())
+                    }),
+            )
+        } else {
+            ActorResponse::reply(Err(SessionErr::SessionNotFoundError))
+        }
     }
 }

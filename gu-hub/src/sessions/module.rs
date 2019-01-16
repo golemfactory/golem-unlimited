@@ -4,8 +4,7 @@ use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
     fs::NamedFile,
     http,
-    http::ContentEncoding,
-    http::StatusCode,
+    http::{ContentEncoding, Method, StatusCode},
     App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json,
     Responder, Result as ActixResult, Scope,
 };
@@ -101,6 +100,18 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             r.get().with_async(list_peers);
             r.post().with_async(add_peers);
         })
+        .resource("/{sessionId}/peers/{nodeId}/deployments", |r| {
+            r.name("hub-session-peers-deployments");
+            r.post().with_async(create_deployment);
+        })
+        .resource(
+            "/{sessionId}/peers/{nodeId}/deployments/{deploymentId}",
+            |r| {
+                r.name("hub-session-peers-deployment");
+                r.delete().with_async(delete_deployment);
+                // TODO r.method(Method::PATCH).with_async(update_deployment);
+            },
+        )
 }
 
 fn get_param<S>(r: &HttpRequest<S>, name: &'static str) -> ActixResult<u64> {
@@ -122,6 +133,21 @@ struct SessionPath {
 struct SessionBlobPath {
     session_id: u64,
     blob_id: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionPeerPath {
+    session_id: u64,
+    node_id: NodeId,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionPeerDeploymentPath {
+    session_id: u64,
+    node_id: NodeId,
+    deployment_id: String,
 }
 
 fn session_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
@@ -264,6 +290,47 @@ fn add_peers(
         .flatten_fut()
         .from_err()
         .and_then(|_| Ok(HttpResponse::Ok().finish()))
+}
+
+fn delete_deployment(
+    path: Path<SessionPeerDeploymentPath>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::DeleteDeployment::new(
+            path.session_id,
+            path.node_id,
+            path.deployment_id.clone(),
+        ))
+        .flatten_fut()
+        .from_err()
+        .and_then(|result| Ok(HttpResponse::NoContent().json(result)))
+}
+
+fn create_deployment(
+    (path, body): (Path<SessionPeerPath>, Json<gu_model::envman::CreateSession>),
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    let node_id = path.node_id;
+    SessionsManager::from_registry()
+        .send(manager::CreateDeployment::new(
+            path.session_id,
+            path.node_id,
+            body.into_inner(),
+        ))
+        .flatten_fut()
+        .from_err()
+        .and_then(move |peer_session_id| {
+            Ok(HttpResponse::Created()
+                .header(
+                    "Location",
+                    format!(
+                        "/sessions/{}/peers/{}/deployments/{}",
+                        path.session_id,
+                        node_id.to_string(),
+                        peer_session_id,
+                    ),
+                )
+                .json(peer_session_id))
+        })
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
