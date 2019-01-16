@@ -21,7 +21,11 @@ extern crate mdns;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+#[cfg(feature = "env-docker")]
+extern crate async_docker;
+
 extern crate gu_model;
+#[macro_use]
 extern crate serde_json;
 extern crate tar;
 extern crate uuid;
@@ -31,6 +35,7 @@ extern crate prettytable;
 use clap::App;
 use gu_base::*;
 
+mod async_tar;
 mod connect;
 pub mod envman;
 mod hdman;
@@ -41,12 +46,23 @@ mod server;
 mod status;
 mod sync_exec;
 
+#[cfg(feature = "env-docker")]
+mod dockerman;
+
+#[cfg(not(feature = "env-docker"))]
+mod dockerman {
+    pub use gu_base::empty::module;
+}
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
+    let config_module = gu_persist::config::ConfigModule::new();
+
     GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
         LogModule
-            .chain(gu_persist::config::ConfigModule::new())
+            .chain(config_module)
+            .chain(dockerman::module())
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(status::module())

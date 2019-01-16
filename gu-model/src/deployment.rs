@@ -23,7 +23,7 @@ pub enum DeploymentStatus {
     DESTROYING,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DeploymentInfo {
     pub id: String,
@@ -36,7 +36,7 @@ pub struct DeploymentInfo {
     pub processes: PidSet,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessInfo {
     pub tags: Tags,

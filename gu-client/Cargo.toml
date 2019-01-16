@@ -1,0 +1,18 @@
+[package]
+name = "gu-client"
+version = "0.1.0"
+authors = ["Filip <filip@golem.network>"]
+
+[dependencies]
+gu-actix = { path="../gu-actix" }
+gu-net = { path="../gu-net" }
+gu-model = { path="../gu-model" }
+actix = "0.7"
+actix-web = "0.7"
+bytes = "0.4.10"
+futures = "0.1"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+derive_builder = "0.7"
+url = "1.7.2"
