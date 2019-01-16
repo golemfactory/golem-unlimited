@@ -8,6 +8,7 @@ extern crate chrono;
 extern crate gu_net;
 extern crate serde;
 
+pub mod dockerman;
 pub mod envman;
 
 pub mod deployment;

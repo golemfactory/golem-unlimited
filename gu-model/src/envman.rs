@@ -56,20 +56,22 @@ pub struct Image {
 /// Message for session creation: local provisioning: downloads and unpacks the binaries
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateSession {
+pub struct CreateSession<Options = ()> {
     pub env_type: String,
     pub image: Image,
     pub name: String,
     pub tags: Vec<String>,
     pub note: Option<String>,
+    #[serde(default)]
+    pub options: Options,
 }
 
-impl PublicMessage for CreateSession {
+impl<Options> PublicMessage for CreateSession<Options> {
     const ID: u32 = 37;
 }
 
 /// returns session_id
-impl Message for CreateSession {
+impl<Options> Message for CreateSession<Options> {
     type Result = Result<String, Error>;
 }
 
@@ -80,6 +82,19 @@ pub struct SessionUpdate {
     pub commands: Vec<Command>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum ResourceFormat {
+    Raw,
+    Tar,
+}
+
+impl Default for ResourceFormat {
+    fn default() -> Self {
+        ResourceFormat::Raw
+    }
+}
+
 #[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Command {
@@ -88,12 +103,14 @@ pub enum Command {
         executable: String,
         args: Vec<String>,
     },
+    Open,
+    Close,
     Start {
         // return child process id
         executable: String,
         args: Vec<String>,
-        // TODO: consider adding tags here
     },
+
     #[serde(rename_all = "camelCase")]
     Stop {
         child_id: String,
@@ -103,10 +120,14 @@ pub enum Command {
     DownloadFile {
         uri: String,
         file_path: String,
+        #[serde(default)]
+        format: ResourceFormat,
     },
     UploadFile {
         uri: String,
         file_path: String,
+        #[serde(default)]
+        format: ResourceFormat,
     },
 }
 
@@ -164,7 +185,7 @@ mod test {
         }"#;
 
         // when
-        let c: CreateSession = serde_json::from_str(json).unwrap();
+        let c: CreateSession<()> = serde_json::from_str(json).unwrap();
 
         // then
         assert_eq!(c.env_type, "hd");

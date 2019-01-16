@@ -5,6 +5,23 @@ use chrono::DateTime;
 use serde_json::Value as JsonValue;
 
 #[derive(Serialize, Deserialize)]
+pub struct HubSessionUpdate {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ts: Option<DateTime<Utc>>,
+    #[serde(flatten)]
+    pub command: Command,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "commandType")]
+pub enum Command {
+    #[serde(rename = "HubSessionTouchCommand")]
+    #[serde(rename_all = "camelCase")]
+    Touch { keep_until: Option<DateTime<Utc>> },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HubSessionSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -17,7 +34,7 @@ pub struct HubSessionSpec {
     pub tags: Tags,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum AllocationMode {
     #[serde(rename = "auto")]
@@ -32,7 +49,7 @@ impl Default for AllocationMode {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
     #[serde(default)]
@@ -55,6 +72,12 @@ pub struct SessionDetails {
     pub name: Option<String>,
     #[serde(default)]
     pub tags: Tags,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BlobInfo {
+    pub id: String,
 }
 
 #[cfg(test)]
@@ -93,6 +116,15 @@ mod test {
         let j1 = serde_json::to_string_pretty(&m1).unwrap();
 
         eprintln!("{}", j1);
+    }
+
+    #[test]
+    fn test_hub_command() {
+        let command = HubSessionUpdate {
+            ts: None,
+            command: Command::Touch { keep_until: None },
+        };
+        eprintln!("{}", serde_json::to_string(&command).unwrap());
     }
 
 }

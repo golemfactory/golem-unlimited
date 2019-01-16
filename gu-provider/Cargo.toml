@@ -6,8 +6,9 @@ publish=false
 authors=["golemfactory"]
 
 [features]
-default=[]
+default=['env-docker']
 clinfo=["gu-hardware/clinfo"]
+env-docker=['async_docker']
 
 [dependencies]
 futures="0.1"
@@ -38,6 +39,10 @@ gu-lan = { path = "../gu-lan"}
 gu-ethkey = { path = "../gu-ethkey"}
 gu-hardware = { path = "../gu-hardware"}
 gu-model = { path = "../gu-model" }
+
+
+async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger" }
+#async_docker={path = "../../async-docker", optional=true }
 
 [package.metadata.deb]
 depends = "$auto, systemd"
