@@ -22,6 +22,7 @@ pub mod daemon;
 pub mod daemon_lib;
 
 pub mod cli;
+pub mod empty;
 pub mod files;
 mod output;
 mod run_once;
