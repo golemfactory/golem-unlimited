@@ -119,7 +119,31 @@ impl ProcessPool {
         async_result!(future::ok(pid))
     }
 
-    fn stop_process(&mut self, pid: Pid) -> Result<(), String> {
+    fn start_main_process<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
+        &mut self,
+        ctx: &mut <Self as Actor>::Context,
+        executable: &P,
+        args: I,
+    ) -> impl Future<Item = Pid, Error = String> {
+        if self.main_process.is_some() {
+            async_try!(Err("pool already running"))
+        }
+
+        let exec_path = self.work_dir.join(executable);
+        let mut child: Child = async_try!(Command::new(exec_path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .args(args)
+            .current_dir(&self.work_dir)
+            .spawn_async()
+            .map_err(|e| format!("run: {}", e)));
+        let pid = self.spawn_child(ctx, child);
+        self.main_process = Some(pid);
+
+        async_result!(future::ok(pid))
+    }
+
+        fn stop_process(&mut self, pid: Pid) -> Result<(), String> {
         if let Some(tx) = self.exec_processes.remove(&pid) {
             tx.send(()).map_err(|e| format!("kill"))?
         }
