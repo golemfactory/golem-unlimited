@@ -2,8 +2,9 @@ use super::Module;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use env_logger;
 use std::env;
+use std::sync::atomic::{AtomicIsize, Ordering};
 
-static mut LISTING_FORMAT: ListingFormat = ListingFormat::Table;
+static LISTING_FORMAT: AtomicIsize = AtomicIsize::new(0);
 
 #[derive(Clone, Copy)]
 pub(crate) enum ListingFormat {
@@ -11,8 +12,28 @@ pub(crate) enum ListingFormat {
     Table,
 }
 
+impl From<isize> for ListingFormat {
+    fn from(v: isize) -> Self {
+        match v {
+            0 => ListingFormat::Table,
+            1 => ListingFormat::Json,
+            _ => panic!("invalid ListtingFormat value: {}", v),
+        }
+    }
+}
+
+impl ListingFormat {
+    #[inline]
+    fn as_int(&self) -> isize {
+        match self {
+            ListingFormat::Table => 0,
+            ListingFormat::Json => 1,
+        }
+    }
+}
+
 pub(crate) fn listing_format() -> ListingFormat {
-    unsafe { LISTING_FORMAT }
+    LISTING_FORMAT.load(Ordering::Relaxed).into()
 }
 
 pub struct LogModule;
@@ -51,9 +72,8 @@ impl Module for LogModule {
             }
         }
         if matches.is_present("json") {
-            unsafe { LISTING_FORMAT = ListingFormat::Json }
+            LISTING_FORMAT.store(ListingFormat::Json.as_int(), Ordering::Relaxed);
         }
-
         env_logger::init();
         false
     }
