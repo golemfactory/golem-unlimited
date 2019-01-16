@@ -111,11 +111,7 @@ impl HdMan {
         }
     }
 
-    fn insert_child(
-        &mut self,
-        session_id: &str,
-        child: process::Child,
-    ) -> Result<String, Error> {
+    fn insert_child(&mut self, session_id: &str, child: process::Child) -> Result<String, Error> {
         Ok(self.get_session_mut(&session_id)?.insert_process(child))
     }
 
