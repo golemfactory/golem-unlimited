@@ -106,11 +106,6 @@ impl HdMan {
         })
     }
 
-
-    fn generate_session_id(&self) -> String {
-        generate_new_id(&self.sessions)
-    }
-
     fn get_session_path(&self, session_id: &str) -> PathBuf {
         self.sessions_dir.join(session_id)
     }
@@ -130,23 +125,12 @@ impl HdMan {
     fn get_session_mut(&mut self, session_id: &str) -> Result<&mut HdSessionInfo, Error> {
         match self.deploys.deploy_mut(session_id) {
             Ok(session) => Ok(session),
-            Err(_) => Err(Error::NoSuchSession(session_id.clone())),
+            Err(_) => Err(Error::NoSuchSession(session_id.into())),
         }
     }
 
-    fn insert_child(
-        &mut self,
-        session_id: &str,
-        child: process::Child,
-    ) -> Result<String, Error> {
+    fn insert_child(&mut self, session_id: &str, child: process::Child) -> Result<String, Error> {
         Ok(self.get_session_mut(&session_id)?.insert_process(child))
-    }
-
-    fn destroy_session(&mut self, session_id: &str) -> Result<(), Error> {
-        self.sessions
-            .remove(session_id)
-            .ok_or(Error::NoSuchSession(session_id.to_string()))
-            .and_then(|mut s| SessionInfo::destroy(&mut s))
     }
 
     fn scan_for_processes(&mut self) {

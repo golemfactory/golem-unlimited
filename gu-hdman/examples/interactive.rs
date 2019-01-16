@@ -28,7 +28,7 @@ fn main() {
             stdin()
                 .chain(futures::stream::once(Ok("eof".into())))
                 .map_err(|e| eprintln!("err={}", e))
-                .map(move |l| -> Box<dyn Future<Item=(), Error=()>> {
+                .map(move |l| -> Box<dyn Future<Item = (), Error = ()>> {
                     use futures::future::{self, Either};
                     if l.starts_with("run ") {
                         Box::new(
@@ -44,15 +44,19 @@ fn main() {
                         )
                     } else if l == "list" {
                         eprintln!("ask list");
-                        Box::new(pp.send(List)
-                            .map_err(|e| eprintln!("err={}", e))
-                            .and_then(|pids|  Ok(eprintln!("pids={:?}", pids))))
-                    } else if l.starts_with("stop ") {
-                        let pid : Pid = (&l[5..]).parse().unwrap();
-                        Box::new(pp.send(Stop(pid)).map_err(|e| eprintln!("err={}", e))
-                            .and_then(|r|  Ok(eprintln!("stop={:?}", r)))
+                        Box::new(
+                            pp.send(List)
+                                .map_err(|e| eprintln!("err={}", e))
+                                .and_then(|pids| Ok(eprintln!("pids={:?}", pids))),
                         )
-                    }else {
+                    } else if l.starts_with("stop ") {
+                        let pid: Pid = (&l[5..]).parse().unwrap();
+                        Box::new(
+                            pp.send(Stop(pid))
+                                .map_err(|e| eprintln!("err={}", e))
+                                .and_then(|r| Ok(eprintln!("stop={:?}", r))),
+                        )
+                    } else {
                         Box::new(future::ok(eprintln!("line: [{}]", l)))
                     }
                 })

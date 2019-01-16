@@ -6,10 +6,10 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::str::FromStr;
 use std::string;
 use tokio_io::io;
 use tokio_process::{Child, CommandExt};
-use std::str::FromStr;
 
 type Map<K, V> = HashMap<K, V>;
 
@@ -71,7 +71,7 @@ impl ProcessPool {
     ) -> impl Future<Item = (String, String), Error = String> {
         let exec = executable.as_ref();
         if exec.is_absolute() {
-            return async_try!(Err(format!("invalid executable {:?}", exec)))
+            return async_try!(Err(format!("invalid executable {:?}", exec)));
         }
 
         let exec_path = self.work_dir.join(exec);
@@ -143,7 +143,7 @@ impl ProcessPool {
         async_result!(future::ok(pid))
     }
 
-        fn stop_process(&mut self, pid: Pid) -> Result<(), String> {
+    fn stop_process(&mut self, pid: Pid) -> Result<(), String> {
         if let Some(tx) = self.exec_processes.remove(&pid) {
             tx.send(()).map_err(|e| format!("kill"))?
         }

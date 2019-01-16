@@ -56,10 +56,10 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
         self.deploys.contains_key(key)
     }
 
-    pub fn deploy_mut(&mut self, deploy_id: &String) -> Result<&mut T, Error> {
+    pub fn deploy_mut(&mut self, deploy_id: &str) -> Result<&mut T, Error> {
         match self.deploys.get_mut(deploy_id) {
             Some(deploy) => Ok(deploy),
-            None => Err(Error::NoSuchSession(deploy_id.clone())),
+            None => Err(Error::NoSuchSession(deploy_id.into())),
         }
     }
 
