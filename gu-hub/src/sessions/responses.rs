@@ -44,7 +44,9 @@ pub enum SessionErr {
     FileError(String),
     MailboxError(String),
     NodeNotFound(NodeId),
+    DeploymentNotFound(String),
     CannotCreatePeerDeployment,
+    CannotDeletePeerDeployment,
 }
 
 impl ::std::fmt::Display for SessionErr {
@@ -103,8 +105,14 @@ impl Into<HttpResponse> for SessionErr {
             SessionErr::CannotCreatePeerDeployment => {
                 HttpResponse::InternalServerError().body(format!("Cannot create peer deployment."))
             }
+            SessionErr::CannotDeletePeerDeployment => {
+                HttpResponse::InternalServerError().body(format!("Cannot delete peer deployment."))
+            }
             SessionErr::NodeNotFound(node_id) => {
                 HttpResponse::NotFound().body(format!("Node not found {:?}.", node_id))
+            }
+            SessionErr::DeploymentNotFound(node_id) => {
+                HttpResponse::NotFound().body(format!("Deployment not found {:?}.", node_id))
             }
         }
     }

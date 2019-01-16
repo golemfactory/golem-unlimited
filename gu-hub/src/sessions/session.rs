@@ -236,6 +236,13 @@ impl Session {
         self.peers.extend(new_peers);
     }
 
+    pub fn remove_deployment(&mut self, node_id: NodeId, deployment_id: String) -> bool {
+        match self.peers.get_mut(&node_id) {
+            None => false,
+            Some(peer) => peer.deployments.remove(&deployment_id),
+        }
+    }
+
     pub fn add_deployment(&mut self, node_id: NodeId, deployment_id: String) {
         let _ = self
             .peers
@@ -258,6 +265,29 @@ impl Session {
                 .map_err(|_| SessionErr::CannotCreatePeerDeployment)
                 .and_then(|v| {
                     future::result(v).map_err(|_| SessionErr::CannotCreatePeerDeployment)
+                }),
+        )
+    }
+
+    pub fn delete_deployment(
+        &mut self,
+        node_id: NodeId,
+        deployment_id: String,
+    ) -> impl Future<Item = (), Error = SessionErr> {
+        if self.peers.get(&node_id).is_none() {
+            return future::Either::A(future::err(SessionErr::NodeNotFound(node_id)));
+        }
+        future::Either::B(
+            peer(node_id)
+                .into_endpoint()
+                .send(gu_model::envman::DestroySession {
+                    session_id: deployment_id,
+                })
+                .map_err(|_| SessionErr::CannotDeletePeerDeployment)
+                .and_then(|r| {
+                    future::result(r)
+                        .map(|_| ())
+                        .map_err(|_| SessionErr::CannotDeletePeerDeployment)
                 }),
         )
     }

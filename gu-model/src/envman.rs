@@ -156,8 +156,8 @@ pub struct DestroySession {
     pub session_id: String,
 }
 
-impl DestroySession {
-    pub const ID: u32 = 40;
+impl PublicMessage for DestroySession {
+    const ID: u32 = 40;
 }
 
 impl Message for DestroySession {

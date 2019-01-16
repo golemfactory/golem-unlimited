@@ -104,13 +104,14 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             r.name("hub-session-peers-deployments");
             r.post().with_async(create_deployment);
         })
-    /*
-    .resource("/{sessionId}/peers/{nodeId}/deployments/{deploymentId}", |r| {
-        r.name("hub-session-peers-deployment");
-        r.delete().with_async(delete_deployment);
-        r.method(Method::PATCH).with_async(update_deployment);
-    })
-    */
+        .resource(
+            "/{sessionId}/peers/{nodeId}/deployments/{deploymentId}",
+            |r| {
+                r.name("hub-session-peers-deployment");
+                r.delete().with_async(delete_deployment);
+                // TODO r.method(Method::PATCH).with_async(update_deployment);
+            },
+        )
 }
 
 fn get_param<S>(r: &HttpRequest<S>, name: &'static str) -> ActixResult<u64> {
@@ -139,6 +140,14 @@ struct SessionBlobPath {
 struct SessionPeerPath {
     session_id: u64,
     node_id: NodeId,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionPeerDeploymentPath {
+    session_id: u64,
+    node_id: NodeId,
+    deployment_id: String,
 }
 
 fn session_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
@@ -281,6 +290,20 @@ fn add_peers(
         .flatten_fut()
         .from_err()
         .and_then(|_| Ok(HttpResponse::Ok().finish()))
+}
+
+fn delete_deployment(
+    path: Path<SessionPeerDeploymentPath>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::DeleteDeployment::new(
+            path.session_id,
+            path.node_id,
+            path.deployment_id.clone(),
+        ))
+        .flatten_fut()
+        .from_err()
+        .and_then(|result| Ok(HttpResponse::NoContent().json(result)))
 }
 
 fn create_deployment(
