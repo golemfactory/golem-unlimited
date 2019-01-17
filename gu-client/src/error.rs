@@ -28,9 +28,7 @@ pub enum Error {
     CannotUpdateDeployment(actix_web::http::StatusCode),
     CannotUpdateHubSession(actix_web::http::StatusCode),
     InvalidAddress(url::ParseError),
-    InvalidHubSessionParameters(String),
     InvalidJSONResponse(actix_web::error::JsonPayloadError),
-    InvalidPeerSessionParameters(String),
     SessionNotFound(String),
 }
 

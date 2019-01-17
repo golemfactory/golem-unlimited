@@ -5,35 +5,14 @@ use futures::stream::Stream;
 use futures::{future, Future};
 use gu_actix::release::{AsyncRelease, Handle};
 use gu_model::peers::PeerInfo;
-use gu_model::session::{BlobInfo, HubSessionSpec, Metadata};
-use gu_model::{envman, session};
+use gu_model::{
+    envman,
+    session::{self, BlobInfo, HubSessionSpec, Metadata},
+};
 use gu_net::types::NodeId;
 use std::str;
 use std::sync::Arc;
 use url::Url;
-
-/// Hub session information.
-#[derive(Clone, Serialize, Deserialize, Debug, Default, Builder)]
-#[builder(pattern = "owned", setter(into))]
-pub struct HubSessionInfo {
-    name: String,
-    environment: String,
-}
-
-/// Peer session information.
-#[derive(Clone, Serialize, Deserialize, Debug, Default, Builder)]
-#[builder(pattern = "owned", setter(into))]
-pub struct PeerSessionInfo {
-    image: PeerSessionImage,
-    environment: String,
-}
-
-/// Peer session image.
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
-pub struct PeerSessionImage {
-    url: String,
-    hash: String,
-}
 
 /// Connection to a single hub.
 #[derive(Clone, Debug)]
@@ -58,13 +37,9 @@ impl HubConnection {
     /// creates a new hub session
     pub fn new_session(
         &self,
-        session_info_builder: HubSessionInfoBuilder,
+        session_info: HubSessionSpec,
     ) -> impl Future<Item = Handle<HubSession>, Error = Error> {
         let sessions_url = format!("{}sessions", self.hub_connection_inner.url);
-        let session_info = match session_info_builder.build() {
-            Ok(r) => r,
-            Err(e) => return future::Either::A(future::err(Error::InvalidHubSessionParameters(e))),
-        };
         let request = match client::ClientRequest::post(sessions_url).json(session_info) {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
@@ -460,7 +435,7 @@ impl Peer {
     /// creates new peer session
     pub fn new_session(
         &self,
-        builder: PeerSessionInfoBuilder,
+        session_info: envman::CreateSession,
     ) -> impl Future<Item = PeerSession, Error = Error> {
         let url = format!(
             "{}sessions/{}/peers/{}/deployments",
@@ -468,10 +443,6 @@ impl Peer {
             self.hub_session.session_id,
             self.node_id.to_string()
         );
-        let session_info = match builder.build() {
-            Ok(r) => r,
-            Err(e) => return future::Either::A(future::err(Error::InvalidPeerSessionParameters(e))),
-        };
         let request = match client::ClientRequest::post(url).json(session_info) {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),

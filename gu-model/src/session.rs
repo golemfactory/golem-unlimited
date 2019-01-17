@@ -21,7 +21,7 @@ pub enum Command {
     Touch { keep_until: Option<DateTime<Utc>> },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HubSessionSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
