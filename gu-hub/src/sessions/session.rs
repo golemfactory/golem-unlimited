@@ -292,6 +292,31 @@ impl Session {
         )
     }
 
+    pub fn update_deployment(
+        &mut self,
+        node_id: NodeId,
+        deployment_id: String,
+        commands: Vec<gu_model::envman::Command>,
+    ) -> impl Future<Item = (), Error = SessionErr> {
+        if self.peers.get(&node_id).is_none() {
+            return future::Either::A(future::err(SessionErr::NodeNotFound(node_id)));
+        }
+        future::Either::B(
+            peer(node_id)
+                .into_endpoint()
+                .send(gu_model::envman::SessionUpdate {
+                    session_id: deployment_id,
+                    commands: commands,
+                })
+                .map_err(|_| SessionErr::CannotUpdatePeerDeployment)
+                .and_then(|r| {
+                    future::result(r)
+                        .map(|_| ())
+                        .map_err(|_| SessionErr::CannotUpdatePeerDeployment)
+                }),
+        )
+    }
+
     pub fn clean_directory(&mut self) -> io::Result<()> {
         self.version += 1;
         match (&self.path).exists() {

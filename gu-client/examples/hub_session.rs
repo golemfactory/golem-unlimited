@@ -10,7 +10,6 @@ use actix::Arbiter;
 use bytes::Bytes;
 use futures::{future, stream, Future, Stream};
 use gu_client::async::HubConnection;
-use gu_client::async::HubSessionInfoBuilder;
 use gu_model::session::{BlobInfo, HubSessionSpec};
 
 fn main() {
@@ -18,11 +17,10 @@ fn main() {
     actix::System::run(move || {
         Arbiter::spawn(
             hub_connection
-                .new_session(
-                    HubSessionInfoBuilder::default()
-                        .name("my session")
-                        .environment("hd"),
-                )
+                .new_session(HubSessionSpec {
+                    name: Some("my_session".to_string()),
+                    ..HubSessionSpec::default()
+                })
                 .and_then(|hub_session| {
                     println!("New hub session ready: {:#?}.", hub_session);
                     future::ok(hub_session.clone()).join(hub_session.config())

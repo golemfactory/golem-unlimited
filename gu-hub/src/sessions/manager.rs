@@ -399,3 +399,44 @@ impl Handler<DeleteDeployment> for SessionsManager {
         }
     }
 }
+
+#[derive(Message)]
+#[rtype(result = "Result<(), SessionErr>")]
+pub struct UpdateDeployment {
+    session_id: u64,
+    node_id: NodeId,
+    deployment_id: String,
+    commands: Vec<gu_model::envman::Command>,
+}
+
+impl UpdateDeployment {
+    pub fn new(
+        session_id: u64,
+        node_id: NodeId,
+        deployment_id: String,
+        commands: Vec<gu_model::envman::Command>,
+    ) -> UpdateDeployment {
+        UpdateDeployment {
+            session_id: session_id,
+            node_id: node_id,
+            deployment_id: deployment_id,
+            commands: commands,
+        }
+    }
+}
+
+impl Handler<UpdateDeployment> for SessionsManager {
+    type Result = ActorResponse<SessionsManager, (), SessionErr>;
+
+    fn handle(&mut self, msg: UpdateDeployment, _ctx: &mut Self::Context) -> Self::Result {
+        if let Some(session) = self.sessions.get_mut(&msg.session_id) {
+            ActorResponse::async(fut::wrap_future(session.update_deployment(
+                msg.node_id,
+                msg.deployment_id,
+                msg.commands,
+            )))
+        } else {
+            ActorResponse::reply(Err(SessionErr::SessionNotFoundError))
+        }
+    }
+}

@@ -141,8 +141,8 @@ pub enum Command {
     },
 }
 
-impl SessionUpdate {
-    pub const ID: u32 = 38;
+impl PublicMessage for SessionUpdate {
+    const ID: u32 = 38;
 }
 
 impl Message for SessionUpdate {

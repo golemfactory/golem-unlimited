@@ -109,7 +109,7 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             |r| {
                 r.name("hub-session-peers-deployment");
                 r.delete().with_async(delete_deployment);
-                // TODO r.method(Method::PATCH).with_async(update_deployment);
+                r.method(Method::PATCH).with_async(update_deployment);
             },
         )
 }
@@ -331,6 +331,24 @@ fn create_deployment(
                 )
                 .json(peer_session_id))
         })
+}
+
+fn update_deployment(
+    (path, body): (
+        Path<SessionPeerDeploymentPath>,
+        Json<Vec<gu_model::envman::Command>>,
+    ),
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    SessionsManager::from_registry()
+        .send(manager::UpdateDeployment::new(
+            path.session_id,
+            path.node_id,
+            path.deployment_id.clone(),
+            body.into_inner(),
+        ))
+        .flatten_fut()
+        .from_err()
+        .and_then(|_| Ok(HttpResponse::Ok().finish()))
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
