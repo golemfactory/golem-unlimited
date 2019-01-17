@@ -107,11 +107,7 @@ pub enum Command {
         executable: String,
         args: Vec<String>,
     },
-    Open {
-        #[serde(default)]
-        #[serde(skip_serializing_if = "Vec::is_empty")]
-        args: Vec<String>,
-    },
+    Open,
     Close,
     Start {
         // return child process id
@@ -139,10 +135,6 @@ pub enum Command {
         #[serde(default)]
         format: ResourceFormat,
     },
-}
-
-impl PublicMessage for SessionUpdate {
-    const ID: u32 = 38;
 }
 
 impl Message for SessionUpdate {

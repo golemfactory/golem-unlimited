@@ -16,19 +16,65 @@ use gu_net::rpc::peer::PeerSessionStatus;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use workspace::Workspace;
+use std::borrow::Cow;
 
 // Actor.
 #[derive(Default)]
 struct DockerMan {
     docker_api: Option<Box<DockerApi>>,
-    deploys: DeployManager<DockerSessionInfo>,
+    deploys: DeployManager<DockerSession>,
 }
 
-struct DockerSessionInfo {
+struct DockerSession {
     workspace: Workspace,
 }
 
-impl IntoDeployInfo for DockerSessionInfo {
+impl DockerSession {
+
+    fn do_open(&mut self, session_id : String, docker_api : &DockerApi) -> impl Future<Item=String, Error=String> {
+        docker_api.container(session_id.into()).start().then(|r| {
+            match r {
+                Ok(status) => Ok("OK".into()),
+                Err(e) => Err(format!("{}", e))
+            }
+        })
+    }
+
+    fn do_close(&mut self, session_id : String, docker_api : &DockerApi) -> impl Future<Item=String, Error=String> {
+        docker_api.container(Cow::Owned(session_id)).stop(None)
+            .map_err(|e| format!("{}", e))
+            .and_then(|v| Ok("OK".into()))
+    }
+
+    fn do_exec(&mut self, session_id : String, docker_api : &DockerApi, executable : String, mut args : Vec<String>) -> impl Future<Item=String, Error=String> {
+        args.insert(0, executable);
+        let cfg = {
+            use async_docker::models::*;
+
+            ExecConfig::new().with_attach_stdout(true)
+                .with_attach_stderr(true)
+                .with_cmd(args)
+        };
+
+
+        docker_api.container(Cow::Owned(session_id)).exec(&cfg)
+            .map_err(|e| format!("{}", e))
+            .fold(String::new(), |mut s, (t, it)| {
+                use std::str;
+
+                match str::from_utf8(it.into_bytes().as_ref()) {
+                    Ok(chunk_str) => s.push_str(chunk_str),
+                    Err(_) => ()
+                };
+
+                Ok::<String, String>(s)
+            })
+
+    }
+
+}
+
+impl IntoDeployInfo for DockerSession {
     fn convert(&self, id: &String) -> PeerSessionInfo {
         PeerSessionInfo {
             id: id.clone(),
@@ -41,7 +87,7 @@ impl IntoDeployInfo for DockerSessionInfo {
     }
 }
 
-impl Destroy for DockerSessionInfo {}
+impl Destroy for DockerSession {}
 
 impl Actor for DockerMan {
     type Context = Context<Self>;
@@ -59,6 +105,7 @@ impl Actor for DockerMan {
         }
     }
 }
+
 
 impl envman::EnvManService for DockerMan {
     type CreateOptions = CreateOptions;
@@ -111,15 +158,36 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
     }
 }
 
+
+impl DockerMan {
+
+    fn run_for_deployment<F,R>(&mut self, deployment_id : String, f : F) -> Box<ActorFuture<Actor=DockerMan, Item=String, Error=String>>
+        where F : FnOnce(&mut DockerSession, String, &DockerApi) -> R, R : Future<Item=String, Error=String> + 'static {
+        let deployment = match self.deploys.deploy_mut(&deployment_id) {
+            Ok(deployment) => deployment,
+            Err(e) => return Box::new(fut::err(format!("{}", e)))
+        };
+
+        let docker_api = self.docker_api.as_ref().unwrap().as_ref();
+
+        Box::new(fut::wrap_future(f(deployment, deployment_id, docker_api)))
+    }
+
+}
+
+
 fn run_command(
     docker_man: &mut DockerMan,
     session_id: String,
     command: Command,
 ) -> Box<ActorFuture<Actor = DockerMan, Item = String, Error = String>> {
+
     match command {
-        Command::Open { args } => Box::new(fut::ok("Open mock".to_string())),
-        Command::Close => Box::new(fut::ok("Close mock".to_string())),
-        Command::Exec { executable, args } => Box::new(fut::ok("Exec mock".to_string())),
+        Command::Open => docker_man.run_for_deployment(session_id, DockerSession::do_open),
+        Command::Close => docker_man.run_for_deployment(session_id, DockerSession::do_close),
+        Command::Exec { executable, args } => docker_man.run_for_deployment(session_id, |deployment, deployment_id, docker_api| {
+            deployment.do_exec(deployment_id, docker_api, executable, args)
+        }),
         Command::Start { executable, args } => Box::new(fut::ok("Start mock".to_string())),
         Command::Stop { child_id } => Box::new(fut::ok("Stop mock".to_string())),
         Command::DownloadFile {
@@ -172,6 +240,7 @@ fn run_commands(
     commands.into_iter().fold(f, |acc, command| {
         let session_id = session_id.clone();
         Box::new(acc.and_then(|mut vec, act, _ctx| {
+
             run_command(act, session_id, command).then(move |i, _, _| match i {
                 Ok(a) => {
                     vec.push(a);
