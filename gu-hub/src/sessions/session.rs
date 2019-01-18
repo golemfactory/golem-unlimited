@@ -237,7 +237,7 @@ impl Session {
             .collect()
     }
 
-     pub fn add_peers(&mut self, peers: Vec<NodeId>) -> Vec<NodeId> {
+    pub fn add_peers(&mut self, peers: Vec<NodeId>) -> Vec<NodeId> {
         let new_peers = peers
             .into_iter()
             .filter(|p| !self.peers.get(p).is_none())
@@ -303,7 +303,7 @@ impl Session {
         )
     }
 
-   pub fn drop_deployments(&mut self) -> impl Future<Item = (), Error = SessionErr> {
+    pub fn drop_deployments(&mut self) -> impl Future<Item = (), Error = SessionErr> {
         futures::future::join_all(
             self.peers
                 .iter_mut()
