@@ -161,9 +161,12 @@ fn blob_id<S>(r: &HttpRequest<S>) -> ActixResult<u64> {
 fn create_session(
     spec: Json<HubSessionSpec>,
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> + 'static {
+    let spec_inner = spec.into_inner();
     let info = SessionInfo {
-        name: spec.into_inner().name,
+        name: spec_inner.name,
         created: chrono::Utc::now(),
+        expire: spec_inner.expires,
+        tags: Some(spec_inner.tags),
     };
 
     SessionsManager::from_registry()
@@ -289,7 +292,7 @@ fn add_peers(
         }))
         .flatten_fut()
         .from_err()
-        .and_then(|_| Ok(HttpResponse::Ok().finish()))
+        .and_then(|all_peers| Ok(HttpResponse::Ok().json(all_peers)))
 }
 
 fn delete_deployment(
