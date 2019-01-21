@@ -9,12 +9,14 @@ use deployment::Destroy;
 use deployment::IntoDeployInfo;
 use futures::future;
 use futures::prelude::*;
-use gu_model::dockerman::CreateOptions;
+use gu_model::dockerman::{CreateOptions, VolumeDef};
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::peer::PeerSessionStatus;
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use workspace::Workspace;
 
 // Actor.
@@ -26,15 +28,17 @@ struct DockerMan {
 
 struct DockerSessionInfo {
     workspace: Workspace,
+    container: Option<async_docker::models::Container>,
+    status: PeerSessionStatus,
 }
 
 impl IntoDeployInfo for DockerSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
         PeerSessionInfo {
             id: id.clone(),
-            name: self.workspace.get_name().clone(),
+            name: self.workspace.name().clone(),
             status: PeerSessionStatus::CREATED,
-            tags: self.workspace.get_tags(),
+            tags: self.workspace.tags(),
             note: None,
             processes: HashSet::new(),
         }
@@ -42,6 +46,28 @@ impl IntoDeployInfo for DockerSessionInfo {
 }
 
 impl Destroy for DockerSessionInfo {}
+
+impl DockerMan {
+    fn container_config(
+        url: String,
+        host_config: async_docker::models::HostConfig,
+    ) -> ContainerConfig {
+        ContainerConfig::new()
+            .with_image(url.into())
+            .with_tty(true)
+            .with_open_stdin(true)
+            .with_attach_stdin(true)
+            .with_attach_stderr(true)
+            .with_attach_stdout(true)
+            .with_volumes(
+                [("/workspace".to_string(), json!({}))]
+                    .to_vec()
+                    .into_iter()
+                    .collect(),
+            )
+            .with_host_config(host_config)
+    }
+}
 
 impl Actor for DockerMan {
     type Context = Context<Self>;
@@ -78,23 +104,20 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
             Some(ref api) => {
                 let Image { url, hash } = msg.image;
 
-                //let docker_image = api.image(url.as_ref().into());
-                let opts = ContainerConfig::new()
-                    .with_image(url.into())
-                    .with_tty(true)
-                    .with_open_stdin(true)
-                    .with_attach_stdin(true)
-                    .with_attach_stderr(true)
-                    .with_attach_stdout(true)
-                    .with_volumes(
-                        [("/workspace".to_string(), json!({}))]
-                            .to_vec()
-                            .into_iter()
-                            .collect(),
-                    )
-                    .with_host_config(async_docker::models::HostConfig::new());
+                let binds: Vec<String> = msg
+                    .options
+                    .volumes
+                    .iter()
+                    .filter_map(|vol: &VolumeDef| {
+                        vol.source_dir()
+                            .and_then(|s| vol.target_dir().map(|t| (s, t)))
+                            .map(|(s, t)| format!("{}:{}", s, t))
+                    })
+                    .collect();
+                let host_config = async_docker::models::HostConfig::new().with_binds(binds);
 
-                //--.with_volumes([("/gu-data".to_string(), json!({}))].to_vec().into_iter().collect());
+                //let docker_image = api.image(url.as_ref().into());
+                let opts = Self::container_config(url.into(), host_config);
 
                 info!("config: {:?}", &opts);
 
@@ -113,9 +136,13 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
 
 fn run_command(
     docker_man: &mut DockerMan,
-    session_id: String,
+    container_id: String,
     command: Command,
 ) -> Box<ActorFuture<Actor = DockerMan, Item = String, Error = String>> {
+    if docker_man.docker_api.is_none() {
+        return Box::new(fut::err("Docker API not initialized properly".to_string()));
+    }
+
     match command {
         Command::Open { args } => Box::new(fut::ok("Open mock".to_string())),
         Command::Close => Box::new(fut::ok("Close mock".to_string())),
@@ -135,12 +162,12 @@ fn run_command(
         Command::AddTags(tags) => Box::new(fut::result(
             docker_man
                 .deploys
-                .deploy_mut(&session_id)
+                .deploy_mut(&container_id)
                 .map(|session| {
                     session.workspace.add_tags(tags);
                     format!(
                         "tags inserted. Current tags are: {:?}",
-                        &session.workspace.get_tags()
+                        &session.workspace.tags()
                     )
                 })
                 .map_err(|e| e.to_string()),
@@ -148,12 +175,12 @@ fn run_command(
         Command::DelTags(tags) => Box::new(fut::result(
             docker_man
                 .deploys
-                .deploy_mut(&session_id)
+                .deploy_mut(&container_id)
                 .map(|session| {
                     session.workspace.remove_tags(tags);
                     format!(
                         "tags inserted. Current tags are: {:?}",
-                        &session.workspace.get_tags()
+                        &session.workspace.tags()
                     )
                 })
                 .map_err(|e| e.to_string()),

@@ -3,6 +3,7 @@ use gu_model::envman::Error;
 use gu_net::rpc::peer::PeerSessionInfo;
 use id::generate_new_id;
 use status;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 pub trait IntoDeployInfo {
@@ -56,11 +57,22 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
         self.deploys.contains_key(key)
     }
 
+    pub fn deploy(&self, deploy_id: &String) -> Result<&T, Error> {
+        match self.deploys.get(deploy_id) {
+            Some(deploy) => Ok(deploy),
+            None => Err(Error::NoSuchSession(deploy_id.clone())),
+        }
+    }
+
     pub fn deploy_mut(&mut self, deploy_id: &String) -> Result<&mut T, Error> {
         match self.deploys.get_mut(deploy_id) {
             Some(deploy) => Ok(deploy),
             None => Err(Error::NoSuchSession(deploy_id.clone())),
         }
+    }
+
+    pub fn deploy_entry(&mut self, deploy_id: String) -> Entry<String, T> {
+        self.deploys.entry(deploy_id)
     }
 
     pub fn destroy_deploy(&mut self, session_id: &String) -> Result<(), Error> {

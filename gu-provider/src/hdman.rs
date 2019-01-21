@@ -22,18 +22,20 @@ use id::generate_new_id;
 use provision::download_step;
 use provision::upload_step;
 use provision::{download, untgz};
+use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use workspace::Workspace;
+use workspace::WorkspacesManager;
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
         PeerSessionInfo {
             id: id.clone(),
-            name: self.workspace.get_name().clone(),
+            name: self.workspace.name().clone(),
             status: self.status.clone(),
-            tags: self.workspace.get_tags(),
+            tags: self.workspace.tags(),
             note: self.note.clone(),
             processes: self.processes.keys().cloned().collect(),
         }
@@ -61,7 +63,7 @@ impl Destroy for HdSessionInfo {
 pub struct HdMan {
     deploys: DeployManager<HdSessionInfo>,
     cache_dir: PathBuf,
-    sessions_dir: PathBuf,
+    workspaces_man: WorkspacesManager,
 }
 
 impl envman::EnvManService for HdMan {
@@ -88,44 +90,44 @@ impl Actor for HdMan {
 impl HdMan {
     pub fn start(config: &ConfigModule) -> Addr<Self> {
         let cache_dir = config.cache_dir().to_path_buf().join("images");
-        let sessions_dir = config.work_dir().to_path_buf().join("sessions");
-
-        debug!(
-            "creating dirs for:\nimage cache {:?}\nsessions:{:?}",
-            cache_dir, sessions_dir
-        );
         fs::create_dir_all(&cache_dir)
-            .and_then(|_| fs::create_dir_all(&sessions_dir))
             .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
             .unwrap();
+
+        let workspaces_man = WorkspacesManager::new(&config, "hd").unwrap();
 
         start_actor(HdMan {
             deploys: Default::default(),
             cache_dir,
-            sessions_dir,
+            workspaces_man,
         })
-    }
-
-    fn get_session_path(&self, session_id: &String) -> PathBuf {
-        self.sessions_dir.join(session_id)
     }
 
     fn get_cache_path(&self, file_name: &String) -> PathBuf {
         self.cache_dir.join(file_name)
     }
 
-    fn get_session_exec_path(&self, session_id: &String, executable: &String) -> String {
-        self.get_session_path(session_id)
-            .join(executable.trim_left_matches('/'))
-            .into_os_string()
-            .into_string()
-            .unwrap()
+    fn get_session(&self, session_id: &String) -> Result<&HdSessionInfo, Error> {
+        match self.deploys.deploy(session_id) {
+            Ok(session) => Ok(session),
+            Err(_) => Err(Error::NoSuchSession(session_id.clone())),
+        }
     }
 
     fn get_session_mut(&mut self, session_id: &String) -> Result<&mut HdSessionInfo, Error> {
         match self.deploys.deploy_mut(session_id) {
             Ok(session) => Ok(session),
             Err(_) => Err(Error::NoSuchSession(session_id.clone())),
+        }
+    }
+
+    fn get_session_entry(
+        &mut self,
+        session_id: String,
+    ) -> Result<OccupiedEntry<String, HdSessionInfo>, Error> {
+        match self.deploys.deploy_entry(session_id.clone()) {
+            Entry::Occupied(x) => Ok(x),
+            _ => Err(Error::NoSuchSession(session_id)),
         }
     }
 
@@ -179,6 +181,15 @@ impl HdSessionInfo {
         self.status = PeerSessionStatus::RUNNING;
         id
     }
+
+    fn get_session_exec_path(&self, executable: &String) -> String {
+        self.workspace
+            .path()
+            .join(executable.trim_left_matches('/'))
+            .into_os_string()
+            .into_string()
+            .unwrap()
+    }
 }
 
 impl Handler<CreateSession> for HdMan {
@@ -190,15 +201,15 @@ impl Handler<CreateSession> for HdMan {
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
         let session_id = self.deploys.generate_session_id();
-        let work_dir = self.get_session_path(&session_id);
         let cache_path = self.get_cache_path(&msg.image.hash);
 
-        let mut workspace = Workspace::new(msg.name, work_dir.clone());
+        let mut workspace = self.workspaces_man.workspace(msg.name);
         workspace.add_tags(msg.tags);
         match workspace.create_dirs() {
             Ok(_) => (),
             Err(e) => return ActorResponse::reply(Err(e.into())),
         }
+        let workspace_path = workspace.path().clone();
 
         let session = HdSessionInfo {
             workspace,
@@ -216,7 +227,7 @@ impl Handler<CreateSession> for HdMan {
         ActorResponse::async(
             download(msg.image.url.as_ref(), cache_path.clone(), true)
                 .map_err(From::from)
-                .and_then(move |_| untgz(cache_path, work_dir))
+                .and_then(move |_| untgz(cache_path, workspace_path))
                 .map_err(From::from)
                 .into_actor(self)
                 .and_then(|_, act, _ctx| match act.get_session_mut(&sess_id) {
@@ -241,45 +252,51 @@ fn run_command(
     session_id: String,
     command: Command,
 ) -> Box<ActorFuture<Actor = HdMan, Item = String, Error = String>> {
+    let session = match hd_man.get_session_mut(&session_id) {
+        Ok(a) => a,
+        Err(e) => return Box::new(fut::err(e.to_string())),
+    };
+
     match command {
         Command::Open { args } => Box::new(fut::ok("Open mock".to_string())),
         Command::Close => Box::new(fut::ok("Close mock".to_string())),
         Command::Exec { executable, args } => {
-            let executable = hd_man.get_session_exec_path(&session_id, &executable);
+            let executable = session.get_session_exec_path(&executable);
             let session_id = session_id.clone();
-            let session_dir = hd_man.get_session_path(&session_id).to_owned();
+            let session_dir = session.workspace.path().to_owned();
 
             info!("executing sync: {} {:?}", executable, args);
             Box::new(
-                SyncExecManager::from_registry()
-                    .send(Exec::Run {
-                        executable,
-                        args,
-                        cwd: session_dir.clone(),
-                    })
-                    .flatten_fut()
-                    .map_err(move |e| e.to_string())
-                    .into_actor(hd_man)
-                    .and_then(move |res, act, _ctx| {
-                        info!("sync cmd result: {:?}", res);
-                        let result = if let ExecResult::Run(output) = res {
-                            String::from_utf8_lossy(&output.stdout).to_string()
-                        } else {
-                            "".to_string()
-                        };
+                fut::wrap_future(
+                    SyncExecManager::from_registry()
+                        .send(Exec::Run {
+                            executable,
+                            args,
+                            cwd: session_dir.clone(),
+                        })
+                        .flatten_fut()
+                        .map_err(move |e| e.to_string()),
+                )
+                .and_then(move |res, act: &mut HdMan, _ctx| {
+                    info!("sync cmd result: {:?}", res);
+                    let result = if let ExecResult::Run(output) = res {
+                        String::from_utf8_lossy(&output.stdout).to_string()
+                    } else {
+                        "".to_string()
+                    };
 
-                        match act.get_session_mut(&session_id) {
-                            Ok(session) => {
-                                session.dirty = true;
-                                fut::ok(result)
-                            }
-                            Err(e) => fut::err(e.to_string()),
+                    match act.get_session_mut(&session_id) {
+                        Ok(session) => {
+                            session.dirty = true;
+                            fut::ok(result)
                         }
-                    }),
+                        Err(e) => fut::err(e.to_string()),
+                    }
+                }),
             )
         }
         Command::Start { executable, args } => {
-            let executable = hd_man.get_session_exec_path(&session_id, &executable);
+            let executable = session.get_session_exec_path(&executable);
 
             info!("executing async: {} {:?}", executable, args);
             // TODO: critical section
@@ -289,7 +306,7 @@ fn run_command(
                 .args(&args)
                 .spawn()
                 .map_err(|e| Error::IoError(e.to_string()))
-                .and_then(|child| hd_man.insert_child(&session_id, child));
+                .map(|child| session.insert_process(child));
 
             Box::new(match child_res {
                 Ok(id) => fut::ok(id),
@@ -300,18 +317,13 @@ fn run_command(
             let session_id = session_id.clone();
             info!("killing: {:?}", &child_id);
 
-            let kill_res = hd_man
-                .get_session_mut(&session_id)
-                .map_err(|e| e.to_string())
-                .and_then(|session| {
-                    session
-                        .processes
-                        .remove(&child_id)
-                        .ok_or(Error::NoSuchChild(child_id).to_string())
-                });
+            let kill_res = session
+                .processes
+                .remove(&child_id)
+                .ok_or(Error::NoSuchChild(child_id).to_string());
 
             Box::new(
-                fut::result(kill_res).and_then(move |child, act: &mut HdMan, _ctx| {
+                fut::result(kill_res).and_then(move |child, hd_man: &mut HdMan, _ctx| {
                     SyncExecManager::from_registry()
                         .send(Exec::Kill(child))
                         .map_err(|e| format!("{}", e))
@@ -322,18 +334,17 @@ fn run_command(
                                 Err(format!("wrong result {:?}", r))
                             }
                         })
-                        .into_actor(act)
-                        .and_then(move |output, act, _ctx| {
-                            fut::result(
-                                act.get_session_mut(&session_id)
-                                    .map(|session| {
-                                        if session.processes.is_empty() {
-                                            session.status = PeerSessionStatus::CONFIGURED;
-                                        };
-                                        output
-                                    })
-                                    .map_err(|e| e.to_string()),
-                            )
+                        .into_actor(hd_man)
+                        .and_then(move |output, hd_man, _ctx| {
+                            match hd_man.get_session_mut(&session_id) {
+                                Ok(session) => {
+                                    if session.processes.is_empty() {
+                                        session.status = PeerSessionStatus::CONFIGURED;
+                                    };
+                                    fut::ok(output)
+                                }
+                                Err(e) => fut::err(e.to_string()),
+                            }
                         })
                 }),
             )
@@ -343,41 +354,31 @@ fn run_command(
             file_path,
             format,
         } => {
-            let path = hd_man.get_session_path(&session_id).join(file_path);
-            Box::new(handle_download_file(uri, path, format).into_actor(hd_man))
+            let path = session.workspace.path().join(file_path);
+            Box::new(fut::wrap_future(handle_download_file(uri, path, format)))
         }
         Command::UploadFile {
             uri,
             file_path,
             format,
         } => {
-            let path = hd_man.get_session_path(&session_id).join(file_path);
-            Box::new(handle_upload_file(uri, path, format).into_actor(hd_man))
+            let path = session.workspace.path().join(file_path);
+            Box::new(fut::wrap_future(handle_upload_file(uri, path, format)))
         }
-        Command::AddTags(tags) => Box::new(fut::result(
-            hd_man
-                .get_session_mut(&session_id)
-                .map(|session| {
-                    session.workspace.add_tags(tags);
-                    format!(
-                        "tags inserted. Current tags are: {:?}",
-                        &session.workspace.get_tags()
-                    )
-                })
-                .map_err(|e| e.to_string()),
-        )),
-        Command::DelTags(tags) => Box::new(fut::result(
-            hd_man
-                .get_session_mut(&session_id)
-                .map(|session| {
-                    session.workspace.remove_tags(tags);
-                    format!(
-                        "tags inserted. Current tags are: {:?}",
-                        &session.workspace.get_tags()
-                    )
-                })
-                .map_err(|e| e.to_string()),
-        )),
+        Command::AddTags(tags) => Box::new({
+            session.workspace.add_tags(tags);
+            fut::ok(format!(
+                "tags inserted. Current tags are: {:?}",
+                &session.workspace.tags()
+            ))
+        }),
+        Command::DelTags(tags) => Box::new({
+            session.workspace.remove_tags(tags);
+            fut::ok(format!(
+                "tags removed. Current tags are: {:?}",
+                &session.workspace.tags()
+            ))
+        }),
     }
 }
 
