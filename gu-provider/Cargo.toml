@@ -57,3 +57,5 @@ assets = [
 
 maintainer-scripts="deployment/deb"
 
+[build-dependencies]
+vergen = "3"
