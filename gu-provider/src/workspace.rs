@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 use gu_model::dockerman::VolumeDef;
+use gu_persist::config::ConfigModule;
+use provision::untgz;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashSet};
 use std::fs;
@@ -8,9 +10,30 @@ use std::fs::DirBuilder;
 use std::io;
 use std::iter::FromIterator;
 use std::path::PathBuf;
+use uuid::Uuid;
 
-pub trait Volume {
-    fn path(&self) -> String;
+pub struct WorkspacesManager {
+    namespace: &'static str,
+    path: PathBuf,
+}
+
+impl WorkspacesManager {
+    pub fn new(config: &ConfigModule, name: &'static str) -> Option<WorkspacesManager> {
+        let sessions_dir = config.work_dir().to_path_buf().join("sessions");
+
+        fs::create_dir_all(&sessions_dir)
+            .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
+            .map(|_| WorkspacesManager {
+                namespace: name,
+                path: sessions_dir,
+            })
+            .ok()
+    }
+
+    pub fn workspace(&self, name: String) -> Workspace {
+        let dir_name = format!("{}::{}", self.namespace, Uuid::new_v4());
+        Workspace::new(name, self.path.join(dir_name))
+    }
 }
 
 type Set<K> = BTreeSet<K>;
@@ -25,7 +48,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(name: String, path: PathBuf) -> Self {
+    pub(self) fn new(name: String, path: PathBuf) -> Self {
         Self {
             name,
             path,
@@ -35,11 +58,11 @@ impl Workspace {
         }
     }
 
-    pub fn get_name(&self) -> &String {
+    pub fn name(&self) -> &String {
         &self.name
     }
 
-    pub fn get_tags(&self) -> Vec<String> {
+    pub fn tags(&self) -> Vec<String> {
         Vec::from_iter(self.tags.iter().cloned())
     }
 
@@ -55,7 +78,7 @@ impl Workspace {
         }
     }
 
-    pub fn get_metadata(&self) -> &Value {
+    pub fn metadata(&self) -> &Value {
         &self.metadata
     }
 
@@ -95,6 +118,10 @@ impl Workspace {
         debug!("cleaning session dir {:?}", self.path);
         fs::remove_dir_all(&self.path)
     }
+
+    pub fn path(&self) -> &PathBuf {
+        &self.path
+    }
 }
 
 #[cfg(test)]
@@ -131,9 +158,9 @@ mod tests {
 
         work.add_tags(tags.clone());
         work.add_tags(["tag1".to_string()].to_vec());
-        assert_eq!(work.get_tags(), tags);
+        assert_eq!(work.tags(), tags);
 
         work.remove_tags(["tag1".to_string()].to_vec());
-        assert_eq!(work.get_tags(), ["tag2".to_string()].to_vec());
+        assert_eq!(work.tags(), ["tag2".to_string()].to_vec());
     }
 }
