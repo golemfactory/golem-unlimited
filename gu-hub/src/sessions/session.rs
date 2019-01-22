@@ -295,11 +295,7 @@ impl Session {
                     session_id: deployment_id,
                 })
                 .map_err(|_| SessionErr::CannotDeletePeerDeployment)
-                .and_then(|r| {
-                    future::result(r)
-                        .map(|_| ())
-                        .map_err(|_| SessionErr::CannotDeletePeerDeployment)
-                }),
+                .map(|_| ()),
         )
     }
 
@@ -317,7 +313,7 @@ impl Session {
                 .flatten()
                 .collect::<Vec<_>>(),
         )
-        .and_then(|results| Ok(()))
+        .and_then(|_results| Ok(()))
     }
 
     pub fn update_deployment(
@@ -337,11 +333,7 @@ impl Session {
                     commands: commands,
                 })
                 .map_err(|_| SessionErr::CannotUpdatePeerDeployment)
-                .and_then(|r| {
-                    future::result(r)
-                        .map(|_| ())
-                        .map_err(|_| SessionErr::CannotUpdatePeerDeployment)
-                }),
+                .map(|_| ()),
         )
     }
 
