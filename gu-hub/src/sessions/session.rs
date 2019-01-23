@@ -240,7 +240,7 @@ impl Session {
     pub fn add_peers(&mut self, peers: Vec<NodeId>) -> Vec<NodeId> {
         let new_peers = peers
             .into_iter()
-            .filter(|p| !self.peers.get(p).is_none())
+            .filter(|p| !self.peers.contains_key(p))
             .map(|peer| (peer, PeerState::default()))
             .collect::<Vec<_>>();
         self.peers.extend(new_peers);

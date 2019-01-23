@@ -10,6 +10,7 @@ use actix::Arbiter;
 use bytes::Bytes;
 use futures::{future, stream, Future, Stream};
 use gu_client::async::HubConnection;
+use gu_model::envman::{CreateSession, Image};
 use gu_model::session::{BlobInfo, HubSessionSpec};
 
 fn main() {
@@ -68,11 +69,33 @@ fn main() {
                 .and_then(|(hub_session, blobs)| {
                     println!("All blobs: {:#?}", blobs.collect::<Vec<BlobInfo>>());
                     future::ok(hub_session.clone()).join(
-                        hub_session.add_peers(&["0x2e908c75bbc34997c7464ea2f9118cb5de19f0a6"]),
+                        hub_session.add_peers(&["0x58137e1abbd59e039abbff4cdef60da7da3cf464"]),
                     )
                 })
-                .and_then(|(_hub_session, _)| {
-                    println!("Successfully added peers.");
+                .and_then(|(hub_session, result)| {
+                    println!("Successfully added peers {:?}.", result);
+                    future::ok(hub_session.clone()).join(
+                        future::result(
+                            hub_session.peer_from_str("0x58137e1abbd59e039abbff4cdef60da7da3cf464"),
+                        )
+                        .and_then(|peer| {
+                            peer.new_session(CreateSession {
+                                env_type: "hd".to_string(),
+                                image: Image {
+                                    url: "http://52.31.143.91/images/gu-factor-linux.tar.gz"
+                                        .to_string(),
+                                    hash: "a".to_string(),
+                                },
+                                name: "test".to_string(),
+                                tags: vec![],
+                                note: None,
+                                options: (),
+                            })
+                        }),
+                    )
+                })
+                .and_then(|(_hub_session, peer_session)| {
+                    println!("{:?}", peer_session);
                     future::ok(())
                 })
                 .map_err(|e| {

@@ -12,6 +12,7 @@ use gu_model::{
 use gu_net::types::NodeId;
 use std::str;
 use std::sync::Arc;
+use std::time::Duration;
 use url::Url;
 
 /// Connection to a single hub.
@@ -128,8 +129,8 @@ pub struct HubSession {
 }
 
 impl HubSession {
-    /// adds peers to the hub
-    pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = (), Error = Error>
+    /// adds peers to the hub session
+    pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = Vec<NodeId>, Error = Error>
     where
         T: IntoIterator<Item = U>,
         U: AsRef<str>,
@@ -155,8 +156,11 @@ impl HubSession {
                     http::StatusCode::INTERNAL_SERVER_ERROR => future::Either::A(future::err(
                         Error::CannotAddPeersToSession(response.status()),
                     )),
-                    _ => future::Either::B(future::ok(())),
-                }),
+                    _ => future::Either::B(
+                        response.json().map_err(|e| Error::InvalidJSONResponse(e)),
+                    ),
+                })
+                .and_then(|answer_json: Vec<NodeId>| future::ok(answer_json)),
         )
     }
     /// creates a new blob
@@ -198,6 +202,16 @@ impl HubSession {
             hub_session: self.clone(),
         }
     }
+    /// gets single peer by its id given as a string
+    pub fn peer_from_str<T: AsRef<str>>(&self, node_id: T) -> Result<Peer, Error> {
+        Ok(self.peer(
+            node_id
+                .as_ref()
+                .parse()
+                .map_err(|_| Error::InvalidPeer(node_id.as_ref().to_string()))?,
+        ))
+    }
+
     /// returns all session peers
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
         let url = format!(
@@ -425,7 +439,7 @@ impl Blob {
 }
 
 /// Peer node.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Peer {
     hub_session: HubSession,
     pub node_id: NodeId,
@@ -451,6 +465,7 @@ impl Peer {
         future::Either::B(
             request
                 .send()
+                .timeout(Duration::from_secs(3600))
                 .map_err(Error::CannotSendRequest)
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
@@ -492,7 +507,7 @@ impl Peer {
 }
 
 /// Peer session.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PeerSession {
     peer: Peer,
     session_id: String,
