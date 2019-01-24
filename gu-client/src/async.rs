@@ -472,15 +472,12 @@ impl Peer {
                             response.status(),
                         )));
                     }
-                    future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
+                    future::Either::B(response.json().map_err(Error::InvalidJSONResponse))
                 })
-                .and_then(|body| {
+                .and_then(|answer_json: String| {
                     future::ok(PeerSession {
                         peer: peer_copy,
-                        session_id: match str::from_utf8(&body.to_vec()) {
-                            Ok(str) => str.to_string(),
-                            Err(e) => return future::err(Error::CannotConvertToUTF8(e)),
-                        },
+                        session_id: answer_json,
                     })
                 }),
         )
