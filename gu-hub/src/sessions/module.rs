@@ -351,7 +351,7 @@ fn update_deployment(
         ))
         .flatten_fut()
         .from_err()
-        .and_then(|_| Ok(HttpResponse::Ok().finish()))
+        .and_then(|results| Ok(HttpResponse::Ok().json(results)))
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder

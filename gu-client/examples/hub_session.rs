@@ -10,7 +10,7 @@ use actix::Arbiter;
 use bytes::Bytes;
 use futures::{future, stream, Future, Stream};
 use gu_client::async::HubConnection;
-use gu_model::envman::{CreateSession, Image};
+use gu_model::envman::{self, CreateSession, Image};
 use gu_model::session::{BlobInfo, HubSessionSpec};
 
 fn main() {
@@ -84,9 +84,9 @@ fn main() {
                                 image: Image {
                                     url: "http://52.31.143.91/images/gu-factor-linux.tar.gz"
                                         .to_string(),
-                                    hash: "a".to_string(),
+                                    hash: "not_implemented".to_string(),
                                 },
-                                name: "test".to_string(),
+                                name: "peer_session".to_string(),
                                 tags: vec![],
                                 note: None,
                                 options: (),
@@ -94,8 +94,15 @@ fn main() {
                         }),
                     )
                 })
-                .and_then(|(_hub_session, peer_session)| {
-                    println!("{:?}", peer_session);
+                .and_then(|(hub_session, peer_session)| {
+                    println!("Peer session created: {:?}.", peer_session);
+                    future::ok(hub_session.clone()).join(peer_session.update(vec![
+                        envman::Command::AddTags(vec!["my_tag_1".to_string()]),
+                        envman::Command::AddTags(vec!["my_tag_2".to_string()]),
+                    ]))
+                })
+                .and_then(|(_hub_session, update_results)| {
+                    println!("Update results: {:?}.", update_results);
                     future::ok(())
                 })
                 .map_err(|e| {

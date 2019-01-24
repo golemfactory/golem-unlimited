@@ -159,8 +159,7 @@ impl HubSession {
                     _ => future::Either::B(
                         response.json().map_err(|e| Error::InvalidJSONResponse(e)),
                     ),
-                })
-                .and_then(|answer_json: Vec<NodeId>| future::ok(answer_json)),
+                }),
         )
     }
     /// creates a new blob
@@ -502,7 +501,6 @@ impl Peer {
                 }
                 status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
             })
-            .and_then(|answer_json: PeerInfo| future::ok(answer_json))
     }
 }
 
@@ -515,7 +513,10 @@ pub struct PeerSession {
 
 impl PeerSession {
     /// updates deployment session by sending multiple peer commands
-    pub fn update(&self, commands: Vec<envman::Command>) -> impl Future<Item = (), Error = Error> {
+    pub fn update(
+        &self,
+        commands: Vec<envman::Command>,
+    ) -> impl Future<Item = Vec<String>, Error = Error> {
         let url = format!(
             "{}sessions/{}/peers/{}/deployments/{}",
             self.peer
@@ -536,8 +537,10 @@ impl PeerSession {
         .map_err(Error::CannotCreateRequest)
         .and_then(|request| request.send().map_err(Error::CannotSendRequest))
         .and_then(|response| match response.status() {
-            http::StatusCode::OK => future::ok(()),
-            status => future::err(Error::CannotUpdateDeployment(status)),
+            http::StatusCode::OK => {
+                future::Either::A(response.json().map_err(|e| Error::InvalidJSONResponse(e)))
+            }
+            status => future::Either::B(future::err(Error::CannotUpdateDeployment(status))),
         })
     }
     /// deletes peer session
