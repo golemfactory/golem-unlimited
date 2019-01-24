@@ -29,8 +29,8 @@ pub enum Arch {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct HdConfiguration {
-    os : Os,
-    cpu_arch : Arch,
+    os: Os,
+    cpu_arch: Arch,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -44,7 +44,7 @@ pub struct HdManifest {
     pub entry_points: Vec<HdEntryPoint>,
     #[serde(default)]
     pub volumes: Vec<HdVolume>,
-    pub valid_configurations: Vec<HdConfiguration>
+    pub valid_configurations: Vec<HdConfiguration>,
 }
 
 #[cfg(test)]
@@ -57,13 +57,12 @@ mod tests {
     fn test_gu_factor() {
         let b = include_bytes!("../test-data/gu-factor.json");
 
-        let m : HdManifest = serde_json::from_slice(b.as_ref()).unwrap();
+        let m: HdManifest = serde_json::from_slice(b.as_ref()).unwrap();
 
         assert_eq!(m.id, "unlimited.golem.network/examples/gu-factor/v0.1");
         assert_eq!(m.main.exec, "gu-factor");
         assert_eq!(m.main.args_prefix, Vec::<String>::new());
         eprintln!("manifest={:?}", m)
     }
-
 
 }

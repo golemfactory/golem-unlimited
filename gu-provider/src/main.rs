@@ -76,26 +76,25 @@ mod version {
 
     impl gu_base::Module for Version {
         fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-            app.arg(Arg::with_name("ver-info")
-                .short("i")
-                .long("ver-info")
-                .help("Displays build details"))
+            app.arg(
+                Arg::with_name("ver-info")
+                    .short("i")
+                    .long("ver-info")
+                    .help("Displays build details"),
+            )
         }
 
         fn args_consume(&mut self, matches: &ArgMatches) -> bool {
             if matches.is_present("ver-info") {
-
                 eprintln!("BUILD_TIMESTAMP  {}", VERGEN_BUILD_TIMESTAMP);
                 eprintln!("COMMIT_DATE      {}", VERGEN_COMMIT_DATE);
                 eprintln!("TARGET_TRIPLE    {}", VERGEN_TARGET_TRIPLE);
                 eprintln!("SEMVER           {}", VERGEN_SEMVER);
 
                 true
-            }
-            else {
+            } else {
                 false
             }
-
         }
     }
 }
