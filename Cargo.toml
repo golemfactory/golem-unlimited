@@ -1,5 +1,6 @@
 [workspace]
 
+
 members= [
     'gu-actix',
     'gu-base',
@@ -14,6 +15,7 @@ members= [
     'gu-event-bus',
     'gu-model',
     'gu-client',
+    'gu-hdman',
 ]
 
 #[patch.'https://github.com/tworec/parity-ethereum']

@@ -14,3 +14,4 @@ extern crate url;
 pub mod async;
 /// Errors returned by Rust API for Golem Unlimited
 pub mod error;
+pub mod sync;

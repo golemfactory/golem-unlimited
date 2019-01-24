@@ -30,6 +30,8 @@ flate2 = { version = "1.0", features = ["rust_backend"], default-features = fals
 tar = "0.4"
 prettytable-rs = "0.7"
 mdns = { git = "https://github.com/plietar/rust-mdns" }
+crossbeam-channel="0.3.6"
+futures-cpupool="0.1"
 
 gu-base= { path="../gu-base" }
 gu-actix = { path = "../gu-actix" }
@@ -42,6 +44,7 @@ gu-model = { path = "../gu-model" }
 
 
 async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger" }
+tar-async={git="https://github.com/prekucki/tar-async.git"}
 #async_docker={path = "../../async-docker", optional=true }
 
 [package.metadata.deb]
@@ -54,3 +57,5 @@ assets = [
 
 maintainer-scripts="deployment/deb"
 
+[build-dependencies]
+vergen = "3"

@@ -1,0 +1,16 @@
+{
+  "id": "unlimited.golem.network/examples/gu-factor/v0.1",
+  "name": "Golem Unlimited - factorization example",
+  "main": {
+    "id": "gu-factor",
+    "exec": "gu-factor",
+    "args-prefix": []
+  },
+  "entry-points": [],
+  "valid-configurations": [
+    {
+      "os":  "Linux",
+      "cpu-arch": "x86_64"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 //!
 
 use actix::prelude::*;
+use actix_web::http::Method;
 use actix_web::http::StatusCode;
 use actix_web::{
     self, http, AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder,
@@ -80,6 +81,33 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             r.get().with(fetch_deployments);
             r.post().with(new_deployment)
         })
+        .resource("/{nodeId}/deployments/{deploymentId}", |r| {
+            use gu_model::envman::{Command, SessionUpdate};
+            use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
+            r.method(Method::PATCH).with_async(
+                |(path, commands): (Path<DeploymentPath>, Json<Vec<Command>>)| {
+                    peer(path.node_id)
+                        .into_endpoint()
+                        .send(SessionUpdate {
+                            session_id: path.into_inner().deployment_id,
+                            commands: commands.into_inner(),
+                        })
+                        .map_err(|e| match e {
+                            SendError::NoDestination => {
+                                actix_web::error::ErrorNotFound("peer not found")
+                            }
+                            SendError::NotConnected(node_id) => actix_web::error::ErrorNotFound(
+                                format!("Peer not found {:?}", node_id),
+                            ),
+                            _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
+                        })
+                        .and_then(|update_result| match update_result {
+                            Ok(update_result) => Ok(HttpResponse::Ok().json(update_result)),
+                            Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
+                        })
+                },
+            )
+        })
         .route("/send-to", http::Method::POST, peer_send)
         .route(
             "/send-to/{nodeId}/{destinationId}",
@@ -105,6 +133,13 @@ fn list_peers<S>(_r: HttpRequest<S>) -> impl Responder {
 #[serde(rename_all = "camelCase")]
 struct PeerPath {
     node_id: NodeId,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DeploymentPath {
+    node_id: NodeId,
+    deployment_id: String,
 }
 
 fn fetch_peer(info: Path<PeerPath>) -> impl Responder {

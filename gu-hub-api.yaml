@@ -88,7 +88,29 @@ paths:
               $ref: '#/definitions/DeploymentInfo'
         404:
           description: peer not found
+  /peers/{nodeId}/deployments/{deploymentId}:
+    parameters:
+      - $ref: '#/parameters/nodeId'
+      - $ref: '#/parameters/deploymentId'
+    patch:
+      parameters:
+        - name: commands
+          in: body
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Command'
+      tags:
+        - peer
+      operationId: 'updateDeployment'
 
+      responses:
+        200:
+          description: OK
+          schema:
+            type: array
+            items:
+              type: string
 
   /sessions:
     get:
@@ -596,6 +618,8 @@ definitions:
         format: url
       filePath:
         type: string
+      format:
+        $ref: '#/definitions/FileFormat'
   UploadFileCommand:
     properties:
       uri:
@@ -690,6 +714,12 @@ definitions:
         items:
           type: string
         uniqueItems: true
+  FileFormat:
+    type: string
+    default: raw
+    enum:
+      - raw
+      - tar
 
 securityDefinitions:
   serviceToken:
