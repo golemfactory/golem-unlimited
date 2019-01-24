@@ -11,6 +11,7 @@ clinfo=["gu-hardware/clinfo"]
 env-docker=['async_docker']
 
 [dependencies]
+crc="1.8.1"
 futures="0.1"
 tokio-io="0.1"
 actix_derive = "0.3.0"

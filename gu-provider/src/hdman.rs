@@ -237,12 +237,13 @@ impl Handler<CreateSession> for HdMan {
                     }
                     Err(e) => fut::err(e),
                 })
-                .map_err(
-                    move |e, act, _ctx| match act.deploys.destroy_deploy(&session_id) {
+                .map_err(move |e, act, _ctx| {
+                    eprintln!("[fail] {}", e);
+                    match act.deploys.destroy_deploy(&session_id) {
                         Ok(_) => Error::IoError(format!("creating session error: {:?}", e)),
                         Err(e) => e,
-                    },
-                ),
+                    }
+                }),
         )
     }
 }

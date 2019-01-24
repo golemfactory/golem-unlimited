@@ -85,7 +85,6 @@ pub enum TransportResult<B> {
 }
 
 impl<B> TransportResult<B> {
-
     #[inline]
     pub const fn no_destination() -> Self {
         TransportResult::Err(TransportError::NoDestination)

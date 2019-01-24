@@ -82,7 +82,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             r.post().with(new_deployment)
         })
         .resource("/{nodeId}/deployments/{deploymentId}", |r| {
-            use gu_model::envman::{Command, SessionUpdate};
+            use gu_model::envman::{Command, DestroySession, SessionUpdate};
             use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
             r.method(Method::PATCH).with_async(
                 |(path, commands): (Path<DeploymentPath>, Json<Vec<Command>>)| {
@@ -106,7 +106,28 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                             Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
                         })
                 },
-            )
+            );
+
+            r.delete().with_async(|path: Path<DeploymentPath>| {
+                peer(path.node_id)
+                    .into_endpoint()
+                    .send(DestroySession {
+                        session_id: path.into_inner().deployment_id,
+                    })
+                    .map_err(|e| match e {
+                        SendError::NoDestination => {
+                            actix_web::error::ErrorNotFound("peer not found")
+                        }
+                        SendError::NotConnected(node_id) => {
+                            actix_web::error::ErrorNotFound(format!("Peer not found {:?}", node_id))
+                        }
+                        _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
+                    })
+                    .and_then(|update_result| match update_result {
+                        Ok(update_result) => Ok(HttpResponse::NoContent().finish()),
+                        Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
+                    })
+            })
         })
         .route("/send-to", http::Method::POST, peer_send)
         .route(
