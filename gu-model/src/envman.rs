@@ -8,6 +8,7 @@ use std::{fmt, io};
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Error {
     Error(String),
+    IncorrectOptions(String),
     IoError(String),
     NoSuchSession(String),
     NoSuchChild(String),
@@ -30,6 +31,9 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::Error(msg) => write!(f, "error: {}", msg)?,
+            Error::IncorrectOptions(msg) => {
+                write!(f, "options does not have required type: {}", msg)?
+            }
             Error::IoError(msg) => write!(f, "IO error: {}", msg)?,
             Error::NoSuchSession(msg) => write!(f, "session not found: {}", msg)?,
             Error::NoSuchChild(msg) => write!(f, "child not found: {}", msg)?,

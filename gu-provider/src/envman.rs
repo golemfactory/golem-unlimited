@@ -46,19 +46,21 @@ struct CreateRecipient<T: EnvManService>(Recipient<CreateSession<T::CreateOption
 
 impl<T: EnvManService + 'static> CreateSender for CreateRecipient<T> {
     fn send(&self, msg: CreateSession<JsonValue>) -> Box<Future<Item = String, Error = Error>> {
-        let options = serde_json::from_value(msg.options).unwrap();
-        Future::boxed(
-            self.0
-                .send(CreateSession {
-                    env_type: msg.env_type,
-                    image: msg.image,
-                    name: msg.name,
-                    tags: msg.tags,
-                    note: msg.note,
-                    options,
-                })
-                .flatten_fut(),
-        )
+        match serde_json::from_value(msg.options) {
+            Ok(options) => Box::new(
+                self.0
+                    .send(CreateSession {
+                        env_type: msg.env_type,
+                        image: msg.image,
+                        name: msg.name,
+                        tags: msg.tags,
+                        note: msg.note,
+                        options,
+                    })
+                    .flatten_fut(),
+            ),
+            Err(e) => Box::new(future::err(Error::IncorrectOptions(e.to_string()))),
+        }
     }
 }
 

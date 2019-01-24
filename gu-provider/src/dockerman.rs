@@ -31,8 +31,9 @@ impl Default for DockerMan {
     fn default() -> Self {
         let config = ConfigModule::new();
         DockerMan {
+            docker_api: None,
+            deploys: DeployManager::default(),
             workspaces_man: WorkspacesManager::new(&config, "docker").unwrap(),
-            ..Default::default()
         }
     }
 }
