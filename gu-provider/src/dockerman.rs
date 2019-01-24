@@ -13,6 +13,7 @@ use gu_model::dockerman::{CreateOptions, VolumeDef};
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::peer::PeerSessionStatus;
+use provision;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
@@ -28,32 +29,20 @@ struct DockerMan {
 
 struct DockerSession {
     workspace: Workspace,
-    container: Option<async_docker::models::Container>,
+    container: async_docker::communicate::Container,
     status: PeerSessionStatus,
 }
 
 impl DockerSession {
-    fn do_open(
-        &mut self,
-        session_id: String,
-        docker_api: &DockerApi,
-    ) -> impl Future<Item = String, Error = String> {
-        docker_api
-            .container(session_id.into())
-            .start()
-            .then(|r| match r {
-                Ok(status) => Ok("OK".into()),
-                Err(e) => Err(format!("{}", e)),
-            })
+    fn do_open(&mut self) -> impl Future<Item = String, Error = String> {
+        self.container.start().then(|r| match r {
+            Ok(status) => Ok("OK".into()),
+            Err(e) => Err(format!("{}", e)),
+        })
     }
 
-    fn do_close(
-        &mut self,
-        session_id: String,
-        docker_api: &DockerApi,
-    ) -> impl Future<Item = String, Error = String> {
-        docker_api
-            .container(Cow::Owned(session_id))
+    fn do_close(&mut self) -> impl Future<Item = String, Error = String> {
+        self.container
             .stop(None)
             .map_err(|e| format!("{}", e))
             .and_then(|v| Ok("OK".into()))
@@ -61,8 +50,6 @@ impl DockerSession {
 
     fn do_exec(
         &mut self,
-        session_id: String,
-        docker_api: &DockerApi,
         executable: String,
         mut args: Vec<String>,
     ) -> impl Future<Item = String, Error = String> {
@@ -76,8 +63,7 @@ impl DockerSession {
                 .with_cmd(args)
         };
 
-        docker_api
-            .container(Cow::Owned(session_id))
+        self.container
             .exec(&cfg)
             .map_err(|e| format!("{}", e))
             .fold(String::new(), |mut s, (t, it)| {
@@ -202,7 +188,7 @@ impl DockerMan {
         f: F,
     ) -> Box<ActorFuture<Actor = DockerMan, Item = String, Error = String>>
     where
-        F: FnOnce(&mut DockerSession, String, &DockerApi) -> R,
+        F: FnOnce(&mut DockerSession) -> R,
         R: Future<Item = String, Error = String> + 'static,
     {
         let deployment = match self.deploys.deploy_mut(&deployment_id) {
@@ -210,9 +196,7 @@ impl DockerMan {
             Err(e) => return Box::new(fut::err(format!("{}", e))),
         };
 
-        let docker_api = self.docker_api.as_ref().unwrap().as_ref();
-
-        Box::new(fut::wrap_future(f(deployment, deployment_id, docker_api)))
+        Box::new(fut::wrap_future(f(deployment)))
     }
 }
 
@@ -228,18 +212,21 @@ fn run_command(
     match command {
         Command::Open => docker_man.run_for_deployment(session_id, DockerSession::do_open),
         Command::Close => docker_man.run_for_deployment(session_id, DockerSession::do_close),
-        Command::Exec { executable, args } => {
-            docker_man.run_for_deployment(session_id, |deployment, deployment_id, docker_api| {
-                deployment.do_exec(deployment_id, docker_api, executable, args)
-            })
-        }
+        Command::Exec { executable, args } => docker_man
+            .run_for_deployment(session_id, |deployment| {
+                deployment.do_exec(executable, args)
+            }),
         Command::Start { executable, args } => Box::new(fut::ok("Start mock".to_string())),
         Command::Stop { child_id } => Box::new(fut::ok("Stop mock".to_string())),
         Command::DownloadFile {
             uri,
             file_path,
             format,
-        } => Box::new(fut::ok("Download mock".to_string())),
+        } => {
+            //            provision::download_stream(uri.as_str())
+            //                .and_then(docker_man.docker_api.)
+            Box::new(fut::ok("Download mock".to_string()))
+        }
         Command::UploadFile {
             uri,
             file_path,

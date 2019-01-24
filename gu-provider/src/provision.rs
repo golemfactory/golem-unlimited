@@ -144,6 +144,20 @@ pub fn download(
     )
 }
 
+pub fn download_stream(url: &str) -> impl Stream<Item = bytes::Bytes, Error = String> {
+    use actix_web::client;
+    use async_docker;
+
+    let client_request = client::ClientRequest::get(url).finish().unwrap();
+
+    client_request
+        .send()
+        .timeout(time::Duration::from_secs(300))
+        .map_err(|e| e.to_string())
+        .and_then(|resp| Ok(resp.payload().map_err(|e| e.to_string())))
+        .flatten_stream()
+}
+
 pub fn untgz<P: AsRef<Path> + ToOwned>(
     input_path: P,
     output_path: P,
