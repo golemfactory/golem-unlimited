@@ -33,7 +33,7 @@ impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
         PeerSessionInfo {
             id: id.clone(),
-            name: self.workspace.name().clone(),
+            name: self.workspace.name().to_string().clone(),
             status: self.status.clone(),
             tags: self.workspace.tags(),
             note: self.note.clone(),
@@ -203,7 +203,7 @@ impl Handler<CreateSession> for HdMan {
         let session_id = self.deploys.generate_session_id();
         let cache_path = self.get_cache_path(&msg.image.hash);
 
-        let mut workspace = self.workspaces_man.workspace(msg.name);
+        let mut workspace = self.workspaces_man.workspace();
         workspace.add_tags(msg.tags);
         match workspace.create_dirs() {
             Ok(_) => (),

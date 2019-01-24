@@ -144,7 +144,7 @@ pub fn download(
     )
 }
 
-pub fn download_stream(url: &str) -> impl Stream<Item = bytes::Bytes, Error = String> {
+pub fn download_stream(url: &str) -> impl Stream<Item = bytes::Bytes, Error = String> + 'static {
     use actix_web::client;
     use async_docker;
 
