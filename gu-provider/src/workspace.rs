@@ -30,9 +30,9 @@ impl WorkspacesManager {
             .ok()
     }
 
-    pub fn workspace(&self, name: String) -> Workspace {
+    pub fn workspace(&self) -> Workspace {
         let dir_name = format!("{}::{}", self.namespace, Uuid::new_v4());
-        Workspace::new(name, self.path.join(dir_name))
+        Workspace::new(self.namespace, self.path.join(dir_name))
     }
 }
 
@@ -40,7 +40,7 @@ type Set<K> = BTreeSet<K>;
 
 #[derive(Clone)]
 pub struct Workspace {
-    name: String,
+    name: &'static str,
     path: PathBuf,
     metadata: Value,
     tags: Set<String>,
@@ -48,7 +48,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub(self) fn new(name: String, path: PathBuf) -> Self {
+    pub(self) fn new(name: &'static str, path: PathBuf) -> Self {
         Self {
             name,
             path,
@@ -58,7 +58,7 @@ impl Workspace {
         }
     }
 
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> &'static str {
         &self.name
     }
 
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn create_dirs() {
         let path = "/tmp/gu-unlimited/tests";
-        let mut work = Workspace::new("work".to_string(), path.into());
+        let mut work = Workspace::new("work", path.into());
 
         work.add_volume(VolumeDef::BindRw {
             src: "test1".to_string(),
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn tags() {
         let path = "/tmp/gu-unlimited/tests";
-        let mut work = Workspace::new("work".to_string(), path.into());
+        let mut work = Workspace::new("work", path.into());
         let tags = ["tag1".to_string(), "tag2".to_string()].to_vec();
 
         work.add_tags(tags.clone());

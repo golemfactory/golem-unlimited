@@ -111,6 +111,15 @@ paths:
             type: array
             items:
               type: string
+    delete:
+      tags:
+        - peer
+      summary: Removes deployment
+      operationId: dropDeployment
+      responses:
+        204:
+          description: Deployment uninstalled
+
 
   /sessions:
     get:
@@ -251,6 +260,20 @@ paths:
   '/sessions/{sessionId}/peers':
     parameters:
       - $ref: '#/parameters/sessionId'
+    get:
+      tags:
+        - session
+      summary: List session peers
+      operationId: listSessionPeers
+      responses:
+        200:
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/PeerInfo'
+        404:
+          description: Session not found
     post:
       tags:
         - session

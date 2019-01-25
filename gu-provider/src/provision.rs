@@ -134,13 +134,28 @@ pub fn download(
     future::Either::B(
         client_request
             .send()
-            .timeout(time::Duration::from_secs(300))
+            .conn_timeout(time::Duration::from_secs(15))
+            .timeout(time::Duration::from_secs(3600))
             .map_err(|e| format!("send download request: {}", e))
             .and_then(|resp| {
                 write_async(resp.payload(), output_path)
                     .map_err(|_| "writing downloaded file failed".to_string())
             }),
     )
+}
+
+pub fn download_stream(url: &str) -> impl Stream<Item = bytes::Bytes, Error = String> + 'static {
+    use actix_web::client;
+    use async_docker;
+
+    let client_request = client::ClientRequest::get(url).finish().unwrap();
+
+    client_request
+        .send()
+        .timeout(time::Duration::from_secs(300))
+        .map_err(|e| e.to_string())
+        .and_then(|resp| Ok(resp.payload().map_err(|e| e.to_string())))
+        .flatten_stream()
 }
 
 pub fn untgz<P: AsRef<Path> + ToOwned>(

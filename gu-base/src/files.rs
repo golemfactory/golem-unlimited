@@ -53,8 +53,7 @@ impl FilePoolHandler {
         output_path: P,
     ) -> impl Future<Item = (), Error = String> {
         let out = output_path.as_ref().to_owned();
-        self.pool
-            .spawn_fn(move || archive.unpack(out).map_err(|e| e.to_string()))
+        self.pool.spawn_fn(move || Ok(archive.unpack(out).unwrap()))
     }
 }
 
@@ -141,7 +140,39 @@ pub fn write_async<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debu
     input_stream: Ins,
     path: P,
 ) -> impl Future<Item = (), Error = String> {
-    stream_with_positions(input_stream, path).for_each(|(x, pos, file)| write_bytes(x, pos, file))
+    use std::fs;
+
+    let file = match fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .read(false)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("create file error {}", e);
+            return future::Either::B(future::err(format!("{}", e)));
+        }
+    };
+
+    future::Either::A(
+        input_stream
+            .map_err(|e| {
+                eprintln!("stream err={:?}", e);
+                format!("stream err: {:?}", e)
+            })
+            .fold(file, |mut file, chunk| {
+                eprintln!("writing chunk: {}", chunk.len());
+                match file.write_all(chunk.as_ref()).map_err(|e| format!("{}", e)) {
+                    Ok(()) => (),
+                    Err(e) => return future::err(e),
+                }
+
+                future::ok(file)
+            })
+            .and_then(|_file| Ok(())),
+    )
+    //stream_with_positions(input_stream, path).for_each(|(x, pos, file)| write_bytes(x, pos, file))
 }
 
 fn write_bytes(x: Bytes, pos: u64, file: File) -> impl Future<Item = (), Error = String> {
