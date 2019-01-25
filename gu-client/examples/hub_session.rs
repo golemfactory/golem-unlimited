@@ -23,11 +23,11 @@ fn main() {
                     ..HubSessionSpec::default()
                 })
                 .and_then(|hub_session| {
-                    println!("New hub session ready: {:#?}.", hub_session);
+                    println!("New hub session ready: {:?}.", hub_session);
                     future::ok(hub_session.clone()).join(hub_session.config())
                 })
                 .and_then(|(hub_session, mut config)| {
-                    println!("Session configuration: {:#?}.", config);
+                    println!("Session configuration: {:?}.", config);
                     config
                         .entry
                         .insert("my_key".to_string(), serde_json::json!("my_value"));
@@ -39,17 +39,17 @@ fn main() {
                 })
                 .and_then(|(hub_session, list_of_sessions)| {
                     println!(
-                        "List of all sessions: {:#?}.",
+                        "List of all sessions: {:?}.",
                         list_of_sessions.collect::<Vec<HubSessionSpec>>()
                     );
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
                 })
                 .and_then(|(hub_session, blob)| {
-                    println!("New blob: {:#?}", blob);
+                    println!("New blob: {:?}", blob);
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
                 })
                 .and_then(|(hub_session, blob)| {
-                    println!("Another blob: {:#?}", blob);
+                    println!("Another blob: {:?}", blob);
                     let bytes = Bytes::from("abcde");
                     let stream = stream::iter_ok::<Vec<Bytes>, actix_web::Error>(vec![
                         bytes,
@@ -67,7 +67,7 @@ fn main() {
                     future::ok(hub_session.clone()).join(hub_session.list_blobs())
                 })
                 .and_then(|(hub_session, blobs)| {
-                    println!("All blobs: {:#?}", blobs.collect::<Vec<BlobInfo>>());
+                    println!("All blobs: {:?}", blobs.collect::<Vec<BlobInfo>>());
                     future::ok(hub_session.clone()).join(
                         hub_session.add_peers(&["0x58137e1abbd59e039abbff4cdef60da7da3cf464"]),
                     )
@@ -98,6 +98,10 @@ fn main() {
                     println!("Peer session created: {:?}.", peer_session);
                     future::ok(hub_session.clone()).join(peer_session.update(vec![
                         envman::Command::AddTags(vec!["my_tag_1".to_string()]),
+                        envman::Command::Exec {
+                            executable: "gu-factor".to_string(),
+                            args: vec!["100".to_string()],
+                        },
                         envman::Command::AddTags(vec!["my_tag_2".to_string()]),
                     ]))
                 })
