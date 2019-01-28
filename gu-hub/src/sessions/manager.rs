@@ -230,20 +230,20 @@ impl Handler<Create> for SessionsManager {
 }
 
 impl Handler<Delete> for SessionsManager {
-    type Result = Result<(), SessionErr>;
+    type Result = ActorResponse<SessionsManager, (), SessionErr>;
 
     fn handle(&mut self, msg: Delete, _ctx: &mut Context<Self>) -> Self::Result {
         let mut session = match self.sessions.remove(&msg.session_id) {
-            None => return Err(SessionErr::SessionNotFoundError),
+            None => return ActorResponse::reply(Err(SessionErr::SessionNotFoundError)),
             Some(session) => session,
         };
 
         // TODO: This should by async
-        session
-            .clean_directory()
-            .map_err(|e| SessionErr::FileError(e.to_string()))?;
-
-        Ok(())
+        match session.clean_directory() {
+            Ok(_) => (),
+            Err(e) => return ActorResponse::reply(Err(SessionErr::FileError(e.to_string()))),
+        }
+        ActorResponse::async(session.drop_deployments().into_actor(self))
     }
 }
 
@@ -401,7 +401,7 @@ impl Handler<DeleteDeployment> for SessionsManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<(), SessionErr>")]
+#[rtype(result = "Result<Vec<String>, SessionErr>")]
 pub struct UpdateDeployment {
     session_id: u64,
     node_id: NodeId,
@@ -426,7 +426,7 @@ impl UpdateDeployment {
 }
 
 impl Handler<UpdateDeployment> for SessionsManager {
-    type Result = ActorResponse<SessionsManager, (), SessionErr>;
+    type Result = ActorResponse<SessionsManager, Vec<String>, SessionErr>;
 
     fn handle(&mut self, msg: UpdateDeployment, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(session) = self.sessions.get_mut(&msg.session_id) {

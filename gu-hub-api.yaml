@@ -304,6 +304,19 @@ paths:
           description: Session not found
         '500':
           description: Internal Error
+    get:
+      tags:
+        - session
+      operationId: listSessionPeers
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/PeerInfo'
+        '404':
+          description: Session not found
   '/sessions/{sessionId}/peers/{nodeId}/deployments':
     post:
       tags:

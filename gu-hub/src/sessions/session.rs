@@ -32,6 +32,8 @@ pub struct Session {
 pub struct SessionInfo {
     pub name: Option<String>,
     pub created: DateTime<Utc>,
+    pub expire: Option<DateTime<Utc>>,
+    pub tags: Option<gu_model::Tags>,
 }
 
 impl Default for SessionInfo {
@@ -39,6 +41,8 @@ impl Default for SessionInfo {
         SessionInfo {
             name: None,
             created: Utc::now(),
+            expire: None,
+            tags: None,
         }
     }
 }
@@ -223,17 +227,24 @@ impl Session {
             .collect()
     }
 
-    pub fn list_peers(&self) -> Vec<String> {
-        self.peers.keys().map(|e| e.to_string()).collect()
+    pub fn list_peers(&self) -> Vec<gu_model::peers::PeerInfo> {
+        self.peers
+            .keys()
+            .map(|n| gu_model::peers::PeerInfo {
+                node_id: *n,
+                ..gu_model::peers::PeerInfo::default()
+            })
+            .collect()
     }
 
-    pub fn add_peers(&mut self, peers: Vec<NodeId>) {
+    pub fn add_peers(&mut self, peers: Vec<NodeId>) -> Vec<NodeId> {
         let new_peers = peers
             .into_iter()
-            .filter(|p| !self.peers.get(p).is_none())
+            .filter(|p| !self.peers.contains_key(p))
             .map(|peer| (peer, PeerState::default()))
             .collect::<Vec<_>>();
         self.peers.extend(new_peers);
+        self.peers.keys().cloned().collect()
     }
 
     pub fn remove_deployment(&mut self, node_id: NodeId, deployment_id: String) -> bool {
@@ -284,12 +295,25 @@ impl Session {
                     session_id: deployment_id,
                 })
                 .map_err(|_| SessionErr::CannotDeletePeerDeployment)
-                .and_then(|r| {
-                    future::result(r)
-                        .map(|_| ())
-                        .map_err(|_| SessionErr::CannotDeletePeerDeployment)
-                }),
+                .map(|_| ()),
         )
+    }
+
+    pub fn drop_deployments(&mut self) -> impl Future<Item = (), Error = SessionErr> {
+        futures::future::join_all(
+            self.peers
+                .iter_mut()
+                .map(|(node_id_ref, peer_info)| {
+                    let node_id = *node_id_ref;
+                    peer_info
+                        .deployments
+                        .drain()
+                        .map(move |session_id| drop_peer_deployment(node_id, session_id))
+                })
+                .flatten()
+                .collect::<Vec<_>>(),
+        )
+        .and_then(|_results| Ok(()))
     }
 
     pub fn update_deployment(
@@ -297,7 +321,7 @@ impl Session {
         node_id: NodeId,
         deployment_id: String,
         commands: Vec<gu_model::envman::Command>,
-    ) -> impl Future<Item = (), Error = SessionErr> {
+    ) -> impl Future<Item = Vec<String>, Error = SessionErr> {
         if self.peers.get(&node_id).is_none() {
             return future::Either::A(future::err(SessionErr::NodeNotFound(node_id)));
         }
@@ -309,10 +333,9 @@ impl Session {
                     commands: commands,
                 })
                 .map_err(|_| SessionErr::CannotUpdatePeerDeployment)
-                .and_then(|r| {
-                    future::result(r)
-                        .map(|_| ())
-                        .map_err(|_| SessionErr::CannotUpdatePeerDeployment)
+                .map(|results| match results {
+                    Ok(r) => r,
+                    Err(e) => e,
                 }),
         )
     }
@@ -324,4 +347,17 @@ impl Session {
             false => Ok(()),
         }
     }
+}
+
+fn drop_peer_deployment(
+    node_id: NodeId,
+    session_id: String,
+) -> impl Future<Item = (), Error = SessionErr> {
+    use gu_model::envman::DestroySession;
+    use gu_net::rpc::peer;
+
+    peer(node_id)
+        .into_endpoint()
+        .send(DestroySession { session_id })
+        .then(|_| Ok(()))
 }

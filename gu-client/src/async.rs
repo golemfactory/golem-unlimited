@@ -12,6 +12,7 @@ use gu_model::{
 use gu_net::types::NodeId;
 use std::str;
 use std::sync::Arc;
+use std::time::Duration;
 use url::Url;
 
 /// Connection to a single hub.
@@ -128,8 +129,8 @@ pub struct HubSession {
 }
 
 impl HubSession {
-    /// adds peers to the hub
-    pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = (), Error = Error>
+    /// adds peers to the hub session
+    pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = Vec<NodeId>, Error = Error>
     where
         T: IntoIterator<Item = U>,
         U: AsRef<str>,
@@ -155,7 +156,9 @@ impl HubSession {
                     http::StatusCode::INTERNAL_SERVER_ERROR => future::Either::A(future::err(
                         Error::CannotAddPeersToSession(response.status()),
                     )),
-                    _ => future::Either::B(future::ok(())),
+                    _ => future::Either::B(
+                        response.json().map_err(|e| Error::InvalidJSONResponse(e)),
+                    ),
                 }),
         )
     }
@@ -198,6 +201,16 @@ impl HubSession {
             hub_session: self.clone(),
         }
     }
+    /// gets single peer by its id given as a string
+    pub fn peer_from_str<T: AsRef<str>>(&self, node_id: T) -> Result<Peer, Error> {
+        Ok(self.peer(
+            node_id
+                .as_ref()
+                .parse()
+                .map_err(|_| Error::InvalidPeer(node_id.as_ref().to_string()))?,
+        ))
+    }
+
     /// returns all session peers
     pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
         let url = format!(
@@ -425,7 +438,7 @@ impl Blob {
 }
 
 /// Peer node.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Peer {
     hub_session: HubSession,
     pub node_id: NodeId,
@@ -451,6 +464,7 @@ impl Peer {
         future::Either::B(
             request
                 .send()
+                .timeout(Duration::from_secs(3600))
                 .map_err(Error::CannotSendRequest)
                 .and_then(|response| {
                     if response.status() != http::StatusCode::CREATED {
@@ -458,15 +472,12 @@ impl Peer {
                             response.status(),
                         )));
                     }
-                    future::Either::B(response.body().map_err(Error::CannotGetResponseBody))
+                    future::Either::B(response.json().map_err(Error::InvalidJSONResponse))
                 })
-                .and_then(|body| {
+                .and_then(|answer_json: String| {
                     future::ok(PeerSession {
                         peer: peer_copy,
-                        session_id: match str::from_utf8(&body.to_vec()) {
-                            Ok(str) => str.to_string(),
-                            Err(e) => return future::err(Error::CannotConvertToUTF8(e)),
-                        },
+                        session_id: answer_json,
                     })
                 }),
         )
@@ -487,12 +498,11 @@ impl Peer {
                 }
                 status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
             })
-            .and_then(|answer_json: PeerInfo| future::ok(answer_json))
     }
 }
 
 /// Peer session.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PeerSession {
     peer: Peer,
     session_id: String,
@@ -500,7 +510,10 @@ pub struct PeerSession {
 
 impl PeerSession {
     /// updates deployment session by sending multiple peer commands
-    pub fn update(&self, commands: Vec<envman::Command>) -> impl Future<Item = (), Error = Error> {
+    pub fn update(
+        &self,
+        commands: Vec<envman::Command>,
+    ) -> impl Future<Item = Vec<String>, Error = Error> {
         let url = format!(
             "{}sessions/{}/peers/{}/deployments/{}",
             self.peer
@@ -521,8 +534,10 @@ impl PeerSession {
         .map_err(Error::CannotCreateRequest)
         .and_then(|request| request.send().map_err(Error::CannotSendRequest))
         .and_then(|response| match response.status() {
-            http::StatusCode::OK => future::ok(()),
-            status => future::err(Error::CannotUpdateDeployment(status)),
+            http::StatusCode::OK => {
+                future::Either::A(response.json().map_err(|e| Error::InvalidJSONResponse(e)))
+            }
+            status => future::Either::B(future::err(Error::CannotUpdateDeployment(status))),
         })
     }
     /// deletes peer session
