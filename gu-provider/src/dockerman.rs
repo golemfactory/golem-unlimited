@@ -159,11 +159,11 @@ impl Destroy for DockerSession {}
 
 impl DockerMan {
     fn container_config(
-        url: String,
+        image: String,
         host_config: async_docker::models::HostConfig,
     ) -> ContainerConfig {
         ContainerConfig::new()
-            .with_image(url.into())
+            .with_image(image.into())
             .with_tty(true)
             .with_open_stdin(true)
             .with_attach_stdin(true)
@@ -176,6 +176,12 @@ impl DockerMan {
                     .collect(),
             )
             .with_host_config(host_config)
+    }
+
+    fn pull_config(uri: String) -> async_docker::build::PullOptions {
+        async_docker::build::PullOptions::builder()
+            .image(uri)
+            .build()
     }
 }
 
@@ -208,11 +214,11 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
         msg: CreateSession<CreateOptions>,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession<CreateOptions>>>::Result {
-        debug!("create session for: {}", &msg.image.url);
+        debug!("create session for: {}", &msg.image.uri);
 
         match self.docker_api {
             Some(ref api) => {
-                let Image { url, hash } = msg.image.clone();
+                let Image { uri, hash } = msg.image.clone();
                 let mut workspace = self.workspaces_man.workspace();
 
                 let binds: Vec<String> = msg
@@ -224,6 +230,7 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                             .and_then(|s| vol.target_dir().map(|t| (s, t)))
                             .map(|(s, t)| {
                                 workspace.add_volume(vol.clone());
+                                println!("{}:{}", s, t);
                                 format!("{}:{}", s, t)
                             })
                     })
@@ -235,18 +242,22 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                 let host_config = async_docker::models::HostConfig::new().with_binds(binds);
 
                 //let docker_image = api.image(url.as_ref().into());
-                let opts = Self::container_config(url.into(), host_config);
+                let opts = Self::container_config(uri.clone(), host_config);
+                println!("config: {:?}", &opts);
 
-                info!("config: {:?}", &opts);
+                let image = api.images().pull(&Self::pull_config(uri));
+                let container = api.containers().create(&opts);
 
                 ActorResponse::async(
                     fut::wrap_future(
-                        api.containers()
-                            .create(&opts)
-                            .and_then(|c| Ok(c.id().to_owned()))
+                        image
+                            .for_each(|x| Ok(println!("{:?}", x)))
+                            .and_then(|_| container)
+                            .map(|c| c.id().to_owned())
                             .map_err(|e| Error::IoError(format!("{}", e))),
                     )
                     .and_then(move |id, act: &mut DockerMan, _| {
+                        println!("das");
                         if let Some(ref api) = act.docker_api {
                             let deploy = DockerSession {
                                 workspace,
