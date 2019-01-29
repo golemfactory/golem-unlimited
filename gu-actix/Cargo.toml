@@ -8,6 +8,7 @@ futures = "0.1"
 actix = "0.7"
 crossbeam-channel="0.3.6"
 bytes="0.4"
+failure="0.1"
 
 [dev-dependencies]
 tokio-timer = "0.2.8"

@@ -2,6 +2,7 @@ pub mod flatten;
 pub mod pipe;
 pub mod prelude;
 pub mod release;
+pub mod safe;
 
 pub use self::flatten::{FlattenFuture, FlattenResult};
 

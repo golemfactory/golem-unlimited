@@ -42,7 +42,6 @@ use gu_base::*;
 
 mod connect;
 mod deployment;
-mod download;
 pub mod envman;
 mod hdman;
 mod id;
