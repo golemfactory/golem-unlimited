@@ -114,6 +114,22 @@ fn stream_raw(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error = S
     read_async(input_path)
 }
 
+pub fn untar_single_file_stream<TarStream: Stream<Item = bytes::Bytes>>(
+    stream: TarStream,
+) -> impl Stream<Item = bytes::Bytes, Error = String>
+where
+    TarStream::Error: std::fmt::Debug + Sync + Send + 'static,
+{
+    use tar_async::decode::flat::{self, TarItem};
+
+    flat::decode_tar(stream)
+        .filter_map(|item| match item {
+            TarItem::Entry(_) => None,
+            TarItem::Chunk(bytes) => Some(bytes),
+        })
+        .map_err(|e| e.to_string())
+}
+
 // TODO: support redirect
 // TODO: support https
 pub fn download(
