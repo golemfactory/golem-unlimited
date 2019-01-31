@@ -40,7 +40,7 @@ pub enum Error {
     #[fail(display = "Canceled")]
     Canceled,
 
-    #[fail(display="{}", _0)]
+    #[fail(display = "{}", _0)]
     Other(String),
 }
 
@@ -81,17 +81,21 @@ fn download_chunk(
     to: u64,
 ) -> impl Future<Item = ProgressStatus, Error = Error> {
     use actix_web::{client, http::header, HttpMessage};
-    let limit = (to-from) as usize;
+    let limit = (to - from) as usize;
 
     client::get(&meta.url)
         .header(header::IF_RANGE, format!("{}", meta.etag))
-        .header(header::RANGE, format!("bytes={}-{}", from, to-1))
+        .header(header::RANGE, format!("bytes={}-{}", from, to - 1))
         .finish()
         .unwrap()
         .send()
         .timeout(time::Duration::from_secs(120))
         .map_err(|e| Error::Other(format!("{}", e)))
-        .and_then(move |resp| resp.body().limit(limit).map_err(|e| Error::Other(format!("resp: {}", e))))
+        .and_then(move |resp| {
+            resp.body()
+                .limit(limit)
+                .map_err(|e| Error::Other(format!("resp: {}", e)))
+        })
         .and_then(move |bytes| {
             proxy
                 .with(move |df| df.add_chunk(from, to, bytes.as_ref()))
@@ -161,13 +165,14 @@ pub fn download(url: &str, dest_file: String) -> impl Stream<Item = ProgressStat
         })
         .and_then(
             |(download_file, meta, chunks): (Proxy<DownloadFile>, _, _)| {
-                Ok(stream::iter_ok(chunks).map(move |(from, to)| {
-                    download_chunk(meta.clone(), download_file.clone(), from, to)
-                }).buffered(10))
+                Ok(stream::iter_ok(chunks)
+                    .map(move |(from, to)| {
+                        download_chunk(meta.clone(), download_file.clone(), from, to)
+                    })
+                    .buffered(10))
             },
         )
         .flatten_stream()
-
 }
 
 pub struct Downloader {}
