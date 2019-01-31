@@ -143,7 +143,7 @@ impl Handler<SessionUpdate> for EnvMan {
         let (prefix, session_id) = match extract_prefix(&msg.session_id) {
             Ok(v) => v,
             Err(_e) => {
-                return ActorResponse::reply(Err(vec!["Invalid environment prefix".to_string()]))
+                return ActorResponse::reply(Err(vec!["Invalid environment prefix".to_string()]));
             }
         };
 
