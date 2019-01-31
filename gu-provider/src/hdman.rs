@@ -225,7 +225,7 @@ impl Handler<CreateSession> for HdMan {
         debug!("hey! I'm downloading from: {:?}", msg.image);
         let sess_id = session_id.clone();
         ActorResponse::async(
-            download(msg.image.url.as_ref(), cache_path.clone(), true)
+            download(msg.image.uri.as_ref(), cache_path.clone(), true)
                 .map_err(From::from)
                 .and_then(move |_| untgz(cache_path, workspace_path))
                 .map_err(From::from)

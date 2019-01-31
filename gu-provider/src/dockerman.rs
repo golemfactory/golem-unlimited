@@ -98,7 +98,10 @@ impl DockerSession {
         use futures::sync::mpsc;
         use std::io;
 
-        let stream = provision::download_stream(uri.as_str());
+        let stream = provision::download_stream(uri.as_str()).map(|x| {
+            println!("{:?}", x);
+            x
+        });
         let opts = async_docker::build::ContainerArchivePutOptions::builder()
             .remote_path(file_path)
             .build();
@@ -114,9 +117,15 @@ impl DockerSession {
             .into_future()
             .map_err(|e| e.to_string());
 
-        let send_fut = send.sink_map_err(|e| e.to_string()).send_all(stream);
+        let send_fut = send
+            .sink_map_err(|e| e.to_string())
+            .send_all(stream)
+            .and_then(|(mut sink, _)| {
+                println!("321");
+                sink.close()
+            });
 
-        send_fut.join(recv_fut).map(|_| "OK".into())
+        recv_fut.join(send_fut).map(|_| "OK".into())
     }
 
     fn do_upload(
@@ -128,17 +137,28 @@ impl DockerSession {
         use actix_web::client;
         use std::io;
 
-        // TODO better error contents
         let data = self
             .container
             .archive_get(file_path.as_str())
-            .map_err(|_| io::Error::from(io::ErrorKind::Other));
-        client::ClientRequest::put(uri)
-            .streaming(data)
-            .unwrap()
-            .send()
-            .map_err(|e| format!("{:?}", e))
-            .map(|_| "OK".into())
+            .map_err(|e| e.to_string());
+
+        let data: Box<Stream<Item = bytes::Bytes, Error = String>> = match format {
+            ResourceFormat::Raw => Box::new(provision::untar_single_file_stream(data)),
+            ResourceFormat::Tar => Box::new(data),
+        };
+
+        let data = data.map_err(|x| io::Error::from(io::ErrorKind::Other));
+
+        future::result(client::put(uri.clone()).streaming(data))
+            .map_err(|e| e.to_string())
+            .and_then(|req| req.send().map_err(|e| e.to_string()))
+            .and_then(move |res| {
+                if res.status().is_success() {
+                    Ok(format!("{:?} file uploaded", uri))
+                } else {
+                    Err(format!("Unsuccessful file upload: {}", res.status()))
+                }
+            })
     }
 }
 
@@ -159,11 +179,11 @@ impl Destroy for DockerSession {}
 
 impl DockerMan {
     fn container_config(
-        url: String,
+        image: String,
         host_config: async_docker::models::HostConfig,
     ) -> ContainerConfig {
         ContainerConfig::new()
-            .with_image(url.into())
+            .with_image(image.into())
             .with_tty(true)
             .with_open_stdin(true)
             .with_attach_stdin(true)
@@ -176,6 +196,31 @@ impl DockerMan {
                     .collect(),
             )
             .with_host_config(host_config)
+    }
+
+    fn pull_config(uri: String) -> async_docker::build::PullOptions {
+        async_docker::build::PullOptions::builder()
+            .image(uri)
+            .build()
+    }
+
+    fn binds_and_workspace(&self, msg: &CreateSession<CreateOptions>) -> (Vec<String>, Workspace) {
+        let mut workspace = self.workspaces_man.workspace();
+        let binds = msg
+            .options
+            .volumes
+            .iter()
+            .filter_map(|vol: &VolumeDef| {
+                vol.source_dir()
+                    .and_then(|s| vol.target_dir().map(|t| (s, t)))
+                    .map(|(s, t)| {
+                        workspace.add_volume(vol.clone());
+                        format!("{}:{}", s, t)
+                    })
+            })
+            .collect();
+
+        (binds, workspace)
     }
 }
 
@@ -208,45 +253,33 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
         msg: CreateSession<CreateOptions>,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession<CreateOptions>>>::Result {
-        debug!("create session for: {}", &msg.image.url);
+        debug!("create session for: {}", &msg.image.uri);
 
         match self.docker_api {
             Some(ref api) => {
-                let Image { url, hash } = msg.image.clone();
-                let mut workspace = self.workspaces_man.workspace();
+                let Image { uri, hash } = msg.image.clone();
 
-                let binds: Vec<String> = msg
-                    .options
-                    .volumes
-                    .iter()
-                    .filter_map(|vol: &VolumeDef| {
-                        vol.source_dir()
-                            .and_then(|s| vol.target_dir().map(|t| (s, t)))
-                            .map(|(s, t)| {
-                                workspace.add_volume(vol.clone());
-                                format!("{}:{}", s, t)
-                            })
-                    })
-                    .collect();
+                let (binds, workspace) = self.binds_and_workspace(&msg);
 
                 workspace
                     .create_dirs()
                     .expect("Creating session dirs failed");
                 let host_config = async_docker::models::HostConfig::new().with_binds(binds);
 
-                //let docker_image = api.image(url.as_ref().into());
-                let opts = Self::container_config(url.into(), host_config);
-
+                let opts = Self::container_config(uri.clone(), host_config);
                 info!("config: {:?}", &opts);
 
-                ActorResponse::async(
-                    fut::wrap_future(
-                        api.containers()
-                            .create(&opts)
-                            .and_then(|c| Ok(c.id().to_owned()))
-                            .map_err(|e| Error::IoError(format!("{}", e))),
-                    )
-                    .and_then(move |id, act: &mut DockerMan, _| {
+                let pull_image_fut = api.images().pull(&Self::pull_config(uri));
+                let create_container_fut = api.containers().create(&opts);
+
+                let pull_and_create = pull_image_fut
+                    .for_each(|x| Ok(debug!("{:?}", x)))
+                    .and_then(|_| create_container_fut)
+                    .map(|c| c.id().to_owned())
+                    .map_err(|e| Error::IoError(format!("{}", e)));
+
+                ActorResponse::async(fut::wrap_future(pull_and_create).and_then(
+                    move |id, act: &mut DockerMan, _| {
                         if let Some(ref api) = act.docker_api {
                             let deploy = DockerSession {
                                 workspace,
@@ -258,8 +291,8 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                         } else {
                             fut::err(Error::UnknownEnv(msg.env_type.clone()))
                         }
-                    }),
-                )
+                    },
+                ))
             }
             None => ActorResponse::reply(Err(Error::UnknownEnv(msg.env_type))),
         }

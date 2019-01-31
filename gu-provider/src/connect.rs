@@ -92,7 +92,7 @@ impl Module for ConnectModule {
             .help("save change in config file");
 
         let connect = SubCommand::with_name("connect")
-            .about("Connect to a hub without adding it to the config")
+            .about("Connect to a hub without adding it to the config file (use -S to add it to the config file)")
             .arg(host.clone())
             .arg(save.clone());
         let disconnect = SubCommand::with_name("disconnect")
