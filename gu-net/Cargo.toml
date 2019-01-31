@@ -7,7 +7,7 @@ version = "0.1.0"
 futures="0.1"
 tokio-io="0.1"
 actix = "0.7"
-actix-web = "0.7"
+actix-web = { version = "0.7", default-features=false}
 
 sha3="0.7"
 digest = "0.7"

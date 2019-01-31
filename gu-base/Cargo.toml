@@ -6,7 +6,7 @@ version = "0.1.0"
 futures = "0.1"
 tokio="0.1"
 actix = "0.7"
-actix-web = {version= "0.7"}
+actix-web = {version= "0.7", default-features=false}
 clap = "2.32"
 log="0.4"
 env_logger = "0.5"

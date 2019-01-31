@@ -8,6 +8,7 @@
 
 */
 
+use actix::prelude::*;
 use bytes::*;
 use failure::Fail;
 use futures::prelude::*;
@@ -35,6 +36,18 @@ pub enum Error {
 
     #[fail(display = "Overflow")]
     Overflow,
+
+    #[fail(display = "Canceled")]
+    Canceled,
+
+    #[fail(display="{}", _0)]
+    Other(String),
+}
+
+impl From<oneshot::Canceled> for Error {
+    fn from(_: oneshot::Canceled) -> Self {
+        Error::Canceled
+    }
 }
 
 impl From<io::Error> for Error {
@@ -55,9 +68,109 @@ impl From<bincode::Error> for Error {
     }
 }
 
-pub struct Downloader {
-    
+pub fn cpu_pool() -> CpuPool {
+    actix_web::server::ServerSettings::default()
+        .cpu_pool()
+        .clone()
 }
+
+fn download_chunk(
+    meta: LogMetadata,
+    proxy: Proxy<DownloadFile>,
+    from: u64,
+    to: u64,
+) -> impl Future<Item = ProgressStatus, Error = Error> {
+    use actix_web::{client, http::header, HttpMessage};
+    let limit = (to-from) as usize;
+
+    client::get(&meta.url)
+        .header(header::IF_RANGE, format!("{}", meta.etag))
+        .header(header::RANGE, format!("bytes={}-{}", from, to-1))
+        .finish()
+        .unwrap()
+        .send()
+        .timeout(time::Duration::from_secs(120))
+        .map_err(|e| Error::Other(format!("{}", e)))
+        .and_then(move |resp| resp.body().limit(limit).map_err(|e| Error::Other(format!("resp: {}", e))))
+        .and_then(move |bytes| {
+            proxy
+                .with(move |df| df.add_chunk(from, to, bytes.as_ref()))
+                .from_err()
+        })
+        .and_then(move |v| {
+            Ok(ProgressStatus {
+                downloaded_bytes: from,
+                total_to_download: Some(meta.size),
+                download_duration: time::Duration::from_secs(1),
+            })
+        })
+}
+
+pub fn download(url: &str, dest_file: String) -> impl Stream<Item = ProgressStatus, Error = Error> {
+    use actix_web::http::header::HeaderValue;
+    use actix_web::http::HttpTryFrom;
+    use actix_web::HttpMessage;
+    use actix_web::{client, http::header};
+
+    use futures::{prelude::*, stream};
+
+    let r = client::head(url).finish().unwrap();
+    let url_cpy = url.to_owned();
+
+    r.send()
+        .map_err(|_| Error::Overflow)
+        .and_then(move |resp| {
+            let headers = resp.headers();
+
+            let etag = headers.get("etag").unwrap().to_str().unwrap().to_owned();
+            let size: u64 = headers
+                .get("content-length")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .parse()
+                .unwrap();
+            let accept_ranges = headers.get("accept-ranges").unwrap() == "bytes";
+
+            eprintln!(
+                "etag={:?}, size={:?}, accept_ranges={}",
+                etag, size, accept_ranges
+            );
+            for (k, v) in headers {
+                eprintln!("H: {:?} = {:?}", k, v);
+            }
+
+            Proxy::new(cpu_pool(), move || {
+                DownloadFile::new(dest_file.as_ref(), url_cpy.as_ref(), &etag, size)
+            })
+            .from_err()
+        })
+        .and_then(|mut download_file| {
+            download_file
+                .with(|df: &mut DownloadFile| {
+                    let meta = df.meta();
+                    let v: Vec<(u64, u64)> = (0..meta.chunks).map(|n| df.chunk(n)).collect();
+
+                    (meta, v)
+                })
+                .and_then(|(meta, chunks)| {
+                    eprintln!("meta={:?}", meta);
+                    Ok((download_file, meta, chunks))
+                })
+                .from_err()
+        })
+        .and_then(
+            |(download_file, meta, chunks): (Proxy<DownloadFile>, _, _)| {
+                Ok(stream::iter_ok(chunks).map(move |(from, to)| {
+                    download_chunk(meta.clone(), download_file.clone(), from, to)
+                }).buffered(10))
+            },
+        )
+        .flatten_stream()
+
+}
+
+pub struct Downloader {}
 
 pub struct ProgressStatus {
     pub downloaded_bytes: u64,
@@ -81,11 +194,11 @@ impl Future for Downloader {
 }
 
 struct DownloadFile {
-    temp_file_name : path::PathBuf,
+    temp_file_name: path::PathBuf,
     inner: fs::File,
-    meta : LogMetadata,
+    meta: LogMetadata,
     crc_map: Vec<u64>,
-    map_offset : u64,
+    map_offset: u64,
 }
 
 struct Chunk {
@@ -96,7 +209,7 @@ struct Chunk {
 const MAGIC: [u8; 8] = [0xf4, 0xd4, 0xc7, 0xd1, 0x4d, 0x2f, 0xe2, 0x83];
 const CHUNK_SIZE: u64 = 1024 * 1024 * 4;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct LogMetadata {
     file_name: String,
     url: String,
@@ -104,6 +217,7 @@ struct LogMetadata {
     size: u64,
     chunks: u32,
     chunk_size: u32,
+    ts: chrono::DateTime<chrono::Utc>,
 }
 
 // File Structure
@@ -207,6 +321,7 @@ fn new_part_file(
 
     part_file.set_len(total_file_size)?;
     part_file.seek(io::SeekFrom::Start(head_offset))?;
+    part_file.write_all(MAGIC.as_ref())?;
     part_file.write_all(meta_bytes.as_ref())?;
     let computed_crc64 = crc::crc64::checksum_iso(meta_bytes.as_ref());
     write_u64(&mut part_file, computed_crc64)?;
@@ -231,17 +346,15 @@ fn new_part_file(
     })
 }
 
-fn chunk_crc64(bytes : &[u8]) -> u64 {
+fn chunk_crc64(bytes: &[u8]) -> u64 {
     let crc64 = crc::crc64::checksum_iso(bytes);
 
     if crc64 == 0 {
         ::std::u64::MAX
-    }
-    else {
+    } else {
         crc64
     }
 }
-
 
 impl DownloadFile {
     fn new<'a>(
@@ -253,6 +366,7 @@ impl DownloadFile {
         let chunk_size = CHUNK_SIZE as u32;
         let chunks: u32 = ((size + (CHUNK_SIZE as u64) - 1) / CHUNK_SIZE).cast_into()?;
         let download_file_name: path::PathBuf = format!("{}.gu-download", file_name).into();
+        let ts = chrono::Utc::now();
         let meta = LogMetadata {
             file_name: file_name.into(),
             url: url.into(),
@@ -260,6 +374,7 @@ impl DownloadFile {
             size,
             chunks,
             chunk_size,
+            ts,
         };
 
         if download_file_name.exists() {
@@ -274,37 +389,43 @@ impl DownloadFile {
         new_part_file(&download_file_name, meta)
     }
 
-    fn chunk(&self, chunk_nr : u32) -> (u64, u64) {
-        if chunk_nr == self.meta.chunks -1 {
-            (chunk_nr as u64 * self.meta.chunk_size as u64, self.meta.size)
-        }
-        else {
+    fn chunk(&self, chunk_nr: u32) -> (u64, u64) {
+        if chunk_nr == self.meta.chunks - 1 {
+            (
+                chunk_nr as u64 * self.meta.chunk_size as u64,
+                self.meta.size,
+            )
+        } else {
             let from = chunk_nr as u64 * self.meta.chunk_size as u64;
             (from, from + self.meta.chunk_size as u64)
         }
     }
 
+    fn meta(&self) -> LogMetadata {
+        self.meta.clone()
+    }
+
     fn add_chunk(&mut self, from: u64, to: u64, bytes: &[u8]) -> Result<(), Error> {
         let chunk_nr = from / self.meta.chunk_size as u64;
-        assert_eq!(bytes.len() as u64, to -from);
+        assert_eq!(bytes.len() as u64, to - from);
         assert_eq!(self.chunk(chunk_nr.cast_into()?), (from, to));
 
         self.inner.seek(io::SeekFrom::Start(from))?;
         self.inner.write_all(bytes)?;
         let crc64 = chunk_crc64(bytes);
-        self.inner.seek(io::SeekFrom::Start(self.map_offset + chunk_nr*8))?;
+        self.inner
+            .seek(io::SeekFrom::Start(self.map_offset + chunk_nr * 8))?;
         write_u64(&mut self.inner, crc64)?;
         self.crc_map[usize::cast_from(chunk_nr)?] = crc64;
         Ok(())
     }
 
-    fn check_chunk(&mut self, chunk_nr : u32) -> Result<bool, Error> {
+    fn check_chunk(&mut self, chunk_nr: u32) -> Result<bool, Error> {
         use crc::Hasher64;
 
         if self.meta.chunks >= chunk_nr {
             Err(Error::Overflow)
-        }
-        else {
+        } else {
             let meta_crc64 = self.crc_map[chunk_nr as usize];
 
             if meta_crc64 == 0 {
@@ -318,22 +439,20 @@ impl DownloadFile {
 
             while from < to {
                 let n_bytes = if from + 4096 > to {
-                    let chunk_size = (to-from) as usize;
+                    let chunk_size = (to - from) as usize;
                     self.inner.read(&mut buf[0..chunk_size])?
-                }
-                else {
+                } else {
                     self.inner.read(&mut buf[..])?
                 };
 
                 digest.write(&buf[0..n_bytes]);
-                from+=n_bytes as u64;
+                from += n_bytes as u64;
             }
 
             let chunk_crc64 = digest.sum64();
             let valid = if chunk_crc64 == 0 {
                 meta_crc64 == ::std::u64::MAX
-            }
-            else {
+            } else {
                 meta_crc64 == chunk_crc64
             };
 
@@ -351,5 +470,79 @@ impl DownloadFile {
         fs::rename(self.temp_file_name, &file_name)?;
         Ok(())
     }
+}
 
+use futures::sync::{mpsc, oneshot};
+use futures_cpupool::CpuPool;
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::sync::Arc;
+
+struct ProxyInner<T> {
+    cpu_pool: CpuPool,
+    after: RefCell<oneshot::Receiver<Box<T>>>,
+}
+
+struct Proxy<T> {
+    inner: Arc<ProxyInner<T>>,
+}
+
+impl<T> Clone for Proxy<T> {
+    fn clone(&self) -> Self {
+        Proxy {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<T> Proxy<T>
+where
+    T: Send + 'static,
+{
+    pub fn new<
+        E: From<oneshot::Canceled> + Send + 'static,
+        Builder: FnOnce() -> Result<T, E> + Send + 'static,
+    >(
+        cpu_pool: CpuPool,
+        builder: Builder,
+    ) -> impl Future<Item = Self, Error = E> {
+        let (tx, after) = oneshot::channel();
+
+        cpu_pool
+            .spawn_fn(move || {
+                let instance = Box::new(builder()?);
+                tx.send(instance);
+                Ok(())
+            })
+            .and_then(move |()| {
+                Ok(Proxy {
+                    inner: Arc::new(ProxyInner {
+                        cpu_pool,
+                        after: RefCell::new(after),
+                    }),
+                })
+            })
+    }
+
+    pub fn with<F, R>(&self, f: F) -> impl Future<Item = R, Error = oneshot::Canceled> + 'static
+    where
+        F: FnOnce(&mut T) -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        let (tx, rx) = oneshot::channel();
+
+        let cpu_pool = self.inner.cpu_pool.clone();
+        let after = self.inner.after.replace(rx);
+        //let after = ::std::mem::replace(&mut self.after, rx);
+        //
+        let new_fut = after.and_then(move |mut it| {
+            cpu_pool.spawn_fn(move || {
+                let r = f(it.as_mut());
+                tx.send(it);
+                Ok(r)
+            })
+        });
+
+        new_fut
+    }
 }

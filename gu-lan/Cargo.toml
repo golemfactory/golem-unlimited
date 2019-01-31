@@ -28,4 +28,5 @@ futures = "0.1"
 tokio = "0.1"
 tokio-codec = "0.1"
 actix = "0.7"
-actix-web = "0.7"
+actix-web = {version= "0.7", default-features=false}
+
