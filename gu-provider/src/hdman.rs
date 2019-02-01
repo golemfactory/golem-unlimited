@@ -225,7 +225,7 @@ impl Handler<CreateSession> for HdMan {
         debug!("hey! I'm downloading from: {:?}", msg.image);
         let sess_id = session_id.clone();
         ActorResponse::async(
-            download(msg.image.uri.as_ref(), cache_path.clone(), true)
+            download(msg.image.url.as_ref(), cache_path.clone(), true)
                 .map_err(From::from)
                 .and_then(move |_| untgz(cache_path, workspace_path))
                 .map_err(From::from)
@@ -351,20 +351,20 @@ fn run_command(
             )
         }
         Command::DownloadFile {
-            uri,
+            url,
             file_path,
             format,
         } => {
             let path = session.workspace.path().join(file_path);
-            Box::new(fut::wrap_future(handle_download_file(uri, path, format)))
+            Box::new(fut::wrap_future(handle_download_file(url, path, format)))
         }
         Command::UploadFile {
-            uri,
+            url,
             file_path,
             format,
         } => {
             let path = session.workspace.path().join(file_path);
-            Box::new(fut::wrap_future(handle_upload_file(uri, path, format)))
+            Box::new(fut::wrap_future(handle_upload_file(url, path, format)))
         }
         Command::AddTags(tags) => Box::new({
             session.workspace.add_tags(tags);
@@ -426,34 +426,23 @@ impl Handler<SessionUpdate> for HdMan {
 }
 
 fn handle_download_file(
-    uri: String,
+    url: String,
     file_path: PathBuf,
-    _format: ResourceFormat,
+    format: ResourceFormat,
 ) -> impl Future<Item = String, Error = String> {
-    download(uri.as_ref(), file_path, false)
-        .and_then(move |_| Ok(format!("{:?} file downloaded", uri)))
+    download_step(url.as_ref(), file_path, format)
+        .and_then(move |_| Ok(format!("{:?} file downloaded", url)))
         .map_err(|e| e.to_string())
 }
 
 fn handle_upload_file(
-    uri: String,
+    url: String,
     file_path: PathBuf,
-    _format: ResourceFormat,
+    format: ResourceFormat,
 ) -> impl Future<Item = String, Error = String> {
-    future::result(
-        client::put(uri.clone())
-            .streaming(read_async(file_path).map_err(|e| ErrorInternalServerError(e))),
-    )
-    .map_err(|e| e.to_string())
-    .and_then(|req| req.send().map_err(|e| e.to_string()))
-    .and_then(move |res| {
-        if res.status().is_success() {
-            Ok(format!("{:?} file uploaded", uri))
-        } else {
-            Err(format!("Unsuccessful file upload: {}", res.status()))
-        }
-    })
-    .map_err(|e| e.to_string())
+    upload_step(&url, file_path, format)
+        .map(move |x| format!("{:?} file uploaded", url))
+        .map_err(|e| format!("Unsuccessful file upload: {}", e))
 }
 
 // TODO: implement child process polling and status reporting

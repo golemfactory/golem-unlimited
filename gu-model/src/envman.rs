@@ -53,7 +53,7 @@ impl From<String> for Error {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Image {
-    pub uri: String,
+    pub url: String,
     pub hash: String,
 }
 
@@ -127,14 +127,14 @@ pub enum Command {
     DelTags(Vec<String>),
     #[serde(rename_all = "camelCase")]
     DownloadFile {
-        uri: String,
+        url: String,
         file_path: String,
         #[serde(default)]
         format: ResourceFormat,
     },
     #[serde(rename_all = "camelCase")]
     UploadFile {
-        uri: String,
+        url: String,
         file_path: String,
         #[serde(default)]
         format: ResourceFormat,
@@ -195,7 +195,7 @@ mod test {
 
         // then
         assert_eq!(c.env_type, "hd");
-        assert_eq!(c.image.uri, "http://some.url/file.tgz");
+        assert_eq!(c.image.url, "http://some.url/file.tgz");
         assert_eq!(c.image.hash, "12345");
         assert_eq!(c.tags.len(), 1);
         assert_eq!(c.tags[0], "lato");

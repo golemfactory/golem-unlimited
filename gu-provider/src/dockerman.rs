@@ -2,6 +2,7 @@
 
 use super::envman;
 use actix::prelude::*;
+use actix_web::error::ErrorInternalServerError;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
 use deployment::DeployManager;
@@ -91,17 +92,14 @@ impl DockerSession {
 
     fn do_download(
         &mut self,
-        uri: String,
+        url: String,
         file_path: String,
         format: ResourceFormat,
     ) -> impl Future<Item = String, Error = String> {
         use futures::sync::mpsc;
         use std::io;
 
-        let stream = provision::download_stream(uri.as_str()).map(|x| {
-            println!("{:?}", x);
-            x
-        });
+        let stream = provision::download_stream(url.as_str());
         let opts = async_docker::build::ContainerArchivePutOptions::builder()
             .remote_path(file_path)
             .build();
@@ -120,17 +118,14 @@ impl DockerSession {
         let send_fut = send
             .sink_map_err(|e| e.to_string())
             .send_all(stream)
-            .and_then(|(mut sink, _)| {
-                println!("321");
-                sink.close()
-            });
+            .and_then(|(mut sink, _)| sink.close());
 
         recv_fut.join(send_fut).map(|_| "OK".into())
     }
 
     fn do_upload(
         &mut self,
-        uri: String,
+        url: String,
         file_path: String,
         format: ResourceFormat,
     ) -> impl Future<Item = String, Error = String> {
@@ -147,14 +142,14 @@ impl DockerSession {
             ResourceFormat::Tar => Box::new(data),
         };
 
-        let data = data.map_err(|x| io::Error::from(io::ErrorKind::Other));
+        let data = data.map_err(|x| ErrorInternalServerError(x));
 
-        future::result(client::put(uri.clone()).streaming(data))
+        future::result(client::put(url.clone()).streaming(data))
             .map_err(|e| e.to_string())
             .and_then(|req| req.send().map_err(|e| e.to_string()))
             .and_then(move |res| {
                 if res.status().is_success() {
-                    Ok(format!("{:?} file uploaded", uri))
+                    Ok(format!("{:?} file uploaded", url))
                 } else {
                     Err(format!("Unsuccessful file upload: {}", res.status()))
                 }
@@ -198,9 +193,9 @@ impl DockerMan {
             .with_host_config(host_config)
     }
 
-    fn pull_config(uri: String) -> async_docker::build::PullOptions {
+    fn pull_config(url: String) -> async_docker::build::PullOptions {
         async_docker::build::PullOptions::builder()
-            .image(uri)
+            .image(url)
             .build()
     }
 
@@ -253,11 +248,11 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
         msg: CreateSession<CreateOptions>,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession<CreateOptions>>>::Result {
-        debug!("create session for: {}", &msg.image.uri);
+        debug!("create session for: {}", &msg.image.url);
 
         match self.docker_api {
             Some(ref api) => {
-                let Image { uri, hash } = msg.image.clone();
+                let Image { url, hash } = msg.image.clone();
 
                 let (binds, workspace) = self.binds_and_workspace(&msg);
 
@@ -266,10 +261,10 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                     .expect("Creating session dirs failed");
                 let host_config = async_docker::models::HostConfig::new().with_binds(binds);
 
-                let opts = Self::container_config(uri.clone(), host_config);
+                let opts = Self::container_config(url.clone(), host_config);
                 info!("config: {:?}", &opts);
 
-                let pull_image_fut = api.images().pull(&Self::pull_config(uri));
+                let pull_image_fut = api.images().pull(&Self::pull_config(url));
                 let create_container_fut = api.containers().create(&opts);
 
                 let pull_and_create = pull_image_fut
@@ -337,18 +332,18 @@ fn run_command(
         Command::Start { executable, args } => Box::new(fut::ok("Start mock".to_string())),
         Command::Stop { child_id } => Box::new(fut::ok("Stop mock".to_string())),
         Command::DownloadFile {
-            uri,
+            url,
             file_path,
             format,
         } => docker_man.run_for_deployment(session_id, |deployment| {
-            deployment.do_download(uri, file_path, format)
+            deployment.do_download(url, file_path, format)
         }),
         Command::UploadFile {
-            uri,
+            url,
             file_path,
             format,
         } => docker_man.run_for_deployment(session_id, |deployment| {
-            deployment.do_upload(uri, file_path, format)
+            deployment.do_upload(url, file_path, format)
         }),
         Command::AddTags(tags) => Box::new(fut::result(
             docker_man
