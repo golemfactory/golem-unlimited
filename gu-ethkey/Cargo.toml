@@ -8,8 +8,9 @@ log = "0.4"
 env_logger = "0.5"
 error-chain = "0.12"
 parity-crypto = "0.2"
-ethkey = { git = "https://github.com/paritytech/parity-ethereum" }
-ethstore = { git = "https://github.com/paritytech/parity-ethereum" }
+ethkey = { git = "https://github.com/tworec/parity-ethereum", branch = "strip-down-ethkeys"}
+ethstore = { git = "https://github.com/tworec/parity-ethereum", branch = "strip-down-ethkeys"}
+
 rand = "0.6"
 rustc-hex = "1.0"
 
