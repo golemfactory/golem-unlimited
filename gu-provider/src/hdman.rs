@@ -351,20 +351,20 @@ fn run_command(
             )
         }
         Command::DownloadFile {
-            uri,
+            url,
             file_path,
             format,
         } => {
             let path = session.workspace.path().join(file_path);
-            Box::new(fut::wrap_future(handle_download_file(uri, path, format)))
+            Box::new(fut::wrap_future(handle_download_file(url, path, format)))
         }
         Command::UploadFile {
-            uri,
+            url,
             file_path,
             format,
         } => {
             let path = session.workspace.path().join(file_path);
-            Box::new(fut::wrap_future(handle_upload_file(uri, path, format)))
+            Box::new(fut::wrap_future(handle_upload_file(url, path, format)))
         }
         Command::AddTags(tags) => Box::new({
             session.workspace.add_tags(tags);
@@ -428,9 +428,9 @@ impl Handler<SessionUpdate> for HdMan {
 fn handle_download_file(
     uri: String,
     file_path: PathBuf,
-    _format: ResourceFormat,
+    format: ResourceFormat,
 ) -> impl Future<Item = String, Error = String> {
-    download(uri.as_ref(), file_path, false)
+    download_step(uri.as_ref(), file_path, format)
         .and_then(move |_| Ok(format!("{:?} file downloaded", uri)))
         .map_err(|e| e.to_string())
 }
