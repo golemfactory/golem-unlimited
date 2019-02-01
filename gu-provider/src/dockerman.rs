@@ -2,6 +2,7 @@
 
 use super::envman;
 use actix::prelude::*;
+use actix_web::error::ErrorInternalServerError;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
 use deployment::DeployManager;
@@ -147,7 +148,7 @@ impl DockerSession {
             ResourceFormat::Tar => Box::new(data),
         };
 
-        let data = data.map_err(|x| io::Error::from(io::ErrorKind::Other));
+        let data = data.map_err(|x| ErrorInternalServerError(x));
 
         future::result(client::put(uri.clone()).streaming(data))
             .map_err(|e| e.to_string())
