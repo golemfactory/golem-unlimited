@@ -82,7 +82,7 @@ fn main() {
                             peer.new_session(CreateSession {
                                 env_type: "hd".to_string(),
                                 image: Image {
-                                    uri: "http://52.31.143.91/images/gu-factor-linux.tar.gz"
+                                    url: "http://52.31.143.91/images/gu-factor-linux.tar.gz"
                                         .to_string(),
                                     hash: "not_implemented".to_string(),
                                 },

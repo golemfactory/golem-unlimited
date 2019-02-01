@@ -72,7 +72,7 @@ pub fn download_step(
 }
 
 pub fn upload_step(
-    uri: &str,
+    url: &str,
     input_path: PathBuf,
     format: ResourceFormat,
 ) -> impl Future<Item = (), Error = String> {
@@ -83,7 +83,7 @@ pub fn upload_step(
         ResourceFormat::Raw => Box::new(stream_raw(input_path)),
     };
 
-    let client_request = async_try!(client::put(uri)
+    let client_request = async_try!(client::put(url)
         .streaming(source_stream.map_err(|e| ErrorInternalServerError(e)))
         .map_err(|e| format!("{}", e)));
 
