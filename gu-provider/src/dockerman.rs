@@ -99,10 +99,7 @@ impl DockerSession {
         use futures::sync::mpsc;
         use std::io;
 
-        let stream = provision::download_stream(uri.as_str()).map(|x| {
-            println!("{:?}", x);
-            x
-        });
+        let stream = provision::download_stream(uri.as_str());
         let opts = async_docker::build::ContainerArchivePutOptions::builder()
             .remote_path(file_path)
             .build();
@@ -121,10 +118,7 @@ impl DockerSession {
         let send_fut = send
             .sink_map_err(|e| e.to_string())
             .send_all(stream)
-            .and_then(|(mut sink, _)| {
-                println!("321");
-                sink.close()
-            });
+            .and_then(|(mut sink, _)| sink.close());
 
         recv_fut.join(send_fut).map(|_| "OK".into())
     }
