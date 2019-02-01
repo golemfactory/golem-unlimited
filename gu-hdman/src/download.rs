@@ -25,37 +25,43 @@ mod sync_io;
 use self::sync_io::{DownloadFile, LogMetadata, Proxy};
 
 pub use self::error::Error;
-use std::sync::Arc;
 use derive_builder::*;
+use std::sync::Arc;
 
 #[derive(Builder, Clone)]
 pub struct DownloadOptions {
     #[builder(default = "5")]
-    connect_retry : u32,
+    connect_retry: u32,
     #[builder(default = "524288")]
-    chunk_size : u32,
+    chunk_size: u32,
     #[builder(default = "time::Duration::from_secs(120)")]
-    chunk_timeout : time::Duration,
+    chunk_timeout: time::Duration,
 }
 
 impl DownloadOptions {
-
-    pub fn download(self, url: &str, dest_file: String) -> impl Stream<Item = ProgressStatus, Error = Error> {
+    pub fn download(
+        self,
+        url: &str,
+        dest_file: String,
+    ) -> impl Stream<Item = ProgressStatus, Error = Error> {
         download(self, url, dest_file)
     }
 }
 
 impl DownloadOptionsBuilder {
-
-    pub fn download(&self, url: &str, dest_file: String) -> impl Stream<Item = ProgressStatus, Error = Error> {
+    pub fn download(
+        &self,
+        url: &str,
+        dest_file: String,
+    ) -> impl Stream<Item = ProgressStatus, Error = Error> {
         let url = url.to_owned();
 
-        self.build().into_future().and_then(move |o| {
-            Ok(o.download(&url, dest_file))
-        }).map_err(|e| Error::Other(e.into()))
+        self.build()
+            .into_future()
+            .and_then(move |o| Ok(o.download(&url, dest_file)))
+            .map_err(|e| Error::Other(e.into()))
             .flatten_stream()
     }
-
 }
 
 pub fn cpu_pool() -> CpuPool {
@@ -66,7 +72,7 @@ pub fn cpu_pool() -> CpuPool {
 
 fn download_chunk(
     meta: Arc<LogMetadata>,
-    options : Arc<DownloadOptions>,
+    options: Arc<DownloadOptions>,
     proxy: Proxy<DownloadFile>,
     chunk_nr: u32,
     from: u64,
@@ -185,7 +191,11 @@ pub fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
     })
 }
 
-fn download(options : DownloadOptions, url: &str, dest_file: String) -> impl Stream<Item = ProgressStatus, Error = Error> {
+fn download(
+    options: DownloadOptions,
+    url: &str,
+    dest_file: String,
+) -> impl Stream<Item = ProgressStatus, Error = Error> {
     use actix_web::http::header::HeaderValue;
     use actix_web::http::HttpTryFrom;
     use actix_web::HttpMessage;
@@ -241,7 +251,14 @@ fn download(options : DownloadOptions, url: &str, dest_file: String) -> impl Str
 
                 eprintln!("do");
                 stream::iter_ok(chunks.into_iter().map(move |(from, to, n)| {
-                    download_chunk(meta.clone(), options.clone(), download_file.clone(), n, from, to)
+                    download_chunk(
+                        meta.clone(),
+                        options.clone(),
+                        download_file.clone(),
+                        n,
+                        from,
+                        to,
+                    )
                 }))
                 .buffer_unordered(3)
                 .fold(init_progress, move |mut progress, chunk| {
@@ -276,14 +293,16 @@ pub struct ProgressStatus {
     pub total_to_download: Option<u64>,
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
     fn test_builder() {
-        let b : DownloadOptions = DownloadOptionsBuilder::default().chunk_size(3000).build().unwrap();
+        let b: DownloadOptions = DownloadOptionsBuilder::default()
+            .chunk_size(3000)
+            .build()
+            .unwrap();
 
         assert_eq!(b.connect_retry, 5);
         assert_eq!(b.chunk_timeout, time::Duration::from_secs(120));
