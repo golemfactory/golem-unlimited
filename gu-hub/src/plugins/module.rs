@@ -1,4 +1,5 @@
 use actix_web;
+use clap::AppSettings;
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use plugins::{self, builder::BuildPluginQuery, manager::QueriedStatus, rest::scope};
 use std::path::PathBuf;
@@ -48,6 +49,7 @@ impl Module for PluginModule {
         app.subcommand(
             SubCommand::with_name("plugin")
                 .about("UI plugins tools")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommands(vec![
                     SubCommand::with_name("install")
                         .about("Installs the plugin from the package")

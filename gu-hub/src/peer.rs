@@ -7,6 +7,7 @@ use actix_web::{
     self, http, AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder,
     Scope,
 };
+use clap::AppSettings;
 use futures::prelude::*;
 use gu_actix::prelude::*;
 use gu_base::{cli, App, ArgMatches, Decorator, Module, SubCommand};
@@ -38,6 +39,7 @@ impl Module for PeerModule {
         app.subcommand(
             SubCommand::with_name("peer")
                 .about("Peers management")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(SubCommand::with_name("list").about("Lists available peers")),
         )
     }

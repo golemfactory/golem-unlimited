@@ -2,7 +2,7 @@
 
 use actix::{Arbiter, System};
 use actor::{MdnsActor, OneShot};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Decorator, Module};
 use service::{ServiceInstance, ServicesDescription};
@@ -87,6 +87,7 @@ impl Module for LanModule {
 
         app.subcommand(
             SubCommand::with_name("lan")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(
                     SubCommand::with_name("list")
                         .about("Lists available instances")

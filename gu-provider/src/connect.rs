@@ -6,6 +6,7 @@ use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
     http, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Responder, Scope,
 };
+use clap::AppSettings;
 use futures::{future, stream::Stream, Future};
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{self, cli, Arg, ArgMatches, Decorator, Module, SubCommand};
@@ -118,6 +119,7 @@ impl Module for ConnectModule {
         app.subcommand(
             SubCommand::with_name("hubs")
                 .about("Manage hubs connections")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommands(vec![connect, disconnect, manual_mode, auto_mode, list]),
         )
     }

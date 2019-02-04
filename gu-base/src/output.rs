@@ -1,5 +1,5 @@
 use super::Module;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use env_logger;
 use std::env;
 use std::sync::atomic::{AtomicIsize, Ordering};
@@ -93,6 +93,7 @@ impl Module for AutocompleteModule {
         app.subcommand(
             SubCommand::with_name("completions")
                 .about("Generates completion scripts for your shell")
+                .setting(AppSettings::ArgRequiredElseHelp)
                 .arg(
                     Arg::with_name("SHELL")
                         .required(true)
