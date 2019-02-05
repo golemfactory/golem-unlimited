@@ -27,7 +27,7 @@ pub mod files;
 mod output;
 mod run_once;
 
-pub use clap::{App, Arg, ArgMatches, SubCommand};
+pub use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use futures::{future, prelude::*};
 use std::{any::Any, sync::Arc};
 

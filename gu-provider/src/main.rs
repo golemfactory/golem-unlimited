@@ -37,7 +37,6 @@ extern crate crossbeam_channel;
 extern crate futures_cpupool;
 extern crate tar_async;
 
-use clap::{App, AppSettings};
 use gu_base::*;
 
 mod connect;

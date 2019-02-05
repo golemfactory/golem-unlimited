@@ -6,10 +6,9 @@ use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
     http, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Responder, Scope,
 };
-use clap::AppSettings;
 use futures::{future, stream::Stream, Future};
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{self, cli, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{self, cli, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_lan::{
     actor::{Continuous, MdnsActor, SubscribeInstance},
     NewInstance, ServiceDescription, Subscription,
@@ -93,32 +92,32 @@ impl Module for ConnectModule {
             .help("save change in config file");
 
         let connect = SubCommand::with_name("connect")
-            .about("Connect to a hub without adding it to the config file (use -S to add it to the config file)")
+            .about("Connects to a hub (use -S to save it to the config file)")
             .arg(host.clone())
             .arg(save.clone());
         let disconnect = SubCommand::with_name("disconnect")
-            .about("Disconnect from a hub")
+            .about("Disconnects from a hub (use -S to remove it from the config file)")
             .arg(host.clone())
             .arg(save.clone());
 
         let list_pending = SubCommand::with_name("pending")
-            .about("List hubs to which the provider is trying to get connected");
+            .about("Lists hubs to which the provider is trying to connect to");
         let list_connected = SubCommand::with_name("connected")
-            .about("List hubs the provider is currently connected to");
+            .about("Lists hubs to which the provider is currently connected to");
         let list = SubCommand::with_name("list")
-            .about("Hub listing")
+            .about("Lists hubs related to this provider")
             .subcommands(vec![list_connected, list_pending]);
 
         let auto_mode = SubCommand::with_name("auto")
-            .about("Connect to the config hubs and additionally automatically connect to all found local hubs")
+            .about("Connects to the config hubs and additionally automatically connects to all found local hubs (use -S to save this setting)")
             .arg(save.clone());
         let manual_mode = SubCommand::with_name("manual")
-            .about("Connect just to config hubs")
+            .about("Connects only to the config hubs (use -S to save this setting)")
             .arg(save);
 
         app.subcommand(
             SubCommand::with_name("hubs")
-                .about("Manage hubs connections")
+                .about("Manages hub connections of a locally running server")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommands(vec![connect, disconnect, manual_mode, auto_mode, list]),
         )

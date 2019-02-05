@@ -59,7 +59,7 @@ impl DaemonHandler {
 
         SubCommand::with_name("server")
             .setting(AppSettings::SubcommandRequiredElseHelp)
-            .about("Server management")
+            .about("Runs, gets status or stops a server on this machine")
             .subcommands(vec![run, start, stop, status])
     }
 

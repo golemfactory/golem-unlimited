@@ -1,6 +1,5 @@
 use actix_web;
-use clap::AppSettings;
-use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{App, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
 use plugins::{self, builder::BuildPluginQuery, manager::QueriedStatus, rest::scope};
 use std::path::PathBuf;
 

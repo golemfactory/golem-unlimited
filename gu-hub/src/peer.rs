@@ -7,10 +7,9 @@ use actix_web::{
     self, http, AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder,
     Scope,
 };
-use clap::AppSettings;
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_base::{cli, App, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{cli, App, AppSettings, ArgMatches, Decorator, Module, SubCommand};
 use gu_model::peers as peers_api;
 use gu_net::{
     rpc::{peer::PeerInfo, public_destination, reply::CallRemote, reply::CallRemoteUntyped},

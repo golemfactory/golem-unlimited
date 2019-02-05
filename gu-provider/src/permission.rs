@@ -1,4 +1,4 @@
-use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{App, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_persist::config::{ConfigManager, GetConfig, HasSectionId, SetConfig};
 
 use gu_net::NodeId;
@@ -70,7 +70,7 @@ impl Module for PermissionModule {
             */
             .subcommand(
                 SubCommand::with_name("configure")
-                    .about("UI that can be used to configure a local server"),
+                    .about("Displays UI that can be used to configure a local server"),
             )
     }
 

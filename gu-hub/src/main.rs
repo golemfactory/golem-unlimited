@@ -35,7 +35,6 @@ extern crate semver;
 extern crate sha1;
 extern crate zip;
 
-use clap::{App, AppSettings};
 use gu_base::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
