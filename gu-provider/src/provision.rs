@@ -63,8 +63,7 @@ pub fn download_step(
                                     // if entry.header().path() { }
                                     future::Either::B(future::ok(()))
                                 }
-                            })
-                            .map(|_| ()),
+                            }),
                     ),
                 }
             }),
@@ -123,11 +122,12 @@ where
     use tar_async::decode::flat::{self, TarItem};
 
     flat::decode_tar(stream)
-        .filter_map(|item| match item {
-            TarItem::Entry(_) => None,
-            TarItem::Chunk(bytes) => Some(bytes),
-        })
+        .skip(1)
         .map_err(|e| e.to_string())
+        .and_then(|item| match item {
+            TarItem::Entry(_) => Err("tar contains more than one file".to_string()),
+            TarItem::Chunk(bytes) => Ok(bytes),
+        })
 }
 
 // TODO: support redirect
