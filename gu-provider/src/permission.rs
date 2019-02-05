@@ -53,19 +53,25 @@ enum PermissionModule {
 
 impl Module for PermissionModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-        app.subcommand(
-            SubCommand::with_name("join")
-                .args(&[
-                    Arg::with_name("group-id")
-                        .help("group addr through which the node will be managed")
-                        .required(true),
-                    Arg::with_name("hub-addr")
-                        .required(false)
-                        .help("<ip>:<port> of hub"),
-                ])
-                .about("allows provider to be managed by group"),
-        )
-        .subcommand(SubCommand::with_name("configure"))
+        app
+            /*.subcommand(
+                SubCommand::with_name("join")
+                    .setting(AppSettings::ArgRequiredElseHelp)
+                    .args(&[
+                        Arg::with_name("group-id")
+                            .help("group addr through which the node will be managed")
+                            .required(true),
+                        Arg::with_name("hub-addr")
+                            .required(false)
+                            .help("<ip>:<port> of hub"),
+                    ])
+                    .about("allows provider to be managed by group"),
+            )
+            */
+            .subcommand(
+                SubCommand::with_name("configure")
+                    .about("UI that can be used to configure a local server"),
+            )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
