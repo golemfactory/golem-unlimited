@@ -37,7 +37,6 @@ extern crate crossbeam_channel;
 extern crate futures_cpupool;
 extern crate tar_async;
 
-use clap::App;
 use gu_base::*;
 
 mod connect;
@@ -104,7 +103,12 @@ const VERSION: &str = self::version::VERGEN_SEMVER_LIGHTWEIGHT;
 fn main() {
     let config_module = gu_persist::config::ConfigModule::new();
 
-    GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
+    GuApp(|| {
+        App::new("Golem Unlimited Provider")
+            .setting(AppSettings::ArgRequiredElseHelp)
+            .version(VERSION)
+    })
+    .run(
         LogModule
             .chain(version::module())
             .chain(config_module)

@@ -27,7 +27,7 @@ pub mod files;
 mod output;
 mod run_once;
 
-pub use clap::{App, Arg, ArgMatches, SubCommand};
+pub use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use futures::{future, prelude::*};
 use std::{any::Any, sync::Arc};
 
@@ -183,9 +183,10 @@ where
     F: Fn() -> App<'static, 'static>,
 {
     pub fn run<M: Module + 'static + Sync + Send>(&mut self, mut module: M) {
-        let matches = module.args_declare(self.0()).get_matches();
+        let mut app_with_args = module.args_declare(self.0());
+        let matches = app_with_args.clone().get_matches();
 
-        if !(module.args_autocomplete(&matches, &|| module.args_declare(self.0()))
+        if !(module.args_autocomplete(&matches, &|| app_with_args.clone())
             || module.args_consume(&matches))
         {
             eprintln!("{}", matches.usage());

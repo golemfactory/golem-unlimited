@@ -2,7 +2,7 @@
 
 use actix::{Arbiter, System};
 use actor::{MdnsActor, OneShot};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Decorator, Module};
 use service::{ServiceInstance, ServicesDescription};
@@ -80,32 +80,31 @@ impl LanModule {
 
 impl Module for LanModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
-        let instance = Arg::with_name("instance")
+        let instance = Arg::with_name("instance_types")
             .short("I")
-            .help("queries mDNS server about some instance")
-            .default_value("gu-hub,gu-provider");
+            .help("Queries mDNS server about some instance types (comma-separated, e.g. gu-hub,gu-provider)")
+            .takes_value(true);
 
         app.subcommand(
             SubCommand::with_name("lan")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(
                     SubCommand::with_name("list")
-                        .about("Lists available instances")
+                        .about("Lists available instances (use -I to filter results)")
                         .arg(instance),
                 )
-                .about("Lan services"),
+                .about("Gets information about hubs and providers in the local area network"),
         )
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         if let Some(m) = matches.subcommand_matches("lan") {
             self.command = match m.subcommand() {
-                ("list", Some(m)) => {
-                    let instance = m
-                        .value_of("instance")
-                        .expect("Lack of required `instance` argument")
-                        .to_string();
-                    LanCommand::List(instance)
-                }
+                ("list", Some(m)) => LanCommand::List(
+                    m.value_of("instance_types")
+                        .unwrap_or("gu-hub,gu-provider")
+                        .to_string(),
+                ),
                 _ => return false,
             };
             true

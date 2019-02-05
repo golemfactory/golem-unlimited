@@ -35,7 +35,6 @@ extern crate semver;
 extern crate sha1;
 extern crate zip;
 
-use clap::App;
 use gu_base::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -47,7 +46,12 @@ mod server;
 mod sessions;
 
 fn main() {
-    GuApp(|| App::new("Golem Unlimited").version(VERSION)).run(
+    GuApp(|| {
+        App::new("Golem Unlimited")
+            .setting(AppSettings::ArgRequiredElseHelp)
+            .version(VERSION)
+    })
+    .run(
         LogModule
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::module::LanModule::module())

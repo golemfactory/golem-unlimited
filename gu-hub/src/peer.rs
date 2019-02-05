@@ -9,7 +9,7 @@ use actix_web::{
 };
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_base::{cli, App, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{cli, App, AppSettings, ArgMatches, Decorator, Module, SubCommand};
 use gu_model::peers as peers_api;
 use gu_net::{
     rpc::{peer::PeerInfo, public_destination, reply::CallRemote, reply::CallRemoteUntyped},
@@ -38,6 +38,7 @@ impl Module for PeerModule {
         app.subcommand(
             SubCommand::with_name("peer")
                 .about("Peers management")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(SubCommand::with_name("list").about("Lists available peers")),
         )
     }
