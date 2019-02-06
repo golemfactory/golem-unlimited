@@ -37,9 +37,11 @@ impl Module for PeerModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         app.subcommand(
             SubCommand::with_name("peer")
-                .about("Peers management")
+                .about("Shows information about connected providers (peers)")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
-                .subcommand(SubCommand::with_name("list").about("Lists available peers")),
+                .subcommand(
+                    SubCommand::with_name("list").about("Lists connected providers (peers)"),
+                ),
         )
     }
 

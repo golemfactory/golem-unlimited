@@ -70,7 +70,7 @@ impl Module for PermissionModule {
             */
             .subcommand(
                 SubCommand::with_name("configure")
-                    .about("Displays UI that can be used to configure a local server"),
+                    .about("Displays a UI that can be used to configure a local server"),
             )
     }
 

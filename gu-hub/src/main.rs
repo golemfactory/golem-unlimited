@@ -50,6 +50,7 @@ fn main() {
         App::new("Golem Unlimited")
             .setting(AppSettings::ArgRequiredElseHelp)
             .version(VERSION)
+            .after_help("The web UI is located at http://localhost:61622/app/index.html when the server is running.")
     })
     .run(
         LogModule

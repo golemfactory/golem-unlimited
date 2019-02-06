@@ -93,7 +93,7 @@ impl Module for LanModule {
                         .about("Lists available instances (use -I to filter results)")
                         .arg(instance),
                 )
-                .about("Gets information about hubs and providers in the local area network"),
+                .about("Shows information about all hubs and providers in the local area network"),
         )
     }
 
