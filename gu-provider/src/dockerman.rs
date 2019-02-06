@@ -18,6 +18,8 @@ use gu_persist::config::ConfigModule;
 use provision;
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::ffi;
+use std::path::PathBuf;
 use workspace::Workspace;
 use workspace::WorkspacesManager;
 
@@ -99,9 +101,34 @@ impl DockerSession {
         use futures::sync::mpsc;
         use std::io;
 
-        let stream = provision::download_stream(url.as_str());
+        let mut untar_path = PathBuf::from(file_path);
+
+        let stream: Box<Stream<Item = bytes::Bytes, Error = String>> = match format {
+            ResourceFormat::Raw => {
+                let name = untar_path.clone().file_name().map(|x| x.to_os_string());
+                println!("File name: {:?}", name);
+
+                untar_path.pop();
+
+                Box::new(
+                    future::result(name.ok_or("Invalid filename".to_string()))
+                        .map(move |filename| {
+                            provision::tarred_download_stream(url.as_str(), filename)
+                        })
+                        .flatten_stream(),
+                )
+            }
+            ResourceFormat::Tar => Box::new(provision::download_stream(url.as_str())),
+        };
+
+        let untar_path = match untar_path.to_str() {
+            Some(x) => x.to_owned(),
+            None => return future::Either::A(future::err("Invalid unicode in filepath".to_string())),
+        };
+        println!("Untar path: {}", untar_path);
+
         let opts = async_docker::build::ContainerArchivePutOptions::builder()
-            .remote_path(file_path)
+            .remote_path(untar_path)
             .build();
 
         let (send, recv) = mpsc::channel(16);
@@ -120,7 +147,7 @@ impl DockerSession {
             .send_all(stream)
             .and_then(|(mut sink, _)| sink.close());
 
-        recv_fut.join(send_fut).map(|_| "OK".into())
+        future::Either::B(recv_fut.join(send_fut).map(|_| "OK".into()))
     }
 
     fn do_upload(

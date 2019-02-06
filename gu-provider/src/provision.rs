@@ -1,3 +1,5 @@
+use actix_web::client::ClientResponse;
+use actix_web::http::header;
 use actix_web::HttpMessage;
 use futures::{future, prelude::*};
 use gu_base::files::read_async;
@@ -160,7 +162,58 @@ pub fn download(
     )
 }
 
-pub fn download_stream(url: &str) -> impl Stream<Item = bytes::Bytes, Error = String> + 'static {
+fn content_length(r: &ClientResponse) -> Result<u64, String> {
+    r.headers()
+        .get(header::CONTENT_LENGTH)
+        .ok_or("Downloaded file does not have content-length header")
+        .and_then(|header| {
+            header
+                .to_str()
+                .map_err(|_| "Incorrect ascii text in content-length header")
+        })
+        .and_then(|text: &str| {
+            text.parse::<u64>()
+                .map_err(|_| "Incorrect number in content-length header")
+        })
+        .map_err(|e| e.to_string())
+}
+
+fn response_to_tarred_stream<P>(
+    resp: ClientResponse,
+    path: P,
+) -> impl Stream<Item = bytes::Bytes, Error = String> + 'static
+where
+    P: AsRef<Path>,
+{
+    let header = content_length(&resp).and_then(|length| {
+        let mut header = tar::Header::new_ustar();
+        header.set_size(length);
+        header
+            .set_path(path)
+            .map_err(|_| "Incorrect filepath - cannot be set as filepath in tar".to_string())?;
+        header.set_cksum();
+
+        let header: &[u8] = header.as_bytes();
+        Ok(bytes::Bytes::from(header))
+    });
+
+    futures::stream::once(header).chain(resp.payload().map_err(|e| e.to_string()))
+}
+
+fn response_to_stream(
+    resp: ClientResponse,
+) -> impl Stream<Item = bytes::Bytes, Error = String> + 'static {
+    resp.payload().map_err(|e| e.to_string())
+}
+
+fn inner_download_stream<F, S>(
+    url: &str,
+    function: F,
+) -> impl Stream<Item = bytes::Bytes, Error = String> + 'static
+where
+    F: Fn(ClientResponse) -> S + 'static,
+    S: Stream<Item = bytes::Bytes, Error = String> + 'static,
+{
     use actix_web::client;
     use async_docker;
 
@@ -170,8 +223,24 @@ pub fn download_stream(url: &str) -> impl Stream<Item = bytes::Bytes, Error = St
         .send()
         .timeout(time::Duration::from_secs(300))
         .map_err(|e| e.to_string())
-        .and_then(|resp| Ok(resp.payload().map_err(|e| e.to_string())))
+        .map(move |resp| function(resp))
         .flatten_stream()
+}
+
+pub fn download_stream(url: &str) -> impl Stream<Item = bytes::Bytes, Error = String> + 'static {
+    inner_download_stream(url, response_to_stream)
+}
+
+pub fn tarred_download_stream<P>(
+    url: &str,
+    filename: P,
+) -> impl Stream<Item = bytes::Bytes, Error = String> + 'static
+where
+    P: AsRef<Path> + Clone + 'static,
+{
+    inner_download_stream(url, move |resp| {
+        response_to_tarred_stream(resp, filename.clone())
+    })
 }
 
 pub fn untgz<P: AsRef<Path> + ToOwned>(
