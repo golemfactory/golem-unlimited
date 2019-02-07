@@ -376,7 +376,7 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             SessionOk::Blob(blob) => blob.write(r.payload()),
             _ => unreachable!(),
         })
-        .and_then(|result| Ok(Into::<HttpResponse>::into(result)));
+        .and_then(|_| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()));
 
     session_future_responder(res_fut)
 }
