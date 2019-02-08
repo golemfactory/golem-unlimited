@@ -123,7 +123,9 @@ impl DockerSession {
 
         let untar_path = match untar_path.to_str() {
             Some(x) => x.to_owned(),
-            None => return future::Either::A(future::err("Invalid unicode in filepath".to_string())),
+            None => {
+                return future::Either::A(future::err("Invalid unicode in filepath".to_string()));
+            }
         };
         println!("Untar path: {}", untar_path);
 

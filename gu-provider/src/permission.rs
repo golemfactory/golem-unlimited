@@ -1,7 +1,9 @@
 use gu_base::{App, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_persist::config::{ConfigManager, GetConfig, HasSectionId, SetConfig};
 
+use connect::{edit_config_connect_mode, edit_config_hosts, ConnectionChange};
 use gu_net::NodeId;
+use server::ConnectMode;
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -180,6 +182,7 @@ fn run_configure() {
                     let mut config = (*config_ref).clone();
 
                     loop {
+                        let mut selected_hubs = vec![];
                         println!("Select valid hub:");
 
                         hubs.iter()
@@ -195,7 +198,9 @@ fn run_configure() {
                                     hub.host_name,
                                     hub.address,
                                     hub.node_id
-                                )
+                                );
+
+                                if config.is_managed_by(&node_id) { selected_hubs.push(hub.address) }
                             });
                         println!(
                             "{} *) Access is granted to everyone",
@@ -205,6 +210,7 @@ fn run_configure() {
                         println!();
 
                         let mut input_buf = String::new();
+                        let connect_mode = if config.allow_any { ConnectMode::Auto } else { ConnectMode::Manual };
 
                         eprint!(" => ");
                         io::stdin().read_line(&mut input_buf).unwrap();
@@ -212,8 +218,17 @@ fn run_configure() {
                         if input == "*" {
                             config.allow_any = !config.allow_any;
                         } else if input == "s" {
+                            let selected_nodes =
                             return ConfigManager::from_registry()
                                 .send(SetConfig::new(config))
+                                .and_then(move|_| {
+                                    edit_config_connect_mode(connect_mode)
+                                        .map_err(|x| actix::MailboxError::Closed) /* TODO fix error mapping */
+                                })
+                                .and_then(|_| {
+                                    edit_config_hosts(selected_hubs, ConnectionChange::Connect) /* TODO check change: parameter */
+                                        .map_err(|x| actix::MailboxError::Closed) /* TODO fix error mapping */
+                                })
                                 .then(|_| Ok(()));
                         } else {
                             let idx: usize = input.parse().unwrap_or_default();
