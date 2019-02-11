@@ -386,19 +386,21 @@ pub(crate) fn edit_config_connect_mode(
 pub(crate) fn edit_config_hosts(
     list: Vec<SocketAddr>,
     change: ConnectionChange,
+    clear_old_list: bool,
 ) -> impl Future<Item = Option<()>, Error = String> {
-    fn editor(
-        c: &ProviderConfig,
-        data: (Vec<SocketAddr>, ConnectionChange),
-    ) -> Option<ProviderConfig> {
+    let editor = move |c: &ProviderConfig, data: (Vec<SocketAddr>, ConnectionChange)| {
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
-        edit_config_list(config.hub_addrs.clone(), data.0, data.1).map(|new| {
+        let hubs = match clear_old_list {
+            true => vec![],
+            false => config.hub_addrs.clone(),
+        };
+        edit_config_list(hubs, data.0, data.1).map(|new| {
             config.hub_addrs = new;
             config
         })
-    }
+    };
 
     edit_config((list, change), editor)
 }

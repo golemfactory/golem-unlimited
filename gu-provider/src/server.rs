@@ -312,7 +312,7 @@ impl Handler<ConnectionChangeMessage> for ProviderServer {
         let msg2 = msg.clone();
         let save = msg.save;
         let config_fut = optional_save_future(
-            move || connect::edit_config_hosts(msg2.hubs, msg2.change),
+            move || connect::edit_config_hosts(msg2.hubs, msg2.change, false),
             save,
         );
 

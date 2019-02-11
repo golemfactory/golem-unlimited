@@ -200,7 +200,9 @@ fn run_configure() {
                                     hub.node_id
                                 );
 
-                                if config.is_managed_by(&node_id) { selected_hubs.push(hub.address) }
+                                if config.is_managed_by(&node_id) {
+                                    selected_hubs.push(hub.address)
+                                }
                             });
                         println!(
                             "{} *) Access is granted to everyone",
@@ -210,7 +212,11 @@ fn run_configure() {
                         println!();
 
                         let mut input_buf = String::new();
-                        let connect_mode = if config.allow_any { ConnectMode::Auto } else { ConnectMode::Manual };
+                        let connect_mode = if config.allow_any {
+                            ConnectMode::Auto
+                        } else {
+                            ConnectMode::Manual
+                        };
 
                         eprint!(" => ");
                         io::stdin().read_line(&mut input_buf).unwrap();
@@ -218,16 +224,19 @@ fn run_configure() {
                         if input == "*" {
                             config.allow_any = !config.allow_any;
                         } else if input == "s" {
-                            let selected_nodes =
-                            return ConfigManager::from_registry()
+                            let selected_nodes = return ConfigManager::from_registry()
                                 .send(SetConfig::new(config))
-                                .and_then(move|_| {
-                                    edit_config_connect_mode(connect_mode)
-                                        .map_err(|x| actix::MailboxError::Closed) /* TODO fix error mapping */
+                                .map_err(|_| ())
+                                .and_then(move |_| {
+                                    edit_config_connect_mode(connect_mode).map_err(|x| ())
                                 })
                                 .and_then(|_| {
-                                    edit_config_hosts(selected_hubs, ConnectionChange::Connect) /* TODO check change: parameter */
-                                        .map_err(|x| actix::MailboxError::Closed) /* TODO fix error mapping */
+                                    edit_config_hosts(
+                                        selected_hubs,
+                                        ConnectionChange::Connect,
+                                        false,
+                                    )
+                                    .map_err(|x| ())
                                 })
                                 .then(|_| Ok(()));
                         } else {
