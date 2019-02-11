@@ -3,6 +3,11 @@ name = "gu-hdman"
 version = "0.1.0"
 edition = "2018"
 
+
+[features]
+default=["ssl"]
+ssl=["actix-web/rust-tls"]
+
 [dependencies]
 
 tokio-process="0.2.3"

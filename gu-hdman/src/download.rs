@@ -1,10 +1,6 @@
 /*
-
     Smart downloader
-
-
 */
-
 use actix::prelude::*;
 use bytes::*;
 use failure::Fail;
@@ -22,20 +18,23 @@ use std::{fmt, fs, io, path, time};
 mod error;
 mod sync_io;
 
-use self::sync_io::{DownloadFile, LogMetadata, Proxy};
+use self::sync_io::{CheckType, DownloadFile, LogMetadata, Proxy};
 
 pub use self::error::Error;
+use actix_web::{http::header, HttpMessage};
 use derive_builder::*;
 use std::sync::Arc;
 
 #[derive(Builder, Clone)]
 pub struct DownloadOptions {
     #[builder(default = "5")]
-    connect_retry: u32,
+    connect_retry: u16,
     #[builder(default = "524288")]
     chunk_size: u32,
     #[builder(default = "time::Duration::from_secs(120)")]
     chunk_timeout: time::Duration,
+    #[builder(default = "3")]
+    connections: u16,
 }
 
 impl DownloadOptions {
@@ -70,6 +69,10 @@ pub fn cpu_pool() -> CpuPool {
         .clone()
 }
 
+trait ProgressReport: Clone {
+    fn progress(progress: ProgressStatus);
+}
+
 fn download_chunk(
     meta: Arc<LogMetadata>,
     options: Arc<DownloadOptions>,
@@ -97,7 +100,7 @@ fn download_chunk(
                 }
                 _ => future::Either::B(
                     client::get(&meta.url)
-                        .header(header::IF_RANGE, format!("{}", meta.etag))
+                        .header(header::IF_RANGE, format!("{}", meta.to_if_range().unwrap()))
                         .header(header::RANGE, format!("bytes={}-{}", from, to - 1))
                         .finish()
                         .unwrap()
@@ -127,11 +130,21 @@ fn download_chunk(
     })
 }
 
-pub struct UrlInfo {
-    pub download_url: String,
-    pub size: Option<u64>,
-    pub etag: Option<String>,
-    pub accept_ranges: bool,
+struct UrlInfo {
+    download_url: String,
+    size: Option<u64>,
+    check: CheckType,
+    accept_ranges: bool,
+}
+
+fn extract_check<M: actix_web::HttpMessage>(resp: &M) -> Result<CheckType, header::ToStrError> {
+    if let Some(etag_value) = resp.headers().get(actix_web::http::header::ETAG) {
+        Ok(CheckType::ETag(etag_value.to_str()?.into()))
+    } else if let Some(last_mod_time) = resp.headers().get(header::LAST_MODIFIED) {
+        Ok(CheckType::ModTime(last_mod_time.to_str()?.into()))
+    } else {
+        Ok(CheckType::None)
+    }
 }
 
 /*
@@ -167,10 +180,8 @@ pub fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
                     }
                 } else if resp.status().is_success() {
                     let headers = resp.headers();
-                    let etag = headers
-                        .get("etag")
-                        .and_then(|v| v.to_str().ok())
-                        .map(|s| s.to_owned());
+                    let check = extract_check(&resp)
+                        .map_err(|e| Error::Other(format!("invalid response: {}", e)))?;
                     let size: Option<u64> = headers
                         .get("content-length")
                         .and_then(|v| v.to_str().ok())
@@ -178,7 +189,7 @@ pub fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
                     Ok(Loop::Break(UrlInfo {
                         download_url: url,
                         size,
-                        etag,
+                        check,
                         accept_ranges: true,
                     }))
                 } else {
@@ -206,6 +217,7 @@ fn download(
 
     let init_tx = tx.clone();
     let options = Arc::new(options);
+    let connections = options.connections;
 
     let chunks_stream = check_url(url)
         .and_then(|info| {
@@ -213,7 +225,7 @@ fn download(
                 DownloadFile::new(
                     dest_file.as_ref(),
                     &info.download_url,
-                    &info.etag.unwrap(),
+                    info.check,
                     info.size.unwrap(),
                 )
             })
@@ -260,7 +272,7 @@ fn download(
                         to,
                     )
                 }))
-                .buffer_unordered(3)
+                .buffer_unordered(connections as usize)
                 .fold(init_progress, move |mut progress, chunk| {
                     eprintln!("progress: {:?} / {:?}", progress, chunk);
                     progress.downloaded_bytes += (chunk.to - chunk.from);

@@ -10,6 +10,8 @@ use structopt::*;
 #[structopt(name = "gu-download", about = "An example of download operation")]
 struct DownloadOpts {
     download_url: String,
+    #[structopt(short = "r", long = "retry")]
+    connect_retry: Option<u16>,
 }
 
 fn main() {
@@ -20,8 +22,14 @@ fn main() {
 
     let progress_ref = progress.clone();
 
+    let mut download_options = DownloadOptionsBuilder::default();
+
+    if let Some(connect_retry) = opt.connect_retry {
+        download_options.connect_retry(connect_retry);
+    }
+
     sys.block_on(
-        DownloadOptionsBuilder::default()
+        download_options
             .download(
                 &opt.download_url,
                 //"http://52.31.143.91/images/x86_64/linux/gu-blend.hdi",
