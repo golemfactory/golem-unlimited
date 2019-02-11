@@ -228,15 +228,15 @@ fn run_configure() {
                                 .send(SetConfig::new(config))
                                 .map_err(|_| ())
                                 .and_then(move |_| {
-                                    edit_config_connect_mode(connect_mode).map_err(|x| ())
+                                    edit_config_connect_mode(connect_mode).map_err(|_| ())
                                 })
                                 .and_then(|_| {
                                     edit_config_hosts(
                                         selected_hubs,
                                         ConnectionChange::Connect,
-                                        false,
+                                        true,
                                     )
-                                    .map_err(|x| ())
+                                    .map_err(|_| ())
                                 })
                                 .then(|_| Ok(()));
                         } else {
