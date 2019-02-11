@@ -62,6 +62,20 @@ impl DockerSession {
             .and_then(|v| Ok("OK".into()))
     }
 
+    fn do_start(&mut self) -> impl Future<Item = String, Error = String> {
+        self.container
+            .start()
+            .map_err(|e| format!("{}", e))
+            .and_then(|v| Ok("OK".into()))
+    }
+
+    fn do_wait(&mut self) -> impl Future<Item = String, Error = String> {
+        self.container
+            .wait()
+            .map_err(|e| format!("{}", e))
+            .and_then(|v| Ok("OK".into()))
+    }
+
     fn do_exec(
         &mut self,
         executable: String,
@@ -358,8 +372,11 @@ fn run_command(
             .run_for_deployment(session_id, |deployment| {
                 deployment.do_exec(executable, args)
             }),
-        Command::Start { executable, args } => Box::new(fut::ok("Start mock".to_string())),
+        Command::Start { executable, args } => {
+            docker_man.run_for_deployment(session_id, DockerSession::do_start)
+        }
         Command::Stop { child_id } => Box::new(fut::ok("Stop mock".to_string())),
+        Command::Wait => docker_man.run_for_deployment(session_id, DockerSession::do_wait),
         Command::DownloadFile {
             url,
             file_path,

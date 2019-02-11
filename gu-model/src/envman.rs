@@ -123,6 +123,7 @@ pub enum Command {
     Stop {
         child_id: String,
     },
+    Wait,
     AddTags(Vec<String>),
     DelTags(Vec<String>),
     #[serde(rename_all = "camelCase")]

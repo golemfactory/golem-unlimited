@@ -219,7 +219,7 @@ impl Handler<CreateSession> for HdMan {
             processes: HashMap::new(),
         };
 
-        debug!("newly created session id={}", session_id);
+        println!("newly created session id={}", session_id);
         self.deploys.insert_deploy(session_id.clone(), session);
 
         debug!("hey! I'm downloading from: {:?}", msg.image);
@@ -350,6 +350,7 @@ fn run_command(
                 }),
             )
         }
+        Command::Wait => Box::new(fut::ok("Wait mock".to_string())),
         Command::DownloadFile {
             url,
             file_path,
