@@ -1,12 +1,14 @@
 use gu_base::{App, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_persist::config::{ConfigManager, GetConfig, HasSectionId, SetConfig};
 
-use connect::{edit_config_connect_mode, edit_config_hosts, ConnectionChange};
+use crate::connect::{edit_config_connect_mode, edit_config_hosts, ConnectionChange};
 use gu_net::NodeId;
-use server::ConnectMode;
+use crate::server::ConnectMode;
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use serde_derive::*;
+use log::error;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]

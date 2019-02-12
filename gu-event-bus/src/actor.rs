@@ -110,7 +110,7 @@ impl<T: 'static + Send + Sync> Handler<Subscribe<T>> for EventHub<T> {
             .map(move |worker| worker.send(AddSubscriber::from_subscribe(sub_id, &msg)))
             .collect();
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             future::join_all(f)
                 .map_err(|_| ())
                 .and_then(move |_r| Ok(sub_id))

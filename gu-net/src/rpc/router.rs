@@ -112,7 +112,7 @@ impl Handler<EmitMessage<String>> for MessageRouter {
             return ActorResponse::reply(Err(error::ErrorKind::NotConnected.into()));
         };
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             f.into_actor(self)
                 .map_err(move |e: error::Error, act, ctx| {
                     match e.kind() {

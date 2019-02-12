@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use actix::prelude::*;
+use ::actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
-use connect::ListingType;
-use connect::{
+use crate::connect::ListingType;
+use crate::connect::{
     self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
     ConnectionChangeMessage, Disconnect, ListSockets,
 };
@@ -22,11 +22,15 @@ use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
     http::{ServerClient, ServerConfig},
 };
-use hdman::HdMan;
+use crate::hdman::HdMan;
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
+use serde_derive::*;
+use gu_actix::{prelude::*, async_try, async_result};
+use log::{info, error, debug};
+
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -207,7 +211,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .decorate_webapp(App::new().scope("/m", rpc::mock::scope))
         });
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             ConfigManager::from_registry()
                 .send(GetConfig::new())
                 .flatten_fut()
@@ -269,7 +273,7 @@ impl Handler<ConnectModeMessage> for ProviderServer {
                 .map_err(|e| e.to_string())
                 .and_then(|r| r);
 
-            return ActorResponse::async(
+            return ActorResponse::r#async(
                 config_fut
                     .join(state_fut)
                     .map_err(|e| e.to_string())
@@ -292,7 +296,7 @@ impl Handler<ListSockets> for ProviderServer {
 
     fn handle(&mut self, msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {
-            ActorResponse::async(
+            ActorResponse::r#async(
                 connections
                     .send(msg)
                     .map_err(|e| e.to_string())
@@ -334,7 +338,7 @@ impl Handler<ConnectionChangeMessage> for ProviderServer {
                 }
             };
 
-            return ActorResponse::async(
+            return ActorResponse::r#async(
                 config_fut
                     .and_then(|_| state_fut)
                     .and_then(|_| Ok(None))

@@ -10,6 +10,8 @@ use std::{
     path::{Path, PathBuf},
     time,
 };
+use gu_actix::{prelude::*, async_try, async_result};
+use log::{info, error, debug};
 
 pub fn download_step(
     url: &str,

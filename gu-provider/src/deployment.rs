@@ -1,10 +1,11 @@
 use actix::fut;
 use gu_model::envman::Error;
 use gu_net::rpc::peer::PeerSessionInfo;
-use id::generate_new_id;
-use status;
+use crate::id::generate_new_id;
+use crate::status;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use log::{error, debug};
 
 pub trait IntoDeployInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo;

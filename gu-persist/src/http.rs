@@ -303,7 +303,7 @@ where
         use actix_web::HttpMessage;
         use futures::future;
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             ConfigManager::from_registry()
                 .send(config::GetConfig::new())
                 .flatten_fut()

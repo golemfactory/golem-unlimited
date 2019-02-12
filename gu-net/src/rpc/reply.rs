@@ -193,7 +193,7 @@ where
 
         let node_id = msg.0;
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             MessageRouter::from_registry()
                 .send(EmitMessage {
                     dest_node: msg.0,
@@ -250,7 +250,7 @@ impl Handler<CallRemoteUntyped> for ReplyRouter {
         self.reply_map.insert(cid.into(), tx);
         let node_id = msg.0;
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             MessageRouter::from_registry()
                 .send(EmitMessage {
                     dest_node: msg.0,

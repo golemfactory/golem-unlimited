@@ -21,14 +21,17 @@ use gu_net::{
     NodeId,
 };
 use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, SetConfig};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Serialize, Deserialize};
+use serde_derive::*;
 use serde_json;
-use server::{ConnectMode, ProviderClient, ProviderServer};
+use crate::server::{ConnectMode, ProviderClient, ProviderServer};
 use std::{
     collections::{HashMap, HashSet},
     iter::FromIterator,
     net::SocketAddr,
 };
+use log::{error, debug};
+use prettytable::{row, cell};
 
 pub fn module() -> ConnectModule {
     ConnectModule { state: State::None }
@@ -553,7 +556,7 @@ impl Handler<ListSockets> for ConnectManager {
 
     fn handle(&mut self, _: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         let list = self.list();
-        ActorResponse::async(list.into_actor(self))
+        ActorResponse::r#async(list.into_actor(self))
     }
 }
 
@@ -583,7 +586,7 @@ impl Handler<Disconnect> for ConnectManager {
     type Result = ActorResponse<Self, Option<()>, String>;
 
     fn handle(&mut self, msg: Disconnect, _ctx: &mut Context<Self>) -> Self::Result {
-        ActorResponse::async(self.disconnect(msg.0).into_actor(self))
+        ActorResponse::r#async(self.disconnect(msg.0).into_actor(self))
     }
 }
 
@@ -596,7 +599,7 @@ impl Handler<AutoMdns> for ConnectManager {
 
     fn handle(&mut self, msg: AutoMdns, ctx: &mut Context<Self>) -> Self::Result {
         if msg.0 && self.subscription.is_none() {
-            ActorResponse::async(
+            ActorResponse::r#async(
                 MdnsActor::<Continuous>::from_registry()
                     .send(SubscribeInstance {
                         service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),

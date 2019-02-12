@@ -2,7 +2,7 @@
 
 use gu_model::dockerman::VolumeDef;
 use gu_persist::config::ConfigModule;
-use provision::untgz;
+use super::provision::untgz;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashSet};
 use std::fs;
@@ -11,6 +11,9 @@ use std::io;
 use std::iter::FromIterator;
 use std::path::PathBuf;
 use uuid::Uuid;
+use gu_actix::{prelude::*, async_try, async_result};
+use log::{info, error, debug};
+
 
 pub struct WorkspacesManager {
     namespace: &'static str,
@@ -128,7 +131,7 @@ impl Workspace {
 mod tests {
     use gu_model::dockerman::VolumeDef;
     use std::path::PathBuf;
-    use workspace::Workspace;
+    use crate::workspace::Workspace;
 
     #[test]
     fn create_dirs() {

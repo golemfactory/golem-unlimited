@@ -1,3 +1,5 @@
+use log::{error, info,debug};
+use serde_derive::*;
 use super::{
     envman, status,
     sync_exec::{Exec, ExecResult, SyncExecManager},
@@ -5,9 +7,7 @@ use super::{
 use actix::{fut, prelude::*};
 use actix_web::client;
 use actix_web::error::ErrorInternalServerError;
-use deployment::DeployManager;
-use deployment::Destroy;
-use deployment::IntoDeployInfo;
+use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use futures::future;
 use futures::prelude::*;
 use gu_actix::prelude::*;
@@ -18,16 +18,14 @@ use gu_net::rpc::{
     *,
 };
 use gu_persist::config::ConfigModule;
-use id::generate_new_id;
-use provision::download_step;
-use provision::upload_step;
-use provision::{download, untgz};
+use super::id::generate_new_id;
+use super::provision::{download_step ,upload_step, download, untgz};
+
 use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
-use workspace::Workspace;
-use workspace::WorkspacesManager;
+use super::workspace::{Workspace, WorkspacesManager};
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -224,7 +222,7 @@ impl Handler<CreateSession> for HdMan {
 
         debug!("hey! I'm downloading from: {:?}", msg.image);
         let sess_id = session_id.clone();
-        ActorResponse::async(
+        ActorResponse::r#async(
             download(msg.image.url.as_ref(), cache_path.clone(), true)
                 .map_err(From::from)
                 .and_then(move |_| untgz(cache_path, workspace_path))
@@ -422,7 +420,7 @@ impl Handler<SessionUpdate> for HdMan {
         }
         let session_id = msg.session_id.clone();
 
-        ActorResponse::async(run_commands(self, session_id, msg.commands))
+        ActorResponse::r#async(run_commands(self, session_id, msg.commands))
     }
 }
 
@@ -468,7 +466,7 @@ impl Handler<DestroySession> for HdMan {
         msg: DestroySession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
-        ActorResponse::async(match self.deploys.destroy_deploy(&msg.session_id) {
+        ActorResponse::r#async(match self.deploys.destroy_deploy(&msg.session_id) {
             Ok(_) => fut::ok("Session closed".into()),
             Err(e) => fut::err(e),
         })
