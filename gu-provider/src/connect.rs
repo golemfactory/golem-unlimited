@@ -386,17 +386,14 @@ pub(crate) fn edit_config_connect_mode(
 pub(crate) fn edit_config_hosts(
     list: Vec<SocketAddr>,
     change: ConnectionChange,
-    clear_old_list: bool,
+    clear_old_hosts: bool,
 ) -> impl Future<Item = Option<()>, Error = String> {
     let editor = move |c: &ProviderConfig, data: (Vec<SocketAddr>, ConnectionChange)| {
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
-        let hubs = match clear_old_list {
-            true => vec![],
-            false => config.hub_addrs.clone(),
-        };
-        edit_config_list(hubs, data.0, data.1).map(|new| {
+
+        edit_config_list(config.hub_addrs.clone(), data.0, data.1, clear_old_hosts).map(|new| {
             config.hub_addrs = new;
             config
         })
@@ -437,11 +434,16 @@ fn edit_config_list(
     old: Vec<SocketAddr>,
     list: Vec<SocketAddr>,
     change: ConnectionChange,
+    clear_old_list: bool,
 ) -> Option<Vec<SocketAddr>> {
     use std::iter::FromIterator;
 
     let mut old: HashSet<_> = HashSet::from_iter(old.into_iter());
     let len = old.len();
+
+    if clear_old_list {
+        old.clear()
+    }
 
     match change {
         ConnectionChange::Connect => {
@@ -456,7 +458,7 @@ fn edit_config_list(
         }
     }
 
-    if len == old.len() {
+    if len == old.len() && !clear_old_list {
         None
     } else {
         Some(Vec::from_iter(old.into_iter()))
