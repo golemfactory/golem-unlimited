@@ -1,3 +1,5 @@
+use serde_derive::*;
+
 #[derive(Default, Serialize, Deserialize)]
 pub struct CreateOptions {
     pub volumes: Vec<VolumeDef>,

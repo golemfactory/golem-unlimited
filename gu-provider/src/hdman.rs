@@ -1,3 +1,8 @@
+/** Host direct manager.
+
+
+
+*/
 use super::id::generate_new_id;
 use super::provision::{download, download_step, untgz, upload_step};
 use super::{
@@ -229,7 +234,7 @@ impl Handler<CreateSession> for HdMan {
                 .map_err(From::from)
                 .into_actor(self)
                 .and_then(|_, act, _ctx| match act.get_session_mut(&sess_id) {
-                    Ok(session) => {
+                    Ok(mut session) => {
                         session.status = PeerSessionStatus::CREATED;
                         fut::ok(sess_id)
                     }
