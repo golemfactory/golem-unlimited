@@ -41,6 +41,13 @@ impl PermissionConfig {
             _ => false,
         })
     }
+
+    fn remove_managed_permissions_except_for(&mut self, except_nodes: &HashSet<NodeId>) {
+        self.permissions.retain(|perm| match perm {
+            Permission::ManagedBy(node_id) => except_nodes.contains(node_id),
+            _ => true,
+        });
+    }
 }
 
 impl HasSectionId for PermissionConfig {
@@ -180,14 +187,24 @@ fn run_configure() {
                 .join(get_config)
                 .and_then(|(hubs, config_ref)| {
                     let mut config = (*config_ref).clone();
+                    let valid_hubs = hubs
+                        .into_iter()
+                        .filter(|h| !h.node_id.is_empty())
+                        .collect::<Vec<gu_lan::HubDesc>>();
+                    let except_node_ids: HashSet<NodeId> = valid_hubs
+                        .iter()
+                        .map(|desc| NodeId::from_str(&desc.node_id).unwrap())
+                        .collect();
+                    config.remove_managed_permissions_except_for(&except_node_ids);
 
                     loop {
                         let mut selected_hubs = vec![];
                         println!("Select valid hub:");
 
-                        hubs.iter()
+                        valid_hubs
+                            .iter()
+                            .filter(|v| !v.node_id.is_empty())
                             .enumerate()
-                            .filter(|v| !v.1.node_id.is_empty())
                             .for_each(|(idx, hub)| {
                                 let node_id = NodeId::from_str(&hub.node_id).unwrap();
 
@@ -201,7 +218,8 @@ fn run_configure() {
                                 );
 
                                 if config.is_managed_by(&node_id) {
-                                    selected_hubs.push(hub.address)
+                                    selected_hubs.push(hub.address);
+                                    config.permissions.insert(Permission::ManagedBy(node_id));
                                 }
                             });
                         println!(
@@ -241,8 +259,8 @@ fn run_configure() {
                                 .then(|_| Ok(()));
                         } else {
                             let idx: usize = input.parse().unwrap_or_default();
-                            if idx > 0 && idx <= hubs.len() {
-                                toggle_managed_by(&mut config, &hubs[idx - 1])
+                            if idx > 0 && idx <= valid_hubs.len() {
+                                toggle_managed_by(&mut config, &valid_hubs[idx - 1])
                             }
                         }
                     }
