@@ -1,8 +1,8 @@
 use actix::{fut, prelude::*};
-use gu_actix::*;
-use std::{io, path::PathBuf, process};
 use error_chain::*;
-use log::{error, debug};
+use gu_actix::*;
+use log::{debug, error};
+use std::{io, path::PathBuf, process};
 
 /// Synchronous executor
 pub struct SyncExec;

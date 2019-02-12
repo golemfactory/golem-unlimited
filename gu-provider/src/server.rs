@@ -1,16 +1,18 @@
 #![allow(dead_code)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use ::actix::prelude::*;
-use actix_web::*;
-use clap::ArgMatches;
 use crate::connect::ListingType;
 use crate::connect::{
     self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
     ConnectionChangeMessage, Disconnect, ListSockets,
 };
+use crate::hdman::HdMan;
+use ::actix::prelude::*;
+use actix_web::*;
+use clap::ArgMatches;
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
+use gu_actix::{async_result, async_try, prelude::*};
 use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
@@ -22,15 +24,12 @@ use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
     http::{ServerClient, ServerConfig},
 };
-use crate::hdman::HdMan;
+use log::{debug, error, info};
+use serde_derive::*;
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
-use serde_derive::*;
-use gu_actix::{prelude::*, async_try, async_result};
-use log::{info, error, debug};
-
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

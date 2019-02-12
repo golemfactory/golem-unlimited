@@ -1,6 +1,7 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 use super::server::ProviderConfig;
+use crate::server::{ConnectMode, ProviderClient, ProviderServer};
 use actix::prelude::*;
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
@@ -21,17 +22,16 @@ use gu_net::{
     NodeId,
 };
 use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, SetConfig};
-use serde::{de::DeserializeOwned, Serialize, Deserialize};
+use log::{debug, error};
+use prettytable::{cell, row};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_derive::*;
 use serde_json;
-use crate::server::{ConnectMode, ProviderClient, ProviderServer};
 use std::{
     collections::{HashMap, HashSet},
     iter::FromIterator,
     net::SocketAddr,
 };
-use log::{error, debug};
-use prettytable::{row, cell};
 
 pub fn module() -> ConnectModule {
     ConnectModule { state: State::None }

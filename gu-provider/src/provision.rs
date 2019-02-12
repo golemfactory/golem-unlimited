@@ -2,16 +2,16 @@ use actix_web::client::ClientResponse;
 use actix_web::http::header;
 use actix_web::HttpMessage;
 use futures::{future, prelude::*};
+use gu_actix::{async_result, async_try, prelude::*};
 use gu_base::files::read_async;
 use gu_base::files::{untgz_async, write_async};
 use gu_model::envman::ResourceFormat;
+use log::{debug, error, info};
 use std::{
     fs,
     path::{Path, PathBuf},
     time,
 };
-use gu_actix::{prelude::*, async_try, async_result};
-use log::{info, error, debug};
 
 pub fn download_step(
     url: &str,

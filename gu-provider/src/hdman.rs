@@ -1,13 +1,13 @@
-use log::{error, info,debug};
-use serde_derive::*;
+use super::id::generate_new_id;
+use super::provision::{download, download_step, untgz, upload_step};
 use super::{
     envman, status,
     sync_exec::{Exec, ExecResult, SyncExecManager},
 };
+use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use actix::{fut, prelude::*};
 use actix_web::client;
 use actix_web::error::ErrorInternalServerError;
-use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use futures::future;
 use futures::prelude::*;
 use gu_actix::prelude::*;
@@ -18,14 +18,14 @@ use gu_net::rpc::{
     *,
 };
 use gu_persist::config::ConfigModule;
-use super::id::generate_new_id;
-use super::provision::{download_step ,upload_step, download, untgz};
+use log::{debug, error, info};
+use serde_derive::*;
 
+use super::workspace::{Workspace, WorkspacesManager};
 use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
-use super::workspace::{Workspace, WorkspacesManager};
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
