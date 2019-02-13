@@ -27,14 +27,19 @@ To install you can use the [released](../../releases) Ubuntu `deb` and MacOs `dm
 The detailed steps can be found in our demo https://youtu.be/J0LBdg2j6Tk
 
 ## from source
-To run the hub, go to the `gu-hub` subdir and perform
+To run the hub, please go to the `gu-hub` subdir and perform:
 ```
 $ cargo run -- -vv server run
 ```
 
-To run the provider and connect to your hub at 192.168.1.1 go to `gu-provider` subdir and run
+To configure the provider, please go to `gu-provider` subdir and run:
 ```
-$ cargo run -- -vv -a 192.168.1.1:61622 server run
+$ cargo run configure
+```
+
+Please select your hub and save the configuration. Now you can run the provider:
+```
+$ cargo run -- -vv server run
 ```
 
 # Usage
