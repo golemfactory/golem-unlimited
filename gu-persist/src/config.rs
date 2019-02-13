@@ -114,7 +114,7 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
             }
         }
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             self.storage()
                 .send(Fetch(Cow::Borrowed(T::SECTION_ID)))
                 .flatten_fut()
@@ -157,7 +157,7 @@ impl<T: ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
 
         self.cache.insert(T::SECTION_ID, Box::new(v));
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             self.storage()
                 .send(Put(k, bytes))
                 .flatten_fut()

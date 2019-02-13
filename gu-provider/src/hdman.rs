@@ -1,13 +1,18 @@
+/** Host direct manager.
+
+
+
+*/
+use super::id::generate_new_id;
+use super::provision::{download, download_step, untgz, upload_step};
 use super::{
     envman, status,
     sync_exec::{Exec, ExecResult, SyncExecManager},
 };
+use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use actix::{fut, prelude::*};
 use actix_web::client;
 use actix_web::error::ErrorInternalServerError;
-use deployment::DeployManager;
-use deployment::Destroy;
-use deployment::IntoDeployInfo;
 use futures::future;
 use futures::prelude::*;
 use gu_actix::prelude::*;
@@ -18,16 +23,15 @@ use gu_net::rpc::{
     *,
 };
 use gu_persist::config::ConfigModule;
-use id::generate_new_id;
-use provision::download_step;
-use provision::upload_step;
-use provision::{download, untgz};
+use log::{debug, error, info};
+use serde_derive::*;
+
+use super::workspace::{Workspace, WorkspacesManager};
 use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
+use std::path::Path;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
-use workspace::Workspace;
-use workspace::WorkspacesManager;
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -103,7 +107,7 @@ impl HdMan {
         })
     }
 
-    fn get_cache_path(&self, file_name: &String) -> PathBuf {
+    fn get_cache_path(&self, file_name: &Path) -> PathBuf {
         self.cache_dir.join(file_name)
     }
 
@@ -201,7 +205,20 @@ impl Handler<CreateSession> for HdMan {
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
         let session_id = self.deploys.generate_session_id();
-        let cache_path = self.get_cache_path(&msg.image.hash);
+        let c = match gu_model::hash::ParsedHash::from_hash_bytes(msg.image.hash.as_bytes()) {
+            Ok(v) => v,
+            Err(e) => {
+                return ActorResponse::reply(Err(Error::IncorrectOptions(
+                    "invalid hash format".into(),
+                )));
+            }
+        };
+        let image_file_name = match c.to_path() {
+            Ok(v) => v,
+            Err(e) => return ActorResponse::reply(Err(Error::IncorrectOptions(format!("{}", e)))),
+        };
+
+        let cache_path = self.get_cache_path(&image_file_name);
 
         let mut workspace = self.workspaces_man.workspace();
         workspace.add_tags(msg.tags);
@@ -219,19 +236,18 @@ impl Handler<CreateSession> for HdMan {
             processes: HashMap::new(),
         };
 
-        println!("newly created session id={}", session_id);
         self.deploys.insert_deploy(session_id.clone(), session);
 
         debug!("hey! I'm downloading from: {:?}", msg.image);
         let sess_id = session_id.clone();
-        ActorResponse::async(
+        ActorResponse::r#async(
             download(msg.image.url.as_ref(), cache_path.clone(), true)
                 .map_err(From::from)
                 .and_then(move |_| untgz(cache_path, workspace_path))
                 .map_err(From::from)
                 .into_actor(self)
                 .and_then(|_, act, _ctx| match act.get_session_mut(&sess_id) {
-                    Ok(session) => {
+                    Ok(mut session) => {
                         session.status = PeerSessionStatus::CREATED;
                         fut::ok(sess_id)
                     }
@@ -422,7 +438,7 @@ impl Handler<SessionUpdate> for HdMan {
         }
         let session_id = msg.session_id.clone();
 
-        ActorResponse::async(run_commands(self, session_id, msg.commands))
+        ActorResponse::r#async(run_commands(self, session_id, msg.commands))
     }
 }
 
@@ -468,7 +484,7 @@ impl Handler<DestroySession> for HdMan {
         msg: DestroySession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
-        ActorResponse::async(match self.deploys.destroy_deploy(&msg.session_id) {
+        ActorResponse::r#async(match self.deploys.destroy_deploy(&msg.session_id) {
             Ok(_) => fut::ok("Session closed".into()),
             Err(e) => fut::err(e),
         })

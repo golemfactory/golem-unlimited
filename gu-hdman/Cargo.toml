@@ -3,6 +3,11 @@ name = "gu-hdman"
 version = "0.1.0"
 edition = "2018"
 
+
+[features]
+default=["ssl"]
+ssl=["actix-web/rust-tls"]
+
 [dependencies]
 
 tokio-process="0.2.3"
@@ -16,6 +21,7 @@ futures-cpupool="0.1"
 tokio-io="0.1.11"
 
 gu-actix = { path = "../gu-actix" }
+gu-model = { path = "../gu-model", features=["hash"] }
 bytes="0.4"
 bincode="1.0.1"
 failure="0.1"

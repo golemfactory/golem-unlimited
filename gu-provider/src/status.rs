@@ -2,6 +2,7 @@ use actix::prelude::*;
 use actix_web::{self, App, AsyncResponder, HttpRequest, HttpResponse, Responder};
 use futures::{future, prelude::*};
 use gu_base::Module;
+use serde_derive::*;
 use std::collections::BTreeMap;
 
 pub fn module() -> impl Module {
@@ -105,7 +106,7 @@ impl Handler<ListEnvStatus> for StatusManager {
     type Result = ActorResponse<StatusManager, BTreeMap<String, EnvStatus>, String>;
 
     fn handle(&mut self, _msg: ListEnvStatus, _ctx: &mut Self::Context) -> Self::Result {
-        ActorResponse::async(
+        ActorResponse::r#async(
             future::join_all(self.providers.clone().into_iter().map(
                 move |(env_name, env_addr)| {
                     let name = env_name.to_string();

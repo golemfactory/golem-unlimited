@@ -28,15 +28,32 @@ struct Chunk {
 const MAGIC: [u8; 8] = [0xf4, 0xd4, 0xc7, 0xd1, 0x4d, 0x2f, 0xe2, 0x83];
 const CHUNK_SIZE: u64 = 1024 * 512;
 
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub(super) enum CheckType {
+    ETag(String),
+    ModTime(String),
+    None,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(super) struct LogMetadata {
     file_name: String,
     pub(super) url: String,
-    pub(super) etag: String,
+    pub(super) check: CheckType,
     pub(super) size: u64,
     pub(super) chunks: u32,
     chunk_size: u32,
     ts: chrono::DateTime<chrono::Utc>,
+}
+
+impl LogMetadata {
+    pub fn to_if_range(&self) -> Option<&str> {
+        match &self.check {
+            CheckType::ETag(etag) => Some(etag.as_ref()),
+            CheckType::ModTime(mod_time) => Some(mod_time.as_ref()),
+            CheckType::None => None,
+        }
+    }
 }
 
 // File Structure
@@ -100,7 +117,7 @@ fn recover_file(
 
     let file_meta: LogMetadata = bincode::deserialize(buf.as_ref())?;
 
-    if file_meta.url != meta.url || file_meta.size != meta.size || file_meta.etag != meta.etag {
+    if file_meta.url != meta.url || file_meta.size != meta.size || file_meta.check != meta.check {
         return Err(Error::InvalidTrackingFile("metadata changed"));
     }
 
@@ -179,7 +196,7 @@ impl DownloadFile {
     pub fn new<'a>(
         file_name: &'a str,
         url: &'a str,
-        etag: &'a str,
+        check: CheckType,
         size: u64,
     ) -> Result<DownloadFile, Error> {
         let chunk_size = CHUNK_SIZE as u32;
@@ -189,7 +206,7 @@ impl DownloadFile {
         let meta = LogMetadata {
             file_name: file_name.into(),
             url: url.into(),
-            etag: etag.into(),
+            check,
             size,
             chunks,
             chunk_size,

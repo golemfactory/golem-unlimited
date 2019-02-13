@@ -1,13 +1,13 @@
 //! Docker mode implementation
 
+use super::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use super::envman;
+use crate::provision;
+use crate::workspace::{Workspace, WorkspacesManager};
 use actix::prelude::*;
 use actix_web::error::ErrorInternalServerError;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
-use deployment::DeployManager;
-use deployment::Destroy;
-use deployment::IntoDeployInfo;
 use futures::future;
 use futures::prelude::*;
 use gu_model::dockerman::{CreateOptions, VolumeDef};
@@ -15,13 +15,12 @@ use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::peer::PeerSessionStatus;
 use gu_persist::config::ConfigModule;
-use provision;
+use log::{debug, error, info};
+use serde_json::json;
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::ffi;
 use std::path::PathBuf;
-use workspace::Workspace;
-use workspace::WorkspacesManager;
 
 // Actor.
 struct DockerMan {
@@ -320,7 +319,7 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                     .map(|c| c.id().to_owned())
                     .map_err(|e| Error::IoError(format!("{}", e)));
 
-                ActorResponse::async(fut::wrap_future(pull_and_create).and_then(
+                ActorResponse::r#async(fut::wrap_future(pull_and_create).and_then(
                     move |id, act: &mut DockerMan, _| {
                         if let Some(ref api) = act.docker_api {
                             let deploy = DockerSession {
@@ -460,7 +459,7 @@ impl Handler<SessionUpdate> for DockerMan {
         }
         let session_id = msg.session_id.clone();
 
-        ActorResponse::async(run_commands(self, session_id, msg.commands))
+        ActorResponse::r#async(run_commands(self, session_id, msg.commands))
     }
 }
 
@@ -491,7 +490,7 @@ impl Handler<DestroySession> for DockerMan {
             _ => return ActorResponse::reply(Err(Error::UnknownEnv("docker".into()))),
         };
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             api.container(container_id)
                 .delete()
                 .map_err(|_e| Error::Error("docker error".into()))

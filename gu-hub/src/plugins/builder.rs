@@ -176,7 +176,7 @@ impl Handler<BuildPluginQuery> for PluginBuilder {
         msg: BuildPluginQuery,
         _ctx: &mut Context<Self>,
     ) -> <Self as Handler<BuildPluginQuery>>::Result {
-        ActorResponse::async(
+        ActorResponse::r#async(
             future::result(build_plugin(msg.clone()))
                 .map_err(|e| error!("{}", e))
                 .and_then(move |file| install_plugin(&file, msg.install))

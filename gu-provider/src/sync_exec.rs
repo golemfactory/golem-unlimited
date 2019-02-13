@@ -1,5 +1,7 @@
 use actix::{fut, prelude::*};
+use error_chain::*;
 use gu_actix::*;
+use log::{debug, error};
 use std::{io, path::PathBuf, process};
 
 /// Synchronous executor
@@ -60,7 +62,7 @@ impl Handler<Exec> for SyncExecManager {
 
     fn handle(&mut self, msg: Exec, _ctx: &mut Self::Context) -> Self::Result {
         debug!("handling {:?}", &msg);
-        ActorResponse::async(
+        ActorResponse::r#async(
             self.executor()
                 .send(msg)
                 .flatten_fut()

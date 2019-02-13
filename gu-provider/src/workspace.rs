@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
+use super::provision::untgz;
+use gu_actix::{async_result, async_try, prelude::*};
 use gu_model::dockerman::VolumeDef;
 use gu_persist::config::ConfigModule;
-use provision::untgz;
+use log::{debug, error, info};
 use serde_json::Value;
 use std::collections::{BTreeSet, HashSet};
 use std::fs;
@@ -126,9 +128,9 @@ impl Workspace {
 
 #[cfg(test)]
 mod tests {
+    use crate::workspace::Workspace;
     use gu_model::dockerman::VolumeDef;
     use std::path::PathBuf;
-    use workspace::Workspace;
 
     #[test]
     fn create_dirs() {
