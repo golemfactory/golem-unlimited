@@ -47,7 +47,7 @@ impl Module for PluginModule {
 
         app.subcommand(
             SubCommand::with_name("plugin")
-                .about("Manages web UI plugins (builds, installs, lists, starts, stops and uninstalls them)")
+                .about("Manages web UI plugins (e.g. builds, installs, lists, starts, stops and uninstalls them)")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommands(vec![
                     SubCommand::with_name("install")
