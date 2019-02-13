@@ -178,7 +178,7 @@ impl MdnsActor<OneShot> {
     {
         let (tx, rx) = oneshot::channel();
 
-        ActorResponse::async(fut.into_actor(self).and_then(move |_r, act, ctx| {
+        ActorResponse::r#async(fut.into_actor(self).and_then(move |_r, act, ctx| {
             ctx.run_later(Duration::from_secs(1), move |act, _ctx| {
                 let _ = tx
                     .send(act.retrieve_services(id))
@@ -329,7 +329,7 @@ impl Handler<SubscribeInstance> for MdnsActor<Continuous> {
             }
         };
 
-        ActorResponse::async(res.map_err(|_| ErrorKind::Mailbox.into()).into_actor(self))
+        ActorResponse::r#async(res.map_err(|_| ErrorKind::Mailbox.into()).into_actor(self))
     }
 }
 

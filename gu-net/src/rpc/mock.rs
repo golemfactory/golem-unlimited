@@ -138,6 +138,6 @@ impl Handler<Forward> for Callback {
         let (tx, rx) = oneshot::channel();
         self.tx_map.insert(msg.0.reply_to.clone().unwrap(), tx);
         MessageRouter::from_registry().do_send(msg.0);
-        ActorResponse::async(rx.flatten_fut().into_actor(self))
+        ActorResponse::r#async(rx.flatten_fut().into_actor(self))
     }
 }

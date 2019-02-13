@@ -4,6 +4,7 @@ version = "0.2.0"
 license = "MIT"
 publish=false
 authors=["golemfactory"]
+edition = "2018"
 
 [features]
 default=['env-docker']
@@ -42,6 +43,7 @@ gu-lan = { path = "../gu-lan"}
 gu-ethkey = { path = "../gu-ethkey"}
 gu-hardware = { path = "../gu-hardware"}
 gu-model = { path = "../gu-model" }
+gu-hdman = { path = "../gu-hdman" }
 
 
 async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger" }
