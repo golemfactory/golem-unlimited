@@ -31,6 +31,7 @@ use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
+use std::path::Path;
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -106,7 +107,7 @@ impl HdMan {
         })
     }
 
-    fn get_cache_path(&self, file_name: &String) -> PathBuf {
+    fn get_cache_path(&self, file_name: &Path) -> PathBuf {
         self.cache_dir.join(file_name)
     }
 
@@ -204,7 +205,16 @@ impl Handler<CreateSession> for HdMan {
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
         let session_id = self.deploys.generate_session_id();
-        let cache_path = self.get_cache_path(&msg.image.hash);
+        let c = match gu_model::hash::ParsedHash::from_hash_bytes(msg.image.hash.as_bytes()) {
+            Ok(v)  => v,
+            Err(e) => return ActorResponse::reply(Err(Error::IncorrectOptions("invalid hash format".into())))
+        };
+        let image_file_name = match c.to_path() {
+            Ok(v) => v,
+            Err(e) => return ActorResponse::reply(Err(Error::IncorrectOptions(format!("{}", e))))
+        };
+
+        let cache_path = self.get_cache_path(&image_file_name);
 
         let mut workspace = self.workspaces_man.workspace();
         workspace.add_tags(msg.tags);
@@ -222,7 +232,6 @@ impl Handler<CreateSession> for HdMan {
             processes: HashMap::new(),
         };
 
-        println!("newly created session id={}", session_id);
         self.deploys.insert_deploy(session_id.clone(), session);
 
         debug!("hey! I'm downloading from: {:?}", msg.image);
