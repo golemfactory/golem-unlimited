@@ -29,9 +29,9 @@ use serde_derive::*;
 use super::workspace::{Workspace, WorkspacesManager};
 use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
+use std::path::Path;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
-use std::path::Path;
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -206,12 +206,16 @@ impl Handler<CreateSession> for HdMan {
     ) -> <Self as Handler<CreateSession>>::Result {
         let session_id = self.deploys.generate_session_id();
         let c = match gu_model::hash::ParsedHash::from_hash_bytes(msg.image.hash.as_bytes()) {
-            Ok(v)  => v,
-            Err(e) => return ActorResponse::reply(Err(Error::IncorrectOptions("invalid hash format".into())))
+            Ok(v) => v,
+            Err(e) => {
+                return ActorResponse::reply(Err(Error::IncorrectOptions(
+                    "invalid hash format".into(),
+                )));
+            }
         };
         let image_file_name = match c.to_path() {
             Ok(v) => v,
-            Err(e) => return ActorResponse::reply(Err(Error::IncorrectOptions(format!("{}", e))))
+            Err(e) => return ActorResponse::reply(Err(Error::IncorrectOptions(format!("{}", e)))),
         };
 
         let cache_path = self.get_cache_path(&image_file_name);
