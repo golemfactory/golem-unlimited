@@ -185,7 +185,7 @@ mod test {
         {
             "envType":"hd",
             "image": {
-                "uri": "http://some.url/file.tgz",
+                "url": "http://some.url/file.tgz",
                 "hash": "12345"
             },
             "name": "zima",

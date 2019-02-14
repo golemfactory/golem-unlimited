@@ -13,7 +13,7 @@
 //!
 //! ## Example
 //!
-//! ```
+//! ```no_run
 //! extern crate gu_ethkey;
 //! use gu_ethkey::prelude::*;
 //!
