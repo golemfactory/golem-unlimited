@@ -116,11 +116,16 @@ impl DockerSession {
 
         let mut untar_path = PathBuf::from(file_path.clone());
 
-        let non_dir = self.container.file_info(file_path.as_str())
+        let non_dir = self
+            .container
+            .file_info(file_path.as_str())
             .map_err(|e| e.to_string())
-            .and_then(move |info| match info.map(|c|c.is_dir).unwrap_or(false) {
-                true => Err(format!("Cannot save file into {} path. There is a directory", file_path)),
-                false => Ok(())
+            .and_then(move |info| match info.map(|c| c.is_dir).unwrap_or(false) {
+                true => Err(format!(
+                    "Cannot save file into {} path. There is a directory",
+                    file_path
+                )),
+                false => Ok(()),
             });
 
         let stream: Box<Stream<Item = bytes::Bytes, Error = String>> = match format {
@@ -129,7 +134,8 @@ impl DockerSession {
                 untar_path.pop();
 
                 Box::new(
-                    non_dir.and_then(|_| name.ok_or("Invalid filename".to_string()))
+                    non_dir
+                        .and_then(|_| name.ok_or("Invalid filename".to_string()))
                         .map(move |filename| {
                             provision::tarred_download_stream(url.as_str(), filename)
                         })
