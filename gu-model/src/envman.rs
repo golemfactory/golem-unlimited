@@ -129,14 +129,14 @@ pub enum Command {
     DelTags(Vec<String>),
     #[serde(rename_all = "camelCase")]
     DownloadFile {
-        url: String,
+        uri: String,
         file_path: String,
         #[serde(default)]
         format: ResourceFormat,
     },
     #[serde(rename_all = "camelCase")]
     UploadFile {
-        url: String,
+        uri: String,
         file_path: String,
         #[serde(default)]
         format: ResourceFormat,

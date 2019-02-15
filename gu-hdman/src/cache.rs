@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 pub trait CacheProvider {
     type Key: Eq + Hash + Clone + Send;
-    type Hint : Send;
+    type Hint: Send;
     type Value: Clone + Send;
     type Error: Clone + From<oneshot::Canceled> + From<MailboxError> + Send;
     type CheckResult: IntoFuture<Item = Option<Self::Value>, Error = Self::Error>;
@@ -17,11 +17,16 @@ pub trait CacheProvider {
 
     fn try_get(&self, key: &Self::Key) -> Self::CheckResult;
 
-    fn fetch(&mut self, key: Self::Key, hint : Self::Hint) -> Self::FetchResult;
+    fn fetch(&mut self, key: Self::Key, hint: Self::Hint) -> Self::FetchResult;
 }
 
-pub fn resolve<P : CacheProvider + Default + Clone + 'static>(key : P::Key, hint : P::Hint) -> impl Future<Item =P::Value, Error=P::Error> {
-    AsyncCache::<P>::from_registry().send(DoFetchOnce(key, hint)).flatten_fut()
+pub fn resolve<P: CacheProvider + Default + Clone + 'static>(
+    key: P::Key,
+    hint: P::Hint,
+) -> impl Future<Item = P::Value, Error = P::Error> {
+    AsyncCache::<P>::from_registry()
+        .send(DoFetchOnce(key, hint))
+        .flatten_fut()
 }
 
 struct AsyncCache<P: CacheProvider> {
@@ -46,7 +51,12 @@ impl<P: CacheProvider + Default + 'static> Handler<DoFetch<P>> for AsyncCache<P>
     type Result = ActorResponse<Self, P::Value, P::Error>;
 
     fn handle(&mut self, msg: DoFetch<P>, ctx: &mut Self::Context) -> Self::Result {
-        ActorResponse::r#async(self.provider.fetch(msg.0, msg.1).into_future().into_actor(self))
+        ActorResponse::r#async(
+            self.provider
+                .fetch(msg.0, msg.1)
+                .into_future()
+                .into_actor(self),
+        )
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::main;
 use actix_web::client::ClientResponse;
 use actix_web::http::header;
 use actix_web::HttpMessage;
@@ -25,8 +26,13 @@ pub fn download_step(
         .finish()
         .map_err(|e| format!("{}", e)));
 
-    if !output_path.exists() {
-        async_try!(fs::create_dir_all(&output_path).map_err(|e| format!("creare dir {}", e)))
+    let dir_name = match format {
+        ResourceFormat::Raw => output_path.parent().unwrap(),
+        ResourceFormat::Tar => output_path.as_ref(),
+    };
+
+    if !dir_name.exists() {
+        async_try!(fs::create_dir_all(dir_name).map_err(|e| format!("creare dir {}", e)))
     }
 
     future::Either::A(

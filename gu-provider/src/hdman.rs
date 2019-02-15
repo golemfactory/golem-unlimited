@@ -27,6 +27,7 @@ use log::{debug, error, info};
 use serde_derive::*;
 
 use super::workspace::{Workspace, WorkspacesManager};
+use gu_hdman::image_manager;
 use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
 use std::path::Path;
@@ -241,10 +242,11 @@ impl Handler<CreateSession> for HdMan {
         debug!("hey! I'm downloading from: {:?}", msg.image);
         let sess_id = session_id.clone();
         ActorResponse::r#async(
-            download(msg.image.url.as_ref(), cache_path.clone(), true)
-                .map_err(From::from)
-                .and_then(move |_| untgz(cache_path, workspace_path))
-                .map_err(From::from)
+            image_manager::image(msg.image)
+                .map_err(|e| Error::IoError(format!("image pull error: {}", e)))
+                .and_then(|cache_path| {
+                    untgz(cache_path, workspace_path).map_err(|e| Error::IoError(e))
+                })
                 .into_actor(self)
                 .and_then(|_, act, _ctx| match act.get_session_mut(&sess_id) {
                     Ok(mut session) => {
@@ -368,20 +370,20 @@ fn run_command(
         }
         Command::Wait => Box::new(fut::ok("Wait mock".to_string())),
         Command::DownloadFile {
-            url,
+            uri,
             file_path,
             format,
         } => {
             let path = session.workspace.path().join(file_path);
-            Box::new(fut::wrap_future(handle_download_file(url, path, format)))
+            Box::new(fut::wrap_future(handle_download_file(uri, path, format)))
         }
         Command::UploadFile {
-            url,
+            uri,
             file_path,
             format,
         } => {
             let path = session.workspace.path().join(file_path);
-            Box::new(fut::wrap_future(handle_upload_file(url, path, format)))
+            Box::new(fut::wrap_future(handle_upload_file(uri, path, format)))
         }
         Command::AddTags(tags) => Box::new({
             session.workspace.add_tags(tags);
