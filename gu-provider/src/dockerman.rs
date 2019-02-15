@@ -114,17 +114,28 @@ impl DockerSession {
         use futures::sync::mpsc;
         use std::io;
 
-        let mut untar_path = PathBuf::from(file_path);
+        let mut untar_path = PathBuf::from(file_path.clone());
+
+        let non_dir = self
+            .container
+            .file_info(file_path.as_str())
+            .map_err(|e| e.to_string())
+            .and_then(move |info| match info.map(|c| c.is_dir).unwrap_or(false) {
+                true => Err(format!(
+                    "Cannot save file into {} path. There is a directory",
+                    file_path
+                )),
+                false => Ok(()),
+            });
 
         let stream: Box<Stream<Item = bytes::Bytes, Error = String>> = match format {
             ResourceFormat::Raw => {
                 let name = untar_path.clone().file_name().map(|x| x.to_os_string());
-                println!("File name: {:?}", name);
-
                 untar_path.pop();
 
                 Box::new(
-                    future::result(name.ok_or("Invalid filename".to_string()))
+                    non_dir
+                        .and_then(|_| name.ok_or("Invalid filename".to_string()))
                         .map(move |filename| {
                             provision::tarred_download_stream(url.as_str(), filename)
                         })
@@ -140,7 +151,6 @@ impl DockerSession {
                 return future::Either::A(future::err("Invalid unicode in filepath".to_string()));
             }
         };
-        println!("Untar path: {}", untar_path);
 
         let opts = async_docker::build::ContainerArchivePutOptions::builder()
             .remote_path(untar_path)
@@ -162,7 +172,7 @@ impl DockerSession {
             .send_all(stream)
             .and_then(|(mut sink, _)| sink.close());
 
-        future::Either::B(recv_fut.join(send_fut).map(|_| "OK".into()))
+        future::Either::B(send_fut.join(recv_fut).map(|_| "OK".into()))
     }
 
     fn do_upload(
