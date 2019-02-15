@@ -154,6 +154,8 @@ impl<P: CacheProvider + Clone + 'static> Handler<DoGet<P>> for CacheRegistry<P> 
         let DoGet(k, h, fetcher) = msg;
 
         let key = k.clone();
+        self.downloads.insert(k.clone(), vec![tx]);
+
         ctx.spawn(
             fetcher
                 .send(DoFetch(k.clone(), h))
