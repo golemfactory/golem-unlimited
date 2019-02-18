@@ -322,9 +322,9 @@ impl CreateDeployment {
         deployment_desc: gu_model::envman::CreateSession,
     ) -> CreateDeployment {
         CreateDeployment {
-            session_id: session_id,
-            node_id: node_id,
-            deployment_desc: deployment_desc,
+            session_id,
+            node_id,
+            deployment_desc,
         }
     }
 }
@@ -364,9 +364,9 @@ pub struct DeleteDeployment {
 impl DeleteDeployment {
     pub fn new(session_id: u64, node_id: NodeId, deployment_id: String) -> DeleteDeployment {
         DeleteDeployment {
-            session_id: session_id,
-            node_id: node_id,
-            deployment_id: deployment_id,
+            session_id,
+            node_id,
+            deployment_id,
         }
     }
 }
@@ -417,10 +417,10 @@ impl UpdateDeployment {
         commands: Vec<gu_model::envman::Command>,
     ) -> UpdateDeployment {
         UpdateDeployment {
-            session_id: session_id,
-            node_id: node_id,
-            deployment_id: deployment_id,
-            commands: commands,
+            session_id,
+            node_id,
+            deployment_id,
+            commands,
         }
     }
 }

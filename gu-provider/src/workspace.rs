@@ -21,20 +21,19 @@ pub struct WorkspacesManager {
 
 impl WorkspacesManager {
     pub fn new(config: &ConfigModule, name: &'static str) -> Option<WorkspacesManager> {
-        let sessions_dir = config.work_dir().to_path_buf().join("sessions");
+        let session_dir = config.work_dir().to_path_buf().join("sessions").join(name);
 
-        fs::create_dir_all(&sessions_dir)
+        fs::create_dir_all(&session_dir)
             .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
             .map(|_| WorkspacesManager {
                 namespace: name,
-                path: sessions_dir,
+                path: session_dir,
             })
             .ok()
     }
 
     pub fn workspace(&self) -> Workspace {
-        let dir_name = format!("{}::{}", self.namespace, Uuid::new_v4());
-        Workspace::new(self.namespace, self.path.join(dir_name))
+        Workspace::new(self.namespace, self.path.join(Uuid::new_v4().to_string()))
     }
 }
 
