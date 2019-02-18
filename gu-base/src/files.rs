@@ -162,7 +162,6 @@ pub fn write_async<Ins: Stream<Item = Bytes, Error = E>, P: AsRef<Path>, E: Debu
                 format!("stream err: {:?}", e)
             })
             .fold(file, |mut file, chunk| {
-                eprintln!("writing chunk: {}", chunk.len());
                 match file.write_all(chunk.as_ref()).map_err(|e| format!("{}", e)) {
                     Ok(()) => (),
                     Err(e) => return future::err(e),

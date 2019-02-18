@@ -387,18 +387,18 @@ fn run_command(
         Command::Stop { child_id } => Box::new(fut::ok("Stop mock".to_string())),
         Command::Wait => docker_man.run_for_deployment(session_id, DockerSession::do_wait),
         Command::DownloadFile {
-            url,
+            uri,
             file_path,
             format,
         } => docker_man.run_for_deployment(session_id, |deployment| {
-            deployment.do_download(url, file_path, format)
+            deployment.do_download(uri, file_path, format)
         }),
         Command::UploadFile {
-            url,
+            uri,
             file_path,
             format,
         } => docker_man.run_for_deployment(session_id, |deployment| {
-            deployment.do_upload(url, file_path, format)
+            deployment.do_upload(uri, file_path, format)
         }),
         Command::AddTags(tags) => Box::new(fut::result(
             docker_man
