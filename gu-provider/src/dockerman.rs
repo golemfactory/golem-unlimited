@@ -6,6 +6,7 @@ use crate::provision;
 use crate::workspace::{Workspace, WorkspacesManager};
 use actix::prelude::*;
 use actix_web::error::ErrorInternalServerError;
+use actix_web::http::StatusCode;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
 use futures::future;
@@ -222,7 +223,36 @@ impl IntoDeployInfo for DockerSession {
     }
 }
 
-impl Destroy for DockerSession {}
+impl Destroy for DockerSession {
+    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
+        let workspace = self.workspace.clone();
+        Box::new(
+            self.container
+                .delete()
+                .then(|x| {
+                    if x.is_ok() {
+                        return Ok(());
+                    }
+
+                    match x.unwrap_err().kind() {
+                        async_docker::ErrorKind::DockerApi(_a, status) => {
+                            if &StatusCode::from_u16(404).unwrap() == status {
+                                Ok(())
+                            } else {
+                                Err(Error::Error("docker error".into()))
+                            }
+                        }
+                        _e => Err(Error::Error("docker error".into())),
+                    }
+                })
+                .and_then(move |_| {
+                    workspace
+                        .clear_dir()
+                        .map_err(|e| Error::IoError(e.to_string()))
+                }),
+        )
+    }
+}
 
 impl DockerMan {
     fn container_config(
@@ -489,17 +519,14 @@ impl Handler<DestroySession> for DockerMan {
         msg: DestroySession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
-        let container_id = msg.session_id.into();
-
         let api = match self.docker_api {
             Some(ref api) => api,
             _ => return ActorResponse::reply(Err(Error::UnknownEnv("docker".into()))),
         };
 
         ActorResponse::r#async(
-            api.container(container_id)
-                .delete()
-                .map_err(|_e| Error::Error("docker error".into()))
+            self.deploys
+                .destroy_deploy(&msg.session_id)
                 .and_then(|_| Ok("done".into()))
                 .into_actor(self),
         )
