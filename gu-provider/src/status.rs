@@ -18,7 +18,6 @@ struct SmPath {
 
 impl Module for StatusModule {
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
-        eprintln!("sm!");
         app.handler("/status", status_handler).resource("/sm", |r| {
             r.get().with(|p: actix_web::Query<SmPath>| {
                 HttpResponse::Ok().streaming(

@@ -216,6 +216,7 @@ fn download(
     let (tx, rx) = mpsc::unbounded();
 
     let init_tx = tx.clone();
+    let mut end_tx = tx.clone();
     let options = Arc::new(options);
     let connections = options.connections;
 
@@ -274,12 +275,15 @@ fn download(
                 }))
                 .buffer_unordered(connections as usize)
                 .fold(init_progress, move |mut progress, chunk| {
-                    eprintln!("progress: {:?} / {:?}", progress, chunk);
                     progress.downloaded_bytes += (chunk.to - chunk.from);
                     tx.unbounded_send(progress.clone());
                     Ok::<_, Error>(progress)
                 })
-                .and_then(|_| df.close(|df| df.finish()).flatten_fut())
+                .and_then(|_| df.close(|df| df.finish()).flatten_fut()
+                    .and_then(move |_| {
+                        let _ = end_tx.close();
+                        Ok(())
+                    }))
             },
         );
 
