@@ -1,0 +1,16 @@
+[package]
+name = "update-macro"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "0.6.11"
+update-trait = { path = "../update-trait" }
+
+[dependencies.syn]
+version = "0.15.26"
+default-features = true
+features = ["full"]

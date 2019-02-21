@@ -16,6 +16,8 @@ members= [
     'gu-model',
     'gu-client',
     'gu-hdman',
+    'update/update-trait',
+    'update/update-macro',
 ]
 
 [profile.release]
