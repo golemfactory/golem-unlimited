@@ -46,7 +46,7 @@ gu-model = { path = "../gu-model" }
 gu-hdman = { path = "../gu-hdman" }
 
 
-async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger" }
+async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger", version="0.1.1" }
 tar-async={git="https://github.com/prekucki/tar-async.git"}
 #async_docker={path = "../../async-docker", optional=true }
 
