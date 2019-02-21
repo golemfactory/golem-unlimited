@@ -48,7 +48,7 @@ impl IntoDeployInfo for HdSessionInfo {
 }
 
 impl Destroy for HdSessionInfo {
-    fn destroy(&mut self) -> Result<(), Error> {
+    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
         debug!("killing all running child processes");
         let _ = self
             .processes
@@ -60,7 +60,7 @@ impl Destroy for HdSessionInfo {
             .values_mut()
             .map(|child| child.wait())
             .collect::<Vec<_>>();
-        self.workspace.clear_dir().map_err(From::from)
+        Box::new(self.workspace.clear_dir().map_err(From::from).into_future())
     }
 }
 
@@ -257,7 +257,8 @@ impl Handler<CreateSession> for HdMan {
                 })
                 .map_err(move |e, act, _ctx| {
                     eprintln!("[fail] {}", e);
-                    match act.deploys.destroy_deploy(&session_id) {
+                    // destroy on hdman is synchronous
+                    match act.deploys.destroy_deploy(&session_id).wait() {
                         Ok(_) => Error::IoError(format!("creating session error: {:?}", e)),
                         Err(e) => e,
                     }
@@ -486,7 +487,7 @@ impl Handler<DestroySession> for HdMan {
         msg: DestroySession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
-        ActorResponse::r#async(match self.deploys.destroy_deploy(&msg.session_id) {
+        ActorResponse::r#async(match self.deploys.destroy_deploy(&msg.session_id).wait() {
             Ok(_) => fut::ok("Session closed".into()),
             Err(e) => fut::err(e),
         })

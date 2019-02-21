@@ -1,3 +1,5 @@
+extern crate futures;
+
 use gu_base::*;
 
 mod connect;
