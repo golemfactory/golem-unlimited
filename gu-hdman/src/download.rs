@@ -279,11 +279,12 @@ fn download(
                     tx.unbounded_send(progress.clone());
                     Ok::<_, Error>(progress)
                 })
-                .and_then(|_| df.close(|df| df.finish()).flatten_fut()
-                    .and_then(move |_| {
+                .and_then(|_| {
+                    df.close(|df| df.finish()).flatten_fut().and_then(move |_| {
                         let _ = end_tx.close();
                         Ok(())
-                    }))
+                    })
+                })
             },
         );
 
