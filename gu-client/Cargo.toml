@@ -2,6 +2,7 @@
 name = "gu-client"
 version = "0.1.0"
 authors = ["Filip <filip@golem.network>"]
+edition="2018"
 
 [dependencies]
 gu-actix = { path="../gu-actix" }
@@ -14,3 +15,7 @@ futures = "0.1"
 serde = "1.0"
 serde_json = "1.0"
 url = "1.7.2"
+
+[dev-dependencies]
+failure = "0.1.5"
+structopt="0.2.14"

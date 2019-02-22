@@ -11,7 +11,7 @@ extern crate serde_json;
 extern crate url;
 
 /// Asynchronous Rust API for Golem Unlimited
-pub mod async;
+pub mod r#async;
 /// Errors returned by Rust API for Golem Unlimited
 pub mod error;
 pub mod sync;

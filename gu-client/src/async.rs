@@ -1,6 +1,6 @@
 use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
-use error::Error;
+use crate::error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
 use gu_actix::release::{AsyncRelease, Handle};
