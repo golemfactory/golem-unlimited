@@ -1,16 +1,17 @@
 [package]
 name = "gu-ethkey"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Golem Unlimited Team, Piotr Chromiec <tworec@golem.network>"]
 
 [dependencies]
 log = "0.4"
 env_logger = "0.5"
 error-chain = "0.12"
+parity-crypto = "0.2"
 ethkey = { git = "https://github.com/tworec/parity-ethereum", branch = "strip-down-ethkeys"}
 ethstore = { git = "https://github.com/tworec/parity-ethereum", branch = "strip-down-ethkeys"}
-parity-crypto = { git = "https://github.com/paritytech/parity-common" }
-rand = "0.5"
+
+rand = "0.6"
 rustc-hex = "1.0"
 
 [dev-dependencies]

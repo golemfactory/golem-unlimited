@@ -43,7 +43,7 @@ use ethkey::{
     sign, verify_public, Address, Generator, KeyPair, Message, Password, Public, Random, Signature,
 };
 use ethstore::{
-    accounts_dir::{DiskKeyFileManager, KeyFileManager, RootDiskDirectory},
+    accounts_dir::{KeyFileManager, RootDiskDirectory},
     SafeAccount,
 };
 use rustc_hex::ToHex;
@@ -160,7 +160,9 @@ impl EthKeyStore for SafeEthKey {
         let file_path = file_path.into();
         match fs::File::open(&file_path).map_err(Error::from) {
             Ok(file) => {
-                let safe_account = DiskKeyFileManager.read(None, file)?;
+                let dir_path = file_path.parent().ok_or(ErrorKind::InvalidPath)?;
+                let disk = RootDiskDirectory::create(dir_path)?.with_password(Some(pwd.to_owned()));
+                let safe_account = disk.key_manager().read(None, file)?;
                 let key_pair = KeyPair::from_secret(safe_account.crypto.secret(pwd)?)?;
                 info!(
                     "account 0x{:x} loaded from {}",
@@ -225,7 +227,7 @@ error_chain! {
         GenerationError(io::Error);
         KeyError(ethkey::Error);
         CryptoError(ethkey::crypto::Error);
-        StoreCryptoError(parity_crypto::Error);
+        StoreCryptoError(parity_crypto::error::Error);
     }
     errors {
         StoreError(e: ethstore::Error) {
