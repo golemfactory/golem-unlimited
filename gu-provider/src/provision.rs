@@ -84,19 +84,26 @@ pub fn upload_step(
     url: &str,
     input_path: PathBuf,
     format: ResourceFormat,
-) -> impl Future<Item = (), Error = String> {
+) -> impl Future<Item = String, Error = String> {
     use actix_web::{client, error::ErrorInternalServerError};
 
+    eprintln!("streaming from {:?} to {} format: {:?}", &input_path, url, format);
     let source_stream: Box<dyn Stream<Item = bytes::Bytes, Error = String>> = match format {
         ResourceFormat::Tar => Box::new(stream_tar(input_path)),
         ResourceFormat::Raw => Box::new(stream_raw(input_path)),
     };
+    let url_desc = url.to_owned();
 
-    let client_request = async_try!(client::put(url)
-        .streaming(source_stream.map_err(|e| ErrorInternalServerError(e)))
-        .map_err(|e| format!("{}", e)));
-
-    async_result!(future::ok(()))
+    future::result(client::put(url).streaming(source_stream.map_err(|x| ErrorInternalServerError(x))))
+        .map_err(|e| e.to_string())
+        .and_then(|req| req.send().map_err(|e| e.to_string()))
+        .and_then(move |res| {
+            if res.status().is_success() {
+                Ok(format!("{:?} file uploaded", url_desc))
+            } else {
+                Err(format!("Unsuccessful file upload: {}", res.status()))
+            }
+        })
 }
 
 pub fn stream_tar(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error = String> {
