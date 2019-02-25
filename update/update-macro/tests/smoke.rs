@@ -18,6 +18,11 @@ struct C {
     opt: Option<u8>,
 }
 
+enum E {
+    A(A),
+}
+
+
 #[test]
 fn works() {
     let mut a = A::default();
@@ -36,4 +41,6 @@ fn works() {
     );
 
     println!("{:?}", a);
+
+    let e = E::A(A::default());
 }
