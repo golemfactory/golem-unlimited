@@ -30,20 +30,20 @@ impl Parse for Item {
 }
 
 fn set_in_enum(idents: Vec<Ident>, name: &Ident) -> impl quote::ToTokens {
-    let updates = idents.into_iter().map(|ident| {
+    let sets = idents.into_iter().map(|ident| {
         quote! { #name::#ident(x) => {
             if stringify!(#ident) != key.next().ok_or("Clear failed - not declared for enum")? {
                 return Err("Set failed - no such option in enum")
             }
 
-            x.update(key, value)
+            x.set(key, value)
         }}
     });
 
     quote! {
-        fn update<I: Iterator<Item=String>>(&mut self, mut key: I, value: String) -> Result<(), &'static str> {
+        fn set<I: Iterator<Item=String>>(&mut self, mut key: I, value: String) -> Result<(), &'static str> {
             match self {
-                #(#updates,)*
+                #(#sets,)*
                 _ => Err("Update failed - unknown enum field"),
             }
         }
@@ -51,27 +51,27 @@ fn set_in_enum(idents: Vec<Ident>, name: &Ident) -> impl quote::ToTokens {
 }
 
 fn remove_in_enum(idents: Vec<Ident>, name: &Ident) -> impl quote::ToTokens {
-    let clears = idents.iter().map(|ident| {
+    let removes = idents.iter().map(|ident| {
         quote! { #name::#ident(x) => {
             if stringify!(#ident) != key.next().ok_or("Clear failed - not declared for enum")? {
                 return Err("Set failed - no such option in enum")
             }
 
-            x.clear(key)
+            x.remove(key)
         }}
     });
 
     quote! {
-        fn clear<I: Iterator<Item=String>>(&mut self, mut key: I) -> Result<(), &'static str> {
+        fn remove<I: Iterator<Item=String>>(&mut self, mut key: I) -> Result<(), &'static str> {
             match self {
-                #(#clears,)*
+                #(#removes,)*
                 _ => Err("Close failed - unknown enum field"),
             }
         }
     }
 }
 
-fn update_enum(input: syn::ItemEnum) -> TokenStream {
+fn set_enum(input: syn::ItemEnum) -> TokenStream {
     let idents: Vec<_> = input
         .variants
         .iter()
@@ -93,14 +93,14 @@ fn update_enum(input: syn::ItemEnum) -> TokenStream {
 }
 
 fn set_in_struct(idents: Vec<Ident>) -> impl quote::ToTokens {
-    let updates = idents
+    let sets = idents
         .into_iter()
-        .map(|ident| quote! { stringify!(#ident) => self.#ident.update(key, value) });
+        .map(|ident| quote! { stringify!(#ident) => self.#ident.set(key, value) });
 
     quote! {
-        fn update<I: Iterator<Item=String>>(&mut self, mut key: I, value: String) -> Result<(), &'static str> {
+        fn set<I: Iterator<Item=String>>(&mut self, mut key: I, value: String) -> Result<(), &'static str> {
             match key.next().ok_or("Update failed - not declared for struct")?.as_str() {
-                #(#updates,)*
+                #(#sets,)*
                 _ => Err("Update failed - unknown struct field"),
             }
         }
@@ -108,21 +108,21 @@ fn set_in_struct(idents: Vec<Ident>) -> impl quote::ToTokens {
 }
 
 fn remove_in_struct(idents: Vec<Ident>) -> impl quote::ToTokens {
-    let clears = idents
+    let removes = idents
         .iter()
-        .map(|ident| quote! { stringify!(#ident) => self.#ident.clear(key) });
+        .map(|ident| quote! { stringify!(#ident) => self.#ident.remove(key) });
 
     quote! {
-        fn clear<I: Iterator<Item=String>>(&mut self, mut key: I) -> Result<(), &'static str> {
+        fn remove<I: Iterator<Item=String>>(&mut self, mut key: I) -> Result<(), &'static str> {
             match key.next().ok_or("Clear failed - not declared for struct")?.as_str() {
-                #(#clears,)*
+                #(#removes,)*
                 _ => Err("Close failed - unknown struct field"),
             }
         }
     }
 }
 
-fn update_struct(input: syn::ItemStruct) -> TokenStream {
+fn set_struct(input: syn::ItemStruct) -> TokenStream {
     let idents: Vec<_> = input
         .fields
         .iter()
@@ -148,7 +148,7 @@ pub fn update_derive(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
 
     match input {
-        Item::Struct(x) => update_struct(x),
-        Item::Enum(x) => update_enum(x),
+        Item::Struct(x) => set_struct(x),
+        Item::Enum(x) => set_enum(x),
     }
 }

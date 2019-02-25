@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 // Add; Remove;
 pub trait UpdateTrait: Sized {
-    fn update<I: Iterator<Item = String>>(
+    fn set<I: Iterator<Item = String>>(
         &mut self,
         key: I,
         value: String,
@@ -15,23 +15,23 @@ pub trait UpdateTrait: Sized {
         Err("Val not declared")
     }
 
-    fn clear<I: Iterator<Item = String>>(&mut self, key: I) -> Result<(), &'static str> {
+    fn remove<I: Iterator<Item = String>>(&mut self, key: I) -> Result<(), &'static str> {
         Err("Clear not declared")
     }
 }
 
 impl<T: UpdateTrait> UpdateTrait for Option<T> {
-    fn update<I: Iterator<Item = String>>(
+    fn set<I: Iterator<Item = String>>(
         &mut self,
         mut key: I,
         value: String,
     ) -> Result<(), &'static str> {
         if let Some(x) = self {
-            x.update(key, value)
+            x.set(key, value)
         } else if key.next().is_none() {
             Self::val(value).map(|x| *self = x)
         } else {
-            Err("Cannot update value because of None on path to if")
+            Err("Cannot set value because of None on path to if")
         }
     }
 
@@ -39,7 +39,7 @@ impl<T: UpdateTrait> UpdateTrait for Option<T> {
         T::val(s).map(|x| Some(x))
     }
 
-    fn clear<I: Iterator<Item = String>>(&mut self, mut key: I) -> Result<(), &'static str> {
+    fn remove<I: Iterator<Item = String>>(&mut self, mut key: I) -> Result<(), &'static str> {
         match key.next() {
             Some(_) => Err("Clear failed - too long key"),
             None => {
@@ -51,13 +51,13 @@ impl<T: UpdateTrait> UpdateTrait for Option<T> {
 }
 
 impl<T: Primitive> UpdateTrait for T {
-    fn update<I: Iterator<Item = String>>(
+    fn set<I: Iterator<Item = String>>(
         &mut self,
         mut key: I,
         value: String,
     ) -> Result<(), &'static str> {
         if key.next().is_some() {
-            return Err("Update failed - too long key");
+            return Err("Set failed - too long key");
         }
 
         Self::val(value).map(|x| *self = x)

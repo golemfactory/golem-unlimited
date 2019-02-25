@@ -34,17 +34,17 @@ fn works() {
     a.b.c.opt = Some(1);
     println!(
         "{:?}",
-        a.update(iter_of_strings!["b", "c", "arg"], "true".to_string())
+        a.set(iter_of_strings!["b", "c", "arg"], "true".to_string())
     );
     assert_eq!(a.b.c.arg, true);
 
-    println!("{:?}", a.clear(iter_of_strings!["b", "c", "opt"]));
+    println!("{:?}", a.remove(iter_of_strings!["b", "c", "opt"]));
     assert_eq!(a.b.c.opt, None);
 
     a.b.c.opt = Some(1);
     let mut e = E::AA(a);
 
-    println!("{:?}", e.clear(iter_of_strings!("AA", "b", "c", "opt")));
+    println!("{:?}", e.remove(iter_of_strings!("AA", "b", "c", "opt")));
 
     if let E::AA(ref x) = e {
         assert_eq!(x.b.c.opt, None);
@@ -54,7 +54,7 @@ fn works() {
 
     println!(
         "{:?}",
-        e.update(iter_of_strings!("AA", "b", "c", "arg"), "false".into())
+        e.set(iter_of_strings!("AA", "b", "c", "arg"), "false".into())
     );
 
     if let E::AA(ref x) = e {
