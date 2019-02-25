@@ -7,8 +7,8 @@ extern crate update_trait;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::punctuated::Punctuated;
 use syn::parse::{Parse, ParseStream, Result as ParseResult};
+use syn::punctuated::Punctuated;
 use syn::{braced, token, Field, Ident, Result, Token};
 
 enum Item {
@@ -30,14 +30,19 @@ impl Parse for Item {
 }
 
 fn set_in_enum(idents: Vec<Ident>) -> impl quote::ToTokens {
-    let updates = idents
-        .clone()
-        .into_iter()
-        .map(|ident| quote! { E::A(x) => x.update(key, value) });
+    let updates = idents.into_iter().map(|ident| {
+        quote! { E::#ident(x) => {
+            if stringify!(#ident) != key.next().ok_or("Clear failed - not declared for enum")? {
+                return Err("Set failed - no such option in enum")
+            }
+
+            x.update(key, value)
+        }}
+    });
 
     quote! {
         fn update<I: Iterator<Item=String>>(&mut self, mut key: I, value: String) -> Result<(), &'static str> {
-            match key.next().ok_or("Update failed - not declared for enum")? {
+            match self {
                 #(#updates,)*
                 _ => Err("Update failed - unknown enum field"),
             }
@@ -49,7 +54,6 @@ fn remove_in_enum(idents: Vec<Ident>) -> impl quote::ToTokens {
     let clears = idents
         .iter()
         .map(|ident| quote! { E::A(x) => x.clear(key) });
-
 
     quote! {
         fn clear<I: Iterator<Item=String>>(&mut self, mut key: I) -> Result<(), &'static str> {
@@ -65,16 +69,16 @@ fn update_enum(input: syn::ItemEnum) -> TokenStream {
     let idents: Vec<_> = input
         .variants
         .iter()
-        .map(|field| field.ident.clone())
+        .map(|field| field.ident.to_owned())
         .collect();
 
-    let set_quote = set_in_struct(idents.clone());
-    let remove_quote = remove_in_struct(idents);
+    let set_quote = set_in_enum(idents.clone());
+    let remove_quote = remove_in_enum(idents);
     let name = &input.ident;
 
     let result = quote! {
         impl UpdateTrait for #name {
-
+            #set_quote
         }
     };
 
@@ -83,7 +87,6 @@ fn update_enum(input: syn::ItemEnum) -> TokenStream {
 
 fn set_in_struct(idents: Vec<Ident>) -> impl quote::ToTokens {
     let updates = idents
-        .clone()
         .into_iter()
         .map(|ident| quote! { stringify!(#ident) => self.#ident.update(key, value) });
 
@@ -102,7 +105,6 @@ fn remove_in_struct(idents: Vec<Ident>) -> impl quote::ToTokens {
         .iter()
         .map(|ident| quote! { stringify!(#ident) => self.#ident.clear(key) });
 
-
     quote! {
         fn clear<I: Iterator<Item=String>>(&mut self, mut key: I) -> Result<(), &'static str> {
             match key.next().ok_or("Clear failed - not declared for struct")?.as_str() {
@@ -117,13 +119,12 @@ fn update_struct(input: syn::ItemStruct) -> TokenStream {
     let idents: Vec<_> = input
         .fields
         .iter()
-        .filter_map(|field| field.ident.clone())
+        .filter_map(|field| field.ident.to_owned())
         .collect();
 
     let set_quote = set_in_struct(idents.clone());
     let remove_quote = remove_in_struct(idents);
     let name = &input.ident;
-
 
     let result = quote! {
         impl UpdateTrait for #name {

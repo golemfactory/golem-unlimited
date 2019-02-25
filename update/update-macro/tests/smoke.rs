@@ -18,29 +18,38 @@ struct C {
     opt: Option<u8>,
 }
 
+#[derive(Update, Debug)]
 enum E {
-    A(A),
+    AA(A),
+    BB(B),
 }
-
 
 #[test]
 fn works() {
+    macro_rules! iter_of_strings {
+        ($($x:expr),*) => (vec![$($x.to_string()),*].into_iter());
+    }
+
     let mut a = A::default();
     a.b.c.opt = Some(1);
     println!(
         "{:?}",
         a.update(
-            ["b", "c", "arg"].to_vec().iter().map(|x| x.to_string()),
+            iter_of_strings!["b", "c", "arg"],
             "true".to_string()
         )
     );
 
     println!(
         "{:?}",
-        a.clear(["b", "c", "opt"].to_vec().iter().map(|x| x.to_string()))
+        a.clear(iter_of_strings!["b", "c", "opt"])
     );
 
     println!("{:?}", a);
-
-    let e = E::A(A::default());
+    println!(
+        "{:?}",
+        E::AA(A::default()).clear(
+            iter_of_strings!("AA", "b", "c", "opt")
+        )
+    );
 }
