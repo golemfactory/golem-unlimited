@@ -1,6 +1,6 @@
+use crate::error::Error;
 use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
-use crate::error::Error;
 use futures::stream::Stream;
 use futures::{future, Future};
 use gu_actix::release::{AsyncRelease, Handle};
@@ -10,9 +10,9 @@ use gu_model::{
     session::{self, BlobInfo, HubSessionSpec, Metadata},
 };
 use gu_net::types::NodeId;
-use std::str;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{env, str};
 use url::Url;
 
 /// Connection to a single hub.
@@ -24,6 +24,15 @@ pub struct HubConnection {
 #[derive(Debug)]
 struct HubConnectionInner {
     url: Url,
+}
+
+impl Default for HubConnection {
+    fn default() -> Self {
+        match env::var("GU_HUB_ADDR") {
+            Ok(addr) => HubConnection::from_addr(addr).unwrap(),
+            Err(_) => HubConnection::from_addr("127.0.0.1:61622").unwrap(),
+        }
+    }
 }
 
 impl HubConnection {
