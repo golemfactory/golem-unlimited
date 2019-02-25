@@ -34,22 +34,35 @@ fn works() {
     a.b.c.opt = Some(1);
     println!(
         "{:?}",
-        a.update(
-            iter_of_strings!["b", "c", "arg"],
-            "true".to_string()
-        )
+        a.update(iter_of_strings!["b", "c", "arg"], "true".to_string())
     );
+    assert_eq!(a.b.c.arg, true);
+
+    println!("{:?}", a.clear(iter_of_strings!["b", "c", "opt"]));
+    assert_eq!(a.b.c.opt, None);
+
+    a.b.c.opt = Some(1);
+    let mut e = E::AA(a);
 
     println!(
         "{:?}",
-        a.clear(iter_of_strings!["b", "c", "opt"])
+        e.clear(iter_of_strings!("AA", "b", "c", "opt"))
     );
 
-    println!("{:?}", a);
+    if let E::AA(ref x) = e {
+        assert_eq!(x.b.c.opt, None);
+    } else {
+        panic!("Wrong option in enum")
+    }
+
     println!(
         "{:?}",
-        E::AA(A::default()).clear(
-            iter_of_strings!("AA", "b", "c", "opt")
-        )
+        e.update(iter_of_strings!("AA", "b", "c", "arg"), "false".into())
     );
+
+    if let E::AA(ref x) = e {
+        assert_eq!(x.b.c.arg, false);
+    } else {
+        panic!("Wrong option in enum")
+    }
 }

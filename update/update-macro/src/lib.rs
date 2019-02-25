@@ -29,9 +29,9 @@ impl Parse for Item {
     }
 }
 
-fn set_in_enum(idents: Vec<Ident>) -> impl quote::ToTokens {
+fn set_in_enum(idents: Vec<Ident>, name: &Ident) -> impl quote::ToTokens {
     let updates = idents.into_iter().map(|ident| {
-        quote! { E::#ident(x) => {
+        quote! { #name::#ident(x) => {
             if stringify!(#ident) != key.next().ok_or("Clear failed - not declared for enum")? {
                 return Err("Set failed - no such option in enum")
             }
@@ -50,14 +50,20 @@ fn set_in_enum(idents: Vec<Ident>) -> impl quote::ToTokens {
     }
 }
 
-fn remove_in_enum(idents: Vec<Ident>) -> impl quote::ToTokens {
-    let clears = idents
-        .iter()
-        .map(|ident| quote! { E::A(x) => x.clear(key) });
+fn remove_in_enum(idents: Vec<Ident>, name: &Ident) -> impl quote::ToTokens {
+    let clears = idents.iter().map(|ident| {
+        quote! { #name::#ident(x) => {
+            if stringify!(#ident) != key.next().ok_or("Clear failed - not declared for enum")? {
+                return Err("Set failed - no such option in enum")
+            }
+
+            x.clear(key)
+        }}
+    });
 
     quote! {
         fn clear<I: Iterator<Item=String>>(&mut self, mut key: I) -> Result<(), &'static str> {
-            match key.next().ok_or("Clear failed - not declared for enum")?.as_str() {
+            match self {
                 #(#clears,)*
                 _ => Err("Close failed - unknown enum field"),
             }
@@ -72,13 +78,14 @@ fn update_enum(input: syn::ItemEnum) -> TokenStream {
         .map(|field| field.ident.to_owned())
         .collect();
 
-    let set_quote = set_in_enum(idents.clone());
-    let remove_quote = remove_in_enum(idents);
     let name = &input.ident;
+    let set_quote = set_in_enum(idents.clone(), name);
+    let remove_quote = remove_in_enum(idents, name);
 
     let result = quote! {
         impl UpdateTrait for #name {
             #set_quote
+            #remove_quote
         }
     };
 
