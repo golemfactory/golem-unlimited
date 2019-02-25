@@ -402,7 +402,9 @@ mod tests {
 
         // then
         assert!(sig.is_ok());
-        assert!(key.verify(&sig.unwrap(), &msg).is_ok());
+        let result = key.verify(&sig.unwrap(), &msg);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
     }
 
     #[test]
