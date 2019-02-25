@@ -44,10 +44,7 @@ fn works() {
     a.b.c.opt = Some(1);
     let mut e = E::AA(a);
 
-    println!(
-        "{:?}",
-        e.clear(iter_of_strings!("AA", "b", "c", "opt"))
-    );
+    println!("{:?}", e.clear(iter_of_strings!("AA", "b", "c", "opt")));
 
     if let E::AA(ref x) = e {
         assert_eq!(x.b.c.opt, None);
