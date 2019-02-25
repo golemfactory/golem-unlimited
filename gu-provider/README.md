@@ -28,5 +28,10 @@ $ gu-provider server stop
 List available lan peers
 
 ```
-$ gu-porovider lan list
+$ gu-provider lan list
+```
+
+Connect to a hub
+```
+$ gu-provider hubs connect <hub-ip>:<hub-port>
 ```

@@ -6,14 +6,14 @@ It features the [hub](gu-hub) acting as a requestor and additional worker nodes 
 
 Trust within Golem Unlimited subnetwork allows simplifying its design and taking care of only the computation layer. Other components such as economic layers, reputation systems, verification algorithms, and sandboxing (in contrast to the public Golem Network) can be skipped altogether or implemented optionally.
 
-Golem Unlimited joint resources can be used to perform tasks for internal requestor - the hub operator - with no fee. At the same time the hub will be able to expose its subordinate trusted providers to the public [Golem](../../../golem) Network. In such a setting hub will act as a provider and earn GNTs.  
+Golem Unlimited joint resources can be used to perform tasks for internal requestor - the hub operator - with no fee. At the same time the hub will be able to expose its subordinate trusted providers to the public [Golem](../../../golem) Network. In such a setting hub will act as a provider and earn GNTs.
 
 The latter broadens [Golem](../../../golem) Network reach, because it currently supports just single machine nodes. With Golem Unlimited it would allow more complex components, such as a whole subnetworks.
 
 # Use cases
 So far we have prepared plugins for two use cases:
 * Integer factorization
-* Mining 
+* Mining
 
 We will open source those plugins soon.
 
@@ -34,7 +34,11 @@ $ cargo run -- -vv server run
 
 To run the provider and connect to your hub at 192.168.1.1 go to `gu-provider` subdir and run
 ```
-$ cargo run -- -vv -a 192.168.1.1:61622 server run
+$ cargo run -- -vv server run
+```
+then, while the provider is running
+```
+$ cargo run -- hubs connect 192.168.1.1:61622
 ```
 
 # Usage
