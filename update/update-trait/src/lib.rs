@@ -68,12 +68,12 @@ impl<T: Primitive> UpdateTrait for T {
     }
 }
 
+trait Primitive: Sized + FromStr + ToString {}
+
 macro_rules! primitive_impl {
     ($($t:ty),+) => {
         $(impl Primitive for $t {})*
     }
 }
-
-trait Primitive: Sized + FromStr + ToString {}
 
 primitive_impl!(bool, char, i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64, String);
