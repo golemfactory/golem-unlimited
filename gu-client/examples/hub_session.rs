@@ -40,7 +40,7 @@ fn main() {
                 .and_then(|(hub_session, list_of_sessions)| {
                     println!(
                         "List of all sessions: {:?}.",
-                        list_of_sessions.collect::<Vec<HubSessionSpec>>()
+                        list_of_sessions.collect::<Vec<_>>()
                     );
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
                 })

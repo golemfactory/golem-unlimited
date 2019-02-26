@@ -7,10 +7,11 @@ use gu_model::peers::PeerInfo;
 use gu_model::{
     deployment::DeploymentInfo,
     envman,
-    session::{self, BlobInfo, HubSessionSpec, Metadata},
+    session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata},
 };
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::types::NodeId;
+use serde::de::DeserializeOwned;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -102,7 +103,7 @@ impl HubConnection {
     /// returns information about all hub sessions
     pub fn list_sessions(
         &self,
-    ) -> impl Future<Item = impl Iterator<Item = HubSessionSpec>, Error = Error> {
+    ) -> impl Future<Item = impl Iterator<Item = HubExistingSession>, Error = Error> {
         let url = format!("{}sessions", self.hub_connection_inner.url);
         match client::ClientRequest::get(url).finish() {
             Ok(r) => future::Either::A(
@@ -116,9 +117,7 @@ impl HubConnection {
                             future::Either::B(future::err(Error::CannotListHubSessions(status)))
                         }
                     })
-                    .and_then(|answer_json: Vec<HubSessionSpec>| {
-                        future::ok(answer_json.into_iter())
-                    }),
+                    .and_then(|answer_json: Vec<_>| future::ok(answer_json.into_iter())),
             ),
             Err(e) => future::Either::B(future::err(Error::CannotCreateRequest(e))),
         }
@@ -143,6 +142,43 @@ impl HubConnection {
 
     fn url(&self) -> &str {
         self.hub_connection_inner.url.as_ref()
+    }
+
+    fn fetch_json<T: DeserializeOwned + 'static>(
+        &self,
+        url: &str,
+    ) -> impl Future<Item = T, Error = Error> {
+        client::ClientRequest::get(&url)
+            .finish()
+            .into_future()
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|r| r.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => Ok(response),
+                status => Err(Error::CannotGetPeerInfo(status)),
+            })
+            .and_then(|response| response.json().map_err(Error::InvalidJSONResponse))
+    }
+
+    fn delete_resource(&self, url: &str) -> impl Future<Item = (), Error = Error> {
+        client::ClientRequest::delete(&url)
+            .finish()
+            .into_future()
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|r| r.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::NO_CONTENT => future::Either::A(future::ok(())),
+                http::StatusCode::OK => future::Either::B(
+                    response
+                        .json()
+                        .map_err(Error::InvalidJSONResponse)
+                        .and_then(|j: serde_json::Value| Ok(eprintln!("{}", j))),
+                ),
+                http::StatusCode::NOT_FOUND => {
+                    future::Either::A(future::err(Error::ResourceNotFound))
+                }
+                status => future::Either::A(future::err(Error::CannotGetPeerInfo(status))),
+            })
     }
 }
 
@@ -358,23 +394,11 @@ impl HubSession {
     }
     /// deletes hub session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
-        let remove_url = format!(
+        let url = format!(
             "{}sessions/{}",
             self.hub_connection.hub_connection_inner.url, self.session_id
         );
-        let request = match client::ClientRequest::delete(remove_url).finish() {
-            Ok(r) => r,
-            Err(e) => return future::Either::A(future::err(Error::CannotCreateRequest(e))),
-        };
-        future::Either::B(
-            request
-                .send()
-                .map_err(Error::CannotSendRequest)
-                .and_then(|response| match response.status() {
-                    http::StatusCode::OK => future::ok(()),
-                    status_code => future::err(Error::CannotDeleteHubSession(status_code)),
-                }),
-        )
+        self.hub_connection.delete_resource(&url)
     }
 }
 
@@ -650,15 +674,7 @@ impl DeploymentRef {
 impl ProviderRef {
     pub fn info(&self) -> impl Future<Item = PeerInfo, Error = Error> {
         let url = format!("{}peers/{:?}", self.connection.url(), self.node_id);
-        future::result(client::ClientRequest::get(&url).finish())
-            .map_err(Error::CannotCreateRequest)
-            .and_then(|request| request.send().map_err(Error::CannotSendRequest))
-            .and_then(|response| match response.status() {
-                http::StatusCode::OK => {
-                    future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
-                }
-                status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
-            })
+        self.connection.fetch_json(&url)
     }
 
     pub fn deployments(
@@ -672,15 +688,8 @@ impl ProviderRef {
         let connection = self.connection.clone();
         let node_id = self.node_id.clone();
 
-        future::result(client::ClientRequest::get(&url).finish())
-            .map_err(Error::CannotCreateRequest)
-            .and_then(|request| request.send().map_err(Error::CannotSendRequest))
-            .and_then(|response| match response.status() {
-                http::StatusCode::OK => {
-                    future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
-                }
-                status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
-            })
+        self.connection
+            .fetch_json(&url)
             .and_then(move |list: Vec<_>| {
                 Ok(list.into_iter().map(move |i| DeploymentRef {
                     connection: connection.clone(),
@@ -702,17 +711,8 @@ impl ProviderRef {
         );
         let connection = self.connection.clone();
         let node_id = self.node_id.clone();
-        client::ClientRequest::get(&url)
-            .finish()
-            .into_future()
-            .map_err(Error::CannotCreateRequest)
-            .and_then(|r| r.send().map_err(Error::CannotSendRequest))
-            .and_then(|response| match response.status() {
-                http::StatusCode::OK => {
-                    future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
-                }
-                status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
-            })
+        self.connection
+            .fetch_json(&url)
             .and_then(move |info: DeploymentInfo| {
                 Ok(DeploymentRef {
                     connection,

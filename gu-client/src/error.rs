@@ -31,6 +31,7 @@ pub enum Error {
     InvalidJSONResponse(actix_web::error::JsonPayloadError),
     InvalidPeer(String),
     SessionNotFound(String),
+    ResourceNotFound,
 }
 
 impl fmt::Display for Error {

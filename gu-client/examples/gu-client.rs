@@ -7,12 +7,19 @@ use failure::Fallible;
 use futures::{future, prelude::*};
 use gu_client::r#async::*;
 use gu_model::peers::PeerInfo;
+use gu_model::session::HubExistingSession;
+use gu_model::session::HubSessionSpec;
+use gu_model::session::SessionDetails;
 use gu_net::NodeId;
 use std::collections::BTreeSet;
 use structopt::*;
 
 #[derive(StructOpt)]
 enum ClientArgs {
+    /// Lists providers connected to hub.
+    #[structopt(name = "prov-list")]
+    ListProviders,
+
     #[structopt(name = "prov")]
     Providers {
         /// provider id
@@ -23,21 +30,38 @@ enum ClientArgs {
         command: Option<Providers>,
     },
 
-    /// Lists providers connected to hub.
-    #[structopt(name = "prov-list")]
-    ListProviders,
+    /// lists hub sessions.
+    #[structopt(name = "sess-list")]
+    ListSessions,
+
+    #[structopt(name = "sess")]
+    Sessions {
+        /// HUB session id.
+        #[structopt(name = "SESSION_ID", parse(try_from_str))]
+        session_id: u64,
+        #[structopt(subcommand)]
+        command: Option<Sessions>,
+    },
 }
 
 #[derive(StructOpt)]
 enum Providers {
-    #[structopt(name = "drop-deployment")]
+    /// drops drployment by id or tag
+    #[structopt(name = "drop")]
     DropDeployment {
         /// deployment id
-        #[structopt(short = "d")]
+        #[structopt(short = "d", group = "select")]
         deployment_id: Option<String>,
-        #[structopt(short = "t")]
+        #[structopt(short = "t", group = "select")]
         tag: Vec<String>,
     },
+}
+
+#[derive(StructOpt)]
+enum Sessions {
+    // Drops selected session
+    #[structopt(name = "drop")]
+    DropSession,
 }
 
 fn show_peers<Peers: IntoIterator<Item = PeerInfo>>(peers: Peers) {
@@ -52,6 +76,31 @@ fn show_peers<Peers: IntoIterator<Item = PeerInfo>>(peers: Peers) {
     }
 
     table.printstd();
+}
+
+fn show_sessions<Sessions: IntoIterator<Item = HubExistingSession>>(
+    sessions: Sessions,
+) -> impl IntoFuture<Item = (), Error = gu_client::error::Error> {
+    use prettytable::{cell, format, row, Table};
+
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_NO_BORDER);
+
+    table.add_row(row!["Id", "Name", "Created", "Tags"]);
+    for it in sessions {
+        table.add_row(row![
+            it.id,
+            it.spec.name.unwrap_or_default(),
+            it.created.naive_local(),
+            join_str(it.spec.tags.iter()),
+        ]);
+    }
+
+    if table.is_empty() {
+        Ok(println!("no sessions found"))
+    } else {
+        Ok(table.printstd())
+    }
 }
 
 fn join_str<AsStr: AsRef<str>, Items: Iterator<Item = AsStr>>(items: Items) -> String {
@@ -81,7 +130,11 @@ fn show_peer(provider: ProviderRef) -> Box<dyn Future<Item = (), Error = gu_clie
                 deployment.note().unwrap_or("")
             ]);
         }
-        Ok(table.printstd())
+        if table.is_empty() {
+            Ok(println!("no deployments found"))
+        } else {
+            Ok(table.printstd())
+        }
     }))
 }
 
@@ -111,11 +164,45 @@ fn drop_deployment(
                     let id = deployment.id().to_owned();
                     let name = deployment.name().to_owned();
 
-                    deployment.delete().and_then(move |_| Ok(eprintln!("deployment id={}, name={} dropped", id, name)))
+                    deployment.delete().and_then(move |_| {
+                        Ok(eprintln!("deployment id={}, name={} dropped", id, name))
+                    })
                 }),
         )
         .and_then(|_| Ok(()))
     }))
+}
+
+fn show_session(
+    driver: &HubConnection,
+    session_id: u64,
+) -> Box<dyn Future<Item = (), Error = gu_client::error::Error>> {
+    let hub_session = driver.hub_session(format!("{}", session_id));
+
+    Box::new(
+        hub_session
+            .info()
+            .join4(
+                hub_session.list_peers(),
+                hub_session.list_blobs(),
+                hub_session.config(),
+            )
+            .and_then(move |(info, peers, blobs, config)| {
+                println!("id={}: name={}", session_id, info.name.unwrap_or_default());
+                println!("\nconfig:\n------");
+                println!("{}", serde_json::to_string_pretty(&config).unwrap());
+                println!("\npeers:\n------");
+                for peer in peers {
+                    println!(" - {:?}", peer.node_id)
+                }
+                println!("\nblobs:\n------");
+                for blob in blobs {
+                    println!(" - {:?}", blob.id)
+                }
+
+                Ok(())
+            }),
+    )
 }
 
 fn main() -> Fallible<()> {
@@ -136,7 +223,21 @@ fn main() -> Fallible<()> {
                 Some(Providers::DropDeployment { deployment_id, tag }) => {
                     drop_deployment(&driver, provider_id, deployment_id, tag)
                 }
-                None => show_peer(driver.peer(provider_id))
+                None => show_peer(driver.peer(provider_id)),
+            },
+            ClientArgs::ListSessions => Box::new(
+                driver
+                    .list_sessions()
+                    .and_then(|sessions| show_sessions(sessions)),
+            ),
+            ClientArgs::Sessions {
+                session_id,
+                command,
+            } => match command {
+                Some(Sessions::DropSession) => {
+                    Box::new(driver.hub_session(format!("{}", session_id)).delete())
+                }
+                None => show_session(&driver, session_id),
             },
             _ => unimplemented!(),
         }
