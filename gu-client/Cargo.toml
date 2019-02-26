@@ -18,4 +18,5 @@ url = "1.7.2"
 
 [dev-dependencies]
 failure = "0.1.5"
-structopt="0.2.14"
+structopt= { version="0.2.14", default-features=false, features=["wrap_help"]}
+prettytable-rs="0.7"

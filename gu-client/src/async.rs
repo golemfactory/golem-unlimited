@@ -1,15 +1,17 @@
 use crate::error::Error;
 use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
-use futures::stream::Stream;
-use futures::{future, Future};
+use futures::{future, prelude::*};
 use gu_actix::release::{AsyncRelease, Handle};
 use gu_model::peers::PeerInfo;
 use gu_model::{
+    deployment::DeploymentInfo,
     envman,
     session::{self, BlobInfo, HubSessionSpec, Metadata},
 };
+use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::types::NodeId;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, str};
@@ -127,6 +129,20 @@ impl HubConnection {
             hub_connection: self.clone(),
             session_id: session_id.into(),
         }
+    }
+
+    pub fn peer<T: Into<NodeId>>(&self, node_id: T) -> ProviderRef {
+        let connection = self.clone();
+        let node_id = node_id.into();
+
+        ProviderRef {
+            connection,
+            node_id,
+        }
+    }
+
+    fn url(&self) -> &str {
+        self.hub_connection_inner.url.as_ref()
     }
 }
 
@@ -494,11 +510,10 @@ impl Peer {
     /// gets peer information
     pub fn info(&self) -> impl Future<Item = PeerInfo, Error = Error> {
         let url = format!(
-            "{}peers/{}",
-            self.hub_session.hub_connection.hub_connection_inner.url,
-            self.node_id.to_string()
+            "{}peers/{:?}",
+            self.hub_session.hub_connection.hub_connection_inner.url, self.node_id
         );
-        future::result(client::ClientRequest::get(url).finish())
+        future::result(client::ClientRequest::get(&url).finish())
             .map_err(Error::CannotCreateRequest)
             .and_then(|request| request.send().map_err(Error::CannotSendRequest))
             .and_then(|response| match response.status() {
@@ -582,5 +597,128 @@ impl AsyncRelease for PeerSession {
     type Result = Box<Future<Item = (), Error = Error>>;
     fn release(self) -> Self::Result {
         Box::new(self.delete())
+    }
+}
+
+pub struct ProviderRef {
+    connection: HubConnection,
+    node_id: NodeId,
+}
+
+pub struct DeploymentRef {
+    connection: HubConnection,
+    node_id: NodeId,
+    info: DeploymentInfo,
+}
+
+impl DeploymentRef {
+    pub fn id(&self) -> &str {
+        self.info.id.as_ref()
+    }
+
+    pub fn name(&self) -> &str {
+        self.info.name.as_ref()
+    }
+
+    pub fn tags<'a>(&'a self) -> impl Iterator<Item = impl AsRef<str> + 'a> {
+        self.info.tags.iter() //.map(|v| v.as_ref())
+    }
+
+    pub fn note(&self) -> Option<&str> {
+        self.info.note.as_ref().map(AsRef::as_ref)
+    }
+
+    pub fn delete(self) -> impl Future<Item = (), Error = Error> {
+        let url = format!(
+            "{}peers/{:?}/deployments/{}",
+            self.connection.url(),
+            &self.node_id,
+            &self.info.id
+        );
+        client::delete(url)
+            .finish()
+            .into_future()
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|r| r.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::NO_CONTENT => future::ok(()),
+                status_code => future::err(Error::CannotDeletePeerSession(status_code)),
+            })
+    }
+}
+
+impl ProviderRef {
+    pub fn info(&self) -> impl Future<Item = PeerInfo, Error = Error> {
+        let url = format!("{}peers/{:?}", self.connection.url(), self.node_id);
+        future::result(client::ClientRequest::get(&url).finish())
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|request| request.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => {
+                    future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                }
+                status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
+            })
+    }
+
+    pub fn deployments(
+        &self,
+    ) -> impl Future<Item = impl IntoIterator<Item = DeploymentRef>, Error = Error> {
+        let url = format!(
+            "{}peers/{:?}/deployments",
+            self.connection.url(),
+            self.node_id
+        );
+        let connection = self.connection.clone();
+        let node_id = self.node_id.clone();
+
+        future::result(client::ClientRequest::get(&url).finish())
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|request| request.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => {
+                    future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                }
+                status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
+            })
+            .and_then(move |list: Vec<_>| {
+                Ok(list.into_iter().map(move |i| DeploymentRef {
+                    connection: connection.clone(),
+                    node_id: node_id.clone(),
+                    info: i,
+                }))
+            })
+    }
+
+    pub fn deployment<DeploymentId: AsRef<str>>(
+        &self,
+        deployment_id: DeploymentId,
+    ) -> impl Future<Item = DeploymentRef, Error = Error> {
+        let url = format!(
+            "{}peers/{:?}/deployments/{}",
+            self.connection.url(),
+            self.node_id,
+            deployment_id.as_ref(),
+        );
+        let connection = self.connection.clone();
+        let node_id = self.node_id.clone();
+        client::ClientRequest::get(&url)
+            .finish()
+            .into_future()
+            .map_err(Error::CannotCreateRequest)
+            .and_then(|r| r.send().map_err(Error::CannotSendRequest))
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => {
+                    future::Either::A(response.json().map_err(Error::InvalidJSONResponse))
+                }
+                status => future::Either::B(future::err(Error::CannotGetPeerInfo(status))),
+            })
+            .and_then(move |info: DeploymentInfo| {
+                Ok(DeploymentRef {
+                    connection,
+                    node_id,
+                    info,
+                })
+            })
     }
 }

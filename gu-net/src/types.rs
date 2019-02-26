@@ -10,6 +10,17 @@ use rand::{
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::{borrow::Cow, mem::uninitialized};
 
+#[derive(Debug)]
+pub struct ParseError(&'static str);
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "invalid node id format, {}", self.0)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct NodeId {
     inner: [u8; 20],
@@ -87,27 +98,27 @@ impl ToString for NodeId {
 }
 
 #[inline]
-fn hex_to_dec(hex: u8) -> Result<u8, ()> {
+fn hex_to_dec(hex: u8) -> Result<u8, ParseError> {
     match hex {
         b'A'...b'F' => Ok(hex - b'A' + 10),
         b'a'...b'f' => Ok(hex - b'a' + 10),
         b'0'...b'9' => Ok(hex - b'0'),
-        _ => Err(()),
+        _ => Err(ParseError("invalid char, expected hex")),
     }
 }
 
 impl str::FromStr for NodeId {
-    type Err = ();
+    type Err = ParseError;
 
-    fn from_str(s: &str) -> Result<Self, ()> {
+    fn from_str(s: &str) -> Result<Self, ParseError> {
         let bytes = s.as_bytes();
 
         if bytes.len() != 42 {
-            return Err(());
+            return Err(ParseError("expected size 42 chars"));
         }
 
         if bytes[0] != b'0' || bytes[1] != b'x' {
-            return Err(());
+            return Err(ParseError("expected 0x"));
         }
 
         let mut inner = [0u8; 20];
