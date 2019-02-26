@@ -25,39 +25,36 @@
 //! }
 //! ```
 //!
-#[macro_use]
-extern crate error_chain;
-extern crate ethkey;
-extern crate ethstore;
-#[macro_use]
-extern crate log;
-extern crate parity_crypto;
-#[cfg(test)]
-#[macro_use]
-extern crate pretty_assertions;
-extern crate rand;
-extern crate rustc_hex;
 
-use ethkey::{
-    crypto::ecies::{decrypt, encrypt},
-    sign, verify_public, Address, Generator, KeyPair, Message, Password, Public, Random, Signature,
-};
-use ethstore::{
-    accounts_dir::{KeyFileManager, RootDiskDirectory},
-    SafeAccount,
-};
+use error_chain::error_chain;
+use log::info;
 use rustc_hex::ToHex;
 use std::{
     fmt, fs, io,
     path::{Path, PathBuf},
 };
 
+use ethsign::{PublicKey, SecretKey, Signature, Protected};
+//use ethkey::{
+//    crypto::ecies::{decrypt, encrypt},
+//    sign, verify_public, Address, Generator, KeyPair, Message, Password, Public, Random, Signature,
+//};
+//use ethstore::{
+//    accounts_dir::{KeyFileManager, RootDiskDirectory},
+//    SafeAccount,
+//};
+
+type Address = [u8; 20];
+type Message = [u8; 32];
+type Password = Protected;
+
 /// HMAC fn iteration count; compromise between security and performance
 pub const KEY_ITERATIONS: u32 = 10240;
 
 /// An Ethereum `KeyPair` wrapper with Store.
 pub struct SafeEthKey {
-    key_pair: KeyPair,
+    secret: SecretKey,
+    public: PublicKey,
     file_path: PathBuf,
 }
 
@@ -67,7 +64,7 @@ pub struct SafeEthKey {
 /// [Secp256k1]: https://en.bitcoin.it/wiki/Secp256k1
 pub trait EthKey {
     /// get public key
-    fn public(&self) -> &Public;
+    fn public(&self) -> &PublicKey;
 
     /// get ethereum address
     fn address(&self) -> Address;
@@ -121,7 +118,7 @@ impl EthKey for SafeEthKey {
     }
 }
 
-fn to_safe_account(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
+fn to_key_file(key_pair: &KeyPair, pwd: &Password) -> Result<SafeAccount> {
     SafeAccount::create(
         key_pair,
         rand::random(),
