@@ -356,7 +356,7 @@ impl Blob {
     {
         let url = format!(
             "{}sessions/{}/blobs/{}",
-            self.hub_session.hub_connection.hub_connection_inner.url,
+            self.hub_session.hub_connection.url(),
             self.hub_session.session_id,
             self.blob_id
         );

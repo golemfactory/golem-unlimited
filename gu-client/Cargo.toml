@@ -20,3 +20,5 @@ failure = "0.1.5"
 [dev-dependencies]
 structopt= { version="0.2.14", default-features=false, features=["wrap_help", "suggestions", "color"]}
 prettytable-rs="0.7"
+tar-async={git="https://github.com/prekucki/tar-async.git"}
+datetime=""

@@ -12,9 +12,10 @@ use gu_model::session::HubSessionSpec;
 use gu_model::session::SessionDetails;
 use gu_net::NodeId;
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 use structopt::*;
 
-#[derive(StructOpt)]
+#[derive(StructOpt, Debug)]
 enum ClientArgs {
     /// Lists providers connected to hub.
     #[structopt(name = "prov-list")]
@@ -42,9 +43,25 @@ enum ClientArgs {
         #[structopt(subcommand)]
         command: Option<Sessions>,
     },
+
+    #[structopt(name = "render")]
+    Render(Render),
 }
 
-#[derive(StructOpt)]
+#[derive(StructOpt, Debug)]
+struct Render {
+    #[structopt(long, short)]
+    name: Option<String>,
+    #[structopt(long, short)]
+    frame: Vec<usize>,
+    #[structopt(long)]
+    docker: bool,
+
+    #[structopt(name = "RESOURCE", parse(from_os_str))]
+    resource: Vec<PathBuf>,
+}
+
+#[derive(StructOpt, Debug)]
 enum Providers {
     /// drops deployment by id or tag
     #[structopt(name = "drop")]
@@ -57,7 +74,7 @@ enum Providers {
     },
 }
 
-#[derive(StructOpt)]
+#[derive(StructOpt, Debug)]
 enum Sessions {
     // Drops selected session
     #[structopt(name = "drop")]
@@ -205,6 +222,37 @@ fn show_session(
     )
 }
 
+fn render_task(
+    connection: &HubConnection,
+    opts: Render,
+) -> Box<dyn Future<Item = (), Error = gu_client::error::Error>> {
+    use gu_model::chrono::prelude::*;
+
+    let spec = HubSessionSpec {
+        expires: None,
+        allocation: gu_model::session::AllocationMode::MANUAL,
+        name: Some(
+            opts.name
+                .unwrap_or_else(|| format!("blender at {:?}", Utc::now())),
+        ),
+        tags: vec!["gu:render".to_string(), "gu:blender".to_string()]
+            .into_iter()
+            .collect(),
+    };
+
+    let peers = connection.list_peers();
+
+    Box::new(connection.new_session(spec).and_then(|session| {
+        // Work
+        // 1. Upload resources to session
+        // 2. Create deployments on peer
+        // 3. Run processing
+        // 4. upload results
+        ;
+        Ok(())
+    }))
+}
+
 fn main() -> Fallible<()> {
     let mut sys = System::new("gu-client");
 
@@ -237,7 +285,11 @@ fn main() -> Fallible<()> {
                 Some(Sessions::DropSession) => Box::new(driver.hub_session(session_id).delete()),
                 None => show_session(&driver, session_id),
             },
-            _ => unimplemented!(),
+            ClientArgs::Render(render_opts) => render_task(&driver, render_opts),
+            v => {
+                eprintln!("unimplemented opts: {:?}", v);
+                unimplemented!()
+            }
         }
     }))?;
 
