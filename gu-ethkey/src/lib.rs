@@ -34,12 +34,16 @@ use std::{
     path::{Path, PathBuf},
 };
 use rand::{thread_rng, RngCore};
+use rustc_hex::ToHex;
 
 use ethsign::{PublicKey, SecretKey, Signature, Protected, keyfile::KeyFile};
 
-type Address = [u8; 20];
+mod address;
+pub use address::Address;
+
 type Message = [u8; 32];
 type Password = Protected;
+
 
 /// HMAC fn iteration count; a compromise between security and performance
 pub const KEY_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(10240)};
@@ -48,6 +52,7 @@ pub const KEY_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(10240)
 pub struct SafeEthKey {
     secret: SecretKey,
     public: PublicKey,
+    address: Address,
     file_path: PathBuf,
 }
 
@@ -91,7 +96,7 @@ impl EthKey for SafeEthKey {
     }
 
     fn address(&self) -> &Address {
-        self.public.address()
+        &self.address
     }
 
     fn sign(&self, msg: &Message) -> Result<Signature> {
@@ -100,7 +105,7 @@ impl EthKey for SafeEthKey {
 
     fn verify(&self, sig: &Signature, msg: &Message) -> Result<bool> {
         let pub_key = sig.recover(msg)?;
-        Ok(pub_key.address() == self.public.address())
+        Ok(pub_key.bytes()[..] == self.public.bytes()[..])
     }
 
     fn encrypt(&self, _plain: &[u8]) -> Result<Vec<u8>> {
@@ -118,9 +123,10 @@ fn save_keys<P>(key: &SecretKey, pwd: &Password, file_path: &P) -> Result<()>
 where
     P: AsRef<Path>,
 {
-    // TODO: generate UUID4
-    let key_file = key.to_keyfile("".into(), pwd, KEY_ITERATIONS)?;
-    ::serde_json::to_writer(&fs::File::create(&file_path)?, &key_file)?;
+    let id = format!("{}", uuid::Uuid::new_v4());
+    let key_file = key.to_keyfile(id, pwd, KEY_ITERATIONS)?;
+    let file = &fs::File::create(&file_path)?;
+    serde_json::to_writer_pretty(file, &key_file)?;
     Ok(())
 }
 
@@ -133,29 +139,31 @@ impl EthKeyStore for SafeEthKey {
         match fs::File::open(&file_path).map_err(Error::from) {
             Ok(file) => {
                 let key_file: KeyFile = serde_json::from_reader(file)?;
-                let key = SecretKey::from_keyfile(&key_file, &pwd).map_err(Error::from);
+                let key = SecretKey::from_keyfile(&key_file, &pwd)?;
                 info!(
-                    "account loaded from {}",
-//                    key?.public().address(),
+                    "account {:?} loaded from {}",
+                    Address::from(key.public().address().as_ref()),
                     file_path.display()
                 );
-                key
+                Ok::<SecretKey, Error>(key)
             }
-            Err(e) => {
-                info!(
-                    "Will generate new keys: file {} reading error: {}",
-                    file_path.display(),
-                    e
-                );
+            Err(_e) => {
                 let mut rng = thread_rng();
                 let mut secret = [0u8; 32];
                 rng.fill_bytes(&mut secret);
-                let key = SecretKey::from_raw(&secret).map_err(Error::from);
-                key
+                let key = SecretKey::from_raw(&secret)?;
+                save_keys(&key, pwd, &file_path)?;
+                info!(
+                    "account {:?} generated, and saved to {}",
+                    Address::from(key.public().address().as_ref()),
+                    file_path.display()
+                );
+                Ok(key)
             }
         }
         .map(|key| {
             Box::new(SafeEthKey {
+                address: key.public().address().as_ref().into(),
                 public: key.public(),
                 secret: key,
                 file_path,
@@ -167,8 +175,8 @@ impl EthKeyStore for SafeEthKey {
     fn change_password(&self, new_pwd: &Password) -> Result<()> {
         save_keys(&self.secret, new_pwd, &self.file_path)?;
         info!(
-            "changed password for account 0x{:?} in {}",
-            self.public.address(),
+            "changed password for account {} in {}",
+            self.address(),
             self.file_path.display()
         );
         Ok(())
@@ -177,8 +185,18 @@ impl EthKeyStore for SafeEthKey {
 
 impl fmt::Display for SafeEthKey {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
+        write!(fmt, "SafeEthKey:\n\tpublic:  0x{}\n\taddress: {}",
+            ToHex::to_hex::<String>(&self.public().bytes()[..]),
+            self.address()
+        )
+    }
+}
+
+impl fmt::Debug for SafeEthKey {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
         fmt.debug_struct("SafeEthKey")
             .field("public", &self.public)
+            .field("file_path", &self.file_path)
             .finish()
     }
 }
@@ -206,16 +224,12 @@ pub mod prelude {
 
 #[cfg(test)]
 mod tests {
-    extern crate env_logger;
-    extern crate log;
-    extern crate rand;
-    extern crate serde_json;
-    extern crate tempfile;
-
-    use self::tempfile::tempdir;
-    use super::prelude::*;
+    use ::tempfile::tempdir;
+    use crate::prelude::*;
     use std::{env, fs, io::prelude::*, path::PathBuf};
     use ethsign::keyfile::KeyFile;
+    use rustc_hex::FromHex;
+    use crate::Address;
 
     fn tmp_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();
@@ -228,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_logging() {
+    fn init_logging() {
         if env::var("RUST_LOG").is_err() {
             env::set_var("RUST_LOG", "info")
         }
@@ -236,18 +250,18 @@ mod tests {
     }
 
     #[test]
-    fn test_generate() {
+    fn should_generate_and_save() {
         // when
-        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into());
+        let path = tmp_path();
+        let key = SafeEthKey::load_or_generate(&path, &"pwd".into());
 
         // then
+        assert!(path.exists());
         assert!(key.is_ok());
     }
 
-    // TODO: FIXME
-    #[ignore]
     #[test]
-    fn test_serialize_with_proper_id_and_address() {
+    fn should_serialize_with_proper_id_and_address() {
         use std::fs;
         // given
         let path = tmp_path();
@@ -260,21 +274,14 @@ mod tests {
 
         let file = fs::File::open(path).unwrap();
         let key_file: KeyFile = serde_json::from_reader(file).unwrap();
-        // println!("{:#}", key_file);
         let id = key_file.id;
         assert_eq!(id.len(), 36);
-        assert_ne!(
-            format!("{}", id),
-            "00000000-0000-0000-0000-000000000000"
-        );
-        assert_eq!(
-            format!("{:?}", key.unwrap().address()),
-            format!("0x{:?}", key_file.address.unwrap())
-        );
+        assert_ne!(id, "00000000-0000-0000-0000-000000000000");
+        assert_eq!(key.unwrap().address().to_vec(), key_file.address.unwrap().0);
     }
 
     #[test]
-    fn test_read_keystore_generated_by_pyethereum() {
+    fn should_read_keystore_generated_by_pyethereum() {
         // given
         let path = tmp_path();
         let mut file = fs::File::create(&path).unwrap();
@@ -309,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_change_pass_and_reload_with_old_pass_should_fail() {
+    fn should_fail_generate_change_pass_and_reload_with_old_pass() {
         // given
         let path = tmp_path();
         let pwd = "zimko".into();
@@ -327,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_change_pass_and_reload_with_new_pass_should_pass() {
+    fn should_generate_change_pass_and_reload_with_new_pass() {
         // given
         let path = tmp_path();
 
@@ -344,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify() {
+    fn should_sign_verify() {
         // given
         let msg: super::Message = rand::random::<[u8; 32]>().into();
 
@@ -361,7 +368,7 @@ mod tests {
 
     #[ignore]
     #[test]
-    fn test_encrypt_decrypt() {
+    fn should_encrypt_decrypt() {
         // given
         let plain: [u8; 32] = rand::random();
 
@@ -375,5 +382,23 @@ mod tests {
             key.decrypt(&encv.unwrap().as_slice()).unwrap().as_slice(),
             &plain,
         ));
+    }
+
+    #[ignore]
+    #[test]
+    fn should_have_debug_impl() {
+        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into());
+
+        // TODO
+        assert_eq!(format!("{:?}", key), "TODO");
+    }
+
+    #[ignore]
+    #[test]
+    fn should_have_display_impl() {
+        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into());
+
+        // TODO
+        assert_eq!(format!("{:?}", key), "TODO");
     }
 }
