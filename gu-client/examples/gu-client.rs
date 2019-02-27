@@ -234,9 +234,7 @@ fn main() -> Fallible<()> {
                 session_id,
                 command,
             } => match command {
-                Some(Sessions::DropSession) => {
-                    Box::new(driver.hub_session(session_id).delete())
-                }
+                Some(Sessions::DropSession) => Box::new(driver.hub_session(session_id).delete()),
                 None => show_session(&driver, session_id),
             },
             _ => unimplemented!(),
