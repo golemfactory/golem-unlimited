@@ -27,6 +27,7 @@ extern crate dns_parser;
 extern crate futures;
 extern crate tokio;
 extern crate tokio_codec;
+extern crate hostname;
 
 pub use continuous::{NewInstance, Subscription};
 pub use service::ServiceDescription;
@@ -126,7 +127,7 @@ pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
 use mdns::{Responder, Service};
 
 pub struct MdnsPublisher {
-    name: &'static str,
+    is_hub: bool,
     port: Option<u16>,
     txt: Vec<String>,
     service: Option<Service>,
@@ -135,7 +136,7 @@ pub struct MdnsPublisher {
 impl Default for MdnsPublisher {
     fn default() -> Self {
         MdnsPublisher {
-            name: "",
+            is_hub: true,
             port: None,
             txt: Vec::new(),
             service: None,
@@ -151,7 +152,7 @@ impl MdnsPublisher {
 
     pub fn start(&mut self) {
         if self.service.is_none() {
-            self.service = Some(self.mdns_publisher())
+            self.service = self.mdns_publisher()
         }
     }
 
@@ -159,7 +160,7 @@ impl MdnsPublisher {
         self.service = None
     }
 
-    fn mdns_publisher(&self) -> Service {
+    fn mdns_publisher(&self) -> Option<Service> {
         use std::iter::FromIterator;
 
         if self.port.is_none() {
@@ -167,15 +168,28 @@ impl MdnsPublisher {
             panic!("mDNS publisher not initialized before use");
         }
 
-        let port = self.port.unwrap();
-        let responder = Responder::new().expect("Failed to run mDNS publisher");
+        let service = match self.is_hub {
+            true => "_hub",
+            false => "_provider",
+        };
 
-        responder.register(
-            "_unlimited._tcp".to_owned(),
-            self.name.to_string(),
+        let port = self.port.unwrap();
+        let responder = Responder::new().ok_or_else(|| {
+            error!("Failed to run mDNS publisher");
+            return None
+        });
+
+        let name = hostname::get_hostname().unwrap_or_else(|| {
+            error!("Couldn't retrieve local hostname");
+            "<blank hostname>".to_string()
+        });
+
+        Ok(responder.register(
+            format!("_gu{}._tcp", service),
+            name,
             port,
             &Vec::from_iter(self.txt.iter().map(|s| s.as_str())).as_slice(),
-        )
+        ))
     }
 
     pub fn init_provider<S>(port: u16, node_id: S) -> Self
@@ -183,7 +197,7 @@ impl MdnsPublisher {
         S: AsRef<str>,
     {
         let mut mdns = MdnsPublisher::default();
-        mdns.name = "gu-provider";
+        mdns.is_hub = false;
         let node_id = format!("node_id={}", node_id.as_ref());
         mdns.init(port, vec![node_id]);
 

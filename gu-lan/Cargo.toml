@@ -19,6 +19,7 @@ log = "0.4"
 clap = "2.32"
 bytes = "0.4"
 dns-parser = "0.8"
+hostname = "^0.1"
 socket2 = { version = "0.3", features = ["reuseport"] }
 prettytable-rs = "0.7"
 rand = "0.5.5"
