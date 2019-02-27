@@ -60,6 +60,9 @@ enum PermissionModule {
     None,
     Join(NodeId, Option<SocketAddr>),
     Configure,
+    /*AllowNode(NodeId),
+    DenyNode(NodeId),*/
+    NodeAllowedStatus(NodeId),
 }
 
 impl Module for PermissionModule {
@@ -81,7 +84,15 @@ impl Module for PermissionModule {
             */
             .subcommand(
                 SubCommand::with_name("configure")
-                    .about("Displays a UI that can be used to configure a local server"),
+                    .about("Displays a UI that can be used to configure a local server")
+                    .arg(
+                        Arg::with_name("get-node")
+                            .long("get-node")
+                            .short("g")
+                            .value_name("node_id")
+                            .takes_value(true)
+                            .help("Gets node permission status, i.e. whether it has sufficient permissions to connect to this provider.")
+                    ),
             )
     }
 
@@ -111,7 +122,19 @@ impl Module for PermissionModule {
                     return true;
                 }
             }
-        } else if let Some(_) = matches.subcommand_matches("configure") {
+        } else if let Some(cmd) = matches.subcommand_matches("configure") {
+            let get_node_id = cmd.value_of("get-node").map(|s| NodeId::from_str(s));
+            match get_node_id {
+                Some(Ok(node_id)) => {
+                    *self = PermissionModule::NodeAllowedStatus(node_id);
+                    return true;
+                }
+                Some(Err(_)) => {
+                    eprintln!("Invalid node_id.");
+                    return false;
+                }
+                _ => (),
+            }
             *self = PermissionModule::Configure;
             return true;
         }
@@ -119,14 +142,13 @@ impl Module for PermissionModule {
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
+        use actix::prelude::*;
+        use futures::prelude::*;
+        use gu_actix::prelude::*;
+        use std::sync::Arc;
         match self {
             PermissionModule::None => (),
             PermissionModule::Join(ref_group_id, _hub_address) => {
-                use actix::prelude::*;
-                use futures::prelude::*;
-                use gu_actix::prelude::*;
-                use std::sync::Arc;
-
                 let group_id = ref_group_id.clone();
 
                 System::run(move || {
@@ -148,6 +170,28 @@ impl Module for PermissionModule {
                 });
             }
             PermissionModule::Configure => run_configure(),
+            PermissionModule::NodeAllowedStatus(node_id) => {
+                let node_id_copy = node_id.clone();
+                System::run(move || {
+                    let config_manager = ConfigManager::from_registry();
+
+                    Arbiter::spawn(
+                        config_manager
+                            .send(GetConfig::new())
+                            .flatten_fut()
+                            .and_then(move |c: Arc<PermissionConfig>| {
+                                println!("{}", c.is_managed_by(&node_id_copy));
+                                /*std::process::exit(match c.is_managed_by(&node_id_copy) {
+                                    true => 0,
+                                    false => 1,
+                                });*/
+                                futures::future::ok(())
+                            })
+                            .map_err(|_| System::current().stop())
+                            .and_then(|_r| Ok(System::current().stop())),
+                    );
+                });
+            }
         }
     }
 }
