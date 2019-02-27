@@ -46,7 +46,7 @@ enum ClientArgs {
 
 #[derive(StructOpt)]
 enum Providers {
-    /// drops drployment by id or tag
+    /// drops deployment by id or tag
     #[structopt(name = "drop")]
     DropDeployment {
         /// deployment id
@@ -177,7 +177,7 @@ fn show_session(
     driver: &HubConnection,
     session_id: u64,
 ) -> Box<dyn Future<Item = (), Error = gu_client::error::Error>> {
-    let hub_session = driver.hub_session(format!("{}", session_id));
+    let hub_session = driver.hub_session(session_id);
 
     Box::new(
         hub_session
@@ -235,7 +235,7 @@ fn main() -> Fallible<()> {
                 command,
             } => match command {
                 Some(Sessions::DropSession) => {
-                    Box::new(driver.hub_session(format!("{}", session_id)).delete())
+                    Box::new(driver.hub_session(session_id).delete())
                 }
                 None => show_session(&driver, session_id),
             },

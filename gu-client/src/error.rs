@@ -1,44 +1,53 @@
-use std::{error, fmt};
-
+use failure::Fail;
+use std::{error, fmt, str};
+//
 /// Errors returned by Rust API for Golem Unlimited
-#[derive(Debug)]
+#[derive(Fail, Debug)]
 pub enum Error {
-    CannotAddPeersToSession(actix_web::http::StatusCode),
-    CannotCreateBlob(actix_web::http::StatusCode),
-    CannotConvertToUTF8(std::str::Utf8Error),
-    CannotCreateRequest(actix_web::Error),
-    CannotCreateHubSession(actix_web::http::StatusCode),
-    CannotCreatePeerSession(actix_web::http::StatusCode),
-    CannotDeleteBlob(actix_web::http::StatusCode),
-    CannotDeleteHubSession(actix_web::http::StatusCode),
-    CannotDeletePeerSession(actix_web::http::StatusCode),
-    CannotGetHubSession(actix_web::http::StatusCode),
-    CannotGetHubSessionConfig(actix_web::http::StatusCode),
-    CannotGetPeerInfo(actix_web::http::StatusCode),
-    CannotGetResponseBody(actix_web::error::PayloadError),
-    CannotListHubSessions(actix_web::http::StatusCode),
-    CannotListHubPeers(actix_web::http::StatusCode),
-    CannotListSessionBlobs(actix_web::http::StatusCode),
-    CannotListSessionPeers(actix_web::http::StatusCode),
-    CannotReceiveBlob(actix_web::http::StatusCode),
-    CannotReceiveBlobBody(actix_web::error::PayloadError),
-    CannotSendRequest(actix_web::client::SendRequestError),
-    CannotSetHubSessionConfig(actix_web::http::StatusCode),
-    CannotUploadBlobFromStream(actix_web::http::StatusCode),
-    CannotUpdateDeployment(actix_web::http::StatusCode),
-    CannotUpdateHubSession(actix_web::http::StatusCode),
-    InvalidAddress(url::ParseError),
-    InvalidJSONResponse(actix_web::error::JsonPayloadError),
-    InvalidPeer(String),
-    SessionNotFound(String),
+    #[fail(display = "invalid address: {}", _0)]
+    InvalidAddress(#[fail(cause)] url::ParseError),
+    #[fail(display = "invalid response: {}", _0)]
+    InvalidJSONResponse(#[fail(cause)] actix_web::error::JsonPayloadError),
+
+    #[fail(display = "resource not found")]
     ResourceNotFound,
+
+    #[fail(display = "bad response {}", _0)]
+    ResponseErr(actix_web::http::StatusCode),
+    #[fail(display = "{}", _0)]
+    Utf8Error(#[fail(cause)] str::Utf8Error),
+    #[fail(display = "{}", _0)]
+    SendRequestError(#[fail(cause)] actix_web::client::SendRequestError),
+    #[fail(display = "{}", _0)]
+    PayloadError(#[fail(cause)] actix_web::error::PayloadError),
+
+    #[fail(display = "{}", _0)]
+    CreateRequest(actix_web::Error),
+
+    #[fail(display = "invalid peer {}", _0)]
+    InvalidPeer(String),
 }
 
-impl fmt::Display for Error {
-    // TODO @filipgolem please implement real Display for Error
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+impl From<str::Utf8Error> for Error {
+    fn from(e: str::Utf8Error) -> Self {
+        Error::Utf8Error(e)
     }
 }
 
-impl error::Error for Error {}
+impl From<actix_web::client::SendRequestError> for Error {
+    fn from(e: actix_web::client::SendRequestError) -> Self {
+        Error::SendRequestError(e)
+    }
+}
+
+impl From<actix_web::error::JsonPayloadError> for Error {
+    fn from(e: actix_web::error::JsonPayloadError) -> Self {
+        Error::InvalidJSONResponse(e)
+    }
+}
+
+impl From<actix_web::error::PayloadError> for Error {
+    fn from(e: actix_web::error::PayloadError) -> Self {
+        Error::PayloadError(e)
+    }
+}

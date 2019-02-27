@@ -38,10 +38,10 @@ pub struct HubSessionSpec {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HubExistingSession {
-    pub id : u64,
+    pub id: u64,
     pub created: DateTime<Utc>,
     #[serde(flatten)]
-    pub spec : HubSessionSpec
+    pub spec: HubSessionSpec,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
