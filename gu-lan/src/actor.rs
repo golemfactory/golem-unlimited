@@ -179,7 +179,7 @@ impl MdnsActor<OneShot> {
         let (tx, rx) = oneshot::channel();
 
         ActorResponse::r#async(fut.into_actor(self).and_then(move |_r, act, ctx| {
-            ctx.run_later(Duration::from_secs(1), move |act, _ctx| {
+            ctx.run_later(Duration::from_millis(100), move |act, _ctx| {
                 let _ = tx
                     .send(act.retrieve_services(id))
                     .and_then(|_a| Ok(()))

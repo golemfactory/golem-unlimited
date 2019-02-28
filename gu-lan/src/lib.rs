@@ -25,9 +25,9 @@ extern crate actix_web;
 extern crate clap;
 extern crate dns_parser;
 extern crate futures;
+extern crate hostname;
 extern crate tokio;
 extern crate tokio_codec;
-extern crate hostname;
 
 pub use continuous::{NewInstance, Subscription};
 pub use service::ServiceDescription;
@@ -88,7 +88,7 @@ pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
     use gu_actix::prelude::*;
     use std::collections::HashSet;
 
-    let query = ServicesDescription::new(vec!["gu-hub".into()]);
+    let query = ServicesDescription::new(vec!["hub".into()]);
 
     MdnsActor::<OneShot>::from_registry()
         .send(query)
@@ -174,17 +174,19 @@ impl MdnsPublisher {
         };
 
         let port = self.port.unwrap();
-        let responder = Responder::new().ok_or_else(|| {
-            error!("Failed to run mDNS publisher");
-            return None
-        });
+        let responder = Responder::new()
+            .or_else(|e| {
+                error!("Failed to run mDNS publisher - {}", e);
+                Err(())
+            })
+            .ok()?;
 
         let name = hostname::get_hostname().unwrap_or_else(|| {
             error!("Couldn't retrieve local hostname");
             "<blank hostname>".to_string()
         });
 
-        Ok(responder.register(
+        Some(responder.register(
             format!("_gu{}._tcp", service),
             name,
             port,
@@ -192,12 +194,12 @@ impl MdnsPublisher {
         ))
     }
 
-    pub fn init_provider<S>(port: u16, node_id: S) -> Self
+    pub fn init_publisher<S>(port: u16, node_id: S, is_hub: bool) -> Self
     where
         S: AsRef<str>,
     {
         let mut mdns = MdnsPublisher::default();
-        mdns.is_hub = false;
+        mdns.is_hub = is_hub;
         let node_id = format!("node_id={}", node_id.as_ref());
         mdns.init(port, vec![node_id]);
 

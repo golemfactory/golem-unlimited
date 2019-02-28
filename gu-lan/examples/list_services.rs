@@ -85,7 +85,7 @@ fn main() {
         Arbiter::spawn(
             receiver
                 .send(SubMessage {
-                    service: gu_lan::ServiceDescription::new("gu-provider", "_unlimited._tcp"),
+                    service: gu_lan::ServiceDescription::new("_gu_hub._tcp", "local"),
                 })
                 .then(|_| Ok(())),
         );
@@ -93,7 +93,7 @@ fn main() {
         Arbiter::spawn(
             receiver
                 .send(SubMessage {
-                    service: gu_lan::ServiceDescription::new("gu-hub", "_unlimited._tcp"),
+                    service: gu_lan::ServiceDescription::new("_gu_provider._tcp", "local"),
                 })
                 .then(|_| Ok(())),
         );
