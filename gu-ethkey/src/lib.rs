@@ -5,7 +5,7 @@
 //!   * keys serialization/deserialization
 //!   * keystore password change
 //!   * signing/verification
-//!   * encryption/decryption
+//!   * encryption/decryption (unimplemented yet!)
 //!
 //! [geth]: https://github.com/ethereum/go-ethereum
 //! [parity]: https://github.com/paritytech/parity-ethereum
@@ -14,7 +14,6 @@
 //! ## Example
 //!
 //! ```no_run
-//! extern crate gu_ethkey;
 //! use gu_ethkey::prelude::*;
 //!
 //! fn main() {
@@ -41,8 +40,8 @@ use ethsign::{PublicKey, SecretKey, Signature, Protected, keyfile::KeyFile};
 mod address;
 pub use address::Address;
 
-type Message = [u8; 32];
-type Password = Protected;
+pub type Message = [u8; 32];
+pub type Password = Protected;
 
 
 /// HMAC fn iteration count; a compromise between security and performance
@@ -56,9 +55,9 @@ pub struct SafeEthKey {
     file_path: PathBuf,
 }
 
-/// Provides basic operations for Ethereum Keys on curve [Secp256k1] (see [EC]).
+/// Provides basic operations for Ethereum Keys ([ECC] on curve [Secp256k1]).
 ///
-/// [EC]: https://blog.cloudflare.com/a-relatively-easy-to-understand-primer-on-elliptic-curve-cryptography/
+/// [ECC]: https://blog.cloudflare.com/a-relatively-easy-to-understand-primer-on-elliptic-curve-cryptography/
 /// [Secp256k1]: https://en.bitcoin.it/wiki/Secp256k1
 pub trait EthKey {
     /// get public key
@@ -219,17 +218,15 @@ pub mod prelude {
     //!
     //! The prelude may grow over time.
 
-    pub use super::{EthKey, EthKeyStore, SafeEthKey};
+    pub use super::{EthKey, EthKeyStore, SafeEthKey, Address, Message, Password};
 }
 
 #[cfg(test)]
 mod tests {
-    use ::tempfile::tempdir;
     use crate::prelude::*;
-    use std::{env, fs, io::prelude::*, path::PathBuf};
     use ethsign::keyfile::KeyFile;
-    use rustc_hex::FromHex;
-    use crate::Address;
+    use std::{env, path::PathBuf};
+    use tempfile::tempdir;
 
     fn tmp_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();
@@ -274,38 +271,15 @@ mod tests {
 
         let file = fs::File::open(path).unwrap();
         let key_file: KeyFile = serde_json::from_reader(file).unwrap();
-        let id = key_file.id;
-        assert_eq!(id.len(), 36);
-        assert_ne!(id, "00000000-0000-0000-0000-000000000000");
+        assert_eq!(key_file.id.len(), 36);
+        assert_ne!(key_file.id, "00000000-0000-0000-0000-000000000000");
         assert_eq!(key.unwrap().address().to_vec(), key_file.address.unwrap().0);
     }
 
     #[test]
     fn should_read_keystore_generated_by_pyethereum() {
         // given
-        let path = tmp_path();
-        let mut file = fs::File::create(&path).unwrap();
-        // TODO: include_str!
-        let _ = file.write_all(b" \
-        { \
-            \"crypto\": { \
-                \"cipher\": \"aes-128-ctr\", \
-                \"ciphertext\": \"b269651fe8be95ebe0d1584093666e14ab0ccdf4b7e5f559e11fb330c706d39f\", \
-                \"cipherparams\": { \
-                    \"iv\": \"984e22c4f1616e7ccbadb9ad39441eb3\" \
-                },\
-                \"kdf\": \"pbkdf2\", \
-                \"kdfparams\": { \
-                    \"prf\": \"hmac-sha256\", \
-                    \"dklen\": 32, \
-                    \"c\": 1024, \
-                    \"salt\": \"98f13427d0cdca8bd207a9787c49c366\"}, \
-                    \"mac\": \"5f76fb358d3d47101f511d52a64ddfd731c1db3ad47fc543045fcbcb803e45aa\", \
-                    \"version\": 1 \
-                },\
-             \"id\": \"ebb2ffec-2b00-a249-80c2-5f397e28dd2b\", \
-             \"version\": 3\
-        }");
+        let path = "res/wallet.json";
         let pwd = "hekloo".into();
 
         // when
@@ -384,21 +358,22 @@ mod tests {
         ));
     }
 
-    #[ignore]
-    #[test]
-    fn should_have_debug_impl() {
-        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into());
-
-        // TODO
-        assert_eq!(format!("{:?}", key), "TODO");
-    }
-
-    #[ignore]
     #[test]
     fn should_have_display_impl() {
-        let key = SafeEthKey::load_or_generate(&tmp_path(), &"pwd".into());
+        let key = SafeEthKey::load_or_generate("res/wallet.json", &"hekloo".into());
 
-        // TODO
-        assert_eq!(format!("{:?}", key), "TODO");
+        assert_eq!(format!("{}", key.unwrap()), "SafeEthKey:\n\t\
+	        public:  0x12e612f62a244e31c45b5bb3a99ec6c40e5a6c94d741352d3ea3aaeab71075b743ca634393f27a56f04a0ff8711227f245dab5dc8049737791b372a94a6524f3\n\t\
+	        address: 0x5240400e8b0aadfd212d9d8c70973b9800fa4b0f");
+    }
+
+    #[test]
+    fn should_have_debug_impl() {
+        let key = SafeEthKey::load_or_generate("res/wallet.json", &"hekloo".into());
+
+        assert_eq!(format!("{:?}", key.unwrap()), "SafeEthKey { public: PublicKey { \
+            address: \"5240400e8b0aadfd212d9d8c70973b9800fa4b0f\", \
+            public: \"12e612f62a244e31c45b5bb3a99ec6c40e5a6c94d741352d3ea3aaeab71075b743ca634393f27a56f04a0ff8711227f245dab5dc8049737791b372a94a6524f3\" }, \
+            file_path: \"res/wallet.json\" }");
     }
 }
