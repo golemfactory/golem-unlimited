@@ -60,9 +60,9 @@ enum PermissionModule {
     None,
     Join(NodeId, Option<SocketAddr>),
     Configure,
-    /*AllowNode(NodeId),
-    DenyNode(NodeId),*/
-    NodeAllowedStatus(NodeId),
+    AllowNode(Option<NodeId>), /* None -> auto mode, grant access to every hub */
+    DenyNode(Option<NodeId>),  /* None -> manual mode, connect only to selected hubs */
+    NodeAllowedStatus(Option<NodeId>), /* Some(n) => is access granted for n, None => is auto mode on */
 }
 
 impl Module for PermissionModule {
@@ -91,7 +91,26 @@ impl Module for PermissionModule {
                             .short("g")
                             .value_name("node_id")
                             .takes_value(true)
-                            .help("Gets node permission status, i.e. whether it has sufficient permissions to connect to this provider.")
+                            .help("Gets node permission status, i.e. whether it has sufficient permissions to connect to this provider. \
+                                    If node_id is \"any\", then return whether automatic mode is on.")
+                    )
+                    .arg(
+                        Arg::with_name("allow-node")
+                            .long("allow-node")
+                            .short("a")
+                            .value_name("node_id")
+                            .takes_value(true)
+                            .help("Allow selected hub to connect to this provider and save the new configuration to config files. \
+                                If node_id is \"auto\", then allow any hub to connect to this provider.")
+                    )
+                    .arg(
+                        Arg::with_name("deny-node")
+                            .long("deny-node")
+                            .short("d")
+                            .value_name("node_id")
+                            .takes_value(true)
+                            .help("Deny connections from selected hub to this provider and save the new configuration to config files. \
+                                If node_id is \"auto\", then set connection mode to manual (allow only selected hubs to connect to this provider).")
                     ),
             )
     }
@@ -124,19 +143,35 @@ impl Module for PermissionModule {
             }
         } else if let Some(cmd) = matches.subcommand_matches("configure") {
             let get_node_id = cmd.value_of("get-node").map(|s| NodeId::from_str(s));
-            match get_node_id {
-                Some(Ok(node_id)) => {
-                    *self = PermissionModule::NodeAllowedStatus(node_id);
+            let allow_node_id = cmd.value_of("allow-node").map(|s| NodeId::from_str(s));
+            let deny_node_id = cmd.value_of("deny-node").map(|s| NodeId::from_str(s));
+            if get_node_id.is_none() && allow_node_id.is_none() && deny_node_id.is_none() {
+                *self = PermissionModule::Configure;
+                return true;
+            } else {
+                let param_to_node_id_or_any = |param, param_name| match param {
+                    Some(Ok(node_id)) => Ok(Some(node_id)),
+                    Some(Err(_)) => match cmd.value_of(param_name) {
+                        Some("auto") => Ok(None),
+                        _ => Err(()),
+                    },
+                    _ => Err(()),
+                };
+                if let Ok(v) = param_to_node_id_or_any(get_node_id, "get-node") {
+                    *self = PermissionModule::NodeAllowedStatus(v);
                     return true;
                 }
-                Some(Err(_)) => {
-                    eprintln!("Invalid node_id.");
-                    return false;
+                if let Ok(v) = param_to_node_id_or_any(allow_node_id, "allow-node") {
+                    *self = PermissionModule::AllowNode(v);
+                    return true;
                 }
-                _ => (),
+                if let Ok(v) = param_to_node_id_or_any(deny_node_id, "deny-node") {
+                    *self = PermissionModule::DenyNode(v);
+                    return true;
+                }
+                eprintln!("Invalid node_id.");
+                return false;
             }
-            *self = PermissionModule::Configure;
-            return true;
         }
         false
     }
@@ -170,25 +205,58 @@ impl Module for PermissionModule {
                 });
             }
             PermissionModule::Configure => run_configure(),
-            PermissionModule::NodeAllowedStatus(node_id) => {
-                let node_id_copy = node_id.clone();
+            PermissionModule::NodeAllowedStatus(node_id_or_automatic) => {
+                let node_id_or_automatic_copy = node_id_or_automatic.clone();
                 System::run(move || {
                     let config_manager = ConfigManager::from_registry();
-
                     Arbiter::spawn(
                         config_manager
                             .send(GetConfig::new())
                             .flatten_fut()
                             .and_then(move |c: Arc<PermissionConfig>| {
-                                println!("{}", c.is_managed_by(&node_id_copy));
-                                /*std::process::exit(match c.is_managed_by(&node_id_copy) {
-                                    true => 0,
-                                    false => 1,
-                                });*/
+                                println!(
+                                    "{}",
+                                    match node_id_or_automatic_copy {
+                                        Some(node_id) => c.is_managed_by(&node_id),
+                                        None => c.allow_any,
+                                    }
+                                );
                                 futures::future::ok(())
                             })
                             .map_err(|_| System::current().stop())
                             .and_then(|_r| Ok(System::current().stop())),
+                    );
+                });
+            }
+            PermissionModule::AllowNode(node_id) | PermissionModule::DenyNode(node_id) => {
+                let turn_on = match self {
+                    PermissionModule::AllowNode(_) => true,
+                    _ => false,
+                };
+                let node_id_copy = node_id.clone();
+                System::run(move || {
+                    let config_manager = ConfigManager::from_registry();
+                    Arbiter::spawn(
+                        config_manager
+                            .send(GetConfig::new())
+                            .flatten_fut()
+                            .and_then(move |c: Arc<PermissionConfig>| {
+                                let mut new_config = (*c).clone();
+                                match node_id_copy {
+                                    None => {
+                                        new_config.allow_any = turn_on;
+                                    }
+                                    Some(n) => {
+                                        new_config
+                                            .permissions
+                                            .insert(Permission::ManagedBy(n.clone()));
+                                    }
+                                };
+                                config_manager
+                                    .send(SetConfig::new(new_config))
+                                    .flatten_fut()
+                            })
+                            .then(|_r| Ok(System::current().stop())),
                     );
                 });
             }
