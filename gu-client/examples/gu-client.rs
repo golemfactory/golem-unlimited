@@ -5,6 +5,9 @@ Command line tool for manage gu-hub instance
 use actix::prelude::*;
 use failure::Fallible;
 use futures::{future, prelude::*};
+use gu_actix::pipe;
+use gu_actix::release::Handle;
+use gu_client::error::Error;
 use gu_client::r#async::*;
 use gu_model::peers::PeerInfo;
 use gu_model::session::HubExistingSession;
@@ -12,8 +15,17 @@ use gu_model::session::HubSessionSpec;
 use gu_model::session::SessionDetails;
 use gu_net::NodeId;
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::fs::File;
+use std::path::{Path, PathBuf};
+use std::{fs, io, thread};
 use structopt::*;
+use gu_model::envman::CreateSession;
+use gu_model::envman::Image;
+use gu_model::envman::Command;
+use gu_model::envman::ResourceFormat;
+use serde_derive::*;
+use serde::Serialize;
+
 
 #[derive(StructOpt, Debug)]
 enum ClientArgs {
@@ -53,11 +65,14 @@ struct Render {
     #[structopt(long, short)]
     name: Option<String>,
     #[structopt(long, short)]
-    frame: Vec<usize>,
+    frame: Vec<u32>,
     #[structopt(long)]
     docker: bool,
 
-    #[structopt(name = "RESOURCE", parse(from_os_str))]
+    #[structopt(short, long, parse(try_from_str="parse_resolution"))]
+    resolution : (u32, u32),
+
+    #[structopt(name = "RESOURCE", parse(from_os_str), raw(required = "true"))]
     resource: Vec<PathBuf>,
 }
 
@@ -79,6 +94,12 @@ enum Sessions {
     // Drops selected session
     #[structopt(name = "drop")]
     DropSession,
+}
+
+fn parse_resolution(r : &str) -> Result<(u32, u32), Error> {
+    let it = r.split("x");
+
+    Err(Error::Other(format!("err")))
 }
 
 fn show_peers<Peers: IntoIterator<Item = PeerInfo>>(peers: Peers) {
@@ -222,6 +243,27 @@ fn show_session(
     )
 }
 
+#[derive(Serialize, Debug)]
+struct BlenderTaskSpec {
+    crops : Vec<Crop>,
+    samples: u32,
+    resolution: (u32, u32),
+    frames: Vec<u32>,
+    scene_file: Option<String>,
+    output_format: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+struct Crop {
+    borders_x : (f64, f64),
+    borders_y : (f64, f64),
+    outfilebasename: String,
+}
+
+fn run_worker(session : &PeerSession, frame : futures::unsync::mpsc::Receiver<BlenderTaskSpec>) -> impl Future<Item=(), Error=Error> {
+    future::err(unimplemented!())
+}
+
 fn render_task(
     connection: &HubConnection,
     opts: Render,
@@ -242,14 +284,151 @@ fn render_task(
 
     let peers = connection.list_peers();
 
-    Box::new(connection.new_session(spec).and_then(|session| {
+    let resources: Vec<_> = match opts
+        .resource
+        .iter()
+        .map(|f| fs::canonicalize(f))
+        .collect::<io::Result<Vec<_>>>()
+    {
+        Ok(v) => v,
+        Err(e) => return Box::new(future::err(Error::Other(format!("{}", e)))),
+    };
+
+    let base_path = match common_path::common_path_all(resources.iter().map(|p| p.as_path())) {
+        Some(path) => path,
+        None => {
+            return Box::new(future::err(Error::Other(format!(
+                "unable to find common path for: {:?}",
+                resources
+            ))));
+        }
+    };
+    eprintln!("base={:?}, t={:?}", base_path, resources);
+    let (tx, rx) = pipe::sync_to_async(5);
+
+    let mut work_resources = resources.clone();
+    let work_base = base_path.clone();
+    thread::spawn(move || {
+        use tar::*;
+        use std::io::prelude::*;
+
+        match (|| -> Fallible<()> {
+            work_resources.sort();
+            let mut builder = Builder::new(tx);
+            let mut dirs = BTreeSet::new();
+
+            for res in work_resources {
+                let rel_name = res.strip_prefix(&work_base)?;
+
+                {
+                    for a in rel_name.parent().unwrap().ancestors().collect::<Vec<_>>().into_iter().rev().skip(1) {
+                        if !dirs.contains(a) {
+                            eprintln!("prep dir={}", a.display());
+                            let mut h= Header::new_ustar();
+                            h.set_entry_type(EntryType::Directory);
+                            h.set_mode(0o644);
+                            h.set_uid(0);
+                            h.set_gid(0);
+                            h.set_mtime(0);
+                            h.set_size(0);
+                            h.set_path(a)?;
+                            h.set_cksum();
+                            let mut data2 = io::repeat(0).take(0);
+                            builder.append(&h, data2)?;
+                            eprintln!("dir={}", a.display());
+                            dirs.insert(a.to_owned());
+                        }
+                    }
+                }
+
+                let mut f = fs::OpenOptions::new().write(false).read(true).open(&res)?;
+                builder.append_file(rel_name, &mut f)?
+            }
+            builder.finish()?;
+            Ok(())
+        })() {
+            Ok(()) => (),
+            Err(e) => {
+                eprintln!("fail to generate tar: {}", e);
+            }
+        }
+        eprintln!("data uploaded");
+    });
+
+
+    let (task_tx, task_rx) = crossbeam_channel::unbounded();
+
+    for &frame in &opts.frame {
+        task_tx.send(BlenderTaskSpec {
+            crops: vec![Crop {
+                borders_x: (0.0, 1.0),
+                borders_y: (0.0, 1.0),
+                outfilebasename: "outf_".to_string()
+            }],
+            samples: 0,
+            resolution: opts.resolution,
+            frames: vec![frame ],
+            scene_file: None,
+            output_format: None
+        }).unwrap();
+    }
+
+
+
+    Box::new(connection.new_session(spec).and_then(move |session| {
         // Work
         // 1. Upload resources to session
         // 2. Create deployments on peer
         // 3. Run processing
         // 4. upload results
-        ;
-        Ok(())
+        let upload_blob = session.new_blob().and_then(|blob: Blob| {
+            eprintln!("new_blob={}", blob.id());
+            blob.upload_from_stream(rx)
+                .and_then(move |_| Ok(blob.uri()))
+        });
+        let peers_session: Handle<HubSession> = session.clone();
+        let prepare_workers = peers.and_then(move |peers| {
+            let spec = CreateSession {
+                env_type: "hd".to_string(),
+                image: Image {
+                    url: "http://52.31.143.91/images/x86_64/linux/gu-blender.hdi".to_string(),
+                    hash: "SHA1:213fad4e020ded42e6a949f61cb660cb69bc9845".to_string()
+                },
+                name: "".to_string(),
+                tags: vec!["gu:render".into(), "gu:blender".into()],
+                note: None,
+                options: ()
+            };
+
+            peers_session
+                .add_peers(peers.map(|p| p.node_id))
+                .and_then(move |peers| {
+                    futures::future::join_all(peers.into_iter().map(move |node_id| peers_session.peer(node_id).new_session(spec.clone())))
+                })
+        });
+
+        prepare_workers
+            .join(upload_blob)
+            .and_then(move |(workers, blob_uri)| {
+                eprintln!("workers={:?}, blob_id={:?}", workers, blob_uri);
+                use futures::unsync::mpsc;
+
+                let workers = futures::future::join_all(workers.into_iter().map(move |worker : PeerSession| worker.update(vec![Command::DownloadFile {
+                    uri: blob_uri.clone(),
+                    file_path: "resources".into(),
+                    format: ResourceFormat::Tar
+                }]).and_then(|_| Ok(worker))));
+
+                workers.and_then(move |workers| {
+                    // Scene downloaded to nodes.
+
+                    eprintln!("workers={:?}", workers);
+                    drop(session);
+                    Ok(())
+                })
+            })
+            .map_err(|e| Error::Other(format!("{}", e)))
+        //Ok(())
     }))
 }
 

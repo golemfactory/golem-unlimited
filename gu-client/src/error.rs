@@ -1,5 +1,7 @@
 use failure::Fail;
 use std::{error, fmt, str};
+use crate::error::Error::InvalidPeer;
+
 //
 /// Errors returned by Rust API for Golem Unlimited
 #[derive(Fail, Debug)]
@@ -26,6 +28,9 @@ pub enum Error {
 
     #[fail(display = "invalid peer {}", _0)]
     InvalidPeer(String),
+
+    #[fail(display = "{}", _0)]
+    Other(String),
 }
 
 impl From<str::Utf8Error> for Error {
@@ -51,3 +56,4 @@ impl From<actix_web::error::PayloadError> for Error {
         Error::PayloadError(e)
     }
 }
+

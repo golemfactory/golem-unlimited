@@ -106,6 +106,10 @@ impl DockerSession {
             })
     }
 
+    fn write_file(&mut self, content : bytes::Bytes, file_path : String) -> impl Future<Item = String, Error = String> {
+        futures::future::err(unimplemented!())
+    }
+
     fn do_download(
         &mut self,
         url: String,
@@ -430,6 +434,10 @@ fn run_command(
         } => docker_man.run_for_deployment(session_id, |deployment| {
             deployment.do_upload(uri, file_path, format)
         }),
+        Command::WriteFile {
+            content,
+            file_path
+        } => docker_man.run_for_deployment(session_id, |d| d.write_file(content.into(), file_path)),
         Command::AddTags(tags) => Box::new(fut::result(
             docker_man
                 .deploys

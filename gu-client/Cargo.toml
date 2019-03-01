@@ -21,4 +21,8 @@ failure = "0.1.5"
 structopt= { version="0.2.14", default-features=false, features=["wrap_help", "suggestions", "color"]}
 prettytable-rs="0.7"
 tar-async={git="https://github.com/prekucki/tar-async.git"}
-datetime=""
+common-path="1.0"
+gu-actix={path="../gu-actix"}
+tar = "0.4"
+serde_derive = "1.0"
+crossbeam-channel = "0.3"

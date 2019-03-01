@@ -33,6 +33,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
+use std::fs::OpenOptions;
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -377,6 +378,19 @@ fn run_command(
         } => {
             let path = session.workspace.path().join(file_path);
             Box::new(fut::wrap_future(handle_download_file(uri, path, format)))
+        }
+        Command::WriteFile {content, file_path } => {
+            let path= session.workspace.path().join(file_path);
+            let bytes = content.into_bytes();
+            Box::new(fut::wrap_future(gu_hdman::download::cpu_pool().spawn_fn(move || {
+                use std::io::prelude::*;
+
+                let mut f = OpenOptions::new().create_new(true).write(true).open(path).map_err(|e| format!("io: {}", e))?;
+
+                f.write_all(bytes.as_ref()).map_err(|e| format!("io: {}", e))?;
+
+                Ok("OK".to_string())
+            })))
         }
         Command::UploadFile {
             uri,

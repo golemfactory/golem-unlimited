@@ -59,7 +59,7 @@ pub struct Image {
 }
 
 /// Message for session creation: local provisioning: downloads and unpacks the binaries
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSession<Options = ()> {
     pub env_type: String,
@@ -141,6 +141,11 @@ pub enum Command {
         #[serde(default)]
         format: ResourceFormat,
     },
+    #[serde(rename_all = "camelCase")]
+    WriteFile {
+        content : String,
+        file_path : String
+    }
 }
 
 impl Message for SessionUpdate {

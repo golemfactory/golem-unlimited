@@ -11,7 +11,9 @@ use gu_model::{
 };
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::types::NodeId;
+use gu_net::types::TryIntoNodeId;
 use serde::de::DeserializeOwned;
+use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -165,18 +167,29 @@ pub struct HubSession {
 
 impl HubSession {
     /// adds peers to the hub session
-    pub fn add_peers<T, U>(&self, peers: T) -> impl Future<Item = Vec<NodeId>, Error = Error>
+    pub fn add_peers<T, U: TryIntoNodeId>(
+        &self,
+        peers: T,
+    ) -> impl Future<Item = Vec<NodeId>, Error = Error> + 'static
     where
         T: IntoIterator<Item = U>,
-        U: AsRef<str>,
     {
         let add_url = format!(
             "{}sessions/{}/peers",
             self.hub_connection.url(),
             self.session_id
         );
-        let peer_vec: Vec<String> = peers.into_iter().map(|peer| peer.as_ref().into()).collect();
-        let request = match client::ClientRequest::post(add_url).json(peer_vec) {
+
+        let peers = match peers
+            .into_iter()
+            .map(|peer| TryIntoNodeId::into_node_id(peer))
+            .collect::<Result<Vec<_>, _>>()
+        {
+            Ok(p) => p,
+            Err(e) => return future::Either::A(future::err(Error::Other(format!("{}", e)))),
+        };
+
+        let request = match client::ClientRequest::post(add_url).json(peers) {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CreateRequest(e))),
         };
@@ -233,12 +246,12 @@ impl HubSession {
         }
     }
     /// gets single peer by its id given as a string
-    pub fn peer_from_str<T: AsRef<str>>(&self, node_id: T) -> Result<Peer, Error> {
+    pub fn try_peer<T: TryIntoNodeId + ToString>(&self, node_id: T) -> Result<Peer, Error> {
+        let peer_name = node_id.to_string();
         Ok(self.peer(
             node_id
-                .as_ref()
-                .parse()
-                .map_err(|_| Error::InvalidPeer(node_id.as_ref().to_string()))?,
+                .into_node_id()
+                .map_err(move |_| Error::InvalidPeer(peer_name))?,
         ))
     }
 
@@ -348,6 +361,14 @@ pub struct Blob {
 }
 
 impl Blob {
+    pub fn id(&self) -> u64 {
+        self.blob_id
+    }
+
+    pub fn uri(&self) -> String {
+        format!("{}sessions/{}/blobs/{}", self.hub_session.hub_connection.url(), self.hub_session.session_id, self.blob_id)
+    }
+
     /// uploads blob represented by a stream
     pub fn upload_from_stream<S, T>(&self, stream: S) -> impl Future<Item = (), Error = Error>
     where
@@ -369,7 +390,7 @@ impl Blob {
                 .send()
                 .from_err()
                 .and_then(|response| match response.status() {
-                    http::StatusCode::OK => future::ok(()),
+                    http::StatusCode::NO_CONTENT => future::ok(()),
                     status => future::err(Error::ResponseErr(status)),
                 }),
         )

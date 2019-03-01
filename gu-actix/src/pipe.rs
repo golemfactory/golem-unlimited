@@ -1,4 +1,4 @@
-use bytes::*;
+ use bytes::*;
 use crossbeam_channel::{self as cb, Receiver, Sender};
 use futures::task::AtomicTask;
 use futures::{Async, Poll, Stream};
