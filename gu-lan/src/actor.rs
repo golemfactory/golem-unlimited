@@ -106,7 +106,7 @@ impl MdnsConnection for Continuous {
 
         for instance in packet.instances {
             self.map
-                .get(&instance.name)
+                .get(&instance.service())
                 .map(|list| list.do_send(ReceivedMdnsInstance::new(instance)));
         }
     }
