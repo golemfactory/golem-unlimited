@@ -103,7 +103,7 @@ impl ServerModule {
     }
 }
 
-fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
+fn get_node_id(keys: Box<EthAccount>) -> NodeId {
     let node_id = NodeId::from(keys.address().as_ref());
     info!("node_id={:?}", node_id);
     node_id
@@ -218,9 +218,9 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
                 .and_then(|config: ProviderConfig, act: &mut Self, _ctx| {
-                    let keys = SafeEthKey::load_or_generate(
+                    let keys = EthAccount::load_or_generate(
                         ConfigModule::new().keystore_path(),
-                        &"".into(),
+                        "",
                     )
                     .unwrap();
 

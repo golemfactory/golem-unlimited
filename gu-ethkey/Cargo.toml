@@ -1,7 +1,11 @@
 [package]
 name = "gu-ethkey"
 version = "0.2.0"
+description = "Ethereum keys management supporting keystores, signing and verification"
 authors = ["Golem Factory, Piotr Chromiec <tworec@golem.network>"]
+homepage = "https://github.com/golemfactory/golem-unlimited/gu-ethkey"
+repository = "https://github.com/golemfactory/golem-unlimited/gu-ethkey"
+documentation = "https://docs.rs/crate/gu-ethkey"
 license = "MIT"
 edition = "2018"
 
@@ -19,4 +23,3 @@ uuid = { version = "0.7", features = ["v4"] }
 
 [dev-dependencies]
 tempfile = "3.0"
-#pretty_assertions = "0.5"
