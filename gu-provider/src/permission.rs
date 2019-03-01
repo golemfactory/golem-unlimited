@@ -247,9 +247,12 @@ impl Module for PermissionModule {
                                         new_config.allow_any = turn_on;
                                     }
                                     Some(n) => {
-                                        new_config
-                                            .permissions
-                                            .insert(Permission::ManagedBy(n.clone()));
+                                        let perm = Permission::ManagedBy(n.clone());
+                                        if turn_on {
+                                            new_config.permissions.insert(perm);
+                                        } else {
+                                            new_config.permissions.remove(&perm);
+                                        }
                                     }
                                 };
                                 config_manager
