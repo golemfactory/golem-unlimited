@@ -366,7 +366,12 @@ impl Blob {
     }
 
     pub fn uri(&self) -> String {
-        format!("{}sessions/{}/blobs/{}", self.hub_session.hub_connection.url(), self.hub_session.session_id, self.blob_id)
+        format!(
+            "{}sessions/{}/blobs/{}",
+            self.hub_session.hub_connection.url(),
+            self.hub_session.session_id,
+            self.blob_id
+        )
     }
 
     /// uploads blob represented by a stream
@@ -513,7 +518,7 @@ impl PeerSession {
                 .json(commands),
         )
         .map_err(Error::CreateRequest)
-        .and_then(|request| request.send().from_err())
+        .and_then(|request| request.send().timeout(Duration::from_secs(24*3600)).from_err())
         .and_then(|response| match response.status() {
             http::StatusCode::OK => future::Either::A(response.json().from_err()),
             status => future::Either::B(future::err(Error::ResponseErr(status))),

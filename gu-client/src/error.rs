@@ -1,6 +1,6 @@
+use crate::error::Error::InvalidPeer;
 use failure::Fail;
 use std::{error, fmt, str};
-use crate::error::Error::InvalidPeer;
 
 //
 /// Errors returned by Rust API for Golem Unlimited
@@ -56,4 +56,3 @@ impl From<actix_web::error::PayloadError> for Error {
         Error::PayloadError(e)
     }
 }
-

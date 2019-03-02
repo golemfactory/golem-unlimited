@@ -34,6 +34,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use std::fs::OpenOptions;
+use std::collections::BTreeSet;
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -176,6 +177,7 @@ struct HdSessionInfo {
     /// used to determine proper status when last child is finished
     dirty: bool,
     note: Option<String>,
+    config_files : HashSet<PathBuf>,
     processes: HashMap<String, process::Child>,
 }
 
@@ -236,6 +238,7 @@ impl Handler<CreateSession> for HdMan {
             dirty: false,
             note: msg.note,
             processes: HashMap::new(),
+            config_files: HashSet::new(),
         };
 
         self.deploys.insert_deploy(session_id.clone(), session);
@@ -381,9 +384,14 @@ fn run_command(
         }
         Command::WriteFile {content, file_path } => {
             let path= session.workspace.path().join(file_path);
+            let create_new = session.config_files.insert(path.clone());
             let bytes = content.into_bytes();
             Box::new(fut::wrap_future(gu_hdman::download::cpu_pool().spawn_fn(move || {
                 use std::io::prelude::*;
+
+                if !create_new {
+                    let _ = fs::remove_file(&path);
+                }
 
                 let mut f = OpenOptions::new().create_new(true).write(true).open(path).map_err(|e| format!("io: {}", e))?;
 
