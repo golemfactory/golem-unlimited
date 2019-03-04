@@ -40,7 +40,7 @@ use std::{
 use rand::{thread_rng, RngCore};
 use rustc_hex::ToHex;
 
-use ethsign::{Protected, keyfile::KeyFile};
+use ethsign::{Protected, keyfile::{KeyFile, Bytes}};
 pub use ethsign::{PublicKey, SecretKey, Signature};
 
 mod address;
@@ -99,7 +99,7 @@ impl EthAccount {
         match File::open(&file_path) {
             Ok(file) => {
                 let key_file: KeyFile = serde_json::from_reader(file)?;
-                let secret = SecretKey::from_keyfile(&key_file, &pwd)?;
+                let secret = SecretKey::from_crypto(&key_file.crypto, &pwd)?;
                 Ok((secret, "loaded from"))
             }
             Err(_e) => {
@@ -139,8 +139,12 @@ fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> Result<()>
         P: AsRef<Path>,
         W: Into<Password>,
 {
-    let id = format!("{}", uuid::Uuid::new_v4());
-    let key_file = secret.to_keyfile(id, &password.into(), KEY_ITERATIONS)?;
+    let key_file = KeyFile {
+        id: format!("{}", uuid::Uuid::new_v4()),
+        version: 3,
+        crypto: secret.to_crypto(&password.into(), KEY_ITERATIONS)?,
+        address: Some(Bytes(secret.public().address().to_vec()))
+    };
     serde_json::to_writer_pretty(&File::create(&file_path)?, &key_file)?;
     Ok(())
 }
