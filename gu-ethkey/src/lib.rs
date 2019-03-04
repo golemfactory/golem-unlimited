@@ -30,17 +30,25 @@
 //! ```
 //!
 
-use error_chain::{error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed, impl_extract_backtrace};
+use error_chain::{
+    error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
+    impl_extract_backtrace,
+};
 use log::info;
+use rand::{thread_rng, RngCore};
+use rustc_hex::ToHex;
 use std::{
-    fmt, fs::File, io,
+    fmt,
+    fs::File,
+    io,
     num::NonZeroU32,
     path::{Path, PathBuf},
 };
-use rand::{thread_rng, RngCore};
-use rustc_hex::ToHex;
 
-use ethsign::{Protected, keyfile::{KeyFile, Bytes}};
+use ethsign::{
+    keyfile::{Bytes, KeyFile},
+    Protected,
+};
 pub use ethsign::{PublicKey, SecretKey, Signature};
 
 mod address;
@@ -49,9 +57,8 @@ pub use address::Address;
 pub type Message = [u8; 32];
 pub type Password = Protected;
 
-
 /// HMAC fn iteration count; a compromise between security and performance
-pub const KEY_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(10240)};
+pub const KEY_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(10240) };
 
 /// An Ethereum Account keys with store.
 /// Allows to generate a new key pair and save it to disk as well as read existing keyfile.
@@ -122,8 +129,7 @@ impl EthAccount {
     }
 
     /// stores keys on disk with changed password
-    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> Result<()>
-    {
+    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> Result<()> {
         save_key(&self.secret, &self.file_path, new_password.into())?;
         info!(
             "changed password for account {:?} and saved to {}",
@@ -135,15 +141,15 @@ impl EthAccount {
 }
 
 fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> Result<()>
-    where
-        P: AsRef<Path>,
-        W: Into<Password>,
+where
+    P: AsRef<Path>,
+    W: Into<Password>,
 {
     let key_file = KeyFile {
         id: format!("{}", uuid::Uuid::new_v4()),
         version: 3,
         crypto: secret.to_crypto(&password.into(), KEY_ITERATIONS)?,
-        address: Some(Bytes(secret.public().address().to_vec()))
+        address: Some(Bytes(secret.public().address().to_vec())),
     };
     serde_json::to_writer_pretty(&File::create(&file_path)?, &key_file)?;
     Ok(())
@@ -157,7 +163,9 @@ fn random_bytes() -> [u8; 32] {
 
 impl fmt::Display for EthAccount {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
-        write!(fmt, "EthAccount:\n\tpublic:  0x{}\n\taddress: {}",
+        write!(
+            fmt,
+            "EthAccount:\n\tpublic:  0x{}\n\taddress: {}",
             ToHex::to_hex::<String>(&self.public().bytes()[..]),
             self.address()
         )
@@ -191,7 +199,7 @@ pub mod prelude {
     //!
     //! The prelude may grow over time.
 
-    pub use super::{EthAccount, PublicKey, SecretKey, Signature, Address, Password};
+    pub use super::{Address, EthAccount, Password, PublicKey, SecretKey, Signature};
 }
 
 #[cfg(test)]
