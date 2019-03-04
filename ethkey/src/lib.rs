@@ -86,13 +86,12 @@ impl EthAccount {
 
     /// signs given message with self secret key
     pub fn sign(&self, msg: &Message) -> Result<Signature> {
-        self.secret.sign(msg).map_err(Error::from)
+        Ok(self.secret.sign(msg)?)
     }
 
     /// verifies signature for given message and self public key
     pub fn verify(&self, sig: &Signature, msg: &Message) -> Result<bool> {
-        let public = sig.recover(msg)?;
-        Ok(public.bytes()[..] == self.public.bytes()[..])
+        Ok(self.public.verify(sig, msg)?)
     }
 
     /// reads keys from disk or generates new ones and stores to disk; password needed
