@@ -1,9 +1,9 @@
 [package]
 name = "ethkey"
-version = "0.2.0"
+version = "0.2.1"
 description = "Ethereum keys management supporting keystores, signing and verification"
 authors = ["Golem Factory <contact@golem.network>"]
-homepage = "https://github.com/golemfactory/golem-unlimited/ethkey"
+homepage = "https://github.com/golemfactory/golem-unlimited/tree/ethsign/ethkey"
 repository = "https://github.com/golemfactory/golem-unlimited"
 documentation = "https://docs.rs/crate/ethkey"
 license = "MIT"

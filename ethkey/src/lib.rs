@@ -22,7 +22,7 @@
 //! use ethkey::prelude::*;
 //!
 //! fn main() {
-//!     let key = EthAccount::load_or_generate("/path/to/keystore", &"passwd".into())
+//!     let key = EthAccount::load_or_generate("/path/to/keystore", "passwd")
 //!         .expect("should load or generate new eth key");
 //!
 //!     println!("{:?}", key.address())
