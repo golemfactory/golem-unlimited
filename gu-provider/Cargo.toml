@@ -40,7 +40,7 @@ gu-actix = { path = "../gu-actix" }
 gu-net = { path = "../gu-net" }
 gu-persist = { path = "../gu-persist" }
 gu-lan = { path = "../gu-lan"}
-gu-ethkey = { path = "../gu-ethkey"}
+ethkey = { path = "../ethkey"}
 gu-hardware = { path = "../gu-hardware"}
 gu-model = { path = "../gu-model" }
 gu-hdman = { path = "../gu-hdman" }

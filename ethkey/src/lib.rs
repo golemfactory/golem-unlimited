@@ -19,7 +19,7 @@
 //! ## Example
 //!
 //! ```edition2018
-//! use gu_ethkey::prelude::*;
+//! use ethkey::prelude::*;
 //!
 //! fn main() {
 //!     let key = EthAccount::load_or_generate("/path/to/keystore", &"passwd".into())
@@ -191,10 +191,10 @@ error_chain! {
 }
 
 pub mod prelude {
-    //! A "prelude" for users of the `gu-ethkey` crate.
+    //! A "prelude" for users of the `ethkey` crate.
     //!
     //! ```
-    //! use gu_ethkey::prelude::*;
+    //! use ethkey::prelude::*;
     //! ```
     //!
     //! The prelude may grow over time.

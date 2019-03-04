@@ -17,7 +17,7 @@ use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
 };
-use gu_ethkey::prelude::*;
+use ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
