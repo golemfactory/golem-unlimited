@@ -31,6 +31,9 @@ pub enum Error {
 
     #[fail(display = "{}", _0)]
     Other(String),
+
+    #[fail(display = "{}", _0)]
+    IO(#[fail(cause)] std::io::Error),
 }
 
 impl From<str::Utf8Error> for Error {
@@ -54,5 +57,11 @@ impl From<actix_web::error::JsonPayloadError> for Error {
 impl From<actix_web::error::PayloadError> for Error {
     fn from(e: actix_web::error::PayloadError) -> Self {
         Error::PayloadError(e)
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::IO(e)
     }
 }

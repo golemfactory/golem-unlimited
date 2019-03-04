@@ -518,7 +518,12 @@ impl PeerSession {
                 .json(commands),
         )
         .map_err(Error::CreateRequest)
-        .and_then(|request| request.send().timeout(Duration::from_secs(24*3600)).from_err())
+        .and_then(|request| {
+            request
+                .send()
+                .timeout(Duration::from_secs(24 * 3600))
+                .from_err()
+        })
         .and_then(|response| match response.status() {
             http::StatusCode::OK => future::Either::A(response.json().from_err()),
             status => future::Either::B(future::err(Error::ResponseErr(status))),
