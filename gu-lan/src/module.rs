@@ -30,7 +30,7 @@ pub fn format_instances_table(instances: &HashSet<ServiceInstance>) {
         || "No instances found",
         instances.iter().map(|instance| {
             row![
-                instance.name,
+                instance.service(),
                 instance.host,
                 format_addresses(&instance.addrs_v4, &instance.ports),
                 instance.txt.join(""),
@@ -82,7 +82,7 @@ impl Module for LanModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         let instance = Arg::with_name("instance_types")
             .short("I")
-            .help("Queries mDNS server about some instance types (comma-separated, e.g. gu-hub,gu-provider)")
+            .help("Queries mDNS server about some instance types (comma-separated, e.g. hub,provider)")
             .takes_value(true);
 
         app.subcommand(
@@ -102,7 +102,7 @@ impl Module for LanModule {
             self.command = match m.subcommand() {
                 ("list", Some(m)) => LanCommand::List(
                     m.value_of("instance_types")
-                        .unwrap_or("gu-hub,gu-provider")
+                        .unwrap_or("hub,provider")
                         .to_string(),
                 ),
                 _ => return false,

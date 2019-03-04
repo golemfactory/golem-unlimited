@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use errors::Result;
+use std::fmt::Display;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::{
@@ -13,37 +14,37 @@ use std::{
 /// Service Instance Name = <Instance> . <Service> . <Domain>
 #[derive(Debug, Clone)]
 pub struct ServiceDescription {
-    /// Instance name; eg. "gu-provider"
-    instance: Cow<'static, str>,
-    /// Service type; eg. "_http._tcp"
+    /// Instance name; eg. "_http._tcp"
     service: Cow<'static, str>,
+    /// Service type; eg. "local"
+    domain: Cow<'static, str>,
 }
 
 impl ServiceDescription {
-    pub fn new<A, B>(instance: A, service: B) -> Self
+    pub fn new<A, B>(service: A, domain: B) -> Self
     where
         A: Into<Cow<'static, str>>,
         B: Into<Cow<'static, str>>,
     {
         ServiceDescription {
-            instance: instance.into(),
             service: service.into(),
+            domain: domain.into(),
         }
     }
 
     pub(crate) fn to_string(&self) -> String {
-        format!("{}.{}.local", self.instance, self.service)
+        format!("{}.{}", self.service, self.domain)
     }
 }
 
 impl<T> From<T> for ServiceDescription
 where
-    T: Into<Cow<'static, str>>,
+    T: Display,
 {
     fn from(s: T) -> Self {
         ServiceDescription {
-            instance: s.into(),
-            service: "_unlimited._tcp".into(),
+            service: format!("_gu_{}._tcp", s).into(),
+            domain: "local".into(),
         }
     }
 }
@@ -103,6 +104,16 @@ impl ServiceInstance {
             .map(|txt| R::from_str(&txt[key_str.len()..]))
             .next()
     }
+
+    pub(crate) fn service(&self) -> String {
+        let mut res = String::new();
+        self.name.split('.').skip(1).for_each(|x| {
+            res.push_str(x);
+            res.push('.')
+        });
+        res.pop();
+        res
+    }
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -128,7 +139,7 @@ impl Services {
 
     pub(crate) fn add_instance(&mut self, instance: ServiceInstance) {
         self.map
-            .get_mut::<str>(instance.name.as_ref())
+            .get_mut::<str>(instance.service().as_ref())
             .and_then(|map| Some(map.insert(instance)));
     }
 

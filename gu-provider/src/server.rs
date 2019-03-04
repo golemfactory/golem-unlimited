@@ -132,7 +132,7 @@ impl Module for ServerModule {
         let sys = System::new("gu-provider");
 
         gu_base::run_once(move || {
-            let dec = decorator.clone();
+            let dec = decorator.to_owned();
             let config_module: &ConfigModule = dec.extract().unwrap();
             let _ = HdMan::start(config_module);
 
@@ -155,7 +155,6 @@ fn p2p_server(_r: &HttpRequest) -> &'static str {
 pub struct ProviderServer {
     node_id: Option<NodeId>,
     p2p_port: Option<u16>,
-
     mdns_publisher: MdnsPublisher,
     connections: Option<Addr<ConnectManager>>,
 }
@@ -228,9 +227,10 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     act.p2p_port = Some(config.p2p_port);
 
                     // Init mDNS publisher
-                    act.mdns_publisher = MdnsPublisher::init_provider(
+                    act.mdns_publisher = MdnsPublisher::init_publisher(
                         config.p2p_port,
                         act.node_id.unwrap().to_string(),
+                        false,
                     );
                     act.publish_service(config.publish_service);
 

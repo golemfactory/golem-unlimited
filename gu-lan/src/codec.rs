@@ -122,7 +122,6 @@ impl Decoder for MdnsCodec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ParsedPacket>> {
         let packet = Packet::parse(src.as_ref())?;
-        debug!("Received packet: {:?}", packet);
         let id = packet.header.id;
 
         let mut parse_maps = ResponseParseMaps::default();
@@ -146,6 +145,8 @@ impl Decoder for MdnsCodec {
         combine_answers(parse_maps, &mut services);
         combine_questions(parse_sets, &mut questions);
 
+        debug!("Decoded mDNS packet {:?}", services);
+
         Ok(Some(ParsedPacket {
             id,
             instances: services,
@@ -164,13 +165,7 @@ impl Encoder for MdnsCodec {
             builder.add_question(
                 service.to_string().as_ref(),
                 self.0,
-                QueryType::SRV,
-                QueryClass::IN,
-            );
-            builder.add_question(
-                service.to_string().as_ref(),
-                self.0,
-                QueryType::TXT,
+                QueryType::PTR,
                 QueryClass::IN,
             );
         }
