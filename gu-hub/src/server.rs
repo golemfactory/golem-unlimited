@@ -15,6 +15,7 @@ use gu_base::{
     Decorator, Module,
 };
 use gu_ethkey::prelude::*;
+use gu_lan::MdnsPublisher;
 use gu_net::{
     rpc::{self, mock},
     NodeId,
@@ -116,16 +117,13 @@ impl Module for ServerModule {
     }
 }
 
-fn mdns_publisher(port: u16, node_id: NodeId) -> Service {
+fn mdns_publisher(port: u16, node_id: NodeId) -> MdnsPublisher {
     let responder = Responder::new().expect("Failed to run mDNS publisher");
     let node_txt_record = format!("node_id={:?}", node_id);
 
-    responder.register(
-        "_unlimited._tcp".to_owned(),
-        "gu-hub".to_owned(),
-        port,
-        &[node_txt_record.as_ref()],
-    )
+    let mut publisher = MdnsPublisher::init_publisher(port, node_id.to_string(), true);
+    publisher.start();
+    publisher
 }
 
 fn chat_route(
