@@ -111,6 +111,5 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
 impl<T: IntoDeployInfo + Destroy> Drop for DeployManager<T> {
     fn drop(&mut self) {
         future::join_all(self.deploys.values_mut().map(Destroy::destroy)).wait();
-        println!("HdMan stopped");
     }
 }
