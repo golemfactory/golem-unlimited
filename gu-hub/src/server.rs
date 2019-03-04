@@ -9,12 +9,12 @@ use actix::{
     WrapFuture,
 };
 use actix_web;
+use ethkey::prelude::*;
 use futures::Future;
 use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
 };
-use ethkey::prelude::*;
 use gu_net::{
     rpc::{self, mock},
     NodeId,

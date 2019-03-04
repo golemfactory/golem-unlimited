@@ -10,6 +10,7 @@ use crate::hdman::HdMan;
 use ::actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
+use ethkey::prelude::*;
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
 use gu_actix::{async_result, async_try, prelude::*};
@@ -17,7 +18,6 @@ use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
 };
-use ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
