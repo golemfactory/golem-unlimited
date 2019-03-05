@@ -178,7 +178,7 @@ mod test {
         type Result = Box<Future<Item = (), Error = tokio_timer::Error> + Send + 'static>;
 
         fn release(self) -> <Self as AsyncRelease>::Result {
-            Box::new(sleep(Duration::from_millis(200)).and_then(|_| {
+            Box::new(sleep(Duration::from_millis(100)).and_then(|_| {
                 let _ = counter.fetch_add(-1, Ordering::SeqCst);
                 Ok(())
             }))

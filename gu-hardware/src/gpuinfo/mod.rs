@@ -88,6 +88,7 @@ mod test {
 
     #[test]
     fn test_gpu_count() {
+        // TODO: does not work on macos
         eprintln!("gpu={:?}", gpu_count().unwrap());
     }
 

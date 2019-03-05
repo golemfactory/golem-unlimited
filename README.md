@@ -55,9 +55,9 @@ http://<hub-ip>:61622/app/index.html
 
 # Project layout
 
+*  [`ethkey`]: Ethereum keys management
 *  [`gu-actix`]: small util crate defining flatten trait for ActixWeb future
 *  [`gu-base`]: implementation of common parts of Provider and Hub servers
-*  [`gu-ethkey`]: Ethereum keys management
 *  [`gu-event-bus`]: event-bus implementation - publish-subscribe communication between components
 *  [`gu-hardware`]: discovery of hardware resources - GPU, disk space, RAM
 *  [`gu-hub`]: binary of Hub server
@@ -70,7 +70,7 @@ http://<hub-ip>:61622/app/index.html
 
 [`gu-actix`]: gu-actix
 [`gu-base`]: gu-base
-[`gu-ethkey`]: gu-ethkey
+[`ethkey`]: ethkey
 [`gu-event-bus`]: gu-event-bus
 [`gu-hardware`]: gu-hardware
 [`gu-hub`]: gu-hub

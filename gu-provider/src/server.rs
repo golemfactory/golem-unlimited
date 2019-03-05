@@ -10,6 +10,7 @@ use crate::hdman::HdMan;
 use ::actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
+use ethkey::prelude::*;
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
 use gu_actix::{async_result, async_try, prelude::*};
@@ -17,7 +18,6 @@ use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
 };
-use gu_ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
@@ -103,7 +103,7 @@ impl ServerModule {
     }
 }
 
-fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
+fn get_node_id(keys: Box<EthAccount>) -> NodeId {
     let node_id = NodeId::from(keys.address().as_ref());
     info!("node_id={:?}", node_id);
     node_id
@@ -132,7 +132,7 @@ impl Module for ServerModule {
         let sys = System::new("gu-provider");
 
         gu_base::run_once(move || {
-            let dec = decorator.clone();
+            let dec = decorator.to_owned();
             let config_module: &ConfigModule = dec.extract().unwrap();
             let _ = HdMan::start(config_module);
 
@@ -155,7 +155,6 @@ fn p2p_server(_r: &HttpRequest) -> &'static str {
 pub struct ProviderServer {
     node_id: Option<NodeId>,
     p2p_port: Option<u16>,
-
     mdns_publisher: MdnsPublisher,
     connections: Option<Addr<ConnectManager>>,
 }
@@ -218,11 +217,9 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
                 .and_then(|config: ProviderConfig, act: &mut Self, _ctx| {
-                    let keys = SafeEthKey::load_or_generate(
-                        ConfigModule::new().keystore_path(),
-                        &"".into(),
-                    )
-                    .unwrap();
+                    let keys =
+                        EthAccount::load_or_generate(ConfigModule::new().keystore_path(), "")
+                            .unwrap();
 
                     let _ = server.bind(config.p2p_addr()).unwrap().start();
 
@@ -230,9 +227,10 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     act.p2p_port = Some(config.p2p_port);
 
                     // Init mDNS publisher
-                    act.mdns_publisher = MdnsPublisher::init_provider(
+                    act.mdns_publisher = MdnsPublisher::init_publisher(
                         config.p2p_port,
                         act.node_id.unwrap().to_string(),
+                        false,
                     );
                     act.publish_service(config.publish_service);
 
