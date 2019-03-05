@@ -29,5 +29,3 @@ lto=true
 #actix-web = { git = "https://github.com/prekucki/actix-web.git", default-features=false }
 #ring = { git="https://github.com/briansmith/ring.git", tag="0.12.1" }
 #untrusted = {git="https://github.com/briansmith/untrusted.git", tag="0.5.1" }
-
-

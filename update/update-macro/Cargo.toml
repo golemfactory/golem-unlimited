@@ -9,6 +9,7 @@ proc-macro = true
 [dependencies]
 quote = "0.6.11"
 update-trait = { path = "../update-trait" }
+proc-macro2 = "0.4.27"
 
 [dependencies.syn]
 version = "0.15.26"

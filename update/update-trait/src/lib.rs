@@ -1,22 +1,21 @@
-use std::ops::Deref;
 use std::str::FromStr;
 
 // Add; Remove;
 pub trait UpdateTrait: Sized {
     fn set<I: Iterator<Item = String>>(
         &mut self,
-        key: I,
-        value: String,
+        _key: I,
+        _value: String,
     ) -> Result<(), &'static str> {
-        Err("Update not declared")
+        Err("Set not declared")
     }
 
-    fn val(s: String) -> Result<Self, &'static str> {
+    fn val(_s: String) -> Result<Self, &'static str> {
         Err("Val not declared")
     }
 
-    fn remove<I: Iterator<Item = String>>(&mut self, key: I) -> Result<(), &'static str> {
-        Err("Clear not declared")
+    fn remove<I: Iterator<Item = String>>(&mut self, _key: I) -> Result<(), &'static str> {
+        Err("Remove not declared")
     }
 }
 
@@ -31,12 +30,12 @@ impl<T: UpdateTrait> UpdateTrait for Option<T> {
         } else if key.next().is_none() {
             Self::val(value).map(|x| *self = x)
         } else {
-            Err("Cannot set value because of None on path to if")
+            Err("Cannot set value because of None on the path to it")
         }
     }
 
     fn val(s: String) -> Result<Self, &'static str> {
-        T::val(s).map(|x| Some(x))
+        T::val(s).map(Some)
     }
 
     fn remove<I: Iterator<Item = String>>(&mut self, mut key: I) -> Result<(), &'static str> {
@@ -64,7 +63,8 @@ impl<T: Primitive> UpdateTrait for T {
     }
 
     fn val(value: String) -> Result<Self, &'static str> {
-        T::from_str(value.as_str()).map_err(|_| "Update failed - cannot parse to a primitive type")
+        T::from_str(value.as_str())
+            .map_err(|_| "Update failed - cannot parse value to a primitive type")
     }
 }
 
