@@ -17,7 +17,7 @@ impl From<isize> for ListingFormat {
         match v {
             0 => ListingFormat::Table,
             1 => ListingFormat::Json,
-            _ => panic!("invalid ListtingFormat value: {}", v),
+            _ => panic!("invalid ListingFormat value: {}", v),
         }
     }
 }
