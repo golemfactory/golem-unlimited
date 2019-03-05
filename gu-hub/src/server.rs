@@ -9,12 +9,13 @@ use actix::{
     WrapFuture,
 };
 use actix_web;
+use ethkey::prelude::*;
 use futures::Future;
 use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
 };
-use gu_ethkey::prelude::*;
+use gu_lan::MdnsPublisher;
 use gu_net::{
     rpc::{self, mock},
     NodeId,
@@ -116,16 +117,13 @@ impl Module for ServerModule {
     }
 }
 
-fn mdns_publisher(port: u16, node_id: NodeId) -> Service {
+fn mdns_publisher(port: u16, node_id: NodeId) -> MdnsPublisher {
     let responder = Responder::new().expect("Failed to run mDNS publisher");
     let node_txt_record = format!("node_id={:?}", node_id);
 
-    responder.register(
-        "_unlimited._tcp".to_owned(),
-        "gu-hub".to_owned(),
-        port,
-        &[node_txt_record.as_ref()],
-    )
+    let mut publisher = MdnsPublisher::init_publisher(port, node_id.to_string(), true);
+    publisher.start();
+    publisher
 }
 
 fn chat_route(
@@ -156,7 +154,7 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
 
     fn hub_configuration(&mut self, c: Arc<HubConfig>) -> Result<(), ()> {
         let config_module: &ConfigModule = self.decorator.extract().unwrap();
-        let key = SafeEthKey::load_or_generate(config_module.keystore_path(), &"".into())
+        let key = EthAccount::load_or_generate(config_module.keystore_path(), "")
             .expect("should load or generate eth key");
 
         let decorator = self.decorator.clone();
