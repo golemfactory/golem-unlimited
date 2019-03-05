@@ -130,7 +130,7 @@ fn download_chunk(
     })
 }
 
-struct UrlInfo {
+pub struct UrlInfo {
     download_url: String,
     size: Option<u64>,
     check: CheckType,
