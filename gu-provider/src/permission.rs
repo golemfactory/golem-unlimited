@@ -3,6 +3,7 @@ use gu_persist::config::{ConfigManager, GetConfig, HasSectionId, SetConfig};
 
 use crate::connect::{edit_config_connect_mode, edit_config_hosts, ConnectionChange};
 use crate::server::ConnectMode;
+use futures::future::Either;
 use gu_net::NodeId;
 use log::error;
 use serde_derive::*;
@@ -60,8 +61,8 @@ enum PermissionModule {
     None,
     Join(NodeId, Option<SocketAddr>),
     Configure,
-    AllowNode(Option<NodeId>), /* None -> auto mode, grant access to every hub */
-    DenyNode(Option<NodeId>),  /* None -> manual mode, connect only to selected hubs */
+    AllowNode(Option<NodeId>, Option<SocketAddr>), /* None, None -> auto mode, grant access to every hub */
+    DenyNode(Option<NodeId>, Option<SocketAddr>), /* None, None -> manual mode, connect only to selected hubs */
     NodeAllowedStatus(Option<NodeId>), /* Some(n) => is access granted for n, None => is auto mode on */
 }
 
@@ -89,29 +90,39 @@ impl Module for PermissionModule {
                         Arg::with_name("get-node")
                             .long("get-node")
                             .short("g")
-                            .value_name("node_id")
-                            .takes_value(true)
+                            .value_names(&["node_id"])
+                            .number_of_values(1)
                             .help("Gets node permission status, i.e. whether it has sufficient permissions to connect to this provider. \
-                                    If node_id is \"any\", then return whether automatic mode is on.")
+                                    If node_id is \"auto\", then return whether automatic mode is on.")
                     )
                     .arg(
                         Arg::with_name("allow-node")
                             .long("allow-node")
                             .short("a")
-                            .value_name("node_id")
-                            .takes_value(true)
-                            .help("Allow selected hub to connect to this provider and save the new configuration to config files. \
-                                If node_id is \"auto\", then allow any hub to connect to this provider.")
+                            .value_names(&["node_id", "ip:port"])
+                            .help("Allow selected hub to connect to this provider and save the new configuration to config files.")
                     )
                     .arg(
                         Arg::with_name("deny-node")
                             .long("deny-node")
                             .short("d")
-                            .value_name("node_id")
-                            .takes_value(true)
-                            .help("Deny connections from selected hub to this provider and save the new configuration to config files. \
-                                If node_id is \"auto\", then set connection mode to manual (allow only selected hubs to connect to this provider).")
-                    ),
+                            .value_names(&["node_id", "ip:port"])
+                            .help("Deny connections from selected hub to this provider and save the new configuration to config files.")
+                    )
+                    .arg(
+                        Arg::with_name("allow-all")
+                            .short("A")
+                            .long("allow-all")
+                            .help("Allow any hub to connect to this provider (turn automatic mode on) \
+                                    and save the new configuration to config files.")
+                    )
+                    .arg(
+                        Arg::with_name("deny-unknown")
+                            .short("D")
+                            .long("deny-unknown")
+                            .help("Deny connections from unknown hubs to this provider (turn manual mode on) \
+                                    and save the new configuration to config files.")
+                    )
             )
     }
 
@@ -142,34 +153,59 @@ impl Module for PermissionModule {
                 }
             }
         } else if let Some(cmd) = matches.subcommand_matches("configure") {
-            let get_node_id = cmd.value_of("get-node").map(|s| NodeId::from_str(s));
-            let allow_node_id = cmd.value_of("allow-node").map(|s| NodeId::from_str(s));
-            let deny_node_id = cmd.value_of("deny-node").map(|s| NodeId::from_str(s));
-            if get_node_id.is_none() && allow_node_id.is_none() && deny_node_id.is_none() {
+            if vec![
+                "get-node",
+                "allow-node",
+                "deny-node",
+                "allow-all",
+                "deny-unknown",
+            ]
+            .iter()
+            .all(|x| !cmd.is_present(x))
+            {
                 *self = PermissionModule::Configure;
                 return true;
             } else {
-                let param_to_node_id_or_any = |param, param_name| match param {
-                    Some(Ok(node_id)) => Ok(Some(node_id)),
-                    Some(Err(_)) => match cmd.value_of(param_name) {
-                        Some("auto") => Ok(None),
+                let param_to_node_and_ip = |param_name| {
+                    let values = cmd.values_of(param_name);
+                    if values.is_none() {
+                        return Err(());
+                    }
+                    let params = values.unwrap().into_iter().collect::<Vec<_>>();
+                    match NodeId::from_str(params[0]) {
+                        Ok(node) => {
+                            if params.len() != 2 {
+                                Err(())
+                            } else {
+                                let sock_addr: SocketAddr =
+                                    params[1].parse().expect("Expected ip:port.");
+                                Ok((Some(node), Some(sock_addr)))
+                            }
+                        }
                         _ => Err(()),
-                    },
-                    _ => Err(()),
+                    }
                 };
-                if let Ok(v) = param_to_node_id_or_any(get_node_id, "get-node") {
-                    *self = PermissionModule::NodeAllowedStatus(v);
+                if cmd.is_present("allow-all") {
+                    *self = PermissionModule::AllowNode(None, None);
                     return true;
                 }
-                if let Ok(v) = param_to_node_id_or_any(allow_node_id, "allow-node") {
-                    *self = PermissionModule::AllowNode(v);
+                if cmd.is_present("deny-unknown") {
+                    *self = PermissionModule::DenyNode(None, None);
                     return true;
                 }
-                if let Ok(v) = param_to_node_id_or_any(deny_node_id, "deny-node") {
-                    *self = PermissionModule::DenyNode(v);
+                if let Ok((node, ip)) = param_to_node_and_ip("get-node") {
+                    *self = PermissionModule::NodeAllowedStatus(node);
                     return true;
                 }
-                eprintln!("Invalid node_id.");
+                if let Ok((node, ip)) = param_to_node_and_ip("allow-node") {
+                    *self = PermissionModule::AllowNode(node, ip);
+                    return true;
+                }
+                if let Ok((node, ip)) = param_to_node_and_ip("deny-node") {
+                    *self = PermissionModule::DenyNode(node, ip);
+                    return true;
+                }
+                eprintln!("Invalid node_id or missing ip:port.");
                 return false;
             }
         }
@@ -228,9 +264,9 @@ impl Module for PermissionModule {
                     );
                 });
             }
-            PermissionModule::AllowNode(node_id) | PermissionModule::DenyNode(node_id) => {
+            PermissionModule::AllowNode(node_id, ip) | PermissionModule::DenyNode(node_id, ip) => {
                 let turn_on = match self {
-                    PermissionModule::AllowNode(_) => true,
+                    PermissionModule::AllowNode(_, _) => true,
                     _ => false,
                 };
                 let node_id_copy = node_id.clone();
@@ -258,6 +294,29 @@ impl Module for PermissionModule {
                                 config_manager
                                     .send(SetConfig::new(new_config))
                                     .flatten_fut()
+                            })
+                            .map_err(|_| eprintln!("Cannot save permissions."))
+                            .and_then(move |x| match node_id_copy {
+                                None => futures::future::Either::A(
+                                    edit_config_connect_mode(if turn_on {
+                                        ConnectMode::Auto
+                                    } else {
+                                        ConnectMode::Manual
+                                    })
+                                    .map_err(|_| ()),
+                                ),
+                                Some(n) => futures::future::Either::B(
+                                    edit_config_hosts(
+                                        vec![],
+                                        if turn_on {
+                                            ConnectionChange::Connect
+                                        } else {
+                                            ConnectionChange::Disconnect
+                                        },
+                                        false,
+                                    )
+                                    .map_err(|_| ()),
+                                ),
                             })
                             .then(|_r| Ok(System::current().stop())),
                     );
@@ -359,7 +418,7 @@ fn run_configure() {
                         if input == "*" {
                             config.allow_any = !config.allow_any;
                         } else if input == "s" {
-                            let selected_nodes = return ConfigManager::from_registry()
+                            return ConfigManager::from_registry()
                                 .send(SetConfig::new(config))
                                 .map_err(|_| ())
                                 .and_then(move |_| {
