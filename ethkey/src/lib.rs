@@ -97,10 +97,10 @@ impl EthAccount {
     /// reads keys from disk or generates new ones and stores to disk; password needed
     pub fn load_or_generate<P, W>(file_path: P, password: W) -> Result<Box<Self>>
     where
-        P: Into<PathBuf>,
+        P: AsRef<Path>,
         W: Into<Password>,
     {
-        let file_path = file_path.into();
+        let file_path = ::std::fs::canonicalize(file_path)?;
         let pwd = password.into();
         match File::open(&file_path) {
             Ok(file) => {
@@ -117,7 +117,6 @@ impl EthAccount {
         .map(|(secret, log_msg)| {
             let address = Address::from(secret.public().address().as_ref());
             info!("account {:?} {} {}", address, log_msg, file_path.display());
-
             Box::new(EthAccount {
                 address,
                 public: secret.public(),

@@ -151,7 +151,7 @@ fn extract_check<M: actix_web::HttpMessage>(resp: &M) -> Result<CheckType, heade
   Prepare to download
 
 */
-pub fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
+fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
     use actix_web::{client, http::header, HttpMessage};
     use futures::future::{loop_fn, Loop};
 
