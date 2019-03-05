@@ -13,6 +13,7 @@ use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::types::NodeId;
 use gu_net::types::TryIntoNodeId;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -441,9 +442,9 @@ pub struct Peer {
 
 impl Peer {
     /// creates new peer session
-    pub fn new_session(
+    pub fn new_session<Options: Serialize>(
         &self,
-        session_info: envman::CreateSession,
+        session_info: envman::CreateSession<Options>,
     ) -> impl Future<Item = PeerSession, Error = Error> {
         let url = format!(
             "{}sessions/{}/peers/{}/deployments",

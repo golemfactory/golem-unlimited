@@ -523,6 +523,7 @@ fn run_worker<S: Stream<Item = (Blob, BlenderTaskSpec), Error = Error>>(
     frame: S,
     output_path: PathBuf,
     logger: Addr<AsyncProgress>,
+    docker_mode: bool,
 ) -> impl Future<Item = (), Error = Error> {
     let session = session.clone();
 
@@ -535,21 +536,38 @@ fn run_worker<S: Stream<Item = (Blob, BlenderTaskSpec), Error = Error>>(
             let logger = logger.clone();
 
             session
-                .update(vec![
-                    Command::WriteFile {
-                        file_path: "resources/spec.json".to_owned(),
-                        content: serde_json::to_string(&spec).unwrap(),
-                    },
-                    Command::Exec {
-                        executable: "./gu-render".into(),
-                        args: Vec::new(),
-                    },
-                    Command::UploadFile {
-                        uri: blob.uri(),
-                        file_path: outf.clone(),
-                        format: ResourceFormat::Raw,
-                    },
-                ])
+                .update(if docker_mode {
+                    vec![
+                        Command::WriteFile {
+                            file_path: "golem/resources/spec.json".to_owned(),
+                            content: serde_json::to_string(&spec).unwrap(),
+                        },
+                        Command::Open,
+                        Command::Wait,
+                        Command::UploadFile {
+                            uri: blob.uri(),
+                            file_path: format!("golem/output/outf_{:04}.png", frame),
+                            format: ResourceFormat::Raw,
+                        },
+                        Command::Close
+                    ]
+                } else {
+                    vec![
+                        Command::WriteFile {
+                            file_path: "resources/spec.json".to_owned(),
+                            content: serde_json::to_string(&spec).unwrap(),
+                        },
+                        Command::Exec {
+                            executable: "./gu-render".into(),
+                            args: Vec::new(),
+                        },
+                        Command::UploadFile {
+                            uri: blob.uri(),
+                            file_path: outf.clone(),
+                            format: ResourceFormat::Raw,
+                        },
+                    ]
+                })
                 .and_then(move |results| {
                     use std::io::prelude::*;
                     log::debug!(
@@ -634,13 +652,62 @@ impl<W: std::io::Write> TarBuildHelper<W> {
     }
 }
 
+fn blender_deployment_spec(
+    peer: Peer,
+    docker: bool,
+) -> impl Future<Item = PeerSession, Error = gu_client::error::Error> {
+    if !docker {
+        future::Either::A(peer.new_session(CreateSession {
+            env_type: "hd".to_string(),
+            image: Image {
+                url: "http://52.31.143.91/images/x86_64/linux/gu-blender.hdi".to_string(),
+                hash: "SHA1:213fad4e020ded42e6a949f61cb660cb69bc9845".to_string(),
+            },
+            name: "".to_string(),
+            tags: vec!["gu:render".into(), "gu:blender".into()],
+            note: None,
+            options: (),
+        }))
+    } else {
+        use gu_model::dockerman::*;
+
+        future::Either::B(
+            peer.new_session(CreateSession::<CreateOptions> {
+                env_type: "docker".to_string(),
+                image: Image {
+                    url: "prekucki/gu-reneder-blender".to_string(),
+                    hash: "sha256:969d9f15e104697d902f3f785c8a51c6a7cc41f1f0278a4a7f4a400b07007158"
+                        .to_string(),
+                },
+                name: "".to_string(),
+                tags: vec!["gu:render".into(), "gu:blender".into()],
+                note: None,
+                options: CreateOptions {
+                    volumes: vec![
+                        VolumeDef::BindRw {
+                            src: "resources".into(),
+                            target: "/golem/resources".into(),
+                        },
+                        VolumeDef::BindRw {
+                            src: "output".into(),
+                            target: "/golem/output".into(),
+                        },
+                    ],
+                    cmd: None,
+                },
+            }),
+        )
+    }
+}
+
 fn render_task(
     connection: &HubConnection,
     opts: Render,
 ) -> Box<dyn Future<Item = (), Error = gu_client::error::Error>> {
     use gu_model::chrono::prelude::*;
-    let frames = opts.frames();
 
+    let docker_mode = opts.docker;
+    let frames = opts.frames();
     let mut mb = AsyncProgress::new(frames.len() as u64, opts.resource.len() as u64).start();
 
     let spec = HubSessionSpec {
@@ -781,28 +848,15 @@ fn render_task(
         .and_then(|t| Ok(TaskList::new(t)));
 
         let peers_session: Handle<HubSession> = session.clone();
-        let prepare_workers =
-            peers.and_then(move |peers| {
-                let spec = CreateSession {
-                    env_type: "hd".to_string(),
-                    image: Image {
-                        url: "http://52.31.143.91/images/x86_64/linux/gu-blender.hdi".to_string(),
-                        hash: "SHA1:213fad4e020ded42e6a949f61cb660cb69bc9845".to_string(),
-                    },
-                    name: "".to_string(),
-                    tags: vec!["gu:render".into(), "gu:blender".into()],
-                    note: None,
-                    options: (),
-                };
-
-                peers_session
-                    .add_peers(peers.map(|p| p.node_id))
-                    .and_then(move |peers| {
-                        futures::future::join_all(peers.into_iter().map(move |node_id| {
-                            peers_session.peer(node_id).new_session(spec.clone())
-                        }))
-                    })
-            });
+        let prepare_workers = peers.and_then(move |peers| {
+            peers_session
+                .add_peers(peers.map(|p| p.node_id))
+                .and_then(move |peers| {
+                    futures::future::join_all(peers.into_iter().map(move |node_id| {
+                        blender_deployment_spec(peers_session.peer(node_id), docker_mode)
+                    }))
+                })
+        });
 
         let mut frames_done = 0;
 
@@ -817,7 +871,7 @@ fn render_task(
                         worker
                             .update(vec![Command::DownloadFile {
                                 uri: blob_uri.clone(),
-                                file_path: "resources".into(),
+                                file_path: if docker_mode { "/golem/resources".into() } else {"resources".into() },
                                 format: ResourceFormat::Tar,
                             }])
                             .and_then(|_| Ok(worker))
@@ -835,6 +889,7 @@ fn render_task(
                                 tasks.clone().map_err(|_| unreachable!()),
                                 output.clone(),
                                 mb.clone(),
+                                docker_mode
                             )
                         }))
                         .and_then(|_| {

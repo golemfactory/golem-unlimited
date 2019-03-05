@@ -214,7 +214,7 @@ fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
 
 fn new_deployment(
     info: Path<PeerPath>,
-    body: Json<gu_model::envman::CreateSession>,
+    body: Json<gu_model::envman::GenericCreateSession>,
 ) -> impl Responder {
     use gu_model::envman::{CreateSession, Image};
     use gu_net::rpc::{peer, reply::SendError, ReplyRouter};

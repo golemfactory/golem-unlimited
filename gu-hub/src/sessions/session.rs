@@ -279,7 +279,7 @@ impl Session {
     pub fn create_deployment(
         &mut self,
         node_id: NodeId,
-        body: gu_model::envman::CreateSession,
+        body: gu_model::envman::GenericCreateSession,
     ) -> impl Future<Item = String, Error = SessionErr> {
         if self.peers.get(&node_id).is_none() {
             return future::Either::A(future::err(SessionErr::NodeNotFound(node_id)));

@@ -22,6 +22,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::ffi;
 use std::path::PathBuf;
+use bytes::Buf;
 
 // Actor.
 struct DockerMan {
@@ -111,7 +112,38 @@ impl DockerSession {
         content: bytes::Bytes,
         file_path: String,
     ) -> impl Future<Item = String, Error = String> {
-        futures::future::err(unimplemented!())
+        use tar;
+
+        let mut outf = Vec::new();
+        match (|| -> std::io::Result<()> {
+            let mut b = tar::Builder::new(&mut outf);
+
+            let mut header = tar::Header::new_ustar();
+            header.set_size(content.len() as u64);
+            header.set_path(&file_path)?;
+            header.set_cksum();
+
+            b.append(&header, ::std::io::Cursor::new(content.as_ref()));
+            b.finish()?;
+            Ok(())
+        })() {
+            Ok(()) => (),
+            Err(e) => return future::Either::B(future::err(format!("io: {}", e)))
+        }
+
+        let opts = async_docker::build::ContainerArchivePutOptions::builder()
+            .remote_path("/".into())
+            .build();
+
+        future::Either::A(self
+            .container
+            .archive_put_stream(
+                &opts,
+                futures::stream::once(Ok::<_, std::io::Error>(bytes::Bytes::from(outf))),
+            )
+            .into_future()
+            .map(|sc| format!("sc: {}", sc))
+            .map_err(|e| e.to_string()))
     }
 
     fn do_download(
@@ -295,14 +327,15 @@ impl DockerMan {
             .options
             .volumes
             .iter()
-            .filter_map(|vol: &VolumeDef| {
-                vol.source_dir()
-                    .and_then(|s| vol.target_dir().map(|t| (s, t)))
-                    .map(|(s, t)| {
+            .filter_map(|vol: &VolumeDef|
+                match vol {
+                    VolumeDef::BindRw { src, target } => {
                         workspace.add_volume(vol.clone());
-                        format!("{}:{}", s, t)
-                    })
-            })
+                        let src = workspace.path().join(src);
+                        Some(format!("{}:{}", src.display(), target))
+                    },
+                    _ => None
+                })
             .collect();
 
         (binds, workspace)

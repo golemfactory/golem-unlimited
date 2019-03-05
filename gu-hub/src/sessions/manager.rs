@@ -312,14 +312,14 @@ impl Handler<DeleteBlob> for SessionsManager {
 pub struct CreateDeployment {
     session_id: u64,
     node_id: NodeId,
-    deployment_desc: gu_model::envman::CreateSession,
+    deployment_desc: gu_model::envman::GenericCreateSession,
 }
 
 impl CreateDeployment {
     pub fn new(
         session_id: u64,
         node_id: NodeId,
-        deployment_desc: gu_model::envman::CreateSession,
+        deployment_desc: gu_model::envman::GenericCreateSession,
     ) -> CreateDeployment {
         CreateDeployment {
             session_id,

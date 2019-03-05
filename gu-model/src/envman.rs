@@ -71,6 +71,8 @@ pub struct CreateSession<Options = ()> {
     pub options: Options,
 }
 
+pub type GenericCreateSession = CreateSession<::serde_json::Value>;
+
 impl<Options> PublicMessage for CreateSession<Options> {
     const ID: u32 = 37;
 }
