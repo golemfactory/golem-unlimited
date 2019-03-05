@@ -100,30 +100,29 @@ impl EthAccount {
         P: AsRef<Path>,
         W: Into<Password>,
     {
-        let file_path = ::std::fs::canonicalize(file_path)?;
         let pwd = password.into();
-        match File::open(&file_path) {
+        let (secret, log_msg) = match File::open(&file_path) {
             Ok(file) => {
                 let key_file: KeyFile = serde_json::from_reader(file)?;
                 let secret = SecretKey::from_crypto(&key_file.crypto, &pwd)?;
-                Ok((secret, "loaded from"))
+                (secret, "loaded from")
             }
             Err(_e) => {
                 let secret = SecretKey::from_raw(&random_bytes())?;
                 save_key(&secret, &file_path, pwd)?;
-                Ok((secret, "generated and saved to"))
+                (secret, "generated and saved to")
             }
-        }
-        .map(|(secret, log_msg)| {
-            let address = Address::from(secret.public().address().as_ref());
-            info!("account {:?} {} {}", address, log_msg, file_path.display());
-            Box::new(EthAccount {
-                address,
-                public: secret.public(),
-                secret,
-                file_path,
-            })
-        })
+        };
+
+        let file_path = ::std::fs::canonicalize(file_path)?;
+        let address = Address::from(secret.public().address().as_ref());
+        info!("account {:?} {} {}", address, log_msg, file_path.display());
+        Ok(Box::new(EthAccount {
+            address,
+            public: secret.public(),
+            secret,
+            file_path,
+        }))
     }
 
     /// stores keys on disk with changed password
@@ -325,11 +324,13 @@ mod tests {
 
     #[test]
     fn should_have_debug_impl() {
-        let key = EthAccount::load_or_generate("res/wallet.json", "hekloo");
+        use rustc_hex::ToHex;
+        let key = EthAccount::load_or_generate("res/wallet.json", "hekloo").unwrap();
 
-        assert_eq!(format!("{:?}", key.unwrap()), "EthAccount { public: PublicKey { \
-            address: \"5240400e8b0aadfd212d9d8c70973b9800fa4b0f\", \
-            public: \"12e612f62a244e31c45b5bb3a99ec6c40e5a6c94d741352d3ea3aaeab71075b743ca634393f27a56f04a0ff8711227f245dab5dc8049737791b372a94a6524f3\" }, \
-            file_path: \"res/wallet.json\" }");
+        assert_eq!(
+            format!("{}", key.address()),
+            "0x5240400e8b0aadfd212d9d8c70973b9800fa4b0f"
+        );
+        assert_eq!(format!("{}", ToHex::to_hex::<String>(key.public().bytes().as_ref())), "12e612f62a244e31c45b5bb3a99ec6c40e5a6c94d741352d3ea3aaeab71075b743ca634393f27a56f04a0ff8711227f245dab5dc8049737791b372a94a6524f3");
     }
 }
