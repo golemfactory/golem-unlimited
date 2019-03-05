@@ -11,25 +11,22 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::{borrow::Cow, mem::uninitialized};
 
 pub trait TryIntoNodeId {
-
     fn into_node_id(self) -> Result<NodeId, ParseError>;
 }
 
 impl TryIntoNodeId for NodeId {
-
     fn into_node_id(self) -> Result<NodeId, ParseError> {
         Ok(self)
     }
 }
 
 impl TryIntoNodeId for &NodeId {
-
     fn into_node_id(self) -> Result<NodeId, ParseError> {
         Ok(*self)
     }
 }
 
-impl<AsRefStr : AsRef<str>> TryIntoNodeId for AsRefStr {
+impl<AsRefStr: AsRef<str>> TryIntoNodeId for AsRefStr {
     fn into_node_id(self) -> Result<NodeId, ParseError> {
         self.as_ref().parse()
     }
@@ -238,7 +235,9 @@ mod test {
         let str = format!("{:?}", node_id);
         assert_eq!(node_id, NodeId::from_str(&str).unwrap());
 
-        let _ : NodeId = "0x44f1d51fe4cbb49d9f6733618082c5af7459b83f".parse().unwrap();
+        let _: NodeId = "0x44f1d51fe4cbb49d9f6733618082c5af7459b83f"
+            .parse()
+            .unwrap();
     }
 
 }

@@ -143,9 +143,9 @@ pub enum Command {
     },
     #[serde(rename_all = "camelCase")]
     WriteFile {
-        content : String,
-        file_path : String
-    }
+        content: String,
+        file_path: String,
+    },
 }
 
 impl Message for SessionUpdate {

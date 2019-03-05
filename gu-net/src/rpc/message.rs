@@ -289,4 +289,3 @@ impl EmitMessage<String> {
 impl<B> Message for EmitMessage<B> {
     type Result = Result<MessageId, error::Error>;
 }
-
