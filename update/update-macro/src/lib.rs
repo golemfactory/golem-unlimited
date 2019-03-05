@@ -2,8 +2,8 @@
 
 extern crate proc_macro;
 
-use proc_macro2;
 use proc_macro::TokenStream;
+use proc_macro2;
 use quote::quote;
 use syn::parse::{Parse, ParseStream, Result as ParseResult};
 use syn::{Ident, Token};
@@ -26,7 +26,10 @@ impl Parse for Item {
     }
 }
 
-fn impl_set_for_enum(name: Ident, variants: Vec<syn::Variant>) -> impl Iterator<Item = proc_macro2::TokenStream> {
+fn impl_set_for_enum(
+    name: Ident,
+    variants: Vec<syn::Variant>,
+) -> impl Iterator<Item = proc_macro2::TokenStream> {
     variants.into_iter().map(move |variant| {
         let id = variant.ident;
 
@@ -78,8 +81,10 @@ fn impl_set_for_enum(name: Ident, variants: Vec<syn::Variant>) -> impl Iterator<
     })
 }
 
-
-fn impl_remove_for_enum(name: Ident, variants: Vec<syn::Variant>) -> impl Iterator<Item = proc_macro2::TokenStream> {
+fn impl_remove_for_enum(
+    name: Ident,
+    variants: Vec<syn::Variant>,
+) -> impl Iterator<Item = proc_macro2::TokenStream> {
     variants.into_iter().map(move |variant| {
         let id = variant.ident;
 
@@ -127,8 +132,7 @@ fn impl_remove_for_enum(name: Ident, variants: Vec<syn::Variant>) -> impl Iterat
 }
 
 fn macro_for_enum(input: syn::ItemEnum) -> TokenStream {
-    let fields: Vec<_> = input
-        .variants.into_iter().collect();
+    let fields: Vec<_> = input.variants.into_iter().collect();
 
     let name = input.ident.to_owned();
     let removes = impl_remove_for_enum(name.clone(), fields.clone());

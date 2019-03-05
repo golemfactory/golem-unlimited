@@ -36,7 +36,9 @@ fn works() {
 
     let mut a = A::default();
     a.b.c.opt = Some(1);
-    assert!(a.set(iter_of_strings!["b", "c", "arg"], "true".to_string()).is_ok());
+    assert!(a
+        .set(iter_of_strings!["b", "c", "arg"], "true".to_string())
+        .is_ok());
     assert_eq!(a.b.c.arg, true);
 
     assert!(a.remove(iter_of_strings!["b", "c", "opt"]).is_ok());
@@ -45,7 +47,9 @@ fn works() {
     a.b.c.opt = Some(1);
     let mut e = E::Single(a);
 
-    assert!(e.remove(iter_of_strings!("Single", "b", "c", "opt")).is_ok());
+    assert!(e
+        .remove(iter_of_strings!("Single", "b", "c", "opt"))
+        .is_ok());
 
     if let E::Single(ref x) = e {
         assert_eq!(x.b.c.opt, None);
@@ -60,8 +64,10 @@ fn works() {
         panic!("Wrong option in enum")
     }
 
-
-    let mut x = E::Click { x:0, opt: Some(true) };
+    let mut x = E::Click {
+        x: 0,
+        opt: Some(true),
+    };
 
     let _ = x.remove(iter_of_strings!("Click", "opt"));
     let _ = x.set(iter_of_strings!("Click", "x"), "123".into());
@@ -73,9 +79,10 @@ fn works() {
         panic!("Wrong option in enum")
     }
 
-
-    let mut x = E::Click { x:0, opt: Some(true) };
+    let mut x = E::Click {
+        x: 0,
+        opt: Some(true),
+    };
     let _ = x.set(iter_of_strings!("Empty"), "".into());
     assert_eq!(x, E::Empty);
-
 }
