@@ -91,7 +91,6 @@ impl Module for PermissionModule {
                             .long("get-node")
                             .short("g")
                             .value_names(&["node_id"])
-                            .number_of_values(1)
                             .help("Gets node permission status, i.e. whether it has sufficient permissions to connect to this provider. \
                                     If node_id is \"auto\", then return whether automatic mode is on.")
                     )
@@ -172,9 +171,14 @@ impl Module for PermissionModule {
                         return Err(());
                     }
                     let params = values.unwrap().into_iter().collect::<Vec<_>>();
+                    if param_name == "get-node" && params.len() == 1 && params[0] == "auto" {
+                        return Ok((None, None));
+                    }
                     match NodeId::from_str(params[0]) {
                         Ok(node) => {
-                            if params.len() != 2 {
+                            if params.len() == 1 && param_name == "get-node" {
+                                Ok((Some(node), None))
+                            } else if params.len() != 2 {
                                 Err(())
                             } else {
                                 let sock_addr: SocketAddr =
@@ -205,7 +209,7 @@ impl Module for PermissionModule {
                     *self = PermissionModule::DenyNode(node, ip);
                     return true;
                 }
-                eprintln!("Invalid node_id or missing ip:port.");
+                eprintln!("Invalid parameters.");
                 return false;
             }
         }
