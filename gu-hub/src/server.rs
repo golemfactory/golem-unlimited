@@ -168,7 +168,19 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
                             .expect("cannot provide static files"),
                     )
                     .scope("/m", mock::scope)
-                    .resource("/ws/", |r| r.route().f(chat_route)),
+                    .resource("/ws/", |r| r.route().f(chat_route))
+                    .resource("/node_id/", |r| {
+                        r.get().f(|req| {
+                            actix_web::HttpResponse::with_body(
+                                actix_web::http::StatusCode::OK,
+                                format!(
+                                    "{} {}",
+                                    req.state().to_string(),
+                                    hostname::get_hostname().unwrap_or("unknown".to_string())
+                                ),
+                            )
+                        });
+                    }),
             )
         });
         let _ = server.bind(c.p2p_addr()).unwrap().start();

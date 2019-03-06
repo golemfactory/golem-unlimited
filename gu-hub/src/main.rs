@@ -30,6 +30,7 @@ extern crate prettytable;
 
 extern crate bytes;
 extern crate clap;
+extern crate hostname;
 extern crate mdns;
 extern crate semver;
 extern crate sha1;
