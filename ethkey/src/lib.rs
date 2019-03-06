@@ -1,4 +1,4 @@
-//! Ethereum keys management supporting keystores in formats used by [geth], [parity] and [pyethereum].
+//! Ethereum keys management supporting keystores in formats used by [geth] (soon), [parity] and [pyethereum].
 //!
 //! ## Features
 //!   * random key pair generation
@@ -53,7 +53,9 @@ pub use ethsign::{PublicKey, SecretKey, Signature};
 mod address;
 pub use address::Address;
 
+/// 32 bytes Message for signing and verification
 pub type Message = [u8; 32];
+/// Password. It is overwritten with zeros after memory is released.
 pub type Password = Protected;
 
 /// HMAC fn iteration count; a compromise between security and performance
@@ -286,9 +288,36 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
+    fn should_read_keystore_generated_by_geth() {
+        // when
+        let key = EthAccount::load_or_generate("res/geth-keystore.json", "geth").unwrap();
+
+        // then
+        assert_eq!(
+            format!("{}", key.address()),
+            "0x8e049da484e853d92d118be16377ff616275d470"
+        );
+        assert_eq!(key.public().bytes().to_hex::<String>(), "e54553168b429c0407c5e4338f0a61fa7a515ff382ada9f323e313353c1904b0d8039f99e213778ba479196ef24c838e41dc77215c41895fe15e4de018d7d1dd");
+    }
+
+    #[test]
+    fn should_read_keystore_generated_by_parity() {
+        // when
+        let key = EthAccount::load_or_generate("res/parity-keystore.json", "").unwrap();
+
+        // then
+        assert_eq!(
+            format!("{}", key.address()),
+            "0x005b3bcf82085eededd551f50de7892471ffb272"
+        );
+        assert_eq!(key.public().bytes().to_hex::<String>(), "782cc7dd72426893ae0d71477e41c41b03249a2b72e78eefcfe0baa9df604a8f979ab94cd23d872dac7bfa8d07d8b76b26efcbede7079f1c5cacd88fe9858f6e");
+    }
+
+    #[test]
     fn should_read_keystore_generated_by_pyethereum() {
         // when
-        let key = EthAccount::load_or_generate("res/wallet.json", "hekloo").unwrap();
+        let key = EthAccount::load_or_generate("res/pyethereum-keystore.json", "hekloo").unwrap();
 
         // then
         assert_eq!(
@@ -300,7 +329,7 @@ mod tests {
 
     #[test]
     fn should_read_relative_path_as_absolute() {
-        let rel_path = "res/wallet.json";
+        let rel_path = "res/pyethereum-keystore.json";
         let mut abs_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         abs_path.push(rel_path);
         // when
@@ -365,7 +394,7 @@ mod tests {
     #[test]
     fn should_have_display_impl() {
         let mut abs_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        abs_path.push("res/wallet.json");
+        abs_path.push("res/pyethereum-keystore.json");
         let key = EthAccount::load_or_generate(&abs_path, "hekloo");
 
         assert_eq!(
@@ -382,7 +411,7 @@ mod tests {
     #[test]
     fn should_have_debug_impl() {
         let mut abs_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        abs_path.push("res/wallet.json");
+        abs_path.push("res/pyethereum-keystore.json");
 
         let key = EthAccount::load_or_generate(&abs_path, "hekloo");
 

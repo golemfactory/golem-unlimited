@@ -1,6 +1,6 @@
 # EthKey
 Ethereum keys management supporting keystores in formats used by
-[geth](https://github.com/ethereum/go-ethereum),
+[~~geth~~](https://github.com/ethereum/go-ethereum) (soon),
 [parity](https://github.com/paritytech/parity-ethereum)
 and
 [pyethereum](https://github.com/ethereum/pyethereum).
