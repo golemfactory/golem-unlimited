@@ -36,7 +36,6 @@ use error_chain::{
 };
 use log::info;
 use rand::{thread_rng, RngCore};
-use rustc_hex::ToHex;
 use std::{
     fmt,
     fs::File,
@@ -59,6 +58,7 @@ pub type Password = Protected;
 
 /// HMAC fn iteration count; a compromise between security and performance
 pub const KEY_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(10240) };
+pub const KEYSTORE_VERSION: u64 = 3;
 
 /// An Ethereum Account keys with store.
 /// Allows to generate a new key pair and save it to disk as well as read existing keyfile.
@@ -100,40 +100,36 @@ impl EthAccount {
         P: AsRef<Path>,
         W: Into<Password>,
     {
-        let file_path = ::std::fs::canonicalize(file_path)?;
         let pwd = password.into();
-        match File::open(&file_path) {
+        let (secret, log_msg) = match File::open(&file_path) {
             Ok(file) => {
                 let key_file: KeyFile = serde_json::from_reader(file)?;
                 let secret = SecretKey::from_crypto(&key_file.crypto, &pwd)?;
-                Ok((secret, "loaded from"))
+                (secret, "loaded")
             }
             Err(_e) => {
                 let secret = SecretKey::from_raw(&random_bytes())?;
                 save_key(&secret, &file_path, pwd)?;
-                Ok((secret, "generated and saved to"))
+                (secret, "generated and saved")
             }
-        }
-        .map(|(secret, log_msg)| {
-            let address = Address::from(secret.public().address().as_ref());
-            info!("account {:?} {} {}", address, log_msg, file_path.display());
-            Box::new(EthAccount {
-                address,
-                public: secret.public(),
-                secret,
-                file_path,
-            })
-        })
+        };
+
+        let eth_account = EthAccount {
+            address: secret.public().address().as_ref().into(),
+            public: secret.public(),
+            secret,
+            file_path: ::std::fs::canonicalize(file_path)?,
+        };
+
+        info!("{} {}", log_msg, eth_account);
+
+        Ok(Box::new(eth_account))
     }
 
     /// stores keys on disk with changed password
     pub fn change_password<W: Into<Password>>(&self, new_password: W) -> Result<()> {
         save_key(&self.secret, &self.file_path, new_password.into())?;
-        info!(
-            "changed password for account {:?} and saved to {}",
-            self.address(),
-            self.file_path.display()
-        );
+        info!("changed password for {}", self);
         Ok(())
     }
 }
@@ -145,7 +141,7 @@ where
 {
     let key_file = KeyFile {
         id: format!("{}", uuid::Uuid::new_v4()),
-        version: 3,
+        version: KEYSTORE_VERSION,
         crypto: secret.to_crypto(&password.into(), KEY_ITERATIONS)?,
         address: Some(Bytes(secret.public().address().to_vec())),
     };
@@ -163,9 +159,9 @@ impl fmt::Display for EthAccount {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
         write!(
             fmt,
-            "EthAccount:\n\tpublic:  0x{}\n\taddress: {}",
-            ToHex::to_hex::<String>(&self.public().bytes()[..]),
-            self.address()
+            "EthAccount address: {}, path: {:?}",
+            self.address(),
+            self.file_path
         )
     }
 }
@@ -204,6 +200,7 @@ pub mod prelude {
 mod tests {
     use crate::prelude::*;
     use ethsign::keyfile::KeyFile;
+    use rustc_hex::ToHex;
     use std::{env, fs::File, path::PathBuf};
     use tempfile::tempdir;
 
@@ -222,46 +219,95 @@ mod tests {
     }
 
     #[test]
-    fn should_generate_and_save() {
+    fn should_generate_save_and_load() {
         // given
         let path = tmp_path();
+        let pwd = "pwd";
 
         // when
-        let key = EthAccount::load_or_generate(&path, "pwd");
+        let key = EthAccount::load_or_generate(&path, pwd);
 
         // then
-        assert!(path.exists());
+        assert!(path.exists(), format!("path {:?} should exist", path));
         assert!(key.is_ok());
+
+        // when
+        let key0 = key.unwrap();
+        let key1 = EthAccount::load_or_generate(&path, pwd).unwrap();
+
+        // then
+        assert_eq!(key0.address().as_ref(), key1.address().as_ref());
+        assert_eq!(key0.public().bytes()[..], key1.public().bytes()[..]);
     }
 
     #[test]
-    fn should_serialize_with_proper_address() {
+    fn should_not_generate_when_path_points_dir() {
+        // given
+        let dir_path = tempdir().unwrap().into_path();
+
+        // when
+        let key = EthAccount::load_or_generate(dir_path, "pwd");
+
+        // then
+        assert!(key.is_err());
+        assert_eq!(key.unwrap_err().to_string(), "Is a directory (os error 21)");
+    }
+
+    #[test]
+    fn should_not_generate_when_path_permission_denied() {
+        // when
+        let key = EthAccount::load_or_generate("/a", "pwd");
+
+        // then
+        assert!(key.is_err());
+        assert_eq!(
+            key.unwrap_err().to_string(),
+            "Permission denied (os error 13)"
+        );
+    }
+
+    #[test]
+    fn should_generate_and_serialize_with_proper_id_version_and_address() {
         // given
         let path = tmp_path();
 
         // when
-        let key = EthAccount::load_or_generate(&path, "pwd");
+        let key = EthAccount::load_or_generate(&path, "pwd").unwrap();
 
         // then
-        assert!(key.is_ok());
-
-        let file = File::open(path).unwrap();
-        let key_file: KeyFile = serde_json::from_reader(file).unwrap();
+        let key_file: KeyFile = serde_json::from_reader(File::open(path).unwrap()).unwrap();
 
         assert_eq!(key_file.id.len(), 36);
         assert_ne!(key_file.id, "00000000-0000-0000-0000-000000000000");
         uuid::Uuid::parse_str(&key_file.id).expect("should parse as UUID");
 
-        assert_eq!(key.unwrap().address().to_vec(), key_file.address.unwrap().0);
+        assert_eq!(key.address().to_vec(), key_file.address.unwrap().0);
+        assert_eq!(key_file.version, 3);
     }
 
     #[test]
     fn should_read_keystore_generated_by_pyethereum() {
         // when
-        let key = EthAccount::load_or_generate("res/wallet.json", "hekloo");
+        let key = EthAccount::load_or_generate("res/wallet.json", "hekloo").unwrap();
 
         // then
-        assert!(key.is_ok());
+        assert_eq!(
+            format!("{}", key.address()),
+            "0x5240400e8b0aadfd212d9d8c70973b9800fa4b0f"
+        );
+        assert_eq!(key.public().bytes().to_hex::<String>(), "12e612f62a244e31c45b5bb3a99ec6c40e5a6c94d741352d3ea3aaeab71075b743ca634393f27a56f04a0ff8711227f245dab5dc8049737791b372a94a6524f3");
+    }
+
+    #[test]
+    fn should_read_relative_path_as_absolute() {
+        let rel_path = "res/wallet.json";
+        let mut abs_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        abs_path.push(rel_path);
+        // when
+        let key = EthAccount::load_or_generate(&rel_path, "hekloo").unwrap();
+
+        // then
+        assert_eq!(key.file_path, abs_path);
     }
 
     #[test]
@@ -288,6 +334,8 @@ mod tests {
 
         // when
         let key = EthAccount::load_or_generate(&path, "pwd");
+
+        // then
         assert!(key.is_ok());
 
         // change pass
@@ -316,20 +364,31 @@ mod tests {
 
     #[test]
     fn should_have_display_impl() {
-        let key = EthAccount::load_or_generate("res/wallet.json", "hekloo");
+        let mut abs_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        abs_path.push("res/wallet.json");
+        let key = EthAccount::load_or_generate(&abs_path, "hekloo");
 
-        assert_eq!(format!("{}", key.unwrap()), "EthAccount:\n\t\
-	        public:  0x12e612f62a244e31c45b5bb3a99ec6c40e5a6c94d741352d3ea3aaeab71075b743ca634393f27a56f04a0ff8711227f245dab5dc8049737791b372a94a6524f3\n\t\
-	        address: 0x5240400e8b0aadfd212d9d8c70973b9800fa4b0f");
+        assert_eq!(
+            format!("{}", key.unwrap()),
+            format!(
+                "EthAccount \
+                 address: 0x5240400e8b0aadfd212d9d8c70973b9800fa4b0f, \
+                 path: {:?}",
+                abs_path
+            )
+        );
     }
 
     #[test]
     fn should_have_debug_impl() {
-        let key = EthAccount::load_or_generate("res/wallet.json", "hekloo");
+        let mut abs_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        abs_path.push("res/wallet.json");
 
-        assert_eq!(format!("{:?}", key.unwrap()), "EthAccount { public: PublicKey { \
+        let key = EthAccount::load_or_generate(&abs_path, "hekloo");
+
+        assert_eq!(format!("{:?}", key.unwrap()), format!("EthAccount {{ public: PublicKey {{ \
             address: \"5240400e8b0aadfd212d9d8c70973b9800fa4b0f\", \
-            public: \"12e612f62a244e31c45b5bb3a99ec6c40e5a6c94d741352d3ea3aaeab71075b743ca634393f27a56f04a0ff8711227f245dab5dc8049737791b372a94a6524f3\" }, \
-            file_path: \"res/wallet.json\" }");
+            public: \"12e612f62a244e31c45b5bb3a99ec6c40e5a6c94d741352d3ea3aaeab71075b743ca634393f27a56f04a0ff8711227f245dab5dc8049737791b372a94a6524f3\" }}, \
+            file_path: {:?} }}", abs_path));
     }
 }
