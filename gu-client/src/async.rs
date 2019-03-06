@@ -496,6 +496,11 @@ pub struct PeerSession {
 }
 
 impl PeerSession {
+
+    pub fn node_id(&self) -> NodeId {
+        self.peer.node_id
+    }
+
     /// updates deployment session by sending multiple peer commands
     pub fn update(
         &self,

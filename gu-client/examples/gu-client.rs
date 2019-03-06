@@ -84,6 +84,9 @@ struct Render {
     output: Option<PathBuf>,
     #[structopt(name = "RESOURCE", parse(from_os_str), raw(required = "true"))]
     resource: Vec<PathBuf>,
+
+    #[structopt(short="i", long="include-worker", parse(try_from_str))]
+    include_worker : Vec<gu_net::types::NodeId>
 }
 
 impl Render {
@@ -526,9 +529,11 @@ fn run_worker<S: Stream<Item = (Blob, BlenderTaskSpec), Error = Error>>(
     docker_mode: bool,
 ) -> impl Future<Item = (), Error = Error> {
     let session = session.clone();
+    let worker_id = session.node_id();
 
     frame
         .for_each(move |(blob, spec)| {
+            let node_id = session.node_id();
             let result_blob = blob.clone();
             let &frame = spec.frames.first().unwrap();
             let outf = format!("output/outf_{:04}.png", frame);
@@ -571,10 +576,16 @@ fn run_worker<S: Stream<Item = (Blob, BlenderTaskSpec), Error = Error>>(
                 .and_then(move |results| {
                     use std::io::prelude::*;
                     log::debug!(
-                        "results={:?}, output_file={}",
+                        "{:?}, results={:?}, output_file={}",
+                        node_id,
                         results,
                         output_path.display()
                     );
+
+                    if results.iter().any(|s| s.starts_with("failed to execute command")) {
+                        return future::Either::B(future::err(Error::Other(format!("{:?}", results))));
+                    }
+
                     let mut f = match fs::OpenOptions::new()
                         .create_new(true)
                         .write(true)
@@ -594,7 +605,10 @@ fn run_worker<S: Stream<Item = (Blob, BlenderTaskSpec), Error = Error>>(
                     Ok(())
                 })
         })
-        .and_then(|_| Ok(log::debug!("done")))
+        .then(move |r| match r {
+            Ok(v) => Ok(log::debug!("done: {:?}: {:?}", v, worker_id)),
+            Err(e) => Ok(log::error!("err: {:?}: {:?}", e, worker_id))
+        })
 }
 
 struct TarBuildHelper<W: std::io::Write> {
@@ -649,6 +663,10 @@ impl<W: std::io::Write> TarBuildHelper<W> {
 
     pub fn finish(&mut self) -> io::Result<()> {
         self.b.finish()
+    }
+
+    pub fn into_inner(self) -> io::Result<W> {
+        self.b.into_inner()
     }
 }
 
@@ -722,7 +740,13 @@ fn render_task(
             .collect(),
     };
 
-    let peers = connection.list_peers();
+    let peers = {
+        let s : std::collections::HashSet<NodeId> = opts.include_worker.iter().cloned().collect();
+        let pred = move |it : &PeerInfo| -> bool {
+            s.is_empty() || s.contains(&it.node_id)
+        };
+        connection.list_peers().and_then(|p| Ok(p.filter(pred)))
+    };
 
     let resources: Vec<_> = match opts
         .resource
@@ -761,7 +785,7 @@ fn render_task(
     };
 
     log::debug!("base={:?}, t={:?}", base_path, resources);
-    let (tx, rx) = pipe::sync_to_async(5);
+    let (mut tx, rx) = pipe::sync_to_async(16);
 
     let mut work_resources = resources.clone();
     let work_base = base_path.clone();
@@ -771,14 +795,15 @@ fn render_task(
         use std::io::prelude::*;
         use tar::*;
 
-        match (|| -> Fallible<()> {
+
+        match (|| -> io::Result<()> {
             work_resources.sort();
             let mut builder = TarBuildHelper::new(Builder::new(tx));
             let mut pos = 0;
             let total = work_resources.len();
 
             for res in work_resources {
-                let rel_name = res.strip_prefix(&work_base)?;
+                let rel_name = res.strip_prefix(&work_base).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
                 let mut f = fs::OpenOptions::new().write(false).read(true).open(&res)?;
                 builder.add_file(rel_name, &mut f)?;
@@ -789,11 +814,14 @@ fn render_task(
                 });
             }
             builder.finish()?;
+            let mut w = builder.into_inner()?;
+            w.flush()?;
             Ok(())
         })() {
             Ok(()) => (),
             Err(e) => {
                 eprintln!("fail to generate tar: {}", e);
+                //tx.send(Err(e));
             }
         }
         upload_resources.do_send(MainSteps::UploadFile {
@@ -838,7 +866,11 @@ fn render_task(
         let upload_blob = session.new_blob().and_then(|blob: Blob| {
             log::debug!("new_blob={}", blob.id());
             blob.upload_from_stream(rx)
-                .and_then(move |_| Ok(blob.uri()))
+                .and_then(move |_| {
+                    tokio_timer::Delay::new(std::time::Instant::now() + std::time::Duration::from_secs(5))
+                        .map_err(|e| Error::Other("time".into()))
+                        .and_then(move |_| Ok(blob.uri()))
+                })
         });
         let tasks = future::join_all(
             tasks
@@ -854,6 +886,10 @@ fn render_task(
                 .and_then(move |peers| {
                     futures::future::join_all(peers.into_iter().map(move |node_id| {
                         blender_deployment_spec(peers_session.peer(node_id), docker_mode)
+                            .then(move |r| {
+                                log::info!("{:?} deployed, result={:?}", node_id, r);
+                                Ok(r.ok())
+                            })
                     }))
                 })
         });
@@ -866,7 +902,7 @@ fn render_task(
                 log::debug!("workers={:?}, blob_id={:?}", workers, blob_uri);
                 use futures::unsync::mpsc;
 
-                let workers = futures::future::join_all(workers.into_iter().map(
+                let workers = futures::future::join_all(workers.into_iter().filter_map(|worker_opt| worker_opt).map(
                     move |worker: PeerSession| {
                         worker
                             .update(vec![Command::DownloadFile {
@@ -874,7 +910,18 @@ fn render_task(
                                 file_path: if docker_mode { "/golem/resources".into() } else {"resources".into() },
                                 format: ResourceFormat::Tar,
                             }])
-                            .and_then(|_| Ok(worker))
+                            .then(|r|
+                                match r {
+                                    Ok(_) => {
+                                        log::info!("resource downloaded on {:?}", worker);
+                                        Ok(Some(worker))
+                                    }
+                                    Err(e) => {
+                                        log::error!("resource download error on {:?}", worker);
+                                        Ok(None)
+                                    }
+                                }
+                            )
                     },
                 ));
                 let mb = mb.clone();
@@ -883,7 +930,7 @@ fn render_task(
                 workers
                     .and_then(move |workers| {
                         // Scene downloaded to nodes.
-                        futures::future::join_all(workers.into_iter().map(move |w| {
+                        futures::future::join_all(workers.into_iter().filter_map(|w| w).map(move |w| {
                             run_worker(
                                 &w,
                                 tasks.clone().map_err(|_| unreachable!()),
@@ -898,7 +945,7 @@ fn render_task(
                             Ok(())
                         })
                     })
-                    .and_then(move |_| {
+                    .then(move |_| {
                         mbf.do_send(MainSteps::Done);
                         Ok(())
                     })
