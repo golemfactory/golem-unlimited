@@ -193,6 +193,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn test_sync_exec_pwd() {
         System::run(|| {
             Arbiter::spawn(
