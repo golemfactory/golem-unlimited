@@ -1,7 +1,9 @@
 use gu_base::{App, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_persist::config::{ConfigManager, GetConfig, HasSectionId, SetConfig};
 
-use crate::connect::{edit_config_connect_mode, edit_config_hosts, ConnectionChange};
+use crate::connect::{
+    change_single_connection, edit_config_connect_mode, edit_config_hosts, ConnectionChange,
+};
 use crate::server::ConnectMode;
 use futures::future::Either;
 use gu_net::NodeId;
@@ -274,6 +276,7 @@ impl Module for PermissionModule {
                     _ => false,
                 };
                 let node_id_copy = node_id.clone();
+                let ip_copy = ip.clone();
                 System::run(move || {
                     let config_manager = ConfigManager::from_registry();
                     Arbiter::spawn(
@@ -310,14 +313,13 @@ impl Module for PermissionModule {
                                     .map_err(|_| ()),
                                 ),
                                 Some(n) => futures::future::Either::B(
-                                    edit_config_hosts(
-                                        vec![],
+                                    change_single_connection(
+                                        ip_copy.unwrap(),
                                         if turn_on {
                                             ConnectionChange::Connect
                                         } else {
                                             ConnectionChange::Disconnect
                                         },
-                                        false,
                                     )
                                     .map_err(|_| ()),
                                 ),

@@ -405,6 +405,32 @@ pub(crate) fn edit_config_hosts(
     edit_config((list, change), editor)
 }
 
+pub(crate) fn change_single_connection(
+    sock_addr: SocketAddr,
+    change: ConnectionChange,
+) -> impl Future<Item = Option<()>, Error = String> {
+    fn editor(c: &ProviderConfig, data: (SocketAddr, ConnectionChange)) -> Option<ProviderConfig> {
+        use std::ops::Deref;
+
+        let mut config = c.deref().clone();
+        /* TODO change from vector to hashset */
+        config.hub_addrs = config
+            .hub_addrs
+            .into_iter()
+            .filter(|x| *x != data.0)
+            .collect();
+        match data {
+            (ip, ConnectionChange::Connect) => {
+                config.hub_addrs.push(ip);
+            }
+            _ => (),
+        }
+        Some(config)
+    }
+
+    edit_config((sock_addr, change), editor)
+}
+
 fn edit_config<C, A, F>(data: A, fun: F) -> impl Future<Item = Option<()>, Error = String>
 where
     C: ConfigSection + Send + Sync + Default + DeserializeOwned + Serialize + 'static,
