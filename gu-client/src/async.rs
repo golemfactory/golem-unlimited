@@ -55,7 +55,7 @@ impl HubConnection {
     pub fn new_session(
         &self,
         session_info: HubSessionSpec,
-    ) -> impl Future<Item = Handle<HubSession>, Error = Error> {
+    ) -> impl Future<Item = Handle<HubSession>, Error = Error> + 'static {
         let sessions_url = format!("{}sessions", self.hub_connection_inner.url);
         let hub_connection = self.clone();
         client::ClientRequest::post(sessions_url)
@@ -83,7 +83,9 @@ impl HubConnection {
 
     pub fn auth_app<T: Into<String>, U: Into<String>>(&self, _app_name: T, _token: Option<U>) {}
     /// returns all peers connected to the hub
-    pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
+    pub fn list_peers(
+        &self,
+    ) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> + 'static {
         let url = format!("{}peers", self.url());
 
         self.fetch_json(&url)
@@ -92,7 +94,7 @@ impl HubConnection {
     /// returns information about all hub sessions
     pub fn list_sessions(
         &self,
-    ) -> impl Future<Item = impl Iterator<Item = HubExistingSession>, Error = Error> {
+    ) -> impl Future<Item = impl Iterator<Item = HubExistingSession>, Error = Error> + 'static {
         let url = format!("{}sessions", self.url());
 
         self.fetch_json(&url)
@@ -124,7 +126,7 @@ impl HubConnection {
     fn fetch_json<T: DeserializeOwned + 'static>(
         &self,
         url: &str,
-    ) -> impl Future<Item = T, Error = Error> {
+    ) -> impl Future<Item = T, Error = Error> + 'static {
         client::ClientRequest::get(&url)
             .finish()
             .into_future()
@@ -137,7 +139,7 @@ impl HubConnection {
             .and_then(|response| response.json().from_err())
     }
 
-    fn delete_resource(&self, url: &str) -> impl Future<Item = (), Error = Error> {
+    fn delete_resource(&self, url: &str) -> impl Future<Item = (), Error = Error> + 'static {
         client::ClientRequest::delete(&url)
             .finish()
             .into_future()
@@ -212,7 +214,7 @@ impl HubSession {
         )
     }
     /// creates a new blob
-    pub fn new_blob(&self) -> impl Future<Item = Blob, Error = Error> {
+    pub fn new_blob(&self) -> impl Future<Item = Blob, Error = Error> + 'static {
         let new_blob_url = format!(
             "{}sessions/{}/blobs",
             self.hub_connection.hub_connection_inner.url, self.session_id
@@ -257,7 +259,9 @@ impl HubSession {
     }
 
     /// returns all session peers
-    pub fn list_peers(&self) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> {
+    pub fn list_peers(
+        &self,
+    ) -> impl Future<Item = impl Iterator<Item = PeerInfo>, Error = Error> + 'static {
         let url = format!(
             "{}sessions/{}/peers",
             self.hub_connection.url(),
@@ -276,7 +280,9 @@ impl HubSession {
         }
     }
     /// returns all session blobs
-    pub fn list_blobs(&self) -> impl Future<Item = impl Iterator<Item = BlobInfo>, Error = Error> {
+    pub fn list_blobs(
+        &self,
+    ) -> impl Future<Item = impl Iterator<Item = BlobInfo>, Error = Error> + 'static {
         let url = format!(
             "{}sessions/{}/blobs",
             self.hub_connection.url(),
@@ -288,13 +294,13 @@ impl HubSession {
     }
 
     /// gets information about hub session
-    pub fn info(&self) -> impl Future<Item = HubSessionSpec, Error = Error> {
+    pub fn info(&self) -> impl Future<Item = HubSessionSpec, Error = Error> + 'static {
         let url = format!("{}sessions/{}", self.hub_connection.url(), self.session_id);
         self.hub_connection.fetch_json(&url)
     }
 
     /// sets hub session config
-    pub fn set_config(&self, config: Metadata) -> impl Future<Item = (), Error = Error> {
+    pub fn set_config(&self, config: Metadata) -> impl Future<Item = (), Error = Error> + 'static {
         let url = format!(
             "{}sessions/{}/config",
             self.hub_connection.hub_connection_inner.url, self.session_id
@@ -309,7 +315,7 @@ impl HubSession {
     }
 
     /// gets hub session config
-    pub fn config(&self) -> impl Future<Item = Metadata, Error = Error> {
+    pub fn config(&self) -> impl Future<Item = Metadata, Error = Error> + 'static {
         let url = format!(
             "{}sessions/{}/config",
             self.hub_connection.url(),
@@ -319,7 +325,10 @@ impl HubSession {
     }
 
     /// updates hub session
-    pub fn update(&self, command: session::Command) -> impl Future<Item = (), Error = Error> {
+    pub fn update(
+        &self,
+        command: session::Command,
+    ) -> impl Future<Item = (), Error = Error> + 'static {
         let url = format!(
             "{}sessions/{}",
             self.hub_connection.hub_connection_inner.url, self.session_id
@@ -338,7 +347,7 @@ impl HubSession {
         })
     }
     /// deletes hub session
-    pub fn delete(self) -> impl Future<Item = (), Error = Error> {
+    pub fn delete(self) -> impl Future<Item = (), Error = Error> + 'static {
         let url = format!(
             "{}sessions/{}",
             self.hub_connection.hub_connection_inner.url, self.session_id
@@ -496,7 +505,6 @@ pub struct PeerSession {
 }
 
 impl PeerSession {
-
     pub fn node_id(&self) -> NodeId {
         self.peer.node_id
     }

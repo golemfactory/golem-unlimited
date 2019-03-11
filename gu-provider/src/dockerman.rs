@@ -9,6 +9,7 @@ use actix_web::error::ErrorInternalServerError;
 use actix_web::http::StatusCode;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
+use bytes::Buf;
 use futures::future;
 use futures::prelude::*;
 use gu_model::dockerman::{CreateOptions, VolumeDef};
@@ -22,7 +23,6 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::ffi;
 use std::path::PathBuf;
-use bytes::Buf;
 
 // Actor.
 struct DockerMan {
@@ -128,22 +128,23 @@ impl DockerSession {
             Ok(())
         })() {
             Ok(()) => (),
-            Err(e) => return future::Either::B(future::err(format!("io: {}", e)))
+            Err(e) => return future::Either::B(future::err(format!("io: {}", e))),
         }
 
         let opts = async_docker::build::ContainerArchivePutOptions::builder()
             .remote_path("/".into())
             .build();
 
-        future::Either::A(self
-            .container
-            .archive_put_stream(
-                &opts,
-                futures::stream::once(Ok::<_, std::io::Error>(bytes::Bytes::from(outf))),
-            )
-            .into_future()
-            .map(|sc| format!("sc: {}", sc))
-            .map_err(|e| e.to_string()))
+        future::Either::A(
+            self.container
+                .archive_put_stream(
+                    &opts,
+                    futures::stream::once(Ok::<_, std::io::Error>(bytes::Bytes::from(outf))),
+                )
+                .into_future()
+                .map(|sc| format!("sc: {}", sc))
+                .map_err(|e| e.to_string()),
+        )
     }
 
     fn do_download(
@@ -327,15 +328,14 @@ impl DockerMan {
             .options
             .volumes
             .iter()
-            .filter_map(|vol: &VolumeDef|
-                match vol {
-                    VolumeDef::BindRw { src, target } => {
-                        workspace.add_volume(vol.clone());
-                        let src = workspace.path().join(src);
-                        Some(format!("{}:{}", src.display(), target))
-                    },
-                    _ => None
-                })
+            .filter_map(|vol: &VolumeDef| match vol {
+                VolumeDef::BindRw { src, target } => {
+                    workspace.add_volume(vol.clone());
+                    let src = workspace.path().join(src);
+                    Some(format!("{}:{}", src.display(), target))
+                }
+                _ => None,
+            })
             .collect();
 
         (binds, workspace)

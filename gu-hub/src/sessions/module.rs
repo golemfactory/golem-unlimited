@@ -310,7 +310,10 @@ fn delete_deployment(
 }
 
 fn create_deployment(
-    (path, body): (Path<SessionPeerPath>, Json<gu_model::envman::GenericCreateSession>),
+    (path, body): (
+        Path<SessionPeerPath>,
+        Json<gu_model::envman::GenericCreateSession>,
+    ),
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
     let node_id = path.node_id;
     SessionsManager::from_registry()
