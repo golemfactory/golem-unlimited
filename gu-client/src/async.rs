@@ -21,6 +21,8 @@ use std::time::Duration;
 use std::{env, str};
 use url::Url;
 
+pub type HubSessionRef = Handle<HubSession>;
+
 /// Connection to a single hub.
 #[derive(Clone, Debug)]
 pub struct HubConnection {
