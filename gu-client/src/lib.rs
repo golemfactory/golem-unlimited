@@ -5,3 +5,4 @@ pub mod error;
 pub mod sync;
 
 pub use gu_net::NodeId;
+pub use gu_model as model;
