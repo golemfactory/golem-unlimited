@@ -312,7 +312,7 @@ pub(crate) enum ConnectionChange {
 #[rtype(result = "Result<Option<()>, String>")]
 pub(crate) struct ConnectionChangeMessage {
     pub change: ConnectionChange,
-    pub hubs: Vec<SocketAddr>,
+    pub hubs: HashSet<SocketAddr>,
     pub save: bool,
 }
 
@@ -325,7 +325,7 @@ fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
         .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
         .concat2()
         .and_then(|a| {
-            serde_json::from_slice::<Vec<SocketAddr>>(a.as_ref())
+            serde_json::from_slice::<HashSet<SocketAddr>>(a.as_ref())
                 .map_err(|e| ErrorBadRequest(format!("Couldn't parse request body: {:?}", e)))
         });
 
@@ -387,11 +387,11 @@ pub(crate) fn edit_config_connect_mode(
 }
 
 pub(crate) fn edit_config_hosts(
-    list: Vec<SocketAddr>,
+    list: HashSet<SocketAddr>,
     change: ConnectionChange,
     clear_old_hosts: bool,
 ) -> impl Future<Item = Option<()>, Error = String> {
-    let editor = move |c: &ProviderConfig, data: (Vec<SocketAddr>, ConnectionChange)| {
+    let editor = move |c: &ProviderConfig, data: (HashSet<SocketAddr>, ConnectionChange)| {
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
@@ -421,7 +421,7 @@ pub(crate) fn change_single_connection(
             .collect();
         match data {
             (ip, ConnectionChange::Connect) => {
-                config.hub_addrs.push(ip);
+                config.hub_addrs.insert(ip);
             }
             _ => (),
         }
@@ -460,37 +460,30 @@ where
 }
 
 fn edit_config_list(
-    old: Vec<SocketAddr>,
-    list: Vec<SocketAddr>,
+    old_set: HashSet<SocketAddr>,
+    modify_addrs: HashSet<SocketAddr>,
     change: ConnectionChange,
-    clear_old_list: bool,
-) -> Option<Vec<SocketAddr>> {
-    use std::iter::FromIterator;
-
-    let mut old: HashSet<_> = HashSet::from_iter(old.into_iter());
-    let len = old.len();
-
-    if clear_old_list {
-        old.clear()
-    }
+    clear_old_set: bool,
+) -> Option<HashSet<SocketAddr>> {
+    let mut new_set = if clear_old_set {
+        HashSet::new()
+    } else {
+        old_set.clone()
+    };
 
     match change {
-        ConnectionChange::Connect => {
-            list.into_iter().for_each(|sock| {
-                old.insert(sock);
-            });
-        }
-        ConnectionChange::Disconnect => {
-            list.into_iter().for_each(|sock| {
-                old.remove(&sock);
-            });
-        }
+        ConnectionChange::Connect => modify_addrs.into_iter().for_each(|s| {
+            new_set.insert(s);
+        }),
+        ConnectionChange::Disconnect => modify_addrs.into_iter().for_each(|s| {
+            new_set.insert(s);
+        }),
     }
 
-    if len == old.len() && !clear_old_list {
+    if old_set.len() == new_set.len() && !clear_old_set {
         None
     } else {
-        Some(Vec::from_iter(old.into_iter()))
+        Some(new_set)
     }
 }
 

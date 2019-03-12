@@ -380,7 +380,7 @@ fn run_configure() {
                     config.remove_managed_permissions_except_for(&except_node_ids);
 
                     loop {
-                        let mut selected_hubs = vec![];
+                        let mut selected_hubs = HashSet::<SocketAddr>::new();
                         println!("Select valid hub:");
 
                         valid_hubs
@@ -400,7 +400,7 @@ fn run_configure() {
                                 );
 
                                 if config.is_managed_by(&node_id) {
-                                    selected_hubs.push(hub.address);
+                                    selected_hubs.insert(hub.address);
                                     config.permissions.insert(Permission::ManagedBy(node_id));
                                 }
                             });
