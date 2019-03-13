@@ -4,6 +4,7 @@ pub use super::error::*;
 use super::storage::{Fetch, Put};
 use actix::{fut, prelude::*};
 use directories::ProjectDirs;
+use futures::prelude::*;
 use gu_actix::*;
 use gu_base::{App, Arg, Module};
 use serde::{Deserialize, Serialize};
@@ -100,7 +101,7 @@ pub enum SetConfigPath {
     FsPath(Cow<'static, str>),
 }
 
-impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
+impl<T: ConfigSection + 'static + Send + Sync> Handler<GetConfig<T>> for ConfigManager {
     type Result = ActorResponse<ConfigManager, Arc<T>, Error>;
 
     fn handle(&mut self, _: GetConfig<T>, _ctx: &mut Self::Context) -> Self::Result {
@@ -119,19 +120,24 @@ impl<T: ConfigSection + 'static> Handler<GetConfig<T>> for ConfigManager {
                 .send(Fetch(Cow::Borrowed(T::SECTION_ID)))
                 .flatten_fut()
                 .into_actor(self)
-                .and_then(|r, _act, ctx| {
+                .and_then(|r, act, ctx| {
                     let v = match r {
                         None => Arc::new(T::default()),
                         Some(v) => {
                             let p: JsonValue = match serde_json::from_slice(v.as_ref()) {
                                 Ok(v) => v,
-                                Err(e) => return fut::err(e.into()),
+                                Err(e) => return fut::Either::A(fut::err(e.into())),
                             };
                             Arc::new(T::from_json(p).unwrap())
                         }
                     };
-                    ctx.notify(SetConfig(v.clone()));
-                    fut::ok(v)
+                    fut::Either::B(
+                        ctx.address()
+                            .send(SetConfig(v.clone()))
+                            .flatten_fut()
+                            .and_then(move |_| Ok(v))
+                            .into_actor(act),
+                    )
                 }),
         )
     }
