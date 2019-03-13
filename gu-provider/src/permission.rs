@@ -6,10 +6,11 @@ use crate::connect::{
 };
 use crate::server::ConnectMode;
 use futures::future::Either;
+use gu_lan::{list_hubs, HubDesc};
 use gu_net::NodeId;
 use log::error;
 use serde_derive::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::str::FromStr;
 
@@ -27,6 +28,8 @@ enum Permission {
 struct PermissionConfig {
     allow_any: bool,
     permissions: HashSet<Permission>,
+    #[serde(default)]
+    saved_hub_desc: HashMap<NodeId, HubDesc>,
 }
 
 impl PermissionConfig {
@@ -37,6 +40,7 @@ impl PermissionConfig {
         Self {
             permissions,
             allow_any: self.allow_any,
+            saved_hub_desc: self.saved_hub_desc.clone(),
         }
     }
 
@@ -63,9 +67,10 @@ enum PermissionModule {
     None,
     Join(NodeId, Option<SocketAddr>),
     Configure,
-    AllowNode(Option<NodeId>, Option<SocketAddr>), /* None, None -> auto mode, grant access to every hub */
-    DenyNode(Option<NodeId>, Option<SocketAddr>), /* None, None -> manual mode, connect only to selected hubs */
+    AllowNode(Option<NodeId>, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> auto mode, grant access to every hub */
+    DenyNode(Option<NodeId>, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> manual mode, connect only to selected hubs */
     NodeAllowedStatus(Option<NodeId>), /* Some(n) => is access granted for n, None => is auto mode on */
+    ListSavedHubs,
 }
 
 impl Module for PermissionModule {
@@ -100,14 +105,14 @@ impl Module for PermissionModule {
                         Arg::with_name("allow-node")
                             .long("allow-node")
                             .short("a")
-                            .value_names(&["node_id", "ip:port"])
+                            .value_names(&["node_id", "ip:port", "host_name"])
                             .help("Allow selected hub to connect to this provider and save the new configuration to config files.")
                     )
                     .arg(
                         Arg::with_name("deny-node")
                             .long("deny-node")
                             .short("d")
-                            .value_names(&["node_id", "ip:port"])
+                            .value_names(&["node_id", "ip:port", "host_name"])
                             .help("Deny connections from selected hub to this provider and save the new configuration to config files.")
                     )
                     .arg(
@@ -123,6 +128,12 @@ impl Module for PermissionModule {
                             .long("deny-unknown")
                             .help("Deny connections from unknown hubs to this provider (turn manual mode on) \
                                     and save the new configuration to config files.")
+                    )
+                    .arg(
+                        Arg::with_name("list-saved-hubs")
+                            .short("l")
+                            .long("list-saved-hubs")
+                            .help("List all hubs that were ever used by this provider.")
                     )
             )
     }
@@ -160,6 +171,7 @@ impl Module for PermissionModule {
                 "deny-node",
                 "allow-all",
                 "deny-unknown",
+                "list-saved-hubs",
             ]
             .iter()
             .all(|x| !cmd.is_present(x))
@@ -174,41 +186,52 @@ impl Module for PermissionModule {
                     }
                     let params = values.unwrap().into_iter().collect::<Vec<_>>();
                     if param_name == "get-node" && params.len() == 1 && params[0] == "auto" {
-                        return Ok((None, None));
+                        return Ok((None, None, None));
                     }
                     match NodeId::from_str(params[0]) {
                         Ok(node) => {
                             if params.len() == 1 && param_name == "get-node" {
-                                Ok((Some(node), None))
-                            } else if params.len() != 2 {
+                                Ok((Some(node), None, None))
+                            } else if params.len() < 2 || params.len() > 3 {
                                 Err(())
                             } else {
                                 let sock_addr: SocketAddr =
                                     params[1].parse().expect("Expected ip:port.");
-                                Ok((Some(node), Some(sock_addr)))
+                                Ok((
+                                    Some(node),
+                                    Some(sock_addr),
+                                    Some(
+                                        (if params.len() == 2 { "" } else { params[2] })
+                                            .to_string(),
+                                    ),
+                                ))
                             }
                         }
                         _ => Err(()),
                     }
                 };
                 if cmd.is_present("allow-all") {
-                    *self = PermissionModule::AllowNode(None, None);
+                    *self = PermissionModule::AllowNode(None, None, None);
                     return true;
                 }
                 if cmd.is_present("deny-unknown") {
-                    *self = PermissionModule::DenyNode(None, None);
+                    *self = PermissionModule::DenyNode(None, None, None);
                     return true;
                 }
-                if let Ok((node, ip)) = param_to_node_and_ip("get-node") {
+                if cmd.is_present("list-saved-hubs") {
+                    *self = PermissionModule::ListSavedHubs;
+                    return true;
+                }
+                if let Ok((node, ip, _)) = param_to_node_and_ip("get-node") {
                     *self = PermissionModule::NodeAllowedStatus(node);
                     return true;
                 }
-                if let Ok((node, ip)) = param_to_node_and_ip("allow-node") {
-                    *self = PermissionModule::AllowNode(node, ip);
+                if let Ok((node, ip, host_name)) = param_to_node_and_ip("allow-node") {
+                    *self = PermissionModule::AllowNode(node, ip, host_name);
                     return true;
                 }
-                if let Ok((node, ip)) = param_to_node_and_ip("deny-node") {
-                    *self = PermissionModule::DenyNode(node, ip);
+                if let Ok((node, ip, host_name)) = param_to_node_and_ip("deny-node") {
+                    *self = PermissionModule::DenyNode(node, ip, host_name);
                     return true;
                 }
                 eprintln!("Invalid parameters.");
@@ -270,13 +293,15 @@ impl Module for PermissionModule {
                     );
                 });
             }
-            PermissionModule::AllowNode(node_id, ip) | PermissionModule::DenyNode(node_id, ip) => {
+            PermissionModule::AllowNode(node_id, ip, host_name)
+            | PermissionModule::DenyNode(node_id, ip, host_name) => {
                 let turn_on = match self {
-                    PermissionModule::AllowNode(_, _) => true,
+                    PermissionModule::AllowNode(_, _, _) => true,
                     _ => false,
                 };
                 let node_id_copy = node_id.clone();
                 let ip_copy = ip.clone();
+                let host_name_copy = host_name.clone();
                 System::run(move || {
                     let config_manager = ConfigManager::from_registry();
                     Arbiter::spawn(
@@ -292,6 +317,16 @@ impl Module for PermissionModule {
                                     Some(n) => {
                                         let perm = Permission::ManagedBy(n.clone());
                                         if turn_on {
+                                            if host_name_copy.is_some() && ip_copy.is_some() {
+                                                new_config.saved_hub_desc.insert(
+                                                    n,
+                                                    HubDesc {
+                                                        address: ip_copy.unwrap(),
+                                                        host_name: host_name_copy.unwrap(),
+                                                        node_id: n,
+                                                    },
+                                                );
+                                            }
                                             new_config.permissions.insert(perm);
                                         } else {
                                             new_config.permissions.remove(&perm);
@@ -328,6 +363,24 @@ impl Module for PermissionModule {
                     );
                 });
             }
+            PermissionModule::ListSavedHubs => {
+                System::run(move || {
+                    let config_manager = ConfigManager::from_registry();
+                    Arbiter::spawn(
+                        config_manager
+                            .send(GetConfig::new())
+                            .flatten_fut()
+                            .and_then(move |c: Arc<PermissionConfig>| {
+                                let output: Vec<HubDesc> =
+                                    c.saved_hub_desc.values().cloned().collect();
+                                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+                                futures::future::ok(())
+                            })
+                            .map_err(|_| System::current().stop())
+                            .and_then(|_r| Ok(System::current().stop())),
+                    );
+                });
+            }
         }
     }
 }
@@ -349,11 +402,12 @@ fn run_configure() {
     use std::sync::Arc;
 
     fn toggle_managed_by(config: &mut PermissionConfig, hub: &gu_lan::HubDesc) {
-        let node_id = NodeId::from_str(&hub.node_id).unwrap();
+        let node_id = hub.node_id;
         let managed_by = Permission::ManagedBy(node_id);
 
         if !config.permissions.remove(&managed_by) {
             config.permissions.insert(managed_by);
+            config.saved_hub_desc.insert(node_id, hub.clone());
         }
     }
 
@@ -369,41 +423,42 @@ fn run_configure() {
                 .join(get_config)
                 .and_then(|(hubs, config_ref)| {
                     let mut config = (*config_ref).clone();
-                    let valid_hubs = hubs
+                    let mut valid_hubs_set = hubs
                         .into_iter()
-                        .filter(|h| !h.node_id.is_empty())
-                        .collect::<Vec<gu_lan::HubDesc>>();
-                    let except_node_ids: HashSet<NodeId> = valid_hubs
-                        .iter()
-                        .map(|desc| NodeId::from_str(&desc.node_id).unwrap())
-                        .collect();
+                        .map(|h| (h.node_id, h))
+                        .collect::<HashMap<NodeId, gu_lan::HubDesc>>();
+                    for hub_desc in config_ref.saved_hub_desc.values() {
+                        if !valid_hubs_set.contains_key(&hub_desc.node_id) {
+                            valid_hubs_set.insert(hub_desc.node_id, hub_desc.clone());
+                        }
+                    }
+                    let valid_hubs: Vec<gu_lan::HubDesc> =
+                        valid_hubs_set.values().cloned().collect();
+                    let except_node_ids: HashSet<NodeId> =
+                        valid_hubs.iter().map(|desc| desc.node_id).collect();
                     config.remove_managed_permissions_except_for(&except_node_ids);
 
                     loop {
                         let mut selected_hubs = HashSet::<SocketAddr>::new();
                         println!("Select valid hub:");
 
-                        valid_hubs
-                            .iter()
-                            .filter(|v| !v.node_id.is_empty())
-                            .enumerate()
-                            .for_each(|(idx, hub)| {
-                                let node_id = NodeId::from_str(&hub.node_id).unwrap();
+                        valid_hubs.iter().enumerate().for_each(|(idx, hub)| {
+                            println!(
+                                "{} {}) name={}, addr={:?}, node_id={}",
+                                check_box(config.is_managed_by(&hub.node_id)),
+                                idx + 1,
+                                hub.host_name,
+                                hub.address,
+                                hub.node_id.to_string()
+                            );
 
-                                println!(
-                                    "{} {}) name={}, addr={:?}, node_id={}",
-                                    check_box(config.is_managed_by(&node_id)),
-                                    idx + 1,
-                                    hub.host_name,
-                                    hub.address,
-                                    hub.node_id
-                                );
-
-                                if config.is_managed_by(&node_id) {
-                                    selected_hubs.insert(hub.address);
-                                    config.permissions.insert(Permission::ManagedBy(node_id));
-                                }
-                            });
+                            if config.is_managed_by(&hub.node_id) {
+                                selected_hubs.insert(hub.address);
+                                config
+                                    .permissions
+                                    .insert(Permission::ManagedBy(hub.node_id));
+                            }
+                        });
                         println!(
                             "{} *) Access is granted to everyone",
                             check_box(config.allow_any)
