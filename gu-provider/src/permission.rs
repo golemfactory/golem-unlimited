@@ -106,7 +106,7 @@ impl Module for PermissionModule {
                             .long("allow-node")
                             .short("a")
                             .value_names(&["node_id", "ip:port", "host_name"])
-                            .help("Allow selected hub to connect to this provider and save the new configuration to config files.")
+                            .help("Allows selected hub to connect to this provider and save the new configuration to config files.")
                     )
                     .arg(
                         Arg::with_name("deny-node")
@@ -119,21 +119,21 @@ impl Module for PermissionModule {
                         Arg::with_name("allow-all")
                             .short("A")
                             .long("allow-all")
-                            .help("Allow any hub to connect to this provider (turn automatic mode on) \
+                            .help("Allows any hub to connect to this provider (turn automatic mode on) \
                                     and save the new configuration to config files.")
                     )
                     .arg(
                         Arg::with_name("deny-unknown")
                             .short("D")
                             .long("deny-unknown")
-                            .help("Deny connections from unknown hubs to this provider (turn manual mode on) \
+                            .help("Denies connections from unknown hubs to this provider (turn manual mode on) \
                                     and save the new configuration to config files.")
                     )
                     .arg(
                         Arg::with_name("list-saved-hubs")
                             .short("l")
                             .long("list-saved-hubs")
-                            .help("List all hubs that were ever used by this provider.")
+                            .help("Lists all hubs that were ever used by this provider.")
                     )
             )
     }
@@ -371,8 +371,9 @@ impl Module for PermissionModule {
                             .send(GetConfig::new())
                             .flatten_fut()
                             .and_then(move |c: Arc<PermissionConfig>| {
-                                let output: Vec<HubDesc> =
-                                    c.saved_hub_desc.values().cloned().collect();
+                                let mut output: Vec<HubDesc> =
+                                    c.saved_hub_desc.values().cloned().collect::<Vec<HubDesc>>();
+                                output.sort_unstable_by(|a, b| a.host_name.cmp(&b.host_name));
                                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
                                 futures::future::ok(())
                             })
