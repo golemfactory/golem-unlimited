@@ -231,16 +231,29 @@ impl DockerSession {
             .archive_get(file_path.as_str())
             .map_err(|e| e.to_string());
 
-        let data: Box<Stream<Item = bytes::Bytes, Error = String>> = match format {
-            ResourceFormat::Raw => Box::new(provision::untar_single_file_stream(data)),
-            ResourceFormat::Tar => Box::new(data),
+        let response: Box<Future<Item=actix_web::client::ClientResponse, Error=String>> = match format {
+            ResourceFormat::Raw => {
+                let url = url.clone();
+                Box::new(provision::untar_single_file_stream(data)
+                    .and_then(move |(file_size, stream)|
+                        client::put(&url).content_length(file_size).streaming(stream
+                            .map_err(|e| actix_web::error::ErrorInternalServerError(e)))
+                            .into_future()
+                            .map_err(|e| e.to_string())
+                    )
+
+                    .and_then(|r| r.send().map_err(|e| e.to_string())))
+            },
+            ResourceFormat::Tar => Box::new(client::put(&url).streaming(
+                data.map_err(|e| actix_web::error::ErrorInternalServerError(e))
+
+            ).into_future()
+                .map_err(|e| e.to_string())
+                .and_then(|r| r.send().map_err(|e| e.to_string())))
+                ,
         };
 
-        let data = data.map_err(|x| ErrorInternalServerError(x));
-
-        future::result(client::put(url.clone()).streaming(data))
-            .map_err(|e| e.to_string())
-            .and_then(|req| req.send().map_err(|e| e.to_string()))
+        response
             .and_then(move |res| {
                 if res.status().is_success() {
                     Ok(format!("{:?} file uploaded", url))
