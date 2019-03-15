@@ -1,4 +1,4 @@
-//! Ethereum keys management supporting keystores in formats used by [geth] (soon), [parity] and [pyethereum].
+//! Ethereum keys management supporting keystores in formats used by [geth], [parity] and [pyethereum].
 //!
 //! ## Features
 //!   * random key pair generation
@@ -288,7 +288,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn should_read_keystore_generated_by_geth() {
         // when
         let key = EthAccount::load_or_generate("res/geth-keystore.json", "geth").unwrap();
