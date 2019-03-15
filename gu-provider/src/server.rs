@@ -27,6 +27,7 @@ use gu_persist::{
 use log::{debug, error, info};
 use serde_derive::*;
 use std::{
+    collections::HashSet,
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
@@ -39,7 +40,7 @@ pub(crate) struct ProviderConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
     #[serde(default)]
-    pub(crate) hub_addrs: Vec<SocketAddr>,
+    pub(crate) hub_addrs: HashSet<SocketAddr>,
     #[serde(default)]
     publish_service: bool,
     #[serde(default = "ProviderConfig::default_connect_mode")]
@@ -51,7 +52,7 @@ impl Default for ProviderConfig {
         ProviderConfig {
             p2p_port: Self::default_p2p_port(),
             control_socket: None,
-            hub_addrs: Vec::new(),
+            hub_addrs: HashSet::new(),
             publish_service: true,
             connect_mode: Self::default_connect_mode(),
         }
