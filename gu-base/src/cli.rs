@@ -25,7 +25,7 @@ lazy_static! {
         .build();
 }
 
-fn format_json<'a, RowIter, MsgFn>(title: Row, empty_msg: MsgFn, it: RowIter)
+fn format_json<'a, RowIter, MsgFn>(title: Row, _empty_msg: MsgFn, it: RowIter)
 where
     RowIter: Iterator<Item = Row>,
     MsgFn: FnOnce() -> &'a str,
@@ -45,11 +45,7 @@ where
         vec.push(map);
     }
 
-    if vec.is_empty() {
-        eprintln!("{}", empty_msg())
-    } else {
-        println!("{}", serde_json::to_string_pretty(&vec).unwrap());
-    }
+    println!("{}", serde_json::to_string_pretty(&vec).unwrap());
 }
 
 fn format_pretty<'a, RowIter, MsgFn>(title: Row, empty_msg: MsgFn, it: RowIter)

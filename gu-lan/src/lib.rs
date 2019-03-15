@@ -40,16 +40,17 @@ pub mod module;
 mod service;
 
 pub const ID_LAN: u32 = 576411;
+use gu_net::NodeId;
 use std::net::SocketAddr;
 
 /// Hub mDNS data
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HubDesc {
     /// ip & TCP port.
     pub address: SocketAddr,
     pub host_name: String,
     /// nodes public key hash
-    pub node_id: String,
+    pub node_id: NodeId,
 }
 
 /// Lists HUBs visible in local network.
@@ -98,7 +99,7 @@ pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
                 .filter_map(|service_instance| {
                     let node_id = match service_instance.extract("node_id") {
                         Some(Ok(node_id)) => node_id,
-                        _ => String::default(),
+                        _ => return None,
                     };
                     let host_name = service_instance.host;
                     match (

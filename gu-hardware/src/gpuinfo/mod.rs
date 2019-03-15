@@ -78,7 +78,7 @@ pub fn gpu_count() -> error::Result<GpuCount> {
 #[cfg(not(target_os = "linux"))]
 #[cfg(not(feature = "clinfo"))]
 pub fn gpu_count() -> error::Result<GpuCount> {
-    bail!("gpu detection unsupported on windows")
+    bail!("gpu detection supported only on ubuntu or with clinfo feature")
 }
 
 #[cfg(test)]
@@ -87,8 +87,8 @@ mod test {
     use super::*;
 
     #[test]
+    #[cfg(any(target_os = "linux", feature = "clinfo"))]
     fn test_gpu_count() {
-        // TODO: does not work on macos
         eprintln!("gpu={:?}", gpu_count().unwrap());
     }
 

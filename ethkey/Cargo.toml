@@ -1,6 +1,6 @@
 [package]
 name = "ethkey"
-version = "0.2.2"
+version = "0.2.4"
 description = "Ethereum keys management supporting keystores, signing and verification"
 authors = ["Golem Factory <contact@golem.network>"]
 homepage = "https://github.com/golemfactory/golem-unlimited/tree/ethsign/ethkey"

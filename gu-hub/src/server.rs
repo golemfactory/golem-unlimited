@@ -160,18 +160,28 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         let decorator = self.decorator.clone();
         let node_id = NodeId::from(key.address().as_ref());
         let server = actix_web::server::new(move || {
-            decorator
-                .decorate_webapp(
-                    actix_web::App::with_state(node_id)
-                        .handler(
-                            "/app",
-                            actix_web::fs::StaticFiles::new("webapp")
-                                .expect("cannot provide static files"),
-                        )
-                        .scope("/m", mock::scope)
-                        .resource("/ws/", |r| r.route().f(chat_route)),
-                )
-                .middleware(actix_web::middleware::Logger::default())
+            decorator.decorate_webapp(
+                actix_web::App::with_state(node_id)
+                    .handler(
+                        "/app",
+                        actix_web::fs::StaticFiles::new("webapp")
+                            .expect("cannot provide static files"),
+                    )
+                    .scope("/m", mock::scope)
+                    .resource("/ws/", |r| r.route().f(chat_route))
+                    .resource("/node_id/", |r| {
+                        r.get().f(|req| {
+                            actix_web::HttpResponse::with_body(
+                                actix_web::http::StatusCode::OK,
+                                format!(
+                                    "{} {}",
+                                    req.state().to_string(),
+                                    hostname::get_hostname().unwrap_or("unknown".to_string())
+                                ),
+                            )
+                        });
+                    }),
+            )
         });
         let _ = server.bind(c.p2p_addr()).unwrap().start();
 
