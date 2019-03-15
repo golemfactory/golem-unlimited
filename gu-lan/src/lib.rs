@@ -73,7 +73,7 @@ pub struct HubDesc {
 ///               .and_then(|hubs|
 ///                    Ok(hubs.iter().for_each(|hub| {
 ///                        println!(
-///                            "name={}, addr={:?}, node_id={}",
+///                            "name={}, addr={:?}, node_id={:?}",
 ///                            hub.host_name, hub.address, hub.node_id
 ///                        )
 ///                    }))).then(|_r| future::ok(System::current().stop()))
