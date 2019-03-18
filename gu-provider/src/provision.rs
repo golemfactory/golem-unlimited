@@ -121,7 +121,11 @@ pub fn stream_tar(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error
 
     thread::spawn(move || {
         let mut builder = Builder::new(tx);
-        builder.append_dir_all(".", &input_path).unwrap();
+        builder
+            .append_dir_all(".", &input_path)
+            .unwrap_or_else(|e| {
+                panic!("Error while building the archive: {}", e);
+            });
         builder.finish().unwrap();
     });
 
