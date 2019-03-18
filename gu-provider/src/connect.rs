@@ -22,10 +22,9 @@ use gu_net::{
     NodeId,
 };
 use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, SetConfig};
-use log::{debug, error};
+use log::error;
 use prettytable::{cell, row};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_derive::*;
 use serde_json;
 use std::{
     collections::{HashMap, HashSet},

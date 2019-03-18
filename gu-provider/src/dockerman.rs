@@ -5,11 +5,9 @@ use super::envman;
 use crate::provision;
 use crate::workspace::{Workspace, WorkspacesManager};
 use actix::prelude::*;
-use actix_web::error::ErrorInternalServerError;
 use actix_web::http::StatusCode;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
-use bytes::Buf;
 use futures::future;
 use futures::prelude::*;
 use gu_model::dockerman::{CreateOptions, VolumeDef};
@@ -21,7 +19,6 @@ use log::{debug, error, info};
 use serde_json::json;
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::ffi;
 use std::path::PathBuf;
 
 // Actor.
@@ -123,7 +120,7 @@ impl DockerSession {
             header.set_path(&file_path)?;
             header.set_cksum();
 
-            b.append(&header, ::std::io::Cursor::new(content.as_ref()));
+            b.append(&header, ::std::io::Cursor::new(content.as_ref()))?;
             b.finish()?;
             Ok(())
         })() {
@@ -224,7 +221,6 @@ impl DockerSession {
         format: ResourceFormat,
     ) -> impl Future<Item = String, Error = String> {
         use actix_web::client;
-        use std::io;
 
         let data = self
             .container

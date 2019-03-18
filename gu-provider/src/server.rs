@@ -13,7 +13,6 @@ use clap::ArgMatches;
 use ethkey::prelude::*;
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
-use gu_actix::{async_result, async_try, prelude::*};
 use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
@@ -24,7 +23,7 @@ use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
     http::{ServerClient, ServerConfig},
 };
-use log::{debug, error, info};
+use log::{error, info};
 use serde_derive::*;
 use std::{
     collections::HashSet,

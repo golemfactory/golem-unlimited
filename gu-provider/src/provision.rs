@@ -1,13 +1,12 @@
-use crate::main;
 use actix_web::client::ClientResponse;
 use actix_web::http::header;
 use actix_web::HttpMessage;
 use futures::{future, prelude::*};
-use gu_actix::{async_result, async_try, prelude::*};
+use gu_actix::{async_result, async_try};
 use gu_base::files::read_async;
 use gu_base::files::{untgz_async, write_async};
 use gu_model::envman::ResourceFormat;
-use log::{debug, error, info};
+use log::{debug, info};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -87,7 +86,7 @@ pub fn upload_step(
 ) -> impl Future<Item = String, Error = String> {
     use actix_web::{client, error::ErrorInternalServerError};
 
-    eprintln!(
+    debug!(
         "streaming from {:?} to {} format: {:?}",
         &input_path, url, format
     );
@@ -113,7 +112,6 @@ pub fn upload_step(
 
 pub fn stream_tar(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error = String> {
     use gu_actix::pipe;
-    use std::fs;
     use std::thread;
     use tar::Builder;
 
@@ -245,7 +243,6 @@ where
     S: Stream<Item = bytes::Bytes, Error = String> + 'static,
 {
     use actix_web::client;
-    use async_docker;
 
     let client_request = client::ClientRequest::get(url).finish().unwrap();
 

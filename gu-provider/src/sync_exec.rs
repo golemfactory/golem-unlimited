@@ -1,7 +1,7 @@
 use actix::{fut, prelude::*};
 use error_chain::*;
 use gu_actix::*;
-use log::{debug, error};
+use log::debug;
 use std::{io, path::PathBuf, process};
 
 /// Synchronous executor
