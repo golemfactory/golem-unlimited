@@ -137,24 +137,25 @@ fn stream_raw(input_path: PathBuf) -> impl Stream<Item = bytes::Bytes, Error = S
 
 pub fn untar_single_file_stream<TarStream: Stream<Item = bytes::Bytes>>(
     stream: TarStream,
-) -> impl Future<Item=(u64, impl Stream<Item = bytes::Bytes, Error = String>), Error=String>
+) -> impl Future<Item = (u64, impl Stream<Item = bytes::Bytes, Error = String>), Error = String>
 where
     TarStream::Error: std::fmt::Debug + Sync + Send + 'static,
 {
     use tar_async::decode::flat::{self, TarItem};
 
     flat::decode_tar(stream)
-        .into_future().map_err(|(e, tail)| e.to_string()).and_then(|(head, tail)|
-            match head {
-                Some(TarItem::Entry(entry)) => Ok((entry.size(), tail.map_err(|e| e.to_string())
-                    .and_then(|item| match item {
-                        TarItem::Entry(_) => Err("tar contains more than one file".to_string()),
-                        TarItem::Chunk(bytes) => Ok(bytes),
-                    }))),
-                _ => Err("invalid tar response".to_string()),
-            }
-    )
-
+        .into_future()
+        .map_err(|(e, tail)| e.to_string())
+        .and_then(|(head, tail)| match head {
+            Some(TarItem::Entry(entry)) => Ok((
+                entry.size(),
+                tail.map_err(|e| e.to_string()).and_then(|item| match item {
+                    TarItem::Entry(_) => Err("tar contains more than one file".to_string()),
+                    TarItem::Chunk(bytes) => Ok(bytes),
+                }),
+            )),
+            _ => Err("invalid tar response".to_string()),
+        })
 }
 
 // TODO: support redirect
