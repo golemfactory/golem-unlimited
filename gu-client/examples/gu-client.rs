@@ -880,7 +880,7 @@ fn render_task(
                     std::time::Instant::now() + std::time::Duration::from_secs(5),
                 )
                 .map_err(|e| Error::Other("time".into()))
-                .and_then(move |_| Ok(blob.uri()))
+                .map(move |_| blob.uri())
             })
         });
         let tasks = future::join_all(
