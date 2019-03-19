@@ -88,9 +88,7 @@ pub fn upload_step(
 
     debug!(
         "streaming from {:?} to {} format: {:?}",
-        &input_path,
-        url,
-        format
+        &input_path, url, format
     );
     let source_stream: Box<dyn Stream<Item = bytes::Bytes, Error = String>> = match format {
         ResourceFormat::Tar => Box::new(stream_tar(input_path)),
