@@ -1,5 +1,5 @@
 FROM rust as build
-ARG GU_BRANCH=${GU_BRANCH:-feature/blender}
+ARG GU_BRANCH=${GU_BRANCH:-release/0.2}
 RUN git clone git://github.com/golemfactory/golem-unlimited.git 
 RUN cd golem-unlimited && git fetch && git checkout $GU_BRANCH
 RUN cargo install --path golem-unlimited/gu-provider

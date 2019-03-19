@@ -1,10 +1,9 @@
 use crate::id::generate_new_id;
 use crate::status;
-use actix::fut;
 use futures::future::{self, Future, IntoFuture};
 use gu_model::envman::Error;
 use gu_net::rpc::peer::PeerSessionInfo;
-use log::{debug, error};
+use log::debug;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 

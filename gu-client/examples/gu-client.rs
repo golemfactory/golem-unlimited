@@ -429,7 +429,7 @@ fn drop_deployment(
                     let name = deployment.name().to_owned();
 
                     deployment.delete().and_then(move |_| {
-                        Ok(eprintln!("deployment id={}, name={} dropped", id, name))
+                        Ok(log::debug!("deployment id={}, name={} dropped", id, name))
                     })
                 }),
         )

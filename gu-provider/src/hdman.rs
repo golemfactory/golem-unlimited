@@ -4,19 +4,16 @@
 
 */
 use super::id::generate_new_id;
-use super::provision::{download, download_step, untgz, upload_step};
+use super::provision::{download_step, untgz, upload_step};
 use super::{
     envman, status,
     sync_exec::{Exec, ExecResult, SyncExecManager},
 };
 use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use actix::{fut, prelude::*};
-use actix_web::client;
-use actix_web::error::ErrorInternalServerError;
 use futures::future;
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_base::files::read_async;
 use gu_model::envman::*;
 use gu_net::rpc::{
     peer::{PeerSessionInfo, PeerSessionStatus},
@@ -29,7 +26,6 @@ use serde_derive::*;
 use super::workspace::{Workspace, WorkspacesManager};
 use gu_hdman::image_manager;
 use std::collections::hash_map::{Entry, OccupiedEntry};
-use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fs::OpenOptions;
 use std::path::Path;
