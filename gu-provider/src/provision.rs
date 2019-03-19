@@ -31,7 +31,7 @@ pub fn download_step(
     };
 
     if !dir_name.exists() {
-        async_try!(fs::create_dir_all(dir_name).map_err(|e| format!("creare dir {}", e)))
+        async_try!(fs::create_dir_all(dir_name).map_err(|e| format!("create dir {}", e)))
     }
 
     future::Either::A(
