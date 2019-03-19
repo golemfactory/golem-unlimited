@@ -87,9 +87,11 @@ pub fn upload_step(
 ) -> impl Future<Item = String, Error = String> {
     use actix_web::{client, error::ErrorInternalServerError};
 
-    eprintln!(
+    log::debug!(
         "streaming from {:?} to {} format: {:?}",
-        &input_path, url, format
+        &input_path,
+        url,
+        format
     );
     let source_stream: Box<dyn Stream<Item = bytes::Bytes, Error = String>> = match format {
         ResourceFormat::Tar => Box::new(stream_tar(input_path)),

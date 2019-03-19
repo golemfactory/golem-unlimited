@@ -1,5 +1,5 @@
 /***
-Command line tool for manage gu-hub instance
+Command line tool for management of gu-hub instance
 
 **/
 use actix::prelude::*;
@@ -631,7 +631,7 @@ impl<W: std::io::Write> TarBuildHelper<W> {
         TarBuildHelper { b, dirs }
     }
 
-    fn add_dir(&mut self, d: &Path) -> io::Result<()> {
+    fn add_dir(&mut self, d: &Path, meta: &std::fs::Metadata) -> io::Result<()> {
         use tar::{EntryType, Header};
 
         log::debug!("dir={:?}", d);
@@ -639,7 +639,7 @@ impl<W: std::io::Write> TarBuildHelper<W> {
             return Ok(());
         }
         if let Some(parent) = d.parent() {
-            self.add_dir(parent)?;
+            self.add_dir(parent, meta)?;
         } else {
             return Ok(());
         }
@@ -650,7 +650,12 @@ impl<W: std::io::Write> TarBuildHelper<W> {
         h.set_mode(0o644);
         h.set_uid(0);
         h.set_gid(0);
-        h.set_mtime(0);
+        h.set_mtime(
+            meta.modified()?
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
+                .as_secs(),
+        );
         h.set_size(0);
         h.set_path(d)?;
         h.set_cksum();
@@ -662,7 +667,7 @@ impl<W: std::io::Write> TarBuildHelper<W> {
     pub fn add_file(&mut self, path: &Path, file: &mut fs::File) -> io::Result<()> {
         log::trace!("add file={:?}", path);
         if let Some(dir) = path.parent() {
-            self.add_dir(dir)?;
+            self.add_dir(dir, &file.metadata()?)?;
         }
         self.b.append_file(path, file)
     }
@@ -825,7 +830,7 @@ fn render_task(
         })() {
             Ok(()) => (),
             Err(e) => {
-                eprintln!("fail to generate tar: {}", e);
+                log::error!("failed to generate tar: {}", e);
                 //tx.send(Err(e));
             }
         }
@@ -867,7 +872,7 @@ fn render_task(
         // 1. Upload resources to session
         // 2. Create deployments on peer
         // 3. Run processing
-        // 4. upload results
+        // 4. Upload results
         let upload_blob = session.new_blob().and_then(|blob: Blob| {
             log::debug!("new_blob={}", blob.id());
             blob.upload_from_stream(rx).and_then(move |_| {
@@ -880,7 +885,7 @@ fn render_task(
         });
         let tasks = future::join_all(
             tasks
-                .map(|spec| session.new_blob().and_then(|blob| Ok((blob, spec))))
+                .map(|spec| session.new_blob().map(|blob| (blob, spec)))
                 .collect::<Vec<_>>(),
         )
         .and_then(|t| Ok(TaskList::new(t)));

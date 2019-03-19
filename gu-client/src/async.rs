@@ -219,7 +219,8 @@ impl HubSession {
     pub fn new_blob(&self) -> impl Future<Item = Blob, Error = Error> + 'static {
         let new_blob_url = format!(
             "{}sessions/{}/blobs",
-            self.hub_connection.hub_connection_inner.url, self.session_id
+            self.hub_connection.url(),
+            self.session_id
         );
         let request = match client::ClientRequest::post(new_blob_url).finish() {
             Ok(r) => r,
@@ -305,7 +306,8 @@ impl HubSession {
     pub fn set_config(&self, config: Metadata) -> impl Future<Item = (), Error = Error> + 'static {
         let url = format!(
             "{}sessions/{}/config",
-            self.hub_connection.hub_connection_inner.url, self.session_id
+            self.hub_connection.url(),
+            self.session_id
         );
         future::result(client::ClientRequest::put(url).json(config))
             .map_err(Error::CreateRequest)
@@ -331,10 +333,7 @@ impl HubSession {
         &self,
         command: session::Command,
     ) -> impl Future<Item = (), Error = Error> + 'static {
-        let url = format!(
-            "{}sessions/{}",
-            self.hub_connection.hub_connection_inner.url, self.session_id
-        );
+        let url = format!("{}sessions/{}", self.hub_connection.url(), self.session_id);
         future::result(
             client::ClientRequest::build()
                 .method(actix_web::http::Method::PATCH)
@@ -350,10 +349,7 @@ impl HubSession {
     }
     /// deletes hub session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> + 'static {
-        let url = format!(
-            "{}sessions/{}",
-            self.hub_connection.hub_connection_inner.url, self.session_id
-        );
+        let url = format!("{}sessions/{}", self.hub_connection.url(), self.session_id);
         self.hub_connection.delete_resource(&url)
     }
 }
@@ -459,7 +455,7 @@ impl Peer {
     ) -> impl Future<Item = PeerSession, Error = Error> {
         let url = format!(
             "{}sessions/{}/peers/{}/deployments",
-            self.hub_session.hub_connection.hub_connection_inner.url,
+            self.hub_session.hub_connection.url(),
             self.hub_session.session_id,
             self.node_id.to_string()
         );
