@@ -1,12 +1,11 @@
-use gu_base::{App, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_persist::config::{ConfigManager, GetConfig, HasSectionId, SetConfig};
 
 use crate::connect::{
     change_single_connection, edit_config_connect_mode, edit_config_hosts, ConnectionChange,
 };
 use crate::server::ConnectMode;
-use futures::future::Either;
-use gu_lan::{list_hubs, HubDesc};
+use gu_lan::HubDesc;
 use gu_net::NodeId;
 use log::error;
 use serde_derive::*;

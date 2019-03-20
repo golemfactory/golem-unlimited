@@ -6,7 +6,7 @@ extern crate gu_net;
 
 use actix::Arbiter;
 use futures::{future, Future};
-use gu_client::async::HubConnection;
+use gu_client::r#async::HubConnection;
 
 fn main() {
     let hub_connection = HubConnection::from_addr("127.0.0.1:61622").expect("Invalid address.");

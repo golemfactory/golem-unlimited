@@ -9,9 +9,10 @@ extern crate serde_json;
 use actix::Arbiter;
 use bytes::Bytes;
 use futures::{future, stream, Future, Stream};
-use gu_client::async::HubConnection;
+use gu_client::r#async::HubConnection;
 use gu_model::envman::{self, CreateSession, Image};
 use gu_model::session::{BlobInfo, HubSessionSpec};
+use gu_net::types::NodeId;
 
 fn main() {
     let hub_connection = HubConnection::from_addr("127.0.0.1:61622").expect("Invalid address.");
@@ -40,7 +41,7 @@ fn main() {
                 .and_then(|(hub_session, list_of_sessions)| {
                     println!(
                         "List of all sessions: {:?}.",
-                        list_of_sessions.collect::<Vec<HubSessionSpec>>()
+                        list_of_sessions.collect::<Vec<_>>()
                     );
                     future::ok(hub_session.clone()).join(hub_session.new_blob())
                 })
@@ -76,7 +77,7 @@ fn main() {
                     println!("Successfully added peers {:?}.", result);
                     future::ok(hub_session.clone()).join(
                         future::result(
-                            hub_session.peer_from_str("0x58137e1abbd59e039abbff4cdef60da7da3cf464"),
+                            hub_session.try_peer("0x58137e1abbd59e039abbff4cdef60da7da3cf464"),
                         )
                         .and_then(|peer| {
                             peer.new_session(CreateSession {

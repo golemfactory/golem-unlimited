@@ -4,19 +4,16 @@
 
 */
 use super::id::generate_new_id;
-use super::provision::{download, download_step, untgz, upload_step};
+use super::provision::{download_step, untgz, upload_step};
 use super::{
     envman, status,
     sync_exec::{Exec, ExecResult, SyncExecManager},
 };
 use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use actix::{fut, prelude::*};
-use actix_web::client;
-use actix_web::error::ErrorInternalServerError;
 use futures::future;
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_base::files::read_async;
 use gu_model::envman::*;
 use gu_net::rpc::{
     peer::{PeerSessionInfo, PeerSessionStatus},
@@ -30,6 +27,7 @@ use super::workspace::{Workspace, WorkspacesManager};
 use gu_hdman::image_manager;
 use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
+use std::fs::OpenOptions;
 use std::path::Path;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
@@ -175,6 +173,7 @@ struct HdSessionInfo {
     /// used to determine proper status when last child is finished
     dirty: bool,
     note: Option<String>,
+    config_files: HashSet<PathBuf>,
     processes: HashMap<String, process::Child>,
 }
 
@@ -235,6 +234,7 @@ impl Handler<CreateSession> for HdMan {
             dirty: false,
             note: msg.note,
             processes: HashMap::new(),
+            config_files: HashSet::new(),
         };
 
         self.deploys.insert_deploy(session_id.clone(), session);
@@ -377,6 +377,31 @@ fn run_command(
         } => {
             let path = session.workspace.path().join(file_path);
             Box::new(fut::wrap_future(handle_download_file(uri, path, format)))
+        }
+        Command::WriteFile { content, file_path } => {
+            let path = session.workspace.path().join(file_path);
+            let create_new = session.config_files.insert(path.clone());
+            let bytes = content.into_bytes();
+            Box::new(fut::wrap_future(gu_hdman::download::cpu_pool().spawn_fn(
+                move || {
+                    use std::io::prelude::*;
+
+                    if !create_new {
+                        let _ = fs::remove_file(&path);
+                    }
+
+                    let mut f = OpenOptions::new()
+                        .create_new(true)
+                        .write(true)
+                        .open(path)
+                        .map_err(|e| format!("io: {}", e))?;
+
+                    f.write_all(bytes.as_ref())
+                        .map_err(|e| format!("io: {}", e))?;
+
+                    Ok("OK".to_string())
+                },
+            )))
         }
         Command::UploadFile {
             uri,

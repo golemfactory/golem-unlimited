@@ -1,4 +1,4 @@
-//! Ethereum keys management supporting keystores in formats used by [geth], [parity] and [pyethereum].
+//! Ethereum keys management supporting keystores in formats used by [geth] (soon), [parity] and [pyethereum].
 //!
 //! ## Features
 //!   * random key pair generation

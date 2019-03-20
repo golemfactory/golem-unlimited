@@ -5,7 +5,6 @@ use super::envman;
 use crate::provision;
 use crate::workspace::{Workspace, WorkspacesManager};
 use actix::prelude::*;
-use actix_web::error::ErrorInternalServerError;
 use actix_web::http::StatusCode;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
@@ -20,7 +19,6 @@ use log::{debug, error, info};
 use serde_json::json;
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::ffi;
 use std::path::PathBuf;
 
 // Actor.
@@ -106,6 +104,46 @@ impl DockerSession {
             })
     }
 
+    fn write_file(
+        &mut self,
+        content: bytes::Bytes,
+        file_path: String,
+    ) -> impl Future<Item = String, Error = String> {
+        use tar;
+
+        let mut outf = Vec::new();
+        match (|| -> std::io::Result<()> {
+            let mut b = tar::Builder::new(&mut outf);
+
+            let mut header = tar::Header::new_ustar();
+            header.set_size(content.len() as u64);
+            header.set_path(&file_path)?;
+            header.set_cksum();
+
+            b.append(&header, ::std::io::Cursor::new(content.as_ref()))?;
+            b.finish()?;
+            Ok(())
+        })() {
+            Ok(()) => (),
+            Err(e) => return future::Either::B(future::err(format!("io: {}", e))),
+        }
+
+        let opts = async_docker::build::ContainerArchivePutOptions::builder()
+            .remote_path("/".into())
+            .build();
+
+        future::Either::A(
+            self.container
+                .archive_put_stream(
+                    &opts,
+                    futures::stream::once(Ok::<_, std::io::Error>(bytes::Bytes::from(outf))),
+                )
+                .into_future()
+                .map(|sc| format!("sc: {}", sc))
+                .map_err(|e| e.to_string()),
+        )
+    }
+
     fn do_download(
         &mut self,
         url: String,
@@ -183,30 +221,48 @@ impl DockerSession {
         format: ResourceFormat,
     ) -> impl Future<Item = String, Error = String> {
         use actix_web::client;
-        use std::io;
 
         let data = self
             .container
             .archive_get(file_path.as_str())
             .map_err(|e| e.to_string());
 
-        let data: Box<Stream<Item = bytes::Bytes, Error = String>> = match format {
-            ResourceFormat::Raw => Box::new(provision::untar_single_file_stream(data)),
-            ResourceFormat::Tar => Box::new(data),
-        };
-
-        let data = data.map_err(|x| ErrorInternalServerError(x));
-
-        future::result(client::put(url.clone()).streaming(data))
-            .map_err(|e| e.to_string())
-            .and_then(|req| req.send().map_err(|e| e.to_string()))
-            .and_then(move |res| {
-                if res.status().is_success() {
-                    Ok(format!("{:?} file uploaded", url))
-                } else {
-                    Err(format!("Unsuccessful file upload: {}", res.status()))
+        let response: Box<Future<Item = actix_web::client::ClientResponse, Error = String>> =
+            match format {
+                ResourceFormat::Raw => {
+                    let url = url.clone();
+                    Box::new(
+                        provision::untar_single_file_stream(data)
+                            .and_then(move |(file_size, stream)| {
+                                client::put(&url)
+                                    .content_length(file_size)
+                                    .streaming(
+                                        stream.map_err(|e| {
+                                            actix_web::error::ErrorInternalServerError(e)
+                                        }),
+                                    )
+                                    .into_future()
+                                    .map_err(|e| e.to_string())
+                            })
+                            .and_then(|r| r.send().map_err(|e| e.to_string())),
+                    )
                 }
-            })
+                ResourceFormat::Tar => Box::new(
+                    client::put(&url)
+                        .streaming(data.map_err(|e| actix_web::error::ErrorInternalServerError(e)))
+                        .into_future()
+                        .map_err(|e| e.to_string())
+                        .and_then(|r| r.send().map_err(|e| e.to_string())),
+                ),
+            };
+
+        response.and_then(move |res| {
+            if res.status().is_success() {
+                Ok(format!("{:?} file uploaded", url))
+            } else {
+                Err(format!("Unsuccessful file upload: {}", res.status()))
+            }
+        })
     }
 }
 
@@ -287,13 +343,13 @@ impl DockerMan {
             .options
             .volumes
             .iter()
-            .filter_map(|vol: &VolumeDef| {
-                vol.source_dir()
-                    .and_then(|s| vol.target_dir().map(|t| (s, t)))
-                    .map(|(s, t)| {
-                        workspace.add_volume(vol.clone());
-                        format!("{}:{}", s, t)
-                    })
+            .filter_map(|vol: &VolumeDef| match vol {
+                VolumeDef::BindRw { src, target } => {
+                    workspace.add_volume(vol.clone());
+                    let src = workspace.path().join(src);
+                    Some(format!("{}:{}", src.display(), target))
+                }
+                _ => None,
             })
             .collect();
 
@@ -430,6 +486,9 @@ fn run_command(
         } => docker_man.run_for_deployment(session_id, |deployment| {
             deployment.do_upload(uri, file_path, format)
         }),
+        Command::WriteFile { content, file_path } => {
+            docker_man.run_for_deployment(session_id, |d| d.write_file(content.into(), file_path))
+        }
         Command::AddTags(tags) => Box::new(fut::result(
             docker_man
                 .deploys

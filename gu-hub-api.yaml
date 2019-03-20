@@ -304,19 +304,6 @@ paths:
           description: Session not found
         '500':
           description: Internal Error
-    get:
-      tags:
-        - session
-      operationId: listSessionPeers
-      responses:
-        '200':
-          description: OK
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/PeerInfo'
-        '404':
-          description: Session not found
   '/sessions/{sessionId}/peers/{nodeId}/deployments':
     post:
       tags:
@@ -653,10 +640,6 @@ definitions:
   ConfigStash:
     description: 'Free style configuration object'
     type: object
-#    properties:
-#      version:
-#        type: integer
-#        description: Version number
     additionalProperties: {}
 
   EnvType:
@@ -790,6 +773,7 @@ parameters:
   blobId:
     name: blobId
     description: 'Blob identifier'
-    type: string
+    type: integer
+    format: int64
     in: path
     required: true
