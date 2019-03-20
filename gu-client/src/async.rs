@@ -121,7 +121,7 @@ impl HubConnection {
         }
     }
 
-    fn url(&self) -> &str {
+    pub fn url(&self) -> &str {
         self.hub_connection_inner.url.as_ref()
     }
 
