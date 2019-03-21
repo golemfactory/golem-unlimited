@@ -34,26 +34,32 @@ pub enum SessionOk {
     BlobAlreadyDeleted,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Fail, Clone)]
 pub enum SessionErr {
+    #[fail(display = "Overwrite Error")]
     OverwriteError,
+    #[fail(display = "Session not found")]
     SessionNotFoundError,
+    #[fail(display = "Blob not found")]
     BlobNotFoundError,
+    #[fail(display = "Blob locked")]
     BlobLockedError,
+    #[fail(display = "Directory creation Error: {}", _0)]
     DirectoryCreationError(String),
+    #[fail(display = "File Error: {}", _0)]
     FileError(String),
+    #[fail(display = "Mailbox Error: {}", _0)]
     MailboxError(String),
+    #[fail(display = "{:?} node not found", _0)]
     NodeNotFound(NodeId),
+    #[fail(display = "{} deployment not found", _0)]
     DeploymentNotFound(String),
+    #[fail(display = "Cannot create peer deployment")]
     CannotCreatePeerDeployment,
+    #[fail(display = "Cannot delete peer deployment")]
     CannotDeletePeerDeployment,
+    #[fail(display = "Cannot update peer deployment")]
     CannotUpdatePeerDeployment,
-}
-
-impl ::std::fmt::Display for SessionErr {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-        write!(f, "session error")
-    }
 }
 
 impl From<MailboxError> for SessionErr {
@@ -63,8 +69,6 @@ impl From<MailboxError> for SessionErr {
 }
 
 impl actix_web::ResponseError for SessionErr {}
-
-impl ::std::error::Error for SessionErr {}
 
 impl Into<HttpResponse> for SessionOk {
     fn into(self) -> HttpResponse {
