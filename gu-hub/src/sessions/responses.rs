@@ -94,6 +94,10 @@ impl Into<HttpResponse> for SessionErr {
             SessionErr::BlobLockedError => {
                 HttpResponse::build(StatusCode::from_u16(423).unwrap()).finish()
             }
+            x @ SessionErr::SessionNotFoundError
+            | x @ SessionErr::BlobNotFoundError
+            | x @ SessionErr::NodeNotFound(_)
+            | x @ SessionErr::DeploymentNotFound(_) => HttpResponse::NotFound().body(x.to_string()),
             x => HttpResponse::InternalServerError().body(x.to_string()),
         }
     }
