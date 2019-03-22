@@ -36,7 +36,7 @@ pub enum SessionOk {
 
 #[derive(Debug, Fail, Clone)]
 pub enum SessionErr {
-    #[fail(display = "Overwrite Error")]
+    #[fail(display = "Id conflict")]
     OverwriteError,
     #[fail(display = "Session not found")]
     SessionNotFoundError,
@@ -44,11 +44,11 @@ pub enum SessionErr {
     BlobNotFoundError,
     #[fail(display = "Blob locked")]
     BlobLockedError,
-    #[fail(display = "Directory creation Error: {}", _0)]
+    #[fail(display = "Cannot create directory: {}", _0)]
     DirectoryCreationError(String),
-    #[fail(display = "File Error: {}", _0)]
+    #[fail(display = "File related error: {}", _0)]
     FileError(String),
-    #[fail(display = "Mailbox Error: {}", _0)]
+    #[fail(display = "Actix mailbox error: {}", _0)]
     MailboxError(String),
     #[fail(display = "{:?} node not found", _0)]
     NodeNotFound(NodeId),
@@ -91,37 +91,10 @@ impl Into<HttpResponse> for SessionErr {
         error!("{:?}", &self);
 
         match self {
-            SessionErr::OverwriteError => HttpResponse::InternalServerError().body("Id conflict"),
-            SessionErr::SessionNotFoundError => HttpResponse::NotFound().body("Session not found"),
-            SessionErr::BlobNotFoundError => HttpResponse::NotFound().body("Blob not found"),
             SessionErr::BlobLockedError => {
-                HttpResponse::build(StatusCode::from_u16(423).expect("Wrong http code - 423"))
-                    .finish()
+                HttpResponse::build(StatusCode::from_u16(423).unwrap()).finish()
             }
-            SessionErr::DirectoryCreationError(s) => {
-                HttpResponse::InternalServerError().body(format!("Cannot create directory: {}", s))
-            }
-            SessionErr::FileError(s) => {
-                HttpResponse::InternalServerError().body(format!("File related error: {}", s))
-            }
-            SessionErr::MailboxError(s) => {
-                HttpResponse::InternalServerError().body(format!("Actix mailbox error: {}", s))
-            }
-            SessionErr::CannotCreatePeerDeployment => {
-                HttpResponse::InternalServerError().body(format!("Cannot create peer deployment."))
-            }
-            SessionErr::CannotDeletePeerDeployment => {
-                HttpResponse::InternalServerError().body(format!("Cannot delete peer deployment."))
-            }
-            SessionErr::CannotUpdatePeerDeployment => {
-                HttpResponse::InternalServerError().body(format!("Cannot update peer deployment."))
-            }
-            SessionErr::NodeNotFound(node_id) => {
-                HttpResponse::NotFound().body(format!("Node not found {:?}.", node_id))
-            }
-            SessionErr::DeploymentNotFound(node_id) => {
-                HttpResponse::NotFound().body(format!("Deployment not found {:?}.", node_id))
-            }
+            x => HttpResponse::InternalServerError().body(x.to_string()),
         }
     }
 }
