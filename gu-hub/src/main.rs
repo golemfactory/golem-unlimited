@@ -82,6 +82,7 @@ const VERSION: &str = self::version::VERGEN_SEMVER_LIGHTWEIGHT;
 mod peer;
 mod plugins;
 mod proxy_service;
+mod local_service;
 mod server;
 mod sessions;
 
@@ -100,6 +101,7 @@ fn main() {
             .chain(plugins::PluginModule::new())
             .chain(sessions::SessionsModule::default())
             .chain(proxy_service::module())
+            .chain(local_service::module())
             .chain(peer::PeerModule::new())
             .chain(AutocompleteModule::new())
             .chain(server::ServerModule::new()),
