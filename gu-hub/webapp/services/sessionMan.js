@@ -97,6 +97,39 @@ angular.module('gu')
             return peersPromise;
         }
 
+        function selectedPeers(peers) {
+
+            console.log('selected peers for', peers);
+
+            function isInList(nodeId) {
+                let v = _.any(peers, p => p == nodeId);
+                console.log('nodeId=', nodeId, 'peers=', peers, 'v=',v);
+                return v;
+            }
+
+            const peersPromise = $http.get('/peers').then(r => r.data)
+                .then(peers => _.filter(peers, peer => isInList(peer.nodeId)))
+                .then(peers => {
+                    console.log('peers=', peers);
+                    return peers;
+                });
+
+            peersPromise.then(peers => angular.forEach(peers, peer => hubApi.callRemote(peer.nodeId, 19354, null).then(data => {
+                var ok = data.Ok;
+                if (ok) {
+                    peer.ram = ok.ram;
+                    peer.gpu = ok.gpu;
+                    peer.os = ok.os || peer.os;
+                    osMap[peer.nodeId] = ok.os || peer.os || 'unk';
+                    peer.hostname = ok.hostname;
+                    peer.num_cores = ok.num_cores;
+                }
+            })));
+
+            return peersPromise;
+
+        }
+
         function peers(session, needDetails) {
             var peersPromise;
 
@@ -233,6 +266,7 @@ angular.module('gu')
             create: create,
             peers: peers,
             allPeers: allPeers,
+            selectedPeers: selectedPeers,
             sessions: listSessions,
             peerDetails: peerDetails,
             updateSession: updateSession,

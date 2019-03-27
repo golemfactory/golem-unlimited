@@ -157,6 +157,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             let plugins = $scope.detectPlugin(session);
             if (plugins.length > 0) {
                 sessionMan.getSession(session.id).then(session => {
+                    $scope.sessionContext = context;
                     _.forEach(plugins, plugin => plugin.controller('browse', context, session));
                 });
             }
