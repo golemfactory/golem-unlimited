@@ -162,6 +162,7 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(
                 actix_web::App::with_state(node_id)
+                    .middleware(actix_web::middleware::Logger::default())
                     .handler(
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")
