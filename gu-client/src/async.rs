@@ -171,6 +171,11 @@ pub struct HubSession {
 }
 
 impl HubSession {
+
+    pub fn id(&self) -> u64 {
+        self.session_id
+    }
+
     /// adds peers to the hub session
     pub fn add_peers<T, U: TryIntoNodeId>(
         &self,
