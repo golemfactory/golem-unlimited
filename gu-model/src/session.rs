@@ -4,6 +4,7 @@ use chrono::prelude::*;
 use chrono::DateTime;
 use serde_derive::*;
 use serde_json::Value as JsonValue;
+use serde::Deserialize;
 
 #[derive(Serialize, Deserialize)]
 pub struct HubSessionUpdate {
@@ -66,6 +67,16 @@ pub struct Metadata {
     pub version: u64,
     #[serde(flatten)]
     pub entry: Map<String, JsonValue>,
+}
+
+impl Metadata {
+
+    pub fn extract<'a, T : serde::de::DeserializeOwned>(&self, k : &str) -> Option<T> {
+        self.entry.get(k).and_then(|json_val| {
+            serde_json::from_value(json_val.clone()).ok()
+        })
+    }
+
 }
 
 #[derive(Serialize, Deserialize, Default)]
