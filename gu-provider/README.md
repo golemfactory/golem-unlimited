@@ -3,6 +3,19 @@
 
 Golem Unlimited worker node.
 
+## Install from src
+
+Clone the repo, go to the `gu-provider` dir and
+```
+cargo build
+```
+### on MacOS
+ssl is needed in order to communicate with docker 
+```
+cargo build --features async_docker/ssl
+```
+
+
 ## Command line options
 
 Run server
