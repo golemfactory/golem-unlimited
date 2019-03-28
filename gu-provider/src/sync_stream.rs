@@ -1,7 +1,6 @@
 //! Implementation for sync stream feed
 
 use bytes::{BufMut, Bytes, BytesMut};
-use crossbeam_channel as cb;
 use futures::prelude::*;
 use futures::{Async, Poll};
 use futures_cpupool::{CpuFuture, CpuPool};

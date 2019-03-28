@@ -59,7 +59,7 @@ pub struct Image {
 }
 
 /// Message for session creation: local provisioning: downloads and unpacks the binaries
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSession<Options = ()> {
     pub env_type: String,
@@ -70,6 +70,8 @@ pub struct CreateSession<Options = ()> {
     #[serde(default)]
     pub options: Options,
 }
+
+pub type GenericCreateSession = CreateSession<::serde_json::Value>;
 
 impl<Options> PublicMessage for CreateSession<Options> {
     const ID: u32 = 37;
@@ -140,6 +142,11 @@ pub enum Command {
         file_path: String,
         #[serde(default)]
         format: ResourceFormat,
+    },
+    #[serde(rename_all = "camelCase")]
+    WriteFile {
+        content: String,
+        file_path: String,
     },
 }
 

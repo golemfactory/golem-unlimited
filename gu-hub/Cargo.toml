@@ -11,7 +11,7 @@ gu-net= { path="../gu-net" }
 gu-persist = { path = "../gu-persist" }
 gu-actix = { path = "../gu-actix" }
 gu-lan = { path = "../gu-lan" }
-gu-ethkey = { path = "../gu-ethkey"}
+ethkey = { path = "../ethkey"}
 gu-hardware = { path = "../gu-hardware" }
 gu-event-bus = { path = "../gu-event-bus" }
 gu-model = { path = "../gu-model" }
@@ -39,6 +39,8 @@ mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
 
 prettytable-rs="0.7"
 chrono = { version = "0.4", features = ["serde"] }
+
+hostname = "^0.1"
 
 [features]
 default=[]

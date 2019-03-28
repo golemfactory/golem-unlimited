@@ -1,6 +1,6 @@
+extern crate ethkey;
 extern crate gu_actix;
 extern crate gu_base;
-extern crate gu_ethkey;
 extern crate gu_event_bus;
 extern crate gu_hardware;
 extern crate gu_lan;
@@ -28,8 +28,12 @@ extern crate actix_derive;
 #[macro_use]
 extern crate prettytable;
 
+#[macro_use]
+extern crate failure;
+
 extern crate bytes;
 extern crate clap;
+extern crate hostname;
 extern crate mdns;
 extern crate semver;
 extern crate sha1;

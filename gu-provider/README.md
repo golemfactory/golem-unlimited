@@ -3,6 +3,19 @@
 
 Golem Unlimited worker node.
 
+## Install from src
+
+Clone the repo, go to the `gu-provider` dir and
+```
+cargo build
+```
+### on MacOS
+```
+cargo run --features "async_docker/ssl gu-hardware/clinfo"
+```
+* ssl is needed in order to communicate with docker 
+* clinfo is needed for proper GPU detection
+
 ## Command line options
 
 Run server
