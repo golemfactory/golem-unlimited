@@ -704,8 +704,8 @@ fn blender_deployment_spec(
             peer.new_session(CreateSession::<CreateOptions> {
                 env_type: "docker".to_string(),
                 image: Image {
-                    url: "prekucki/gu-reneder-blender".to_string(),
-                    hash: "sha256:969d9f15e104697d902f3f785c8a51c6a7cc41f1f0278a4a7f4a400b07007158"
+                    url: "prekucki/gu-render-blender".to_string(),
+                    hash: "sha256:53d11e6866835986b625e9fb07aa73b31dc667da39fe04f56da0ef06a50e0083"
                         .to_string(),
                 },
                 name: "".to_string(),
