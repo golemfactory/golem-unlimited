@@ -15,6 +15,7 @@ mod cli;
 mod disk;
 mod inner_actor;
 mod ram;
+mod storage;
 
 pub mod error {
     use actix::MailboxError;
@@ -39,6 +40,10 @@ pub mod error {
 
         #[fail(display = "Mailbox error: {}", _0)]
         Mailbox(MailboxError),
+
+        #[cfg(unix)]
+        #[fail(display = "Nix error: {}", _0)]
+        Nix(nix::Error),
     }
 
     impl From<MailboxError> for Error {

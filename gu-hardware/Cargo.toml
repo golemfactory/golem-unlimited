@@ -12,9 +12,7 @@ gu-persist = { path="../gu-persist" }
 sysinfo = "0.5"
 log = "0.4"
 actix = "0.7"
-error-chain = "0.12"
 futures = "0.1"
-clap = "2.32"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
@@ -22,6 +20,7 @@ actix-web = { version = "0.7", default-features=false}
 hostname = "^0.1"
 num_cpus = "1.0"
 failure = "0.1.5"
+nix = "0.13.0"
 
 [dependencies.cl-sys]
 version="0.4"

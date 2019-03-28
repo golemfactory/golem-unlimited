@@ -5,11 +5,14 @@ use hostname::get_hostname;
 use crate::disk::{DiskInfo, DiskQuery};
 use crate::inner_actor::InnerActor;
 use crate::ram::{RamInfo, RamQuery};
+use crate::storage::storage_info;
 use gu_actix::flatten::FlattenFuture;
 use gu_net::rpc::{RemotingContext, RemotingSystemService};
 
 use super::gpuinfo::{gpu_count, GpuCount};
 use num_cpus;
+
+pub use crate::storage::{StorageInfo, StorageQuery};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HardwareQuery;
@@ -125,5 +128,17 @@ impl Handler<HardwareQuery> for HardwareActor {
                 })
                 .into_actor(self),
         )
+    }
+}
+
+impl Handler<StorageQuery> for HardwareActor {
+    type Result = ActorResponse<Self, StorageInfo, String>;
+
+    fn handle(
+        &mut self,
+        msg: StorageQuery,
+        _ctx: &mut RemotingContext<Self>,
+    ) -> <Self as Handler<StorageQuery>>::Result {
+        ActorResponse::reply(storage_info(msg.path()).map_err(|e| e.to_string()))
     }
 }
