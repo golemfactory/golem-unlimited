@@ -3,10 +3,10 @@ use futures::Future;
 use hostname::get_hostname;
 
 use crate::disk::{DiskInfo, DiskQuery};
-use gu_actix::flatten::FlattenFuture;
-use gu_net::rpc::{RemotingContext, RemotingSystemService};
 use crate::inner_actor::InnerActor;
 use crate::ram::{RamInfo, RamQuery};
+use gu_actix::flatten::FlattenFuture;
+use gu_net::rpc::{RemotingContext, RemotingSystemService};
 
 use super::gpuinfo::{gpu_count, GpuCount};
 use num_cpus;

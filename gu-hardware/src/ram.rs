@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use actix::Message;
 use crate::error::Result;
+use actix::Message;
 use sysinfo::SystemExt;
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -1,6 +1,9 @@
-#[macro_use] extern crate log;
-#[macro_use] extern crate failure;
-#[macro_use] extern crate serde_derive;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate failure;
+#[macro_use]
+extern crate serde_derive;
 
 use gu_base::Module;
 use gu_net::rpc::RemotingSystemService;
@@ -12,7 +15,6 @@ mod cli;
 mod disk;
 mod inner_actor;
 mod ram;
-
 
 pub mod error {
     use actix::MailboxError;
@@ -28,7 +30,7 @@ pub mod error {
         #[fail(display = "Strip path prefix error: {}", _0)]
         StripPrefix(std::path::StripPrefixError),
 
-        #[cfg(feature="clinfo")]
+        #[cfg(feature = "clinfo")]
         #[fail(display = "OpenCL error: {}", _0)]
         OpenCL(super::gpuinfo::ClError),
 

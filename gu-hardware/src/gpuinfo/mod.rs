@@ -8,7 +8,6 @@ pub struct GpuCount {
     pub other: u8,
 }
 
-
 #[cfg(target_os = "linux")]
 #[cfg(not(feature = "clinfo"))]
 mod linux_pci_scan;
@@ -21,7 +20,8 @@ mod clinfo;
 pub fn gpu_count() -> Result<GpuCount> {
     use self::linux_pci_scan::*;
 
-    Ok(pci_devices().map_err(|e| Error::Io(e))?
+    Ok(pci_devices()
+        .map_err(|e| Error::Io(e))?
         .filter_map(|device_ref| device_ref.ok())
         .filter(|device| match device.class_code() {
             Ok(code) => code == CL_DEVICE_TYPE_GPU || code == CL_DEVICE_TYPE_ACCELERATOR,

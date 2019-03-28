@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use actix::Message;
 use crate::error::{Error, Result};
+use actix::Message;
 use gu_persist::config::ConfigModule;
 use std::path::PathBuf;
 use sysinfo::{DiskExt, DiskType, SystemExt};
