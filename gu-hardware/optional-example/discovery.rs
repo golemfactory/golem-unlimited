@@ -3,12 +3,12 @@ use gu_net::rpc::start_actor;
 
 //use std::path::PathBuf;
 use futures::prelude::*;
-use gu_hardware::actor::{HardwareActor, HardwareQuery, StorageQuery};
+use gu_hardware::actor::{HardwareActor, HardwareQuery};
 
 fn main() {
     System::run(|| {
         let actor = start_actor(HardwareActor::default());
-        let query = StorageQuery::new("/".into());
+        let query = HardwareQuery::default();
 
         Arbiter::spawn(
             actor
