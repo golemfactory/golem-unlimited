@@ -44,6 +44,10 @@ pub mod error {
         #[cfg(unix)]
         #[fail(display = "Nix error: {}", _0)]
         Nix(nix::Error),
+
+        #[cfg(not(unix))]
+        #[fail(display = "Storage query not supported on non-Unix OS")]
+        StorageNotSupported,
     }
 
     impl From<MailboxError> for Error {
