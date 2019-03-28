@@ -2,11 +2,11 @@ use actix::{Actor, ActorResponse, Addr, ArbiterService, Handler, Message, WrapFu
 use futures::Future;
 use hostname::get_hostname;
 
-use disk::{DiskInfo, DiskQuery};
+use crate::disk::{DiskInfo, DiskQuery};
 use gu_actix::flatten::FlattenFuture;
 use gu_net::rpc::{RemotingContext, RemotingSystemService};
-use inner_actor::InnerActor;
-use ram::{RamInfo, RamQuery};
+use crate::inner_actor::InnerActor;
+use crate::ram::{RamInfo, RamQuery};
 
 use super::gpuinfo::{gpu_count, GpuCount};
 use num_cpus;

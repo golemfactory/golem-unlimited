@@ -1,6 +1,7 @@
 [package]
 name = "gu-hardware"
-version = "0.1.0"
+version = "0.1.1"
+edition = "2018"
 
 [dependencies]
 gu-actix= { path="../gu-actix" }
@@ -20,6 +21,7 @@ serde_derive = "1.0"
 actix-web = { version = "0.7", default-features=false}
 hostname = "^0.1"
 num_cpus = "1.0"
+failure = "0.1.5"
 
 [dependencies.cl-sys]
 version="0.4"

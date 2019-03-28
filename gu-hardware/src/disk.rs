@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use actix::Message;
-use error::{ErrorKind, Result};
+use crate::error::{Error, Result};
 use gu_persist::config::ConfigModule;
 use std::path::PathBuf;
 use sysinfo::{DiskExt, DiskType, SystemExt};
@@ -40,7 +40,7 @@ impl DiskInfo {
 }
 
 fn disk_for_path(disks: &[impl DiskExt], path: PathBuf) -> Result<&impl DiskExt> {
-    let path = path.canonicalize()?;
+    let path = path.canonicalize().map_err(|e| Error::Io(e))?;
     let mut best_match = None;
     let mut best_len = 0;
 
@@ -56,7 +56,7 @@ fn disk_for_path(disks: &[impl DiskExt], path: PathBuf) -> Result<&impl DiskExt>
         }
     }
 
-    best_match.ok_or_else(|| ErrorKind::PathMountpointNotFound(path).into())
+    best_match.ok_or_else(|| Error::PathMountpointNotFound(path))
 }
 
 pub(crate) fn disk_info(sys: &impl SystemExt, path: PathBuf) -> Result<DiskInfo> {
