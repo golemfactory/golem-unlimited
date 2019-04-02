@@ -53,7 +53,7 @@ pub mod error {
     macro_rules! from_def {
         ($stype:ty => $opt:ident) => {
             impl From<$stype> for Error {
-                fn from(e : $stype) -> Self {
+                fn from(e: $stype) -> Self {
                     Error::$opt(e)
                 }
             }
@@ -68,7 +68,6 @@ pub mod error {
             Error::Mailbox(e)
         }
     }
-
 
 }
 
