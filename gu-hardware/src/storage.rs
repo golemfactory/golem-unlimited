@@ -32,9 +32,9 @@ pub(crate) fn storage_info<T: AsRef<Path>>(path: T) -> Result<StorageInfo> {
     let stat = statvfs(path.as_ref()).map_err(|e| Error::Nix(e))?;
 
     Ok(StorageInfo {
-        id: stat.filesystem_id(),
-        available: stat.blocks_available() * stat.block_size(),
-        total: stat.blocks() * stat.block_size(),
+        id: stat.filesystem_id() as u64,
+        available: stat.blocks_available() as u64 * stat.block_size() as u64,
+        total: stat.blocks() as u64 * stat.block_size() as u64,
     })
 }
 
