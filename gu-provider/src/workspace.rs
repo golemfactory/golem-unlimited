@@ -2,7 +2,7 @@
 
 use gu_model::dockerman::VolumeDef;
 use gu_persist::config::ConfigModule;
-use provision::untgz;
+use log::{debug, error};
 use serde_json::Value;
 use std::collections::{BTreeSet, HashSet};
 use std::fs;
@@ -19,20 +19,19 @@ pub struct WorkspacesManager {
 
 impl WorkspacesManager {
     pub fn new(config: &ConfigModule, name: &'static str) -> Option<WorkspacesManager> {
-        let sessions_dir = config.work_dir().to_path_buf().join("sessions");
+        let session_dir = config.work_dir().to_path_buf().join("sessions").join(name);
 
-        fs::create_dir_all(&sessions_dir)
+        fs::create_dir_all(&session_dir)
             .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
             .map(|_| WorkspacesManager {
                 namespace: name,
-                path: sessions_dir,
+                path: session_dir,
             })
             .ok()
     }
 
-    pub fn workspace(&self, name: String) -> Workspace {
-        let dir_name = format!("{}::{}", self.namespace, Uuid::new_v4());
-        Workspace::new(name, self.path.join(dir_name))
+    pub fn workspace(&self) -> Workspace {
+        Workspace::new(self.namespace, self.path.join(Uuid::new_v4().to_string()))
     }
 }
 
@@ -40,7 +39,7 @@ type Set<K> = BTreeSet<K>;
 
 #[derive(Clone)]
 pub struct Workspace {
-    name: String,
+    name: &'static str,
     path: PathBuf,
     metadata: Value,
     tags: Set<String>,
@@ -48,7 +47,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub(self) fn new(name: String, path: PathBuf) -> Self {
+    pub(self) fn new(name: &'static str, path: PathBuf) -> Self {
         Self {
             name,
             path,
@@ -58,7 +57,7 @@ impl Workspace {
         }
     }
 
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> &'static str {
         &self.name
     }
 
@@ -126,14 +125,14 @@ impl Workspace {
 
 #[cfg(test)]
 mod tests {
+    use crate::workspace::Workspace;
     use gu_model::dockerman::VolumeDef;
     use std::path::PathBuf;
-    use workspace::Workspace;
 
     #[test]
     fn create_dirs() {
         let path = "/tmp/gu-unlimited/tests";
-        let mut work = Workspace::new("work".to_string(), path.into());
+        let mut work = Workspace::new("work", path.into());
 
         work.add_volume(VolumeDef::BindRw {
             src: "test1".to_string(),
@@ -153,7 +152,7 @@ mod tests {
     #[test]
     fn tags() {
         let path = "/tmp/gu-unlimited/tests";
-        let mut work = Workspace::new("work".to_string(), path.into());
+        let mut work = Workspace::new("work", path.into());
         let tags = ["tag1".to_string(), "tag2".to_string()].to_vec();
 
         work.add_tags(tags.clone());

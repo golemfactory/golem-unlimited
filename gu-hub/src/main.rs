@@ -1,6 +1,6 @@
+extern crate ethkey;
 extern crate gu_actix;
 extern crate gu_base;
-extern crate gu_ethkey;
 extern crate gu_event_bus;
 extern crate gu_hardware;
 extern crate gu_lan;
@@ -30,15 +30,54 @@ extern crate prettytable;
 
 extern crate bytes;
 extern crate clap;
+extern crate hostname;
 extern crate mdns;
 extern crate semver;
 extern crate sha1;
 extern crate zip;
 
-use clap::App;
 use gu_base::*;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+/* TODO: replace with a macro (the code is the same as in the gu-hub/src/main.rs file) */
+#[allow(dead_code)]
+mod version {
+
+    use gu_base::*;
+
+    include!(concat!(env!("OUT_DIR"), "/version.rs"));
+
+    struct Version;
+
+    pub fn module() -> impl gu_base::Module {
+        Version
+    }
+
+    impl gu_base::Module for Version {
+        fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
+            app.arg(
+                Arg::with_name("ver-info")
+                    .short("i")
+                    .long("ver-info")
+                    .help("Displays build details"),
+            )
+        }
+
+        fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+            if matches.is_present("ver-info") {
+                eprintln!("BUILD_TIMESTAMP  {}", VERGEN_BUILD_TIMESTAMP);
+                eprintln!("COMMIT_DATE      {}", VERGEN_COMMIT_DATE);
+                eprintln!("TARGET_TRIPLE    {}", VERGEN_TARGET_TRIPLE);
+                eprintln!("SEMVER           {}", VERGEN_SEMVER);
+
+                true
+            } else {
+                false
+            }
+        }
+    }
+}
+
+const VERSION: &str = self::version::VERGEN_SEMVER_LIGHTWEIGHT;
 
 mod peer;
 mod plugins;
@@ -47,7 +86,13 @@ mod server;
 mod sessions;
 
 fn main() {
-    GuApp(|| App::new("Golem Unlimited").version(VERSION)).run(
+    GuApp(|| {
+        App::new("Golem Unlimited Hub")
+            .setting(AppSettings::ArgRequiredElseHelp)
+            .version(VERSION) /* TODO get port number from config */
+            .after_help("The web UI is located at http://localhost:61622/app/index.html when the server is running.")
+    })
+    .run(
         LogModule
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::module::LanModule::module())

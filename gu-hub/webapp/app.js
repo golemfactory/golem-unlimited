@@ -47,6 +47,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         $http.post('/m/19354', "null").then(r => {
             var ok = r.data.Ok;
             if (ok) {
+                if (typeof ok.disk.disk_type !== 'string') ok.disk.disk_type = '';
                 $scope.hub = ok
             }
         });

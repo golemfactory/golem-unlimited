@@ -1,6 +1,7 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 use super::server::ProviderConfig;
+use crate::server::{ConnectMode, ProviderClient, ProviderServer};
 use actix::prelude::*;
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
@@ -8,7 +9,7 @@ use actix_web::{
 };
 use futures::{future, stream::Stream, Future};
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{self, cli, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{self, cli, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_lan::{
     actor::{Continuous, MdnsActor, SubscribeInstance},
     NewInstance, ServiceDescription, Subscription,
@@ -21,9 +22,10 @@ use gu_net::{
     NodeId,
 };
 use gu_persist::config::{ConfigManager, ConfigSection, GetConfig, SetConfig};
-use serde::{de::DeserializeOwned, Serialize};
+use log::error;
+use prettytable::{cell, row};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
-use server::{ConnectMode, ProviderClient, ProviderServer};
 use std::{
     collections::{HashMap, HashSet},
     iter::FromIterator,
@@ -92,32 +94,33 @@ impl Module for ConnectModule {
             .help("save change in config file");
 
         let connect = SubCommand::with_name("connect")
-            .about("Connect to a hub without adding it to the config")
+            .about("Connects to a hub (use -S to save it to the config file)")
             .arg(host.clone())
             .arg(save.clone());
         let disconnect = SubCommand::with_name("disconnect")
-            .about("Disconnect from a hub")
+            .about("Disconnects from a hub (use -S to remove it from the config file)")
             .arg(host.clone())
             .arg(save.clone());
 
         let list_pending = SubCommand::with_name("pending")
-            .about("List hubs to which the provider is trying to get connected");
+            .about("Lists hubs to which the provider is trying to connect to");
         let list_connected = SubCommand::with_name("connected")
-            .about("List hubs the provider is currently connected to");
+            .about("Lists hubs to which the provider is currently connected to");
         let list = SubCommand::with_name("list")
-            .about("Hub listing")
+            .about("Lists hubs related to this provider")
             .subcommands(vec![list_connected, list_pending]);
 
         let auto_mode = SubCommand::with_name("auto")
-            .about("Connect to the config hubs and additionally automatically connect to all found local hubs")
+            .about("Connects to the config hubs and additionally automatically connects to all found local hubs (use -S to save this setting)")
             .arg(save.clone());
         let manual_mode = SubCommand::with_name("manual")
-            .about("Connect just to config hubs")
+            .about("Connects only to the config hubs (use -S to save this setting)")
             .arg(save);
 
         app.subcommand(
             SubCommand::with_name("hubs")
-                .about("Manage hubs connections")
+                .about("Manages hub connections of a locally running server")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommands(vec![connect, disconnect, manual_mode, auto_mode, list]),
         )
     }
@@ -308,7 +311,7 @@ pub(crate) enum ConnectionChange {
 #[rtype(result = "Result<Option<()>, String>")]
 pub(crate) struct ConnectionChangeMessage {
     pub change: ConnectionChange,
-    pub hubs: Vec<SocketAddr>,
+    pub hubs: HashSet<SocketAddr>,
     pub save: bool,
 }
 
@@ -321,7 +324,7 @@ fn connect_scope<S>(r: HttpRequest<S>, m: &ConnectionChange) -> impl Responder {
         .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
         .concat2()
         .and_then(|a| {
-            serde_json::from_slice::<Vec<SocketAddr>>(a.as_ref())
+            serde_json::from_slice::<HashSet<SocketAddr>>(a.as_ref())
                 .map_err(|e| ErrorBadRequest(format!("Couldn't parse request body: {:?}", e)))
         });
 
@@ -383,23 +386,48 @@ pub(crate) fn edit_config_connect_mode(
 }
 
 pub(crate) fn edit_config_hosts(
-    list: Vec<SocketAddr>,
+    list: HashSet<SocketAddr>,
     change: ConnectionChange,
+    clear_old_hosts: bool,
 ) -> impl Future<Item = Option<()>, Error = String> {
-    fn editor(
-        c: &ProviderConfig,
-        data: (Vec<SocketAddr>, ConnectionChange),
-    ) -> Option<ProviderConfig> {
+    let editor = move |c: &ProviderConfig, data: (HashSet<SocketAddr>, ConnectionChange)| {
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
-        edit_config_list(config.hub_addrs.clone(), data.0, data.1).map(|new| {
+
+        edit_config_list(config.hub_addrs.clone(), data.0, data.1, clear_old_hosts).map(|new| {
             config.hub_addrs = new;
             config
         })
-    }
+    };
 
     edit_config((list, change), editor)
+}
+
+pub(crate) fn change_single_connection(
+    sock_addr: SocketAddr,
+    change: ConnectionChange,
+) -> impl Future<Item = Option<()>, Error = String> {
+    fn editor(c: &ProviderConfig, data: (SocketAddr, ConnectionChange)) -> Option<ProviderConfig> {
+        use std::ops::Deref;
+
+        let mut config = c.deref().clone();
+        /* TODO change from vector to hashset */
+        config.hub_addrs = config
+            .hub_addrs
+            .into_iter()
+            .filter(|x| *x != data.0)
+            .collect();
+        match data {
+            (ip, ConnectionChange::Connect) => {
+                config.hub_addrs.insert(ip);
+            }
+            _ => (),
+        }
+        Some(config)
+    }
+
+    edit_config((sock_addr, change), editor)
 }
 
 fn edit_config<C, A, F>(data: A, fun: F) -> impl Future<Item = Option<()>, Error = String>
@@ -431,32 +459,30 @@ where
 }
 
 fn edit_config_list(
-    old: Vec<SocketAddr>,
-    list: Vec<SocketAddr>,
+    old_set: HashSet<SocketAddr>,
+    modify_addrs: HashSet<SocketAddr>,
     change: ConnectionChange,
-) -> Option<Vec<SocketAddr>> {
-    use std::iter::FromIterator;
-
-    let mut old: HashSet<_> = HashSet::from_iter(old.into_iter());
-    let len = old.len();
+    clear_old_set: bool,
+) -> Option<HashSet<SocketAddr>> {
+    let mut new_set = if clear_old_set {
+        HashSet::new()
+    } else {
+        old_set.clone()
+    };
 
     match change {
-        ConnectionChange::Connect => {
-            list.into_iter().for_each(|sock| {
-                old.insert(sock);
-            });
-        }
-        ConnectionChange::Disconnect => {
-            list.into_iter().for_each(|sock| {
-                old.remove(&sock);
-            });
-        }
+        ConnectionChange::Connect => modify_addrs.into_iter().for_each(|s| {
+            new_set.insert(s);
+        }),
+        ConnectionChange::Disconnect => modify_addrs.into_iter().for_each(|s| {
+            new_set.insert(s);
+        }),
     }
 
-    if len == old.len() {
+    if old_set.len() == new_set.len() && !clear_old_set {
         None
     } else {
-        Some(Vec::from_iter(old.into_iter()))
+        Some(new_set)
     }
 }
 
@@ -550,7 +576,7 @@ impl Handler<ListSockets> for ConnectManager {
 
     fn handle(&mut self, _: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         let list = self.list();
-        ActorResponse::async(list.into_actor(self))
+        ActorResponse::r#async(list.into_actor(self))
     }
 }
 
@@ -580,7 +606,7 @@ impl Handler<Disconnect> for ConnectManager {
     type Result = ActorResponse<Self, Option<()>, String>;
 
     fn handle(&mut self, msg: Disconnect, _ctx: &mut Context<Self>) -> Self::Result {
-        ActorResponse::async(self.disconnect(msg.0).into_actor(self))
+        ActorResponse::r#async(self.disconnect(msg.0).into_actor(self))
     }
 }
 
@@ -593,7 +619,7 @@ impl Handler<AutoMdns> for ConnectManager {
 
     fn handle(&mut self, msg: AutoMdns, ctx: &mut Context<Self>) -> Self::Result {
         if msg.0 && self.subscription.is_none() {
-            ActorResponse::async(
+            ActorResponse::r#async(
                 MdnsActor::<Continuous>::from_registry()
                     .send(SubscribeInstance {
                         service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),

@@ -110,7 +110,7 @@ impl Handler<HardwareQuery> for HardwareActor {
         let gpu = self.gpu_count.clone();
         let hostname = self.hostname.clone();
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             ram(RamQuery::default(), &inner)
                 .join(disk(DiskQuery::new(), &inner))
                 .and_then(move |(ram, disk)| {

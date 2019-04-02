@@ -77,7 +77,7 @@ impl Handler<ReadAccessRequest> for FileLockActor {
     type Result = ActorResponse<Self, ReadAccess, SessionErr>;
 
     fn handle(&mut self, _msg: ReadAccessRequest, ctx: &mut Context<Self>) -> Self::Result {
-        ActorResponse::async(
+        ActorResponse::r#async(
             match self.writers {
                 0 => future::Either::A({
                     let rec = ctx.address().recipient();
@@ -120,7 +120,7 @@ impl Handler<WriteAccessRequest> for FileLockActor {
             }),
         };
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             dag_fut
                 .and_then(|_| rec.map_err(|e| SessionErr::FileError(e.to_string())))
                 .and_then(move |_| Ok(access))

@@ -109,9 +109,18 @@ impl Session {
     }
 
     pub fn from_existing(path: PathBuf) -> impl Future<Item = Self, Error = String> {
-        let info_fut = read_async(path.join(".info")).concat2().and_then(|a| {
-            serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| e.to_string())
-        });
+        let metadata_path = path.join(".info");
+        let info_fut = read_async(metadata_path.clone())
+            .concat2()
+            .and_then(move |a| {
+                serde_json::from_slice::<SessionInfo>(a.as_ref()).map_err(|e| {
+                    format!(
+                        "Cannot load {:?} session metadata file:\n{}",
+                        metadata_path,
+                        e.to_string()
+                    )
+                })
+            });
 
         let mut s = Session {
             info: SessionInfo::default(),
@@ -126,7 +135,13 @@ impl Session {
         entries_id_iter(&path).for_each(|id| {
             let _ = s
                 .new_blob_inner(Blob::from_existing(path.join(format!("{}", id))), Some(id))
-                .map_err(|e| error!("{:?}", e));
+                .map_err(|e| {
+                    error!(
+                        "Cannot load {:?} session file:\n{}",
+                        path.join(format!("{}", id)),
+                        e.to_string()
+                    )
+                });
         });
 
         let config_fut = read_async(path.join(".json")).concat2().and_then(|a| {
@@ -264,7 +279,7 @@ impl Session {
     pub fn create_deployment(
         &mut self,
         node_id: NodeId,
-        body: gu_model::envman::CreateSession,
+        body: gu_model::envman::GenericCreateSession,
     ) -> impl Future<Item = String, Error = SessionErr> {
         if self.peers.get(&node_id).is_none() {
             return future::Either::A(future::err(SessionErr::NodeNotFound(node_id)));

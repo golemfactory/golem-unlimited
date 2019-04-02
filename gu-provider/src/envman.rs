@@ -46,19 +46,21 @@ struct CreateRecipient<T: EnvManService>(Recipient<CreateSession<T::CreateOption
 
 impl<T: EnvManService + 'static> CreateSender for CreateRecipient<T> {
     fn send(&self, msg: CreateSession<JsonValue>) -> Box<Future<Item = String, Error = Error>> {
-        let options = serde_json::from_value(msg.options).unwrap();
-        Future::boxed(
-            self.0
-                .send(CreateSession {
-                    env_type: msg.env_type,
-                    image: msg.image,
-                    name: msg.name,
-                    tags: msg.tags,
-                    note: msg.note,
-                    options,
-                })
-                .flatten_fut(),
-        )
+        match serde_json::from_value(msg.options) {
+            Ok(options) => Box::new(
+                self.0
+                    .send(CreateSession {
+                        env_type: msg.env_type,
+                        image: msg.image,
+                        name: msg.name,
+                        tags: msg.tags,
+                        note: msg.note,
+                        options,
+                    })
+                    .flatten_fut(),
+            ),
+            Err(e) => Box::new(future::err(Error::IncorrectOptions(e.to_string()))),
+        }
     }
 }
 
@@ -124,7 +126,7 @@ impl Handler<CreateSession<JsonValue>> for EnvMan {
     fn handle(&mut self, msg: CreateSession<JsonValue>, _ctx: &mut Self::Context) -> Self::Result {
         let env_type = msg.env_type.clone();
         if let Some(address) = self.create_map.get(&env_type) {
-            return ActorResponse::async(
+            return ActorResponse::r#async(
                 address
                     .send(msg)
                     .and_then(move |session_id| Ok(format!("{}::{}", env_type, session_id)))
@@ -147,7 +149,7 @@ impl Handler<SessionUpdate> for EnvMan {
         };
 
         match self.session_update_map.get(prefix) {
-            Some(r) => ActorResponse::async(
+            Some(r) => ActorResponse::r#async(
                 r.send(SessionUpdate {
                     session_id: session_id.into(),
                     commands: msg.commands,
@@ -192,7 +194,7 @@ impl Handler<GetSessions> for EnvMan {
                 .collect::<Vec<_>>(),
         );
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             j.and_then(|v: Vec<Vec<PeerSessionInfo>>| Ok(v.into_iter().flatten().collect()))
                 .into_actor(self),
         )
@@ -213,7 +215,7 @@ impl Handler<DestroySession> for EnvMan {
         };
 
         match self.destroy_session_map.get(prefix) {
-            Some(address) => ActorResponse::async(
+            Some(address) => ActorResponse::r#async(
                 address
                     .send(DestroySession {
                         session_id: session_id.into(),

@@ -31,9 +31,9 @@
                         '80': {color: 'red'}
                     }">
                     </ng-gauge>
-                    <p>{{hub.ram.used/1000000 | number: 1}} / {{hub.ram.total/1000000 | number: 1}} GB</p>
+                    <p style="width: 150px; text-align: center;">{{hub.ram.used/1000000 | number: 1}} / {{hub.ram.total/1000000 | number: 1}} GB</p>
                 </div>
-                <div>
+                <div class="col-md-4">
                     <ng-gauge
                             type="arch" thick="10"
                             value="(hub.disk.total-hub.disk.available)/hub.disk.total*100" size="150"
@@ -44,7 +44,7 @@
                         '80': {color: 'red'}
                     }">
                     </ng-gauge>
-                    <p>{{(hub.disk.total-hub.disk.available)/1000000000 | number: 1}} / {{hub.disk.total/1000000000 | number: 1}} GB
+                    <p style="width: 150px; text-align: center;">{{(hub.disk.total-hub.disk.available)/1000000000 | number: 1}} / {{hub.disk.total/1000000000 | number: 1}} GB
                         <span class="label label-{{hub.disk.disk_type == 'SSD' ? 'success' : 'danger'}}">{{hub.disk.disk_type}}</span>
                     </p>
                 </div>

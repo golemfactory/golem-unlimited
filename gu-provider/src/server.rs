@@ -1,29 +1,32 @@
 #![allow(dead_code)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use actix::prelude::*;
-use actix_web::*;
-use clap::ArgMatches;
-use connect::ListingType;
-use connect::{
+use crate::connect::ListingType;
+use crate::connect::{
     self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
     ConnectionChangeMessage, Disconnect, ListSockets,
 };
+use crate::hdman::HdMan;
+use ::actix::prelude::*;
+use actix_web::*;
+use clap::ArgMatches;
+use ethkey::prelude::*;
 use futures::{future, prelude::*};
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
 };
-use gu_ethkey::prelude::*;
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
     http::{ServerClient, ServerConfig},
 };
-use hdman::HdMan;
+use log::{error, info};
+use serde_derive::*;
 use std::{
+    collections::HashSet,
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
@@ -36,7 +39,7 @@ pub(crate) struct ProviderConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     control_socket: Option<String>,
     #[serde(default)]
-    pub(crate) hub_addrs: Vec<SocketAddr>,
+    pub(crate) hub_addrs: HashSet<SocketAddr>,
     #[serde(default)]
     publish_service: bool,
     #[serde(default = "ProviderConfig::default_connect_mode")]
@@ -48,7 +51,7 @@ impl Default for ProviderConfig {
         ProviderConfig {
             p2p_port: Self::default_p2p_port(),
             control_socket: None,
-            hub_addrs: Vec::new(),
+            hub_addrs: HashSet::new(),
             publish_service: true,
             connect_mode: Self::default_connect_mode(),
         }
@@ -100,7 +103,7 @@ impl ServerModule {
     }
 }
 
-fn get_node_id(keys: Box<SafeEthKey>) -> NodeId {
+fn get_node_id(keys: Box<EthAccount>) -> NodeId {
     let node_id = NodeId::from(keys.address().as_ref());
     info!("node_id={:?}", node_id);
     node_id
@@ -129,7 +132,7 @@ impl Module for ServerModule {
         let sys = System::new("gu-provider");
 
         gu_base::run_once(move || {
-            let dec = decorator.clone();
+            let dec = decorator.to_owned();
             let config_module: &ConfigModule = dec.extract().unwrap();
             let _ = HdMan::start(config_module);
 
@@ -152,7 +155,6 @@ fn p2p_server(_r: &HttpRequest) -> &'static str {
 pub struct ProviderServer {
     node_id: Option<NodeId>,
     p2p_port: Option<u16>,
-
     mdns_publisher: MdnsPublisher,
     connections: Option<Addr<ConnectManager>>,
 }
@@ -207,7 +209,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .decorate_webapp(App::new().scope("/m", rpc::mock::scope))
         });
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             ConfigManager::from_registry()
                 .send(GetConfig::new())
                 .flatten_fut()
@@ -215,11 +217,9 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
                 .and_then(|config: ProviderConfig, act: &mut Self, _ctx| {
-                    let keys = SafeEthKey::load_or_generate(
-                        ConfigModule::new().keystore_path(),
-                        &"".into(),
-                    )
-                    .unwrap();
+                    let keys =
+                        EthAccount::load_or_generate(ConfigModule::new().keystore_path(), "")
+                            .unwrap();
 
                     let _ = server.bind(config.p2p_addr()).unwrap().start();
 
@@ -227,9 +227,10 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     act.p2p_port = Some(config.p2p_port);
 
                     // Init mDNS publisher
-                    act.mdns_publisher = MdnsPublisher::init_provider(
+                    act.mdns_publisher = MdnsPublisher::init_publisher(
                         config.p2p_port,
                         act.node_id.unwrap().to_string(),
+                        false,
                     );
                     act.publish_service(config.publish_service);
 
@@ -269,7 +270,7 @@ impl Handler<ConnectModeMessage> for ProviderServer {
                 .map_err(|e| e.to_string())
                 .and_then(|r| r);
 
-            return ActorResponse::async(
+            return ActorResponse::r#async(
                 config_fut
                     .join(state_fut)
                     .map_err(|e| e.to_string())
@@ -292,7 +293,7 @@ impl Handler<ListSockets> for ProviderServer {
 
     fn handle(&mut self, msg: ListSockets, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {
-            ActorResponse::async(
+            ActorResponse::r#async(
                 connections
                     .send(msg)
                     .map_err(|e| e.to_string())
@@ -312,7 +313,7 @@ impl Handler<ConnectionChangeMessage> for ProviderServer {
         let msg2 = msg.clone();
         let save = msg.save;
         let config_fut = optional_save_future(
-            move || connect::edit_config_hosts(msg2.hubs, msg2.change),
+            move || connect::edit_config_hosts(msg2.hubs, msg2.change, false),
             save,
         );
 
@@ -334,7 +335,7 @@ impl Handler<ConnectionChangeMessage> for ProviderServer {
                 }
             };
 
-            return ActorResponse::async(
+            return ActorResponse::r#async(
                 config_fut
                     .and_then(|_| state_fut)
                     .and_then(|_| Ok(None))

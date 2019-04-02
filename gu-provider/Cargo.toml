@@ -4,6 +4,7 @@ version = "0.2.0"
 license = "MIT"
 publish=false
 authors=["golemfactory"]
+edition = "2018"
 
 [features]
 default=['env-docker']
@@ -11,11 +12,12 @@ clinfo=["gu-hardware/clinfo"]
 env-docker=['async_docker']
 
 [dependencies]
+crc="1.8.1"
 futures="0.1"
 tokio-io="0.1"
 actix_derive = "0.3.0"
 actix = "0.7"
-actix-web = {version= "0.7", features = []}
+actix-web = {version= "0.7", default-features = false}
 serde_derive = "1.0"
 serde_json = "1.0.32"
 serde = "1.0.80"
@@ -38,12 +40,13 @@ gu-actix = { path = "../gu-actix" }
 gu-net = { path = "../gu-net" }
 gu-persist = { path = "../gu-persist" }
 gu-lan = { path = "../gu-lan"}
-gu-ethkey = { path = "../gu-ethkey"}
+ethkey = { path = "../ethkey"}
 gu-hardware = { path = "../gu-hardware"}
 gu-model = { path = "../gu-model" }
+gu-hdman = { path = "../gu-hdman" }
 
 
-async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger" }
+async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger", version="0.1.1" }
 tar-async={git="https://github.com/prekucki/tar-async.git"}
 #async_docker={path = "../../async-docker", optional=true }
 

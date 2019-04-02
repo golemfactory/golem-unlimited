@@ -1,0 +1,37 @@
+version: '3.2'
+services:
+        gw:
+                image: prekucki/golemgw
+                command: [ '--password', '123123', '--accept-terms', '--protocol_id', '7']
+                volumes:
+                        - type: bind
+                          source: /var/run/docker.sock
+                          target: /var/run/docker.sock
+                        - type: volume
+                          source: gu-gw-config
+                          target: /work/config
+        requestor:
+                image: prekucki/golemsrv:0.19.0
+                command: [ '--password', '123123', '--accept-terms', '--protocol_id', '7', '-p', 'gw:40102' ]
+                privileged: true
+                volumes:
+                        - type: volume
+                          source: golem-requestor-config
+                          target: /work/config
+                        - type: bind
+                          source: ./assets
+                          target: /work/data
+
+                depends_on:
+                        - gw
+
+        hub:
+                build: hub
+        gu-prov:
+                build: gu-prov
+
+volumes:
+        gu-gw-config:
+        golem-requestor-config:
+
+

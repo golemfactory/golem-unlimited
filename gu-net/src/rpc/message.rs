@@ -85,8 +85,12 @@ pub enum TransportResult<B> {
 }
 
 impl<B> TransportResult<B> {
-    pub const NO_DESTINATION: Self = TransportResult::Err(TransportError::NoDestination);
+    #[inline]
+    pub const fn no_destination() -> Self {
+        TransportResult::Err(TransportError::NoDestination)
+    }
 
+    #[inline]
     pub fn bad_request<T: Into<String>>(msg: T) -> Self {
         TransportResult::Err(TransportError::BadFormat(msg.into()))
     }
@@ -285,18 +289,3 @@ impl EmitMessage<String> {
 impl<B> Message for EmitMessage<B> {
     type Result = Result<MessageId, error::Error>;
 }
-
-// Schemat odbierania
-//
-// 1. Wiadomość przychodzi z Endpointu
-// 2. Wyszukiwany jest odbiorca, gdy brak NoDestinationFound
-// 3. Deserializujemy komunikat, gdy bład WireFormatError
-// 4. Przekazujemy do odbiorcy i na odpowiedzi serializujemy i pchamy do endponitu na pole
-//    destination = msg.reply_to
-//    correlation_id = msg.msg_id
-
-// Schemat nadawania
-// 1. Tworzymy nowy komunikat dostajemy msg_id
-// 2. rejestrujemy odbiorcę w reply_handler (ustawiamy timeout)
-// 3. serializujemy i nadajemy.
-//

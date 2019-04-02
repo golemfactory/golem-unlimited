@@ -1,6 +1,7 @@
 use super::deployment::DeploymentInfo;
 use super::Tags;
 use gu_net::NodeId;
+use serde_derive::*;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 

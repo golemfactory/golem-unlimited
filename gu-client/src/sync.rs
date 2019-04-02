@@ -65,7 +65,7 @@ where
         let tx = msg.0;
         let future = (msg.1)();
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             future
                 .then(move |r| {
                     tx.send(r);

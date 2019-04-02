@@ -2,6 +2,7 @@ use super::Map;
 use super::Tags;
 use chrono::prelude::*;
 use chrono::DateTime;
+use serde_derive::*;
 use serde_json::Value as JsonValue;
 
 #[derive(Serialize, Deserialize)]
@@ -32,6 +33,15 @@ pub struct HubSessionSpec {
     pub name: Option<String>,
     #[serde(default)]
     pub tags: Tags,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HubExistingSession {
+    pub id: u64,
+    pub created: DateTime<Utc>,
+    #[serde(flatten)]
+    pub spec: HubSessionSpec,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -83,6 +93,7 @@ pub struct BlobInfo {
 #[cfg(test)]
 mod test {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_metadata() {

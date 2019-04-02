@@ -310,7 +310,10 @@ fn delete_deployment(
 }
 
 fn create_deployment(
-    (path, body): (Path<SessionPeerPath>, Json<gu_model::envman::CreateSession>),
+    (path, body): (
+        Path<SessionPeerPath>,
+        Json<gu_model::envman::GenericCreateSession>,
+    ),
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
     let node_id = path.node_id;
     SessionsManager::from_registry()
@@ -376,7 +379,7 @@ fn upload_scope<S: 'static>(r: HttpRequest<S>) -> impl Responder {
             SessionOk::Blob(blob) => blob.write(r.payload()),
             _ => unreachable!(),
         })
-        .and_then(|result| Ok(Into::<HttpResponse>::into(result)));
+        .and_then(|_| Ok(HttpResponse::build(StatusCode::NO_CONTENT).finish()));
 
     session_future_responder(res_fut)
 }

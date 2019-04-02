@@ -25,6 +25,7 @@ extern crate actix_web;
 extern crate clap;
 extern crate dns_parser;
 extern crate futures;
+extern crate hostname;
 extern crate tokio;
 extern crate tokio_codec;
 
@@ -39,16 +40,17 @@ pub mod module;
 mod service;
 
 pub const ID_LAN: u32 = 576411;
+use gu_net::NodeId;
 use std::net::SocketAddr;
 
 /// Hub mDNS data
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HubDesc {
     /// ip & TCP port.
     pub address: SocketAddr,
     pub host_name: String,
     /// nodes public key hash
-    pub node_id: String,
+    pub node_id: NodeId,
 }
 
 /// Lists HUBs visible in local network.
@@ -71,7 +73,7 @@ pub struct HubDesc {
 ///               .and_then(|hubs|
 ///                    Ok(hubs.iter().for_each(|hub| {
 ///                        println!(
-///                            "name={}, addr={:?}, node_id={}",
+///                            "name={}, addr={:?}, node_id={:?}",
 ///                            hub.host_name, hub.address, hub.node_id
 ///                        )
 ///                    }))).then(|_r| future::ok(System::current().stop()))
@@ -87,7 +89,7 @@ pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
     use gu_actix::prelude::*;
     use std::collections::HashSet;
 
-    let query = ServicesDescription::new(vec!["gu-hub".into()]);
+    let query = ServicesDescription::new(vec!["hub".into()]);
 
     MdnsActor::<OneShot>::from_registry()
         .send(query)
@@ -97,7 +99,7 @@ pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
                 .filter_map(|service_instance| {
                     let node_id = match service_instance.extract("node_id") {
                         Some(Ok(node_id)) => node_id,
-                        _ => String::default(),
+                        _ => return None,
                     };
                     let host_name = service_instance.host;
                     match (
@@ -126,7 +128,7 @@ pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
 use mdns::{Responder, Service};
 
 pub struct MdnsPublisher {
-    name: &'static str,
+    is_hub: bool,
     port: Option<u16>,
     txt: Vec<String>,
     service: Option<Service>,
@@ -135,7 +137,7 @@ pub struct MdnsPublisher {
 impl Default for MdnsPublisher {
     fn default() -> Self {
         MdnsPublisher {
-            name: "",
+            is_hub: true,
             port: None,
             txt: Vec::new(),
             service: None,
@@ -151,7 +153,7 @@ impl MdnsPublisher {
 
     pub fn start(&mut self) {
         if self.service.is_none() {
-            self.service = Some(self.mdns_publisher())
+            self.service = self.mdns_publisher()
         }
     }
 
@@ -159,7 +161,7 @@ impl MdnsPublisher {
         self.service = None
     }
 
-    fn mdns_publisher(&self) -> Service {
+    fn mdns_publisher(&self) -> Option<Service> {
         use std::iter::FromIterator;
 
         if self.port.is_none() {
@@ -167,23 +169,38 @@ impl MdnsPublisher {
             panic!("mDNS publisher not initialized before use");
         }
 
-        let port = self.port.unwrap();
-        let responder = Responder::new().expect("Failed to run mDNS publisher");
+        let service = match self.is_hub {
+            true => "_hub",
+            false => "_provider",
+        };
 
-        responder.register(
-            "_unlimited._tcp".to_owned(),
-            self.name.to_string(),
+        let port = self.port.unwrap();
+        let responder = Responder::new()
+            .or_else(|e| {
+                error!("Failed to run mDNS publisher - {}", e);
+                Err(())
+            })
+            .ok()?;
+
+        let name = hostname::get_hostname().unwrap_or_else(|| {
+            error!("Couldn't retrieve local hostname");
+            "<blank hostname>".to_string()
+        });
+
+        Some(responder.register(
+            format!("_gu{}._tcp", service),
+            name,
             port,
             &Vec::from_iter(self.txt.iter().map(|s| s.as_str())).as_slice(),
-        )
+        ))
     }
 
-    pub fn init_provider<S>(port: u16, node_id: S) -> Self
+    pub fn init_publisher<S>(port: u16, node_id: S, is_hub: bool) -> Self
     where
         S: AsRef<str>,
     {
         let mut mdns = MdnsPublisher::default();
-        mdns.name = "gu-provider";
+        mdns.is_hub = is_hub;
         let node_id = format!("node_id={}", node_id.as_ref());
         mdns.init(port, vec![node_id]);
 

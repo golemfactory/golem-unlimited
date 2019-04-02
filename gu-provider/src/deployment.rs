@@ -1,8 +1,9 @@
-use actix::fut;
+use crate::id::generate_new_id;
+use crate::status;
+use futures::future::{self, Future, IntoFuture};
 use gu_model::envman::Error;
 use gu_net::rpc::peer::PeerSessionInfo;
-use id::generate_new_id;
-use status;
+use log::debug;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -11,8 +12,8 @@ pub trait IntoDeployInfo {
 }
 
 pub trait Destroy {
-    fn destroy(&mut self) -> Result<(), Error> {
-        Ok(())
+    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
+        Box::new(future::ok(()))
     }
 }
 
@@ -75,10 +76,11 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
         self.deploys.entry(deploy_id)
     }
 
-    pub fn destroy_deploy(&mut self, session_id: &String) -> Result<(), Error> {
+    pub fn destroy_deploy(&mut self, session_id: &String) -> impl Future<Item = (), Error = Error> {
         self.deploys
             .remove(session_id)
             .ok_or(Error::NoSuchSession(session_id.clone()))
+            .into_future()
             .and_then(|mut s| s.destroy())
     }
 
@@ -107,7 +109,6 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
 
 impl<T: IntoDeployInfo + Destroy> Drop for DeployManager<T> {
     fn drop(&mut self) {
-        let _: Vec<Result<(), Error>> = self.deploys.values_mut().map(Destroy::destroy).collect();
-        println!("HdMan stopped");
+        future::join_all(self.deploys.values_mut().map(Destroy::destroy)).wait();
     }
 }

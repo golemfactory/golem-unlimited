@@ -477,7 +477,7 @@ impl Handler<StopSupervisor> for ConnectionSupervisor {
 
     fn handle(&mut self, _msg: StopSupervisor, ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref client) = self.connection {
-            ActorResponse::async(
+            ActorResponse::r#async(
                 client
                     .send(StopClient)
                     .map_err(|e| error!("{}", e))

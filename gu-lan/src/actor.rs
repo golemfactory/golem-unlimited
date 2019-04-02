@@ -106,7 +106,7 @@ impl MdnsConnection for Continuous {
 
         for instance in packet.instances {
             self.map
-                .get(&instance.name)
+                .get(&instance.service())
                 .map(|list| list.do_send(ReceivedMdnsInstance::new(instance)));
         }
     }
@@ -178,8 +178,8 @@ impl MdnsActor<OneShot> {
     {
         let (tx, rx) = oneshot::channel();
 
-        ActorResponse::async(fut.into_actor(self).and_then(move |_r, act, ctx| {
-            ctx.run_later(Duration::from_secs(1), move |act, _ctx| {
+        ActorResponse::r#async(fut.into_actor(self).and_then(move |_r, act, ctx| {
+            ctx.run_later(Duration::from_millis(100), move |act, _ctx| {
                 let _ = tx
                     .send(act.retrieve_services(id))
                     .and_then(|_a| Ok(()))
@@ -329,7 +329,7 @@ impl Handler<SubscribeInstance> for MdnsActor<Continuous> {
             }
         };
 
-        ActorResponse::async(res.map_err(|_| ErrorKind::Mailbox.into()).into_actor(self))
+        ActorResponse::r#async(res.map_err(|_| ErrorKind::Mailbox.into()).into_actor(self))
     }
 }
 

@@ -1,6 +1,7 @@
 use actix::prelude::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::PublicMessage;
+use serde_derive::*;
 use std::{fmt, io};
 
 /// Errors
@@ -8,6 +9,7 @@ use std::{fmt, io};
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Error {
     Error(String),
+    IncorrectOptions(String),
     IoError(String),
     NoSuchSession(String),
     NoSuchChild(String),
@@ -30,6 +32,9 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::Error(msg) => write!(f, "error: {}", msg)?,
+            Error::IncorrectOptions(msg) => {
+                write!(f, "options does not have required type: {}", msg)?
+            }
             Error::IoError(msg) => write!(f, "IO error: {}", msg)?,
             Error::NoSuchSession(msg) => write!(f, "session not found: {}", msg)?,
             Error::NoSuchChild(msg) => write!(f, "child not found: {}", msg)?,
@@ -54,7 +59,7 @@ pub struct Image {
 }
 
 /// Message for session creation: local provisioning: downloads and unpacks the binaries
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSession<Options = ()> {
     pub env_type: String,
@@ -65,6 +70,8 @@ pub struct CreateSession<Options = ()> {
     #[serde(default)]
     pub options: Options,
 }
+
+pub type GenericCreateSession = CreateSession<::serde_json::Value>;
 
 impl<Options> PublicMessage for CreateSession<Options> {
     const ID: u32 = 37;
@@ -119,6 +126,7 @@ pub enum Command {
     Stop {
         child_id: String,
     },
+    Wait,
     AddTags(Vec<String>),
     DelTags(Vec<String>),
     #[serde(rename_all = "camelCase")]
@@ -134,6 +142,11 @@ pub enum Command {
         file_path: String,
         #[serde(default)]
         format: ResourceFormat,
+    },
+    #[serde(rename_all = "camelCase")]
+    WriteFile {
+        content: String,
+        file_path: String,
     },
 }
 

@@ -108,7 +108,7 @@ where
             let command = msg.command;
             let result = command(session).into_future();
 
-            ActorResponse::async(actix::fut::wrap_future(result))
+            ActorResponse::r#async(actix::fut::wrap_future(result))
         } else {
             ActorResponse::reply(Err(SessionErr::SessionNotFoundError))
         }
@@ -225,7 +225,7 @@ impl Handler<Create> for SessionsManager {
     type Result = ActorResponse<SessionsManager, u64, SessionErr>;
 
     fn handle(&mut self, msg: Create, _ctx: &mut Context<Self>) -> Self::Result {
-        ActorResponse::async(self.create_session(msg.inner).into_actor(self))
+        ActorResponse::r#async(self.create_session(msg.inner).into_actor(self))
     }
 }
 
@@ -243,7 +243,7 @@ impl Handler<Delete> for SessionsManager {
             Ok(_) => (),
             Err(e) => return ActorResponse::reply(Err(SessionErr::FileError(e.to_string()))),
         }
-        ActorResponse::async(session.drop_deployments().into_actor(self))
+        ActorResponse::r#async(session.drop_deployments().into_actor(self))
     }
 }
 
@@ -312,19 +312,19 @@ impl Handler<DeleteBlob> for SessionsManager {
 pub struct CreateDeployment {
     session_id: u64,
     node_id: NodeId,
-    deployment_desc: gu_model::envman::CreateSession,
+    deployment_desc: gu_model::envman::GenericCreateSession,
 }
 
 impl CreateDeployment {
     pub fn new(
         session_id: u64,
         node_id: NodeId,
-        deployment_desc: gu_model::envman::CreateSession,
+        deployment_desc: gu_model::envman::GenericCreateSession,
     ) -> CreateDeployment {
         CreateDeployment {
-            session_id: session_id,
-            node_id: node_id,
-            deployment_desc: deployment_desc,
+            session_id,
+            node_id,
+            deployment_desc,
         }
     }
 }
@@ -337,7 +337,7 @@ impl Handler<CreateDeployment> for SessionsManager {
         let node_id = msg.node_id.clone();
 
         if let Some(session) = self.sessions.get_mut(&msg.session_id) {
-            ActorResponse::async(
+            ActorResponse::r#async(
                 fut::wrap_future(session.create_deployment(msg.node_id, msg.deployment_desc))
                     .and_then(move |deployment_id, act: &mut SessionsManager, _ctx| {
                         act.sessions
@@ -364,9 +364,9 @@ pub struct DeleteDeployment {
 impl DeleteDeployment {
     pub fn new(session_id: u64, node_id: NodeId, deployment_id: String) -> DeleteDeployment {
         DeleteDeployment {
-            session_id: session_id,
-            node_id: node_id,
-            deployment_id: deployment_id,
+            session_id,
+            node_id,
+            deployment_id,
         }
     }
 }
@@ -380,7 +380,7 @@ impl Handler<DeleteDeployment> for SessionsManager {
         let deployment_id = msg.deployment_id.clone();
 
         if let Some(session) = self.sessions.get_mut(&msg.session_id) {
-            ActorResponse::async(
+            ActorResponse::r#async(
                 fut::wrap_future(session.delete_deployment(msg.node_id, msg.deployment_id))
                     .and_then(move |_, act: &mut SessionsManager, _ctx| {
                         if !(act
@@ -417,10 +417,10 @@ impl UpdateDeployment {
         commands: Vec<gu_model::envman::Command>,
     ) -> UpdateDeployment {
         UpdateDeployment {
-            session_id: session_id,
-            node_id: node_id,
-            deployment_id: deployment_id,
-            commands: commands,
+            session_id,
+            node_id,
+            deployment_id,
+            commands,
         }
     }
 }
@@ -430,7 +430,7 @@ impl Handler<UpdateDeployment> for SessionsManager {
 
     fn handle(&mut self, msg: UpdateDeployment, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(session) = self.sessions.get_mut(&msg.session_id) {
-            ActorResponse::async(fut::wrap_future(session.update_deployment(
+            ActorResponse::r#async(fut::wrap_future(session.update_deployment(
                 msg.node_id,
                 msg.deployment_id,
                 msg.commands,

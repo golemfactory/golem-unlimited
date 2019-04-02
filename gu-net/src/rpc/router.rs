@@ -85,7 +85,7 @@ impl Handler<RouteMessage<String>> for MessageRouter {
         debug!("handling dest: {:?}", msg.destination);
         if let Some(v) = self.destinations.get_mut(&msg.destination) {
             v.handle(msg, ctx);
-        } else if let Some(r) = EmitMessage::reply(&msg, TransportResult::NO_DESTINATION) {
+        } else if let Some(r) = EmitMessage::reply(&msg, TransportResult::no_destination()) {
             error!("no dest: {:?}", msg.destination);
             ctx.notify(r);
         } else {
@@ -112,7 +112,7 @@ impl Handler<EmitMessage<String>> for MessageRouter {
             return ActorResponse::reply(Err(error::ErrorKind::NotConnected.into()));
         };
 
-        ActorResponse::async(
+        ActorResponse::r#async(
             f.into_actor(self)
                 .map_err(move |e: error::Error, act, ctx| {
                     match e.kind() {

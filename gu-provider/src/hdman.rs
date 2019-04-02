@@ -1,39 +1,42 @@
+/** Host direct manager.
+
+
+
+*/
+use super::id::generate_new_id;
+use super::provision::{download_step, untgz, upload_step};
 use super::{
     envman, status,
     sync_exec::{Exec, ExecResult, SyncExecManager},
 };
+use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use actix::{fut, prelude::*};
-use actix_web::client;
-use actix_web::error::ErrorInternalServerError;
-use deployment::DeployManager;
-use deployment::Destroy;
-use deployment::IntoDeployInfo;
 use futures::future;
 use futures::prelude::*;
 use gu_actix::prelude::*;
-use gu_base::files::read_async;
 use gu_model::envman::*;
 use gu_net::rpc::{
     peer::{PeerSessionInfo, PeerSessionStatus},
     *,
 };
 use gu_persist::config::ConfigModule;
-use id::generate_new_id;
-use provision::download_step;
-use provision::upload_step;
-use provision::{download, untgz};
+use log::{debug, error, info};
+use serde_derive::*;
+
+use super::workspace::{Workspace, WorkspacesManager};
+use gu_hdman::image_manager;
 use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
+use std::fs::OpenOptions;
+use std::path::Path;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
-use workspace::Workspace;
-use workspace::WorkspacesManager;
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
         PeerSessionInfo {
             id: id.clone(),
-            name: self.workspace.name().clone(),
+            name: self.workspace.name().to_string().clone(),
             status: self.status.clone(),
             tags: self.workspace.tags(),
             note: self.note.clone(),
@@ -43,7 +46,7 @@ impl IntoDeployInfo for HdSessionInfo {
 }
 
 impl Destroy for HdSessionInfo {
-    fn destroy(&mut self) -> Result<(), Error> {
+    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
         debug!("killing all running child processes");
         let _ = self
             .processes
@@ -55,7 +58,7 @@ impl Destroy for HdSessionInfo {
             .values_mut()
             .map(|child| child.wait())
             .collect::<Vec<_>>();
-        self.workspace.clear_dir().map_err(From::from)
+        Box::new(self.workspace.clear_dir().map_err(From::from).into_future())
     }
 }
 
@@ -103,7 +106,7 @@ impl HdMan {
         })
     }
 
-    fn get_cache_path(&self, file_name: &String) -> PathBuf {
+    fn get_cache_path(&self, file_name: &Path) -> PathBuf {
         self.cache_dir.join(file_name)
     }
 
@@ -170,6 +173,7 @@ struct HdSessionInfo {
     /// used to determine proper status when last child is finished
     dirty: bool,
     note: Option<String>,
+    config_files: HashSet<PathBuf>,
     processes: HashMap<String, process::Child>,
 }
 
@@ -201,9 +205,22 @@ impl Handler<CreateSession> for HdMan {
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
         let session_id = self.deploys.generate_session_id();
-        let cache_path = self.get_cache_path(&msg.image.hash);
+        let c = match gu_model::hash::ParsedHash::from_hash_bytes(msg.image.hash.as_bytes()) {
+            Ok(v) => v,
+            Err(e) => {
+                return ActorResponse::reply(Err(Error::IncorrectOptions(
+                    "invalid hash format".into(),
+                )));
+            }
+        };
+        let image_file_name = match c.to_path() {
+            Ok(v) => v,
+            Err(e) => return ActorResponse::reply(Err(Error::IncorrectOptions(format!("{}", e)))),
+        };
 
-        let mut workspace = self.workspaces_man.workspace(msg.name);
+        let cache_path = self.get_cache_path(&image_file_name);
+
+        let mut workspace = self.workspaces_man.workspace();
         workspace.add_tags(msg.tags);
         match workspace.create_dirs() {
             Ok(_) => (),
@@ -217,32 +234,35 @@ impl Handler<CreateSession> for HdMan {
             dirty: false,
             note: msg.note,
             processes: HashMap::new(),
+            config_files: HashSet::new(),
         };
 
-        debug!("newly created session id={}", session_id);
         self.deploys.insert_deploy(session_id.clone(), session);
 
         debug!("hey! I'm downloading from: {:?}", msg.image);
         let sess_id = session_id.clone();
-        ActorResponse::async(
-            download(msg.image.url.as_ref(), cache_path.clone(), true)
-                .map_err(From::from)
-                .and_then(move |_| untgz(cache_path, workspace_path))
-                .map_err(From::from)
+        ActorResponse::r#async(
+            image_manager::image(msg.image)
+                .map_err(|e| Error::IoError(format!("image pull error: {}", e)))
+                .and_then(|cache_path| {
+                    untgz(cache_path, workspace_path).map_err(|e| Error::IoError(e))
+                })
                 .into_actor(self)
                 .and_then(|_, act, _ctx| match act.get_session_mut(&sess_id) {
-                    Ok(session) => {
+                    Ok(mut session) => {
                         session.status = PeerSessionStatus::CREATED;
                         fut::ok(sess_id)
                     }
                     Err(e) => fut::err(e),
                 })
-                .map_err(
-                    move |e, act, _ctx| match act.deploys.destroy_deploy(&session_id) {
+                .map_err(move |e, act, _ctx| {
+                    eprintln!("[fail] {}", e);
+                    // destroy on hdman is synchronous
+                    match act.deploys.destroy_deploy(&session_id).wait() {
                         Ok(_) => Error::IoError(format!("creating session error: {:?}", e)),
                         Err(e) => e,
-                    },
-                ),
+                    }
+                }),
         )
     }
 }
@@ -349,6 +369,7 @@ fn run_command(
                 }),
             )
         }
+        Command::Wait => Box::new(fut::ok("Wait mock".to_string())),
         Command::DownloadFile {
             uri,
             file_path,
@@ -356,6 +377,31 @@ fn run_command(
         } => {
             let path = session.workspace.path().join(file_path);
             Box::new(fut::wrap_future(handle_download_file(uri, path, format)))
+        }
+        Command::WriteFile { content, file_path } => {
+            let path = session.workspace.path().join(file_path);
+            let create_new = session.config_files.insert(path.clone());
+            let bytes = content.into_bytes();
+            Box::new(fut::wrap_future(gu_hdman::download::cpu_pool().spawn_fn(
+                move || {
+                    use std::io::prelude::*;
+
+                    if !create_new {
+                        let _ = fs::remove_file(&path);
+                    }
+
+                    let mut f = OpenOptions::new()
+                        .create_new(true)
+                        .write(true)
+                        .open(path)
+                        .map_err(|e| format!("io: {}", e))?;
+
+                    f.write_all(bytes.as_ref())
+                        .map_err(|e| format!("io: {}", e))?;
+
+                    Ok("OK".to_string())
+                },
+            )))
         }
         Command::UploadFile {
             uri,
@@ -420,39 +466,28 @@ impl Handler<SessionUpdate> for HdMan {
         }
         let session_id = msg.session_id.clone();
 
-        ActorResponse::async(run_commands(self, session_id, msg.commands))
+        ActorResponse::r#async(run_commands(self, session_id, msg.commands))
     }
 }
 
 fn handle_download_file(
-    uri: String,
+    url: String,
     file_path: PathBuf,
-    _format: ResourceFormat,
+    format: ResourceFormat,
 ) -> impl Future<Item = String, Error = String> {
-    download(uri.as_ref(), file_path, false)
-        .and_then(move |_| Ok(format!("{:?} file downloaded", uri)))
+    download_step(url.as_ref(), file_path, format)
+        .and_then(move |_| Ok(format!("{:?} file downloaded", url)))
         .map_err(|e| e.to_string())
 }
 
 fn handle_upload_file(
-    uri: String,
+    url: String,
     file_path: PathBuf,
-    _format: ResourceFormat,
+    format: ResourceFormat,
 ) -> impl Future<Item = String, Error = String> {
-    future::result(
-        client::put(uri.clone())
-            .streaming(read_async(file_path).map_err(|e| ErrorInternalServerError(e))),
-    )
-    .map_err(|e| e.to_string())
-    .and_then(|req| req.send().map_err(|e| e.to_string()))
-    .and_then(move |res| {
-        if res.status().is_success() {
-            Ok(format!("{:?} file uploaded", uri))
-        } else {
-            Err(format!("Unsuccessful file upload: {}", res.status()))
-        }
-    })
-    .map_err(|e| e.to_string())
+    upload_step(&url, file_path, format)
+        .map(move |x| format!("{:?} file uploaded", url))
+        .map_err(|e| format!("Unsuccessful file upload: {}", e))
 }
 
 // TODO: implement child process polling and status reporting
@@ -477,7 +512,7 @@ impl Handler<DestroySession> for HdMan {
         msg: DestroySession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
-        ActorResponse::async(match self.deploys.destroy_deploy(&msg.session_id) {
+        ActorResponse::r#async(match self.deploys.destroy_deploy(&msg.session_id).wait() {
             Ok(_) => fut::ok("Session closed".into()),
             Err(e) => fut::err(e),
         })

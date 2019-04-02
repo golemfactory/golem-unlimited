@@ -27,14 +27,19 @@ To install you can use the [released](../../releases) Ubuntu `deb` and MacOs `dm
 The detailed steps can be found in our demo https://youtu.be/J0LBdg2j6Tk
 
 ## from source
-To run the hub, go to the `gu-hub` subdir and perform
+To run the hub, please go to the `gu-hub` subdir and perform:
 ```
 $ cargo run -- -vv server run
 ```
 
-To run the provider and connect to your hub at 192.168.1.1 go to `gu-provider` subdir and run
+To configure the provider, please go to `gu-provider` subdir and run:
 ```
-$ cargo run -- -vv -a 192.168.1.1:61622 server run
+$ cargo run configure
+```
+
+Please select your hub and save the configuration. Now you can run the provider:
+```
+$ cargo run -- -vv server run
 ```
 
 # Usage
@@ -50,9 +55,9 @@ http://<hub-ip>:61622/app/index.html
 
 # Project layout
 
+*  [`ethkey`]: Ethereum keys management
 *  [`gu-actix`]: small util crate defining flatten trait for ActixWeb future
 *  [`gu-base`]: implementation of common parts of Provider and Hub servers
-*  [`gu-ethkey`]: Ethereum keys management
 *  [`gu-event-bus`]: event-bus implementation - publish-subscribe communication between components
 *  [`gu-hardware`]: discovery of hardware resources - GPU, disk space, RAM
 *  [`gu-hub`]: binary of Hub server
@@ -65,7 +70,7 @@ http://<hub-ip>:61622/app/index.html
 
 [`gu-actix`]: gu-actix
 [`gu-base`]: gu-base
-[`gu-ethkey`]: gu-ethkey
+[`ethkey`]: ethkey
 [`gu-event-bus`]: gu-event-bus
 [`gu-hardware`]: gu-hardware
 [`gu-hub`]: gu-hub
@@ -76,6 +81,7 @@ http://<hub-ip>:61622/app/index.html
 [`gu-webapp`]: gu-webapp
 [`gu-envman-api`]: gu-envman-api
 
-
 # How to Contribute to Unlimited
-[Here](CONTRIBUTING.md) you can find information in order to give us feedback  and contribute to the project.
+[Here](../../wiki/Contributing) you can find information in order to give us feedback  and contribute to the project.
+
+

@@ -1,7 +1,7 @@
 extern crate gu_client;
 extern crate gu_net;
 
-use gu_client::async::HubConnection;
+use gu_client::r#async::HubConnection;
 use gu_client::sync;
 
 fn main() {

@@ -1,3 +1,4 @@
+use clap::AppSettings;
 use std::path::{Path, PathBuf};
 use {
     daemon::{DaemonProcess, ProcessStatus},
@@ -57,7 +58,8 @@ impl DaemonHandler {
         let status = SubCommand::with_name("status").about("Checks whether server is running");
 
         SubCommand::with_name("server")
-            .about("Server management")
+            .setting(AppSettings::SubcommandRequiredElseHelp)
+            .about("Runs, gets status or stops a server on this machine")
             .subcommands(vec![run, start, stop, status])
     }
 

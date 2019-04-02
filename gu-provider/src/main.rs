@@ -1,43 +1,5 @@
-extern crate actix;
-#[macro_use]
-extern crate actix_derive;
-extern crate actix_web;
-extern crate bytes;
-extern crate clap;
-#[macro_use]
-extern crate error_chain;
-extern crate flate2;
 extern crate futures;
-#[macro_use]
-extern crate gu_actix;
-extern crate gu_base;
-extern crate gu_ethkey;
-extern crate gu_hardware;
-extern crate gu_lan;
-extern crate gu_net;
-extern crate gu_persist;
-#[macro_use]
-extern crate log;
-extern crate mdns;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-#[cfg(feature = "env-docker")]
-extern crate async_docker;
 
-extern crate gu_model;
-#[macro_use]
-extern crate serde_json;
-extern crate tar;
-extern crate uuid;
-#[macro_use]
-extern crate prettytable;
-
-extern crate crossbeam_channel;
-extern crate futures_cpupool;
-extern crate tar_async;
-
-use clap::App;
 use gu_base::*;
 
 mod connect;
@@ -104,7 +66,12 @@ const VERSION: &str = self::version::VERGEN_SEMVER_LIGHTWEIGHT;
 fn main() {
     let config_module = gu_persist::config::ConfigModule::new();
 
-    GuApp(|| App::new("Golem Unlimited Provider").version(VERSION)).run(
+    GuApp(|| {
+        App::new("Golem Unlimited Provider")
+            .setting(AppSettings::ArgRequiredElseHelp)
+            .version(VERSION)
+    })
+    .run(
         LogModule
             .chain(version::module())
             .chain(config_module)
