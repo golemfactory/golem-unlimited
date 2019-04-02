@@ -54,7 +54,7 @@ pub fn gpu_count() -> Result<GpuCount> {
 pub use self::clinfo::Error as ClError;
 
 #[cfg(feature = "clinfo")]
-pub fn gpu_count() -> error::Result<GpuCount> {
+pub fn gpu_count() -> Result<GpuCount> {
     use self::clinfo::*;
 
     Ok(Platforms::try_new()?
@@ -78,7 +78,7 @@ pub fn gpu_count() -> error::Result<GpuCount> {
 
 #[cfg(not(target_os = "linux"))]
 #[cfg(not(feature = "clinfo"))]
-pub fn gpu_count() -> error::Result<GpuCount> {
+pub fn gpu_count() -> Result<GpuCount> {
     bail!("gpu detection supported only on ubuntu or with clinfo feature")
 }
 

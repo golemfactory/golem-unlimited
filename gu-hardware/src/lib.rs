@@ -50,11 +50,26 @@ pub mod error {
         StorageNotSupported,
     }
 
+    macro_rules! from_def {
+        ($stype:ty => $opt:ident) => {
+            impl From<$stype> for Error {
+                fn from(e : $stype) -> Self {
+                    Error::$opt(e)
+                }
+            }
+        };
+    }
+
+    #[cfg(feature = "clinfo")]
+    from_def! { (super::gpuinfo::ClError) => OpenCL }
+
     impl From<MailboxError> for Error {
         fn from(e: MailboxError) -> Self {
             Error::Mailbox(e)
         }
     }
+
+
 }
 
 pub struct HardwareModule {
