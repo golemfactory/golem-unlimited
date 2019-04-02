@@ -2,21 +2,21 @@
 
 use super::plugins::{self, ListPlugins, PluginEvent, PluginManager, PluginStatus};
 use actix::{fut, prelude::*};
+use actix_web::Responder;
 use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Json};
 use futures::{future, prelude::*};
 use gu_base::{ArgMatches, Module};
 use gu_event_bus;
+use std::collections::BTreeSet;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
 };
-use std::collections::BTreeSet;
-use actix_web::Responder;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 struct ServiceConfig {
-    cmd: String
+    cmd: String,
 }
 
 pub fn module() -> impl Module {
@@ -30,8 +30,7 @@ pub fn module() -> impl Module {
 struct ProxyManager {
     // Plugin -> Set of Commands
     plugin_commands: Arc<RwLock<BTreeMap<String, BTreeSet<String>>>>,
-    command_proxy_path : Arc<RwLock<BTreeMap<String, ProxyPath>>>
-
+    command_proxy_path: Arc<RwLock<BTreeMap<String, ProxyPath>>>,
 }
 
 impl ProxyManager {
@@ -109,30 +108,26 @@ impl Handler<gu_event_bus::Event<PluginEvent>> for ProxyManager {
 struct LocalServiceModule {
     // <plugin> -> <path> -> <url>
     plugin_commands: Arc<RwLock<BTreeMap<String, BTreeSet<String>>>>,
-    command_proxy_path : Arc<RwLock<BTreeMap<String, ProxyPath>>>,
+    command_proxy_path: Arc<RwLock<BTreeMap<String, ProxyPath>>>,
     manager: Option<Addr<ProxyManager>>,
 }
 
 #[derive(Deserialize)]
 enum Command {
     #[serde(rename_all = "camelCase")]
-    RegisterCommand {
-        cmd_name: String,
-        url: String
-    }
+    RegisterCommand { cmd_name: String, url: String },
 }
 
-fn split_path(path : &str) -> Option<(&str, &str)> {
+fn split_path(path: &str) -> Option<(&str, &str)> {
     if let Some(spos) = path.find("/") {
         let (l, r) = path.split_at(spos);
         Some((l, &r[1..]))
-    }
-    else {
+    } else {
         None
     }
 }
 
-fn split_path2(path : &str) -> Option<(&str, &str, &str)> {
+fn split_path2(path: &str) -> Option<(&str, &str, &str)> {
     split_path(path).and_then(|(p1, t)| {
         let (p2, t) = split_path(t)?;
 
@@ -144,7 +139,13 @@ impl Module for LocalServiceModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
         let plugin_commands = self.plugin_commands.clone();
         let command_proxy_path = self.command_proxy_path.clone();
-        self.manager = Some(ProxyManager { plugin_commands, command_proxy_path }.start());
+        self.manager = Some(
+            ProxyManager {
+                plugin_commands,
+                command_proxy_path,
+            }
+            .start(),
+        );
         false
     }
 
@@ -154,70 +155,75 @@ impl Module for LocalServiceModule {
 
         let command_proxy_path_r = command_proxy_path.clone();
         let plugin_commands_r = plugin_commands.clone();
-        app.route("/service/local", actix_web::http::Method::PATCH, move |r : Json<Command>| {
-            match r.into_inner() {
-                Command::RegisterCommand { cmd_name, url} => {
-                    let r = command_proxy_path_r.write().unwrap().insert(cmd_name, ProxyPath::Remote { url });
+        app.route(
+            "/service/local",
+            actix_web::http::Method::PATCH,
+            move |r: Json<Command>| match r.into_inner() {
+                Command::RegisterCommand { cmd_name, url } => {
+                    let r = command_proxy_path_r
+                        .write()
+                        .unwrap()
+                        .insert(cmd_name, ProxyPath::Remote { url });
                     Json(r.is_none())
                 }
-            }
-        })
-        .route("/service/local", actix_web::http::Method::GET, move |r : HttpRequest<_>| {
-            Json(plugin_commands_r.read().unwrap().clone())
-        })
-            .handler("/service/local/", move |r : &HttpRequest<_>| {
-
+            },
+        )
+        .route(
+            "/service/local",
+            actix_web::http::Method::GET,
+            move |r: HttpRequest<_>| Json(plugin_commands_r.read().unwrap().clone()),
+        )
+        .handler("/service/local/", move |r: &HttpRequest<_>| {
             let tail = (&r.path()[15..]).to_string();
             if let Some((plugin_name, command, request_url)) = split_path2(&tail) {
                 match plugin_commands.read().unwrap().get(plugin_name) {
-                    Some(commands) => if ! commands.contains(command) {
-                        return actix_web::Either::A(HttpResponse::NotFound().body(format!("command {} not found in plugin {}", command, plugin_name)))
-                    },
-                    None => return actix_web::Either::A(HttpResponse::NotFound().body(format!("plugin not found: {}", plugin_name)))
+                    Some(commands) => {
+                        if !commands.contains(command) {
+                            return actix_web::Either::A(HttpResponse::NotFound().body(format!(
+                                "command {} not found in plugin {}",
+                                command, plugin_name
+                            )));
+                        }
+                    }
+                    None => {
+                        return actix_web::Either::A(
+                            HttpResponse::NotFound()
+                                .body(format!("plugin not found: {}", plugin_name)),
+                        );
+                    }
                 };
                 if let Some(proxy_path) = command_proxy_path.read().unwrap().get(command) {
-                    return actix_web::Either::B(proxy_path.create_request(request_url, r))
-                }
-                else {
-                    return actix_web::Either::A(HttpResponse::NotFound().body(format!("command: {}", command)))
+                    return actix_web::Either::B(proxy_path.create_request(request_url, r));
+                } else {
+                    return actix_web::Either::A(
+                        HttpResponse::NotFound().body(format!("command: {}", command)),
+                    );
                 }
             }
-                actix_web::Either::A(HttpResponse::NotFound().body("err"))
+            actix_web::Either::A(HttpResponse::NotFound().body("err"))
         })
     }
 }
 
 struct ProxyHandler(Arc<RwLock<BTreeMap<String, BTreeMap<String, String>>>>);
 
-
-
-
 #[derive(Debug)]
-struct ServiceRunner {
-
-}
-
+struct ServiceRunner {}
 
 impl ServiceRunner {
-    fn new(config : ServiceConfig) -> Self {
+    fn new(config: ServiceConfig) -> Self {
         ServiceRunner {}
     }
 }
 
 enum ProxyPath {
-    Remote {
-        url : String
-    },
-    Local {
-        cmd: String
-    }
+    Remote { url: String },
+    Local { cmd: String },
 }
 
-
 impl ProxyPath {
-
-    fn create_request<S>(&self, path : &str, req : &HttpRequest<S>) -> impl Responder {
-        use actix_web::{http, client, Body};
+    fn create_request<S>(&self, path: &str, req: &HttpRequest<S>) -> impl Responder {
+        use actix_web::{client, http, Body};
 
         let mut b = client::ClientRequest::build();
 
@@ -246,5 +252,4 @@ impl ProxyPath {
             })
             .responder()
     }
-
 }

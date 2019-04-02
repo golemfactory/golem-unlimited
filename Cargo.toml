@@ -16,6 +16,7 @@ members= [
     'gu-model',
     'gu-client',
     'gu-hdman',
+    'gu-plugin-api'
 ]
 
 [profile.release]

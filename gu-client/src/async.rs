@@ -171,7 +171,6 @@ pub struct HubSession {
 }
 
 impl HubSession {
-
     pub fn id(&self) -> u64 {
         self.session_id
     }

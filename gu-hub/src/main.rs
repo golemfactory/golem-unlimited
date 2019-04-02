@@ -79,10 +79,10 @@ mod version {
 
 const VERSION: &str = self::version::VERGEN_SEMVER_LIGHTWEIGHT;
 
+mod local_service;
 mod peer;
 mod plugins;
 mod proxy_service;
-mod local_service;
 mod server;
 mod sessions;
 
