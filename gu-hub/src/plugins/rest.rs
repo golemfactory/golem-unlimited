@@ -1,13 +1,16 @@
 use actix::{Arbiter, System, SystemService};
 use actix_web::{
+    client,
     error::{ErrorBadRequest, ErrorInternalServerError},
     http, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Responder, Scope,
 };
 use bytes::{buf::IntoBuf, Bytes};
 use futures::{
     future::{self, Future},
+    prelude::*,
     stream::Stream,
 };
+use gu_hdman::download::DownloadOptionsBuilder;
 use plugins::{
     manager::{
         ChangePluginState, InstallDevPlugin, InstallPlugin, ListPlugins, PluginFile, PluginManager,
@@ -53,18 +56,126 @@ pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
     ServerClient::post("/plug", buf)
         .and_then(|r: RestResponse<InstallQueryResult>| Ok(debug!("{}", r.message.message())))
         .map_err(|e| {
-            error!("Error on server connection");
+            error!("Error on server connection {:?}", e);
             debug!("Error details: {:?}", e)
         })
         .then(|_r| Ok(System::current().stop()))
 }
 
+fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
+    let repo_name = path.to_str().unwrap().to_string();
+    let repo_name_copy = repo_name.clone();
+    println!("Trying to install from GitHub repository: {}.", repo_name);
+    client::ClientRequest::get(format!(
+        "https://api.github.com/repos/{}/releases",
+        repo_name
+    ))
+    .header("Accept", "application/vnd.github.v3+json")
+    .header("Accept-Encoding", "identity")
+    .finish()
+    .into_future()
+    .map_err(|_| ())
+    .and_then(|request| {
+        request.send().map_err(|e| {
+            error!("Request error {}", e);
+        })
+    })
+    .and_then(move |response| {
+        if !response.status().is_success() {
+            error!("Repository {:?} does not exist.", repo_name_copy);
+            future::Either::A(future::err(()))
+        } else {
+            future::Either::B(response.body().map_err(|e| {
+                error!("Payload error {}", e);
+            }))
+        }
+    })
+    .and_then(|data| {
+        use serde_json::{
+            from_str,
+            Value::{self, *},
+        };
+        let data_str = std::str::from_utf8(&data).expect("Expected utf8 answer.");
+        let json: Value = from_str(data_str).expect("Invalid json.");
+        let assets_json = &json[0]["assets"];
+        match assets_json {
+            Array(assets) => {
+                return future::ok(
+                    assets
+                        .into_iter()
+                        .filter_map(|asset| match &asset["name"] {
+                            String(str) => {
+                                if str.ends_with(".guplug") {
+                                    Some((
+                                        str.clone(),
+                                        asset["browser_download_url"].as_str().unwrap().to_string(),
+                                    ))
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        })
+                        .collect(),
+                );
+            }
+            _ => {
+                error!("The latest release does not exist or contains no assets.");
+                return future::err(());
+            }
+        }
+    })
+    .and_then(move |plugin_urls: Vec<(String, String)>| {
+        if plugin_urls.len() < 1 {
+            error!("No plugins in the latest release of {}.", repo_name);
+            return future::Either::A(future::err(()));
+        } else {
+            let joined_fut =
+                futures::future::join_all(plugin_urls.into_iter().map(|(file_name, url)| {
+                    println!("Downloading {}...", url);
+                    DownloadOptionsBuilder::default()
+                        .download(&url, file_name.clone())
+                        .for_each(|_| futures::future::ok(()))
+                        .map_err(|e| error!("Download error: {}.", e))
+                        .and_then(move |_| {
+                            println!("Downloaded {}. Installing...", file_name);
+                            let path_buf = PathBuf::from(file_name);
+                            future::result(read_file(&path_buf)).and_then(|buf| {
+                                ServerClient::post("/plug", buf)
+                                    .and_then(|r: RestResponse<InstallQueryResult>| {
+                                        future::ok(debug!("{}", r.message.message()))
+                                    })
+                                    .map_err(|_| ())
+                            })
+                        })
+                        .and_then(move |_| {
+                            println!("Installed.");
+                            /* TODO remove file */
+                            future::ok(())
+                        })
+                }));
+            future::Either::B(joined_fut.map(|_| ()))
+        }
+    })
+}
+
 pub fn install_query(path: PathBuf) {
     System::run(move || {
         Arbiter::spawn(
-            future::result(read_file(&path))
-                .and_then(|buf| install_query_inner(buf))
-                .then(|_r| Ok(System::current().stop())),
+            (if path
+                .extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default()
+                == "guplug"
+            {
+                future::Either::A(
+                    future::result(read_file(&path)).and_then(|buf| install_query_inner(buf)),
+                )
+            } else {
+                future::Either::B(install_from_github(&path))
+            })
+            .then(|_r: Result<(), ()>| Ok(System::current().stop())),
         )
     });
 }

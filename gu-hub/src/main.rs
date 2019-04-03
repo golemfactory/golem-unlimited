@@ -3,6 +3,7 @@ extern crate gu_actix;
 extern crate gu_base;
 extern crate gu_event_bus;
 extern crate gu_hardware;
+extern crate gu_hdman;
 extern crate gu_lan;
 extern crate gu_model;
 extern crate gu_net;

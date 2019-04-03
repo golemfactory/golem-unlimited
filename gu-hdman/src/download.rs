@@ -262,7 +262,6 @@ fn download(
                 };
                 let df = download_file.clone();
 
-                eprintln!("do");
                 stream::iter_ok(chunks.into_iter().map(move |(from, to, n)| {
                     download_chunk(
                         meta.clone(),
