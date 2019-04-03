@@ -1,10 +1,8 @@
-use actix_web::{client, http::Method, HttpMessage };
+use actix_web::dev::JsonBody;
+use actix_web::{client, http::Method};
 use futures::future::*;
 use http::Uri;
-use log::error;
-use serde::Deserialize;
 use serde_derive::*;
-use actix_web::dev::JsonBody;
 use std::env;
 
 #[derive(Serialize)]
@@ -20,16 +18,17 @@ fn get_service_url() -> Result<Uri, http::Error> {
             .authority(addr.parse::<http::uri::Authority>()?)
             .path_and_query("/service/local")
             .build(),
-        Err(addr) => Ok(Uri::from_static("http://127.0.0.1:61622/service/local")),
+        Err(_addr) => Ok(Uri::from_static("http://127.0.0.1:61622/service/local")),
     }
 }
 
+/// Registers command service in hub registry.
 pub fn register_server(url: &str, cmd_name: &str) -> impl Future<Item = (), Error = ()> {
     let command = Command::RegisterCommand {
         cmd_name: cmd_name.into(),
         url: url.into(),
     };
-    let mut client = client::Client::default();
+    let client = client::Client::default();
 
     get_service_url()
         .into_future()
@@ -37,13 +36,12 @@ pub fn register_server(url: &str, cmd_name: &str) -> impl Future<Item = (), Erro
         .and_then(move |uri| {
             client
                 .request(Method::PATCH, uri)
-                .send_json(command)
+                .send_json(&command)
                 .into_future()
                 .map_err(|e| eprintln!("hub connection error: {}", e))
         })
         .and_then(|mut r| {
-            JsonBody::new(&mut r)
-                .map_err(|e| eprintln!("hub connection error: {}", e))
+            JsonBody::new(&mut r).map_err(|e| eprintln!("hub connection error: {}", e))
         })
         .and_then(|v: serde_json::Value| Ok(log::info!("registed service [{}]", v.to_string())))
 }
