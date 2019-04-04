@@ -16,6 +16,19 @@ security:
   - serviceToken: []
   - systemName: []
 paths:
+  /info:
+    get:
+      tags:
+        - session
+        - peer
+      operationId: getHubInfo
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/HubInfo'
   /peers:
     get:
       tags:
@@ -454,6 +467,43 @@ paths:
 
 
 definitions:
+
+  BuildInfo:
+    type: object
+    properties:
+      ts:
+        type: string
+        format: 'date-time'
+      target:
+        type: string
+        description: target platform triple
+        example: 'x86_64-unknown-linux-gnu'
+      commitHash:
+        type: string
+        description: git commit id
+
+  HubInfo:
+    description: General information about given HUB.
+    type: object
+    properties:
+      nodeId:
+        type: string
+        description: node public key hash in etherium format
+        example: '0x875f272d3b9e7b55a5784a131a60bf3d7a42c73c'
+        readOnly: true
+      version:
+        type: string
+        description: semver of hub.
+        example: '0.2.1'
+      build:
+        $ref: '#/definitions/BuildInfo'
+      caps:
+        description: hub protocool capabilities
+        type: array
+        items:
+          type: string
+
+
   PeerInfo:
     description: General information about GU subnetwork node
     required:

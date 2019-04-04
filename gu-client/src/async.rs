@@ -4,11 +4,7 @@ use bytes::Bytes;
 use futures::{future, prelude::*};
 use gu_actix::release::{AsyncRelease, Handle};
 use gu_model::peers::PeerInfo;
-use gu_model::{
-    deployment::DeploymentInfo,
-    envman,
-    session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata},
-};
+use gu_model::{deployment::DeploymentInfo, envman, session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata}, HubInfo};
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::types::NodeId;
 use gu_net::types::TryIntoNodeId;
@@ -160,6 +156,11 @@ impl HubConnection {
                 }
                 status => future::Either::A(future::err(Error::ResponseErr(status))),
             })
+    }
+
+    pub fn info(&self) -> impl Future<Item=HubInfo, Error = Error> + 'static {
+        let url = format!("{}info", self.url());
+        self.fetch_json(&url)
     }
 }
 

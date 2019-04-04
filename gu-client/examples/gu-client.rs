@@ -30,9 +30,15 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::{fs, io, thread};
 use structopt::*;
+use gu_model::HubInfo;
 
 #[derive(StructOpt, Debug)]
 enum ClientArgs {
+
+    /// Infomation about hub
+    #[structopt(name = "info")]
+    Info,
+
     /// Lists providers connected to hub.
     #[structopt(name = "prov-list")]
     ListProviders,
@@ -326,6 +332,20 @@ fn parse_frame_range(r: &str) -> Result<Vec<FrameRange>, failure::Error> {
         }
     }
     Err(Error::Other(format!("missing range desc")))?
+}
+
+fn show_info(info: HubInfo) {
+    use prettytable::{cell, format, row, Table};
+
+    let mut table = Table::new();
+    //table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+
+    table.add_row(row!["Id", "Value"]);
+    table.add_row(row!["NodeId", info.node_id]);
+    table.add_row(row!["Version", info.version]);
+    table.add_row(row!["Build.Ts", info.build.ts]);
+
+    table.printstd();
 }
 
 fn show_peers<Peers: IntoIterator<Item = PeerInfo>>(peers: Peers) {
@@ -986,6 +1006,11 @@ fn main() -> Fallible<()> {
         let driver = HubConnection::default();
 
         match args {
+
+            ClientArgs::Info => {
+                Box::new(driver.info().and_then(|p| Ok(show_info(p)))) as Box<dyn Future<Item=(), Error=Error>>
+            }
+
             ClientArgs::ListProviders => {
                 Box::new(driver.list_peers().and_then(|p| Ok(show_peers(p))))
             }
