@@ -130,31 +130,44 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
             error!("No plugins in the latest release of {}.", repo_name);
             return future::Either::A(future::err(()));
         } else {
-            let joined_fut =
-                futures::future::join_all(plugin_urls.into_iter().map(|(file_name, url)| {
-                    println!("Downloading {}...", url);
-                    DownloadOptionsBuilder::default()
-                        .download(&url, file_name.clone())
-                        .for_each(|_| futures::future::ok(()))
-                        .map_err(|e| error!("Download error: {}.", e))
-                        .and_then(move |_| {
-                            println!("Downloaded {}. Installing...", file_name);
-                            let path_buf = PathBuf::from(file_name);
-                            future::result(read_file(&path_buf)).and_then(|buf| {
-                                ServerClient::post("/plug", buf)
-                                    .and_then(|r: RestResponse<InstallQueryResult>| {
-                                        future::ok(debug!("{}", r.message.message()))
-                                    })
-                                    .map_err(|_| ())
-                            })
+            let download_and_save = |(file_name, url): (String, String)| {
+                println!("Downloading {}...", url);
+                let file_name_copy = file_name.clone();
+                DownloadOptionsBuilder::default()
+                    .download(&url, file_name.clone())
+                    .for_each(|_| future::ok(()))
+                    .map_err(|e| error!("Download error: {}.", e))
+                    .and_then(move |_| {
+                        println!("Downloaded {}. Installing...", file_name);
+                        let path_buf = PathBuf::from(file_name);
+                        future::result(read_file(&path_buf)).and_then(|buf| {
+                            ServerClient::post("/plug", buf)
+                                .and_then(|r: RestResponse<InstallQueryResult>| {
+                                    future::ok(debug!("{}", r.message.message()))
+                                })
+                                .map_err(|e| error!("Error: {}", e))
                         })
-                        .and_then(move |_| {
-                            println!("Installed.");
-                            /* TODO remove file */
-                            future::ok(())
-                        })
-                }));
+                    })
+                    .and_then(move |_| {
+                        println!("Installed {}.", file_name_copy);
+                        /* TODO remove file */
+                        future::ok(())
+                    })
+            };
+            /*
+            // parallel
+            let joined_fut = future::join_all(
+                plugin_urls
+                    .into_iter()
+                    .map(move |(file_name, url)| download_and_save((file_name, url))),
             future::Either::B(joined_fut.map(|_| ()))
+            );*/
+            // sequential
+            let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
+            let fut_vec = plugin_urls.into_iter().fold(init, |prev, cur| {
+                Box::new(prev.and_then(move |_| download_and_save(cur)))
+            });
+            future::Either::B(fut_vec.map(|_| ()))
         }
     })
 }
