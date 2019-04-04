@@ -36,15 +36,23 @@ struct HubConnectionInner {
 
 impl Default for HubConnection {
     fn default() -> Self {
-        match env::var("GU_HUB_ADDR") {
+        let env_var_name = "GU_HUB_ADDR";
+        match env::var(env_var_name) {
             Ok(addr) => HubConnection::from_addr(addr).unwrap(),
-            Err(_) => HubConnection::from_addr("127.0.0.1:61622").unwrap(),
+            Err(_) => {
+                println!("Using default hub address - {}", addr_str);
+                println!(
+                    "If you want to use other hub address, set {} environment variable",
+                    env_var_name
+                );
+                HubConnection::from_addr("127.0.0.1:61622").unwrap()
+            }
         }
     }
 }
 
 impl HubConnection {
-    /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61621
+    /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61622
     pub fn from_addr<T: Into<String>>(addr: T) -> Result<HubConnection, Error> {
         Url::parse(&format!("http://{}/", addr.into()))
             .map_err(Error::InvalidAddress)
@@ -247,7 +255,7 @@ impl HubSession {
     /// gets single peer by its id
     pub fn peer(&self, node_id: NodeId) -> Peer {
         Peer {
-            node_id: node_id,
+            node_id,
             hub_session: self.clone(),
         }
     }
