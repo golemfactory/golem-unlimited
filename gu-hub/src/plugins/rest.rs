@@ -131,27 +131,29 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
             return future::Either::A(future::err(()));
         } else {
             let download_and_save = |(file_name, url): (String, String)| {
+                let tmp_file_name = format!("{}.tmp", file_name);
+                let tmp_file_name_copy = tmp_file_name.clone();
+                let path_buf = PathBuf::from(tmp_file_name.clone());
                 println!("Downloading {}...", url);
                 let file_name_copy = file_name.clone();
                 DownloadOptionsBuilder::default()
-                    .download(&url, file_name.clone())
+                    .download(&url, tmp_file_name)
                     .for_each(|_| future::ok(()))
                     .map_err(|e| error!("Download error: {}.", e))
                     .and_then(move |_| {
                         println!("Downloaded {}. Installing...", file_name);
-                        let path_buf = PathBuf::from(file_name);
                         future::result(read_file(&path_buf)).and_then(|buf| {
                             ServerClient::post("/plug", buf)
                                 .and_then(|r: RestResponse<InstallQueryResult>| {
                                     future::ok(debug!("{}", r.message.message()))
                                 })
-                                .map_err(|e| error!("Error: {}", e))
+                                .map_err(|e| error!("Invalid hub response. Err: {}", e))
                         })
                     })
                     .and_then(move |_| {
-                        println!("Installed {}.", file_name_copy);
-                        /* TODO remove file */
-                        future::ok(())
+                        println!("Installed {}.", &file_name_copy);
+                        future::result(std::fs::remove_file(tmp_file_name_copy))
+                            .map_err(|e| error!("Error removing tmp file: {}", e))
                     })
             };
             /*
