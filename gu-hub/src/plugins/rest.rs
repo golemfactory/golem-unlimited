@@ -373,7 +373,7 @@ fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
             );*/
         })
         .map_err(|e| ErrorBadRequest(format!("Plugin installation error: {:?}", e)))
-        .and_then(|_result| Ok(HttpResponse::build(StatusCode::OK).finish()))
+        .and_then(|result| Ok(InstallQueryResult::Installed.to_http_response()))
         .responder()
 }
 
