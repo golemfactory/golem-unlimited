@@ -1,4 +1,5 @@
 use actix::{Arbiter, System, SystemService};
+use actix_web::http::StatusCode;
 use actix_web::{
     client,
     error::{ErrorBadRequest, ErrorInternalServerError},
@@ -130,46 +131,14 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
             error!("No plugins in the latest release of {}.", repo_name);
             return future::Either::A(future::err(()));
         } else {
-            let download_and_save = |(file_name, url): (String, String)| {
-                let tmp_file_name = format!("{}.tmp", file_name);
-                let tmp_file_name_copy = tmp_file_name.clone();
-                let path_buf = PathBuf::from(tmp_file_name.clone());
-                println!("Downloading {}...", url);
-                let file_name_copy = file_name.clone();
-                DownloadOptionsBuilder::default()
-                    .download(&url, tmp_file_name)
-                    .for_each(|_| future::ok(()))
-                    .map_err(|e| error!("Download error: {}.", e))
-                    .and_then(move |_| {
-                        println!("Downloaded {}. Installing...", file_name);
-                        future::result(read_file(&path_buf)).and_then(|buf| {
-                            ServerClient::post("/plug", buf)
-                                .and_then(|r: RestResponse<InstallQueryResult>| {
-                                    future::ok(debug!("{}", r.message.message()))
-                                })
-                                .map_err(|e| error!("Invalid hub response. Err: {}", e))
-                        })
+            future::Either::B(
+                ServerClient::post_json("/plug/install-github", plugin_urls)
+                    .and_then(|r: RestResponse<InstallQueryResult>| {
+                        future::ok(debug!("{}", r.message.message()))
                     })
-                    .and_then(move |_| {
-                        println!("Installed {}.", &file_name_copy);
-                        future::result(std::fs::remove_file(tmp_file_name_copy))
-                            .map_err(|e| error!("Error removing tmp file: {}", e))
-                    })
-            };
-            /*
-            // parallel
-            let joined_fut = future::join_all(
-                plugin_urls
-                    .into_iter()
-                    .map(move |(file_name, url)| download_and_save((file_name, url))),
-            future::Either::B(joined_fut.map(|_| ()))
-            );*/
-            // sequential
-            let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
-            let fut_vec = plugin_urls.into_iter().fold(init, |prev, cur| {
-                Box::new(prev.and_then(move |_| download_and_save(cur)))
-            });
-            future::Either::B(fut_vec.map(|_| ()))
+                    .map_err(|e| error!("Invalid hub response. Err: {}", e))
+                    .and_then(|_| future::ok(println!("Success."))),
+            )
         }
     })
 }
@@ -241,6 +210,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .route("", http::Method::GET, list_scope)
         .route("", http::Method::POST, install_scope)
+        .route("/install-github", http::Method::POST, install_github_scope)
         .route("/dev/{pluginPath:.*}", http::Method::POST, dev_scope)
         .route("/{pluginName}", http::Method::DELETE, |r| {
             state_scope(QueriedStatus::Uninstall, r)
@@ -350,6 +320,88 @@ fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
                 .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
         })
         .and_then(|result| Ok(result.to_http_response()))
+        .responder()
+}
+
+fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
+    let manager = PluginManager::from_registry();
+
+    r.payload()
+        .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
+        .concat2()
+        .and_then(|a| {
+            let plugins: Vec<(String, String)> = serde_json::from_slice(&a).unwrap_or_default();
+            Ok(plugins)
+        })
+        .map_err(|e| error!("{}", e))
+        .and_then(move |plugins| {
+
+            /* TODO */
+
+            /*manager
+                .send(InstallPlugin { bytes: a })
+                .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
+            */
+
+            /*
+            let download_and_save = |(file_name, url): (String, String)| {
+            };
+
+            let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
+            let fut_vec = plugins.into_iter().fold(init, |prev, cur| {
+                Box::new(prev.and_then(move |_| download_and_save(cur)))
+            });
+            fut_vec.map(|_| ())
+            */
+
+            let download_and_save = |(file_name, url): (String, String)| {
+                let tmp_file_name = format!("{}.tmp", file_name);
+                let tmp_file_name_copy = tmp_file_name.clone();
+                let path_buf = PathBuf::from(tmp_file_name.clone());
+                debug!("Downloading {}...", url);
+                let file_name_copy = file_name.clone();
+                DownloadOptionsBuilder::default()
+                    .download(&url, tmp_file_name)
+                    .for_each(|_| future::ok(()))
+                    .map_err(|e| error!("Download error: {}.", e))
+                    .and_then(move |_| {
+                        debug!("Downloaded {}. Installing...", file_name);
+                        future::result(read_file(&path_buf)).and_then(|buf| {
+                            manager
+                                .send(InstallPlugin { bytes: buf.into_buf() })
+                                .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
+                            /*ServerClient::post("/plug", buf)
+                                .and_then(|r: RestResponse<InstallQueryResult>| {
+                                    future::ok(debug!("{}", r.message.message()))
+                                })
+                                .map_err(|e| error!("Invalid hub response. Err: {}", e))
+                            */
+                        })
+                    })
+                    .and_then(move |_| {
+                        debug!("Installed {}.", &file_name_copy);
+                        future::result(std::fs::remove_file(tmp_file_name_copy))
+                            .map_err(|e| error!("Error removing tmp file: {}", e))
+                    })
+            };
+            /*
+            // parallel
+            let joined_fut = future::join_all(
+                plugin_urls
+                    .into_iter()
+                    .map(move |(file_name, url)| download_and_save((file_name, url))),
+            future::Either::B(joined_fut.map(|_| ()))
+            );*/
+            // sequential
+            /*
+            let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
+            let fut_vec = plugin_urls.into_iter().fold(init, |prev, cur| {
+                Box::new(prev.and_then(move |_| download_and_save(cur)))
+            });
+            future::Either::B(fut_vec.map(|_| ()))
+            */
+        })
+        .and_then(|_result| Ok(HttpResponse::build(StatusCode::OK).finish()))
         .responder()
 }
 
