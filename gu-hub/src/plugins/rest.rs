@@ -66,7 +66,7 @@ pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
 fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
     let repo_name = path.to_str().unwrap().to_string();
     let repo_name_copy = repo_name.clone();
-    println!("Trying to install from GitHub repository: {}.", repo_name);
+    println!("Trying to install plugins from GitHub repository: {}.", repo_name);
     client::ClientRequest::get(format!(
         "https://api.github.com/repos/{}/releases",
         repo_name
@@ -131,6 +131,9 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
             error!("No plugins in the latest release of {}.", repo_name);
             return future::Either::A(future::err(()));
         } else {
+            for (name, _) in &plugin_urls {
+                println!("Installing {}.", name);
+            }
             future::Either::B(
                 ServerClient::post_json("/plug/install-github", plugin_urls)
                     .and_then(|r: RestResponse<InstallQueryResult>| {
