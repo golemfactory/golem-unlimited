@@ -66,7 +66,10 @@ pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
 fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
     let repo_name = path.to_str().unwrap().to_string();
     let repo_name_copy = repo_name.clone();
-    println!("Trying to install plugins from GitHub repository: {}.", repo_name);
+    println!(
+        "Trying to install plugins from GitHub repository: {}.",
+        repo_name
+    );
     client::ClientRequest::get(format!(
         "https://api.github.com/repos/{}/releases",
         repo_name
@@ -350,7 +353,9 @@ fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
                         debug!("Downloaded {}. Installing...", file_name);
                         future::result(read_file(&path_buf)).and_then(move |buf| {
                             PluginManager::from_registry()
-                                .send(InstallPlugin { bytes: Bytes::from(buf).into_buf() })
+                                .send(InstallPlugin {
+                                    bytes: Bytes::from(buf).into_buf(),
+                                })
                                 .map_err(|e| error!("{:?}", e))
                         })
                     })
