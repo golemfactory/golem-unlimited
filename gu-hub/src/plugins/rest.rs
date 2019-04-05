@@ -324,8 +324,6 @@ fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
 }
 
 fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
-    let manager = PluginManager::from_registry();
-
     r.payload()
         .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
         .concat2()
@@ -335,26 +333,7 @@ fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
         })
         .map_err(|e| error!("{}", e))
         .and_then(move |plugins| {
-
-            /* TODO */
-
-            /*manager
-                .send(InstallPlugin { bytes: a })
-                .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
-            */
-
-            /*
-            let download_and_save = |(file_name, url): (String, String)| {
-            };
-
-            let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
-            let fut_vec = plugins.into_iter().fold(init, |prev, cur| {
-                Box::new(prev.and_then(move |_| download_and_save(cur)))
-            });
-            fut_vec.map(|_| ())
-            */
-
-            let download_and_save = |(file_name, url): (String, String)| {
+            let download_and_save = move |(file_name, url): (String, String)| {
                 let tmp_file_name = format!("{}.tmp", file_name);
                 let tmp_file_name_copy = tmp_file_name.clone();
                 let path_buf = PathBuf::from(tmp_file_name.clone());
@@ -366,16 +345,10 @@ fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
                     .map_err(|e| error!("Download error: {}.", e))
                     .and_then(move |_| {
                         debug!("Downloaded {}. Installing...", file_name);
-                        future::result(read_file(&path_buf)).and_then(|buf| {
-                            manager
-                                .send(InstallPlugin { bytes: buf.into_buf() })
-                                .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
-                            /*ServerClient::post("/plug", buf)
-                                .and_then(|r: RestResponse<InstallQueryResult>| {
-                                    future::ok(debug!("{}", r.message.message()))
-                                })
-                                .map_err(|e| error!("Invalid hub response. Err: {}", e))
-                            */
+                        future::result(read_file(&path_buf)).and_then(move |buf| {
+                            PluginManager::from_registry()
+                                .send(InstallPlugin { bytes: Bytes::from(buf).into_buf() })
+                                .map_err(|e| error!("{:?}", e))
                         })
                     })
                     .and_then(move |_| {
@@ -384,6 +357,12 @@ fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
                             .map_err(|e| error!("Error removing tmp file: {}", e))
                     })
             };
+            // sequential
+            let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
+            let fut_vec = plugins.into_iter().fold(init, |prev, cur| {
+                Box::new(prev.and_then(move |_| download_and_save(cur)))
+            });
+            fut_vec.map(|_| ())
             /*
             // parallel
             let joined_fut = future::join_all(
@@ -392,15 +371,8 @@ fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
                     .map(move |(file_name, url)| download_and_save((file_name, url))),
             future::Either::B(joined_fut.map(|_| ()))
             );*/
-            // sequential
-            /*
-            let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
-            let fut_vec = plugin_urls.into_iter().fold(init, |prev, cur| {
-                Box::new(prev.and_then(move |_| download_and_save(cur)))
-            });
-            future::Either::B(fut_vec.map(|_| ()))
-            */
         })
+        .map_err(|e| ErrorBadRequest(format!("Plugin installation error: {:?}", e)))
         .and_then(|_result| Ok(HttpResponse::build(StatusCode::OK).finish()))
         .responder()
 }
