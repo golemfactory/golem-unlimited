@@ -1,15 +1,13 @@
 use super::Error;
 use futures::prelude::*;
-use futures::sync::{mpsc, oneshot};
+use futures::sync::oneshot;
 use futures_cpupool::CpuPool;
 use gu_actix::safe::*;
 use serde::{Deserialize, Serialize};
-use serde_derive::*;
 use std::io::prelude::*;
 use std::{fs, io, path};
 
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::sync::Arc;
 
 pub(super) struct DownloadFile {
@@ -125,7 +123,7 @@ fn recover_file(
     let chunks = file_meta.chunks;
     let mut crc_map = Vec::with_capacity(chunks.cast_into()?);
 
-    for chunk_nr in 0..chunks {
+    for _ in 0..chunks {
         let chunk_crc64 = read_u64(&mut part_file)?;
         crc_map.push(chunk_crc64);
     }
@@ -166,7 +164,7 @@ fn new_part_file(
     debug_assert_eq!(part_file.seek(io::SeekFrom::Current(0))?, map_offset);
     let crc_map = (0..meta.chunks).map(|_| 0u64).collect();
 
-    for i in 0..meta.chunks {
+    for _ in 0..meta.chunks {
         write_u64(&mut part_file, 0)?;
     }
     debug_assert_eq!(part_file.seek(io::SeekFrom::Current(0))?, tail_offset);

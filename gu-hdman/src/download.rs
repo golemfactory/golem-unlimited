@@ -2,18 +2,10 @@
     Smart downloader
 */
 use actix::prelude::*;
-use bytes::*;
-use failure::Fail;
 use futures::prelude::*;
 use futures_cpupool::CpuPool;
 use gu_actix::prelude::*;
-use gu_actix::safe::*;
-use serde_derive::*;
-use std::io::Read;
-use std::io::Seek;
-use std::io::Write;
-use std::mem::size_of;
-use std::{fmt, fs, io, path, time};
+use std::time;
 
 mod error;
 mod sync_io;
@@ -21,7 +13,7 @@ mod sync_io;
 use self::sync_io::{CheckType, DownloadFile, LogMetadata, Proxy};
 
 pub use self::error::Error;
-use actix_web::{http::header, HttpMessage};
+use actix_web::http::header;
 use derive_builder::*;
 use std::sync::Arc;
 
@@ -89,7 +81,6 @@ fn download_chunk(
         let proxy = proxy.clone();
         let meta = meta.clone();
         let options = options.clone();
-        let size = meta.size;
 
         proxy
             .with(move |df| df.check_chunk(chunk_nr))
@@ -117,7 +108,7 @@ fn download_chunk(
                                 .with(move |df| df.add_chunk(from, to, bytes.as_ref()))
                                 .from_err()
                         })
-                        .and_then(move |v| Ok(Loop::Break(Chunk { chunk_nr, from, to })))
+                        .and_then(move |_| Ok(Loop::Break(Chunk { chunk_nr, from, to })))
                         .or_else(move |e| {
                             if n_retries > 0 {
                                 Ok(Loop::Continue(n_retries - 1))
@@ -207,10 +198,6 @@ fn download(
     url: &str,
     dest_file: String,
 ) -> impl Stream<Item = ProgressStatus, Error = Error> {
-    use actix_web::http::header::HeaderValue;
-    use actix_web::http::HttpTryFrom;
-    use actix_web::HttpMessage;
-
     use futures::{prelude::*, stream, unsync::mpsc};
 
     let (tx, rx) = mpsc::unbounded();
@@ -275,7 +262,7 @@ fn download(
                 }))
                 .buffer_unordered(connections as usize)
                 .fold(init_progress, move |mut progress, chunk| {
-                    progress.downloaded_bytes += (chunk.to - chunk.from);
+                    progress.downloaded_bytes += chunk.to - chunk.from;
                     tx.unbounded_send(progress.clone());
                     Ok::<_, Error>(progress)
                 })
@@ -294,7 +281,7 @@ fn download(
             .map_err(|e| eprintln!("ERR: {}", e)),
     );
 
-    rx.map_err(|e| Error::Other(format!("e")))
+    rx.map_err(|e| Error::Other(format!("receiver error: {:?}", e)))
 }
 
 #[derive(Clone, Debug)]

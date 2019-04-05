@@ -1,3 +1,26 @@
+use std::collections::hash_map::{Entry, OccupiedEntry};
+use std::collections::HashSet;
+use std::fs::OpenOptions;
+use std::path::Path;
+use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
+
+use actix::{fut, prelude::*};
+use futures::future;
+use futures::prelude::*;
+use log::{debug, error, info};
+use serde_derive::*;
+
+use gu_actix::prelude::*;
+use gu_hdman::image_manager;
+use gu_model::envman::*;
+use gu_net::rpc::{
+    peer::{PeerSessionInfo, PeerSessionStatus},
+    *,
+};
+use gu_persist::config::ConfigModule;
+
+use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
+
 /** Host direct manager.
 
 
@@ -5,32 +28,11 @@
 */
 use super::id::generate_new_id;
 use super::provision::{download_step, untgz, upload_step};
+use super::workspace::{Workspace, WorkspacesManager};
 use super::{
     envman, status,
     sync_exec::{Exec, ExecResult, SyncExecManager},
 };
-use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
-use actix::{fut, prelude::*};
-use futures::future;
-use futures::prelude::*;
-use gu_actix::prelude::*;
-use gu_model::envman::*;
-use gu_net::rpc::{
-    peer::{PeerSessionInfo, PeerSessionStatus},
-    *,
-};
-use gu_persist::config::ConfigModule;
-use log::{debug, error, info};
-use serde_derive::*;
-
-use super::workspace::{Workspace, WorkspacesManager};
-use gu_hdman::image_manager;
-use std::collections::hash_map::{Entry, OccupiedEntry};
-use std::collections::HashSet;
-use std::fs::OpenOptions;
-use std::path::Path;
-use std::sync::Arc;
-use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {
@@ -65,6 +67,8 @@ impl Destroy for HdSessionInfo {
 /// Host direct manager
 pub struct HdMan {
     deploys: DeployManager<HdSessionInfo>,
+    //TODO: implement using this configured property
+    #[allow(unused)]
     cache_dir: PathBuf,
     workspaces_man: WorkspacesManager,
 }
@@ -106,10 +110,12 @@ impl HdMan {
         })
     }
 
+    #[allow(unused)]
     fn get_cache_path(&self, file_name: &Path) -> PathBuf {
         self.cache_dir.join(file_name)
     }
 
+    #[allow(unused)]
     fn get_session(&self, session_id: &String) -> Result<&HdSessionInfo, Error> {
         match self.deploys.deploy(session_id) {
             Ok(session) => Ok(session),
@@ -124,6 +130,7 @@ impl HdMan {
         }
     }
 
+    #[allow(unused)]
     fn get_session_entry(
         &mut self,
         session_id: String,
@@ -134,6 +141,7 @@ impl HdMan {
         }
     }
 
+    #[allow(unused)]
     fn insert_child(
         &mut self,
         session_id: &String,
@@ -189,7 +197,7 @@ impl HdSessionInfo {
     fn get_session_exec_path(&self, executable: &String) -> String {
         self.workspace
             .path()
-            .join(executable.trim_left_matches('/'))
+            .join(executable.trim_start_matches('/'))
             .into_os_string()
             .into_string()
             .unwrap()
@@ -205,20 +213,23 @@ impl Handler<CreateSession> for HdMan {
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<CreateSession>>::Result {
         let session_id = self.deploys.generate_session_id();
-        let c = match gu_model::hash::ParsedHash::from_hash_bytes(msg.image.hash.as_bytes()) {
-            Ok(v) => v,
-            Err(e) => {
-                return ActorResponse::reply(Err(Error::IncorrectOptions(
-                    "invalid hash format".into(),
-                )));
-            }
-        };
-        let image_file_name = match c.to_path() {
-            Ok(v) => v,
-            Err(e) => return ActorResponse::reply(Err(Error::IncorrectOptions(format!("{}", e)))),
-        };
+        let image_hash =
+            match gu_model::hash::ParsedHash::from_hash_bytes(msg.image.hash.as_bytes()) {
+                Ok(v) => v,
+                Err(e) => {
+                    return ActorResponse::reply(Err(Error::IncorrectOptions(format!(
+                        "invalid hash format for {}: {}",
+                        msg.image.hash, e
+                    ))));
+                }
+            };
 
-        let cache_path = self.get_cache_path(&image_file_name);
+        if let Err(e) = image_hash.to_path() {
+            return ActorResponse::reply(Err(Error::IncorrectOptions(format!(
+                "invalid hash {}: {}",
+                msg.image.hash, e
+            ))));
+        }
 
         let mut workspace = self.workspaces_man.workspace();
         workspace.add_tags(msg.tags);
@@ -486,8 +497,6 @@ fn handle_upload_file(
     format: ResourceFormat,
 ) -> impl Future<Item = String, Error = String> {
     upload_step(&url, file_path, format)
-        .map(move |x| format!("{:?} file uploaded", url))
-        .map_err(|e| format!("Unsuccessful file upload: {}", e))
 }
 
 // TODO: implement child process polling and status reporting
@@ -528,20 +537,5 @@ impl Handler<status::GetEnvStatus> for HdMan {
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<status::GetEnvStatus>>::Result {
         MessageResult(self.deploys.status())
-    }
-}
-
-impl HdMan {
-    fn command_start(
-        &mut self,
-        session_id: Arc<String>,
-        args: Vec<String>,
-        ctx: &mut <Self as Actor>::Context,
-    ) -> ActorResponse<Self, String, String> {
-        ActorResponse::reply(Ok("Opened".into()))
-    }
-
-    fn command_stop(&mut self, session_id: Arc<String>) -> ActorResponse<Self, String, String> {
-        ActorResponse::reply(Ok("Closed".into()))
     }
 }

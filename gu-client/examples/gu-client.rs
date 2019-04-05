@@ -2,9 +2,20 @@
 Command line tool for management of gu-hub instance
 
 **/
+use std::cell::RefCell;
+use std::collections::BTreeSet;
+use std::io::Stdout;
+use std::iter::Peekable;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::{fs, io, thread};
+
 use actix::prelude::*;
 use failure::Fallible;
 use futures::{future, prelude::*};
+use serde::Serialize;
+use structopt::*;
+
 use gu_actix::pipe;
 use gu_actix::release::Handle;
 use gu_client::error::Error;
@@ -16,20 +27,7 @@ use gu_model::envman::ResourceFormat;
 use gu_model::peers::PeerInfo;
 use gu_model::session::HubExistingSession;
 use gu_model::session::HubSessionSpec;
-use gu_model::session::SessionDetails;
 use gu_net::NodeId;
-use serde::Serialize;
-use serde_derive::*;
-use std::cell::RefCell;
-use std::collections::BTreeSet;
-use std::fs::File;
-use std::io::Stdout;
-use std::iter::Peekable;
-use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
-use std::{fs, io, thread};
-use structopt::*;
 
 #[derive(StructOpt, Debug)]
 enum ClientArgs {
@@ -207,9 +205,6 @@ impl Handler<MainSteps> for AsyncProgress {
             MainSteps::Done => {
                 self.main_bar.finish_println("rendering done");
             }
-            e => {
-                //eprintln!("!!event={:?}", e);
-            }
         }
     }
 }
@@ -329,7 +324,7 @@ fn parse_frame_range(r: &str) -> Result<Vec<FrameRange>, failure::Error> {
 }
 
 fn show_peers<Peers: IntoIterator<Item = PeerInfo>>(peers: Peers) {
-    use prettytable::{cell, format, row, Table};
+    use prettytable::{cell, row, Table};
 
     let mut table = Table::new();
     //table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
@@ -382,7 +377,7 @@ fn join_str<AsStr: AsRef<str>, Items: Iterator<Item = AsStr>>(items: Items) -> S
 
 fn show_peer(provider: ProviderRef) -> Box<dyn Future<Item = (), Error = gu_client::error::Error>> {
     Box::new(provider.deployments().and_then(|deployments| {
-        use prettytable::{cell, format, row, Table};
+        use prettytable::{cell, row, Table};
         let mut table = Table::new();
 
         table.set_titles(row!["Id", "Name", "Tags", "Note"]);
@@ -912,7 +907,6 @@ fn render_task(
             .join3(upload_blob, tasks)
             .and_then(move |(workers, blob_uri, tasks)| {
                 log::debug!("workers={:?}, blob_id={:?}", workers, blob_uri);
-                use futures::unsync::mpsc;
 
                 let workers = futures::future::join_all(
                     workers.into_iter().filter_map(|worker_opt| worker_opt).map(
@@ -1011,10 +1005,6 @@ fn main() -> Fallible<()> {
                 None => show_session(&driver, session_id),
             },
             ClientArgs::Render(render_opts) => render_task(&driver, render_opts),
-            v => {
-                eprintln!("unimplemented opts: {:?}", v);
-                unimplemented!()
-            }
         }
     }))?;
 

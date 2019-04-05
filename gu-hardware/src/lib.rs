@@ -35,6 +35,7 @@ pub mod gpuinfo;
 mod inner_actor;
 mod ram;
 
+#[allow(deprecated)]
 pub mod error {
     use actix::MailboxError;
     use std;

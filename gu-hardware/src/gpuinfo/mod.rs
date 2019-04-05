@@ -84,8 +84,6 @@ pub fn gpu_count() -> error::Result<GpuCount> {
 #[cfg(test)]
 mod test {
 
-    use super::*;
-
     #[test]
     #[cfg(any(target_os = "linux", feature = "clinfo"))]
     fn test_gpu_count() {

@@ -1,16 +1,16 @@
 #![allow(dead_code)]
 
-use clap::{App, ArgMatches};
-use gu_actix::*;
 use std::{borrow::Cow, net::ToSocketAddrs, sync::Arc};
 
-use actix::{
-    self, fut, Actor, ActorContext, ActorFuture, Addr, AsyncContext, Context, SystemService,
-    WrapFuture,
-};
+use actix::prelude::*;
 use actix_web;
-use ethkey::prelude::*;
+use clap::{App, ArgMatches};
 use futures::Future;
+use log::error;
+use serde_derive::*;
+
+use ethkey::prelude::*;
+use gu_actix::*;
 use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
@@ -24,7 +24,6 @@ use gu_persist::{
     config::{self, ConfigManager, ConfigModule},
     http::{ServerClient, ServerConfig},
 };
-use mdns::{Responder, Service};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -118,8 +117,7 @@ impl Module for ServerModule {
 }
 
 fn mdns_publisher(port: u16, node_id: NodeId) -> MdnsPublisher {
-    let responder = Responder::new().expect("Failed to run mDNS publisher");
-    let node_txt_record = format!("node_id={:?}", node_id);
+    let _ = mdns::Responder::new().expect("Failed to run mDNS publisher");
 
     let mut publisher = MdnsPublisher::init_publisher(port, node_id.to_string(), true);
     publisher.start();
@@ -152,7 +150,7 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         config
     }
 
-    fn hub_configuration(&mut self, c: Arc<HubConfig>) -> Result<(), ()> {
+    fn hub_configuration(&mut self, c: Arc<HubConfig>) -> Result<(), String> {
         let config_module: &ConfigModule = self.decorator.extract().unwrap();
         let key = EthAccount::load_or_generate(config_module.keystore_path(), "")
             .expect("should load or generate eth key");
@@ -183,7 +181,17 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
                     }),
             )
         });
-        let _ = server.bind(c.p2p_addr()).unwrap().start();
+        match server.bind(c.p2p_addr()) {
+            Err(e) => {
+                for addr in c.p2p_addr().to_socket_addrs().unwrap() {
+                    return Err(format!("P2P socket binding for {} err: {}", addr, e));
+                }
+            }
+            Ok(server) => {
+                server.start();
+                ()
+            }
+        };
 
         if c.publish_service {
             Box::leak(Box::new(mdns_publisher(c.p2p_port, node_id)));
@@ -204,17 +212,12 @@ impl<D: Decorator + 'static> Actor for ServerConfigurer<D> {
                 .map_err(|e| error!("Cannot load config file of Hub: {}", e))
                 .into_actor(self)
                 .and_then(move |config, act, ctx| {
-                    let _ = act
-                        .hub_configuration(config)
-                        .map_err(|e| error!("Hub configuration error {:?}", e));
+                    let _ = act.hub_configuration(config).map_err(|e| {
+                        error!("Hub configuration error {:?}", e);
+                        System::current().stop()
+                    });
                     fut::ok(ctx.stop())
                 }),
         );
-    }
-}
-
-impl<D: Decorator> Drop for ServerConfigurer<D> {
-    fn drop(&mut self) {
-        info!("hub server configured")
     }
 }

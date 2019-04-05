@@ -1,7 +1,14 @@
-use crate::error::Error;
+use std::sync::Arc;
+use std::time::Duration;
+use std::{env, str};
+
 use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
 use futures::{future, prelude::*};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use url::Url;
+
 use gu_actix::release::{AsyncRelease, Handle};
 use gu_model::peers::PeerInfo;
 use gu_model::{
@@ -9,17 +16,10 @@ use gu_model::{
     envman,
     session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata},
 };
-use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::types::NodeId;
 use gu_net::types::TryIntoNodeId;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::borrow::Borrow;
-use std::collections::VecDeque;
-use std::sync::Arc;
-use std::time::Duration;
-use std::{env, str};
-use url::Url;
+
+use crate::error::Error;
 
 pub type HubSessionRef = Handle<HubSession>;
 
@@ -198,7 +198,6 @@ impl HubSession {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CreateRequest(e))),
         };
-        let session_id = self.session_id.clone();
 
         future::Either::B(
             request

@@ -1,8 +1,31 @@
+use std::{path::PathBuf, process};
+
 use actix::{fut, prelude::*};
-use error_chain::*;
-use gu_actix::*;
 use log::debug;
-use std::{io, path::PathBuf, process};
+
+use error::*;
+use gu_actix::*;
+
+#[allow(deprecated)]
+pub mod error {
+    use std::{io, process};
+
+    use actix::MailboxError;
+    use error_chain::*;
+
+    error_chain!(
+        foreign_links {
+            IoError(io::Error);
+        }
+
+        errors {
+            MailboxError(e : MailboxError){}
+            ExecutionError(exec: String, args: Vec<String>, output: process::Output) {
+                 display("failed to execute command: {}, {:?}, {:?}", exec, args, output)
+            }
+        }
+    );
+}
 
 /// Synchronous executor
 pub struct SyncExec;
@@ -114,19 +137,6 @@ impl Handler<Exec> for SyncExec {
     }
 }
 
-error_chain!(
-    foreign_links {
-        IoError(io::Error);
-    }
-
-    errors {
-        MailboxError(e : MailboxError){}
-        ExecutionError(exec: String, args: Vec<String>, output: process::Output) {
-             display("failed to execute command: {}, {:?}, {:?}", exec, args, output)
-        }
-    }
-);
-
 impl From<MailboxError> for Error {
     fn from(e: MailboxError) -> Self {
         ErrorKind::MailboxError(e).into()
@@ -135,10 +145,12 @@ impl From<MailboxError> for Error {
 
 #[cfg(test)]
 mod test {
-    use super::{Exec, ExecResult, SyncExecManager};
     use actix::prelude::*;
     use futures::Future;
+
     use gu_actix::flatten::FlattenFuture;
+
+    use super::{Exec, ExecResult, SyncExecManager};
 
     #[test]
     fn test_sync_exec_fail() {

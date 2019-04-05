@@ -1,7 +1,7 @@
 use actix::prelude::*;
 use futures::unsync::oneshot;
 use futures::{future, prelude::*};
-use gu_actix::{async_result, async_try, prelude::*};
+use gu_actix::{async_result, async_try};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

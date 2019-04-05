@@ -1,11 +1,9 @@
 use actix::prelude::*;
-use futures::future::Shared;
 use futures::prelude::*;
 use futures::sync::oneshot;
 use gu_actix::prelude::*;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::marker::PhantomData;
 
 pub trait CacheProvider {
     type Key: Eq + Hash + Clone + Send;
@@ -50,7 +48,7 @@ impl<P: CacheProvider + Default + 'static> ArbiterService for AsyncCache<P> {}
 impl<P: CacheProvider + Default + 'static> Handler<DoFetch<P>> for AsyncCache<P> {
     type Result = ActorResponse<Self, P::Value, P::Error>;
 
-    fn handle(&mut self, msg: DoFetch<P>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: DoFetch<P>, _ctx: &mut Self::Context) -> Self::Result {
         ActorResponse::r#async(
             self.provider
                 .fetch(msg.0, msg.1)
@@ -63,7 +61,7 @@ impl<P: CacheProvider + Default + 'static> Handler<DoFetch<P>> for AsyncCache<P>
 impl<P: CacheProvider + Default + Clone + 'static> Handler<DoFetchOnce<P>> for AsyncCache<P> {
     type Result = ActorResponse<Self, P::Value, P::Error>;
 
-    fn handle(&mut self, msg: DoFetchOnce<P>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: DoFetchOnce<P>, _ctx: &mut Self::Context) -> Self::Result {
         ActorResponse::r#async(
             self.provider
                 .try_get(&msg.0)
@@ -109,13 +107,15 @@ impl<P: CacheProvider + Default> Default for CacheRegistry<P> {
 impl<P: CacheProvider + 'static> Supervised for CacheRegistry<P> {}
 impl<P: CacheProvider + Default + 'static> SystemService for CacheRegistry<P> {}
 
-impl<P: CacheProvider> CacheRegistry<P> {
+impl<P: CacheProvider> CacheRegistry<P>
+where P::Error: std::fmt::Debug, P::Value: std::fmt::Debug
+{
     fn result(&mut self, key: &P::Key, result: Result<P::Value, P::Error>) {
         let _ = self.downloads.remove(&key).and_then(|v| {
             for endpoint in v {
                 match endpoint.send(result.clone()) {
-                    Err(e) => log::debug!("notification fail"),
-                    Ok(f) => (),
+                    Err(e) => log::debug!("notification fail: {:?}", e),
+                    Ok(_) => (),
                 }
             }
             Some(())
@@ -161,7 +161,7 @@ impl<P: CacheProvider + Clone + 'static> Handler<DoGet<P>> for CacheRegistry<P> 
                 .send(DoFetch(k.clone(), h))
                 .flatten_fut()
                 .into_actor(self)
-                .then(move |v, act, ctx| fut::ok(act.result(&key, v))),
+                .then(move |v, act, _ctx| fut::ok(act.result(&key, v))),
         );
 
         return ActorResponse::r#async(rx.flatten_fut().into_actor(self));
