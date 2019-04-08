@@ -21,6 +21,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{env, str};
 use url::Url;
+use std::marker::PhantomData;
+use gu_net::rpc::public_destination;
 
 pub type HubSessionRef = Handle<HubSession>;
 
@@ -502,6 +504,21 @@ impl Peer {
             self.hub_session.hub_connection.hub_connection_inner.url, self.node_id
         );
         self.hub_session.hub_connection.fetch_json(&url)
+    }
+
+    /// internal use only
+    pub fn rpc_call<T : super::PublicMessage + Serialize>(&self, msg : T) -> impl Future<Item=T::Result, Error=Error>
+    where T::Result : DeserializeOwned {
+        let url = format!("{}/send-to/{:?}/{}", self.hub_session.hub_connection.url(), self.node_id, T::ID);
+
+        let hub_connection = self.clone();
+        client::ClientRequest::post(url)
+            .json(msg)
+            .into_future()
+            .map_err(|e| Error::Other(format!("{}" ,e)))
+            .and_then(|r| r.send().from_err())
+            .and_then(|r| r.json().from_err())
+            .and_then(|r : T::Result| Ok(r))
     }
 }
 

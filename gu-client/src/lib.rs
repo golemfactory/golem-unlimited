@@ -6,3 +6,5 @@ pub mod sync;
 
 pub use gu_model as model;
 pub use gu_net::NodeId;
+
+pub use gu_net::rpc::PublicMessage;
