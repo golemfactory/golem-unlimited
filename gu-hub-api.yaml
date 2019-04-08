@@ -575,11 +575,44 @@ definitions:
         uniqueItems: true
         items:
           type: string
+      options:
+        $ref: '#/definitions/CreateOptions'
+
+  CreateOptions:
+    anyOf:
+    - type: null
+    - $ref: '#/definitions/DockerCreateOptions'
+
+  DockerCreateOptions:
+    type: object
+    properties:
+      volumes:
+        type: array
+        items:
+          $ref: '#/definitions/VolumeDef'
+      cmd:
+        type: array
+        items:
+          type: string
+  VolumeDef:
+    type: object
+    properties:
+      BindRw:
+        type: object
+        properties:
+          src: 
+            type: string 
+          target: 
+            type: string
   Command:
     type: object
     properties:
       exec:
         $ref: '#/definitions/ExecCommand'
+      open:
+        type: null
+      close:
+        type: null
       start:
         $ref: '#/definitions/StartCommand'
       stop:
