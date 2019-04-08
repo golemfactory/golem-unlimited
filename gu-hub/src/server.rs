@@ -163,10 +163,9 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         match self.decorator.extract::<super::hub_info::InfoModule>() {
             Some(v) => {
                 v.set_node_id(node_id);
-            },
+            }
             None => {}
         }
-
 
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(

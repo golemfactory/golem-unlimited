@@ -2,9 +2,9 @@ pub mod dockerman;
 pub mod envman;
 
 pub mod deployment;
+mod hub;
 pub mod peers;
 pub mod session;
-mod hub;
 
 #[cfg(feature = "hash")]
 pub mod hash;
@@ -16,7 +16,7 @@ pub type Tags = Set<String>;
 
 pub use semver::Version;
 
-pub use hub::{HubInfo, BuildInfo};
+pub use hub::{BuildInfo, HubInfo};
 
 mod error {
 

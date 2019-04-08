@@ -17,6 +17,7 @@ use gu_model::peers::PeerInfo;
 use gu_model::session::HubExistingSession;
 use gu_model::session::HubSessionSpec;
 use gu_model::session::SessionDetails;
+use gu_model::HubInfo;
 use gu_net::NodeId;
 use serde::Serialize;
 use serde_derive::*;
@@ -30,11 +31,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::{fs, io, thread};
 use structopt::*;
-use gu_model::HubInfo;
 
 #[derive(StructOpt, Debug)]
 enum ClientArgs {
-
     /// Infomation about hub
     #[structopt(name = "info")]
     Info,
@@ -1006,10 +1005,8 @@ fn main() -> Fallible<()> {
         let driver = HubConnection::default();
 
         match args {
-
-            ClientArgs::Info => {
-                Box::new(driver.info().and_then(|p| Ok(show_info(p)))) as Box<dyn Future<Item=(), Error=Error>>
-            }
+            ClientArgs::Info => Box::new(driver.info().and_then(|p| Ok(show_info(p))))
+                as Box<dyn Future<Item = (), Error = Error>>,
 
             ClientArgs::ListProviders => {
                 Box::new(driver.list_peers().and_then(|p| Ok(show_peers(p))))

@@ -488,7 +488,7 @@ definitions:
     properties:
       nodeId:
         type: string
-        description: node public key hash in etherium format
+        description: node public key hash in ethereum format
         example: '0x875f272d3b9e7b55a5784a131a60bf3d7a42c73c'
         readOnly: true
       version:
@@ -498,7 +498,7 @@ definitions:
       build:
         $ref: '#/definitions/BuildInfo'
       caps:
-        description: hub protocool capabilities
+        description: hub protocol capabilities
         type: array
         items:
           type: string

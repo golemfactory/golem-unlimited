@@ -23,7 +23,7 @@ fn get_service_url() -> Result<Uri, http::Error> {
 }
 
 /// Registers command service in hub registry.
-pub fn register_server(url: &str, cmd_name: &str) -> impl Future<Item = (), Error = ()> {
+pub fn register_service(url: &str, cmd_name: &str) -> impl Future<Item = (), Error = ()> {
     let command = Command::RegisterCommand {
         cmd_name: cmd_name.into(),
         url: url.into(),
@@ -41,7 +41,8 @@ pub fn register_server(url: &str, cmd_name: &str) -> impl Future<Item = (), Erro
                 .map_err(|e| eprintln!("hub connection error: {}", e))
         })
         .and_then(|mut r| {
-            JsonBody::new(&mut r).map_err(|e| eprintln!("hub connection error: {}", e))
+            r.json()
+                .map_err(|e| eprintln!("hub connection error: {}", e))
         })
-        .and_then(|v: serde_json::Value| Ok(log::info!("registed service [{}]", v.to_string())))
+        .and_then(|v: serde_json::Value| Ok(log::info!("registered service [{}]", v.to_string())))
 }

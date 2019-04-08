@@ -7,7 +7,6 @@ angular.module('gu').directive('guListProvider', function () {
         require: 'ngModel',
         templateUrl: 'directives/guListProvider.html',
         controller: function ($scope, sessionMan, $q) {
-            console.log('ddd');
             $scope.hubPeers = [];
             $scope.statusMap = {};
 

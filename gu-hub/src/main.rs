@@ -79,13 +79,13 @@ mod version {
 
 const VERSION: &str = env!("VERGEN_SEMVER_LIGHTWEIGHT");
 
+mod hub_info;
 mod local_service;
 mod peer;
 mod plugins;
 mod proxy_service;
 mod server;
 mod sessions;
-mod hub_info;
 
 fn main() {
     GuApp(|| {
