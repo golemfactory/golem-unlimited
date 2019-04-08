@@ -51,7 +51,7 @@ impl Module for PluginModule {
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommands(vec![
                     SubCommand::with_name("install")
-                        .about("Installs the plugin from the package")
+                        .about("Installs plugins from a package (e.g. plugin.guplug) or a GitHub repository (e.g. golemfactory/golem-unlimited)")
                         .arg(path),
                     SubCommand::with_name("dev")
                         .about("Installs the plugin in a dev mode")

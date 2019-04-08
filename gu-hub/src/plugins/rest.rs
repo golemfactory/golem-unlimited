@@ -134,16 +134,33 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
             error!("No plugins in the latest release of {}.", repo_name);
             return future::Either::A(future::err(()));
         } else {
-            for (name, _) in &plugin_urls {
-                println!("Installing {}.", name);
-            }
+            let plugins_to_install = if plugin_urls.len() > 1 {
+                plugin_urls
+                    .into_iter()
+                    .filter(|(name, url)| {
+                        use std::io::Write;
+                        print!("Install {}? (y/n) ", &name);
+                        let _ = std::io::stdout().flush();
+                        let mut install = String::new();
+                        match std::io::stdin().read_line(&mut install) {
+                            Ok(_) => install.trim().to_lowercase() == "y",
+                            Err(e) => false,
+                        }
+                    })
+                    .collect()
+            } else if plugin_urls.len() == 1 {
+                println!("Installing {}.", plugin_urls[0].1);
+                plugin_urls
+            } else {
+                plugin_urls
+            };
             future::Either::B(
-                ServerClient::post_json("/plug/install-github", plugin_urls)
+                ServerClient::post_json("/plug/install-github", plugins_to_install)
                     .and_then(|r: RestResponse<InstallQueryResult>| {
                         future::ok(debug!("{}", r.message.message()))
                     })
-                    .map_err(|e| error!("Invalid hub response. Err: {}", e))
-                    .and_then(|_| future::ok(println!("Success."))),
+                    .map_err(|e| error!("Invalid hub response. Is hub running? Err: {}", e))
+                    .and_then(|_| future::ok(println!("Operation successful."))),
             )
         }
     })
