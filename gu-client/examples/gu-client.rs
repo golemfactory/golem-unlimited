@@ -17,6 +17,7 @@ use gu_model::peers::PeerInfo;
 use gu_model::session::HubExistingSession;
 use gu_model::session::HubSessionSpec;
 use gu_model::session::SessionDetails;
+use gu_model::HubInfo;
 use gu_net::NodeId;
 use serde::Serialize;
 use serde_derive::*;
@@ -33,6 +34,10 @@ use structopt::*;
 
 #[derive(StructOpt, Debug)]
 enum ClientArgs {
+    /// Infomation about hub
+    #[structopt(name = "info")]
+    Info,
+
     /// Lists providers connected to hub.
     #[structopt(name = "prov-list")]
     ListProviders,
@@ -326,6 +331,20 @@ fn parse_frame_range(r: &str) -> Result<Vec<FrameRange>, failure::Error> {
         }
     }
     Err(Error::Other(format!("missing range desc")))?
+}
+
+fn show_info(info: HubInfo) {
+    use prettytable::{cell, format, row, Table};
+
+    let mut table = Table::new();
+    //table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+
+    table.add_row(row!["Id", "Value"]);
+    table.add_row(row!["NodeId", info.node_id]);
+    table.add_row(row!["Version", info.version]);
+    table.add_row(row!["Build.Ts", info.build.ts]);
+
+    table.printstd();
 }
 
 fn show_peers<Peers: IntoIterator<Item = PeerInfo>>(peers: Peers) {
@@ -986,6 +1005,9 @@ fn main() -> Fallible<()> {
         let driver = HubConnection::default();
 
         match args {
+            ClientArgs::Info => Box::new(driver.info().and_then(|p| Ok(show_info(p))))
+                as Box<dyn Future<Item = (), Error = Error>>,
+
             ClientArgs::ListProviders => {
                 Box::new(driver.list_peers().and_then(|p| Ok(show_peers(p))))
             }

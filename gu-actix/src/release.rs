@@ -41,7 +41,7 @@ impl<T: AsyncRelease> Inner<T> {
         self.inner.as_ref().unwrap()
     }
 
-    fn into_inner(mut self) -> T {
+    pub fn into_inner(mut self) -> T {
         self.inner.take().unwrap()
     }
 }

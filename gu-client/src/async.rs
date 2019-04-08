@@ -8,6 +8,7 @@ use gu_model::{
     deployment::DeploymentInfo,
     envman,
     session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata},
+    HubInfo,
 };
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::types::NodeId;
@@ -161,6 +162,11 @@ impl HubConnection {
                 status => future::Either::A(future::err(Error::ResponseErr(status))),
             })
     }
+
+    pub fn info(&self) -> impl Future<Item = HubInfo, Error = Error> + 'static {
+        let url = format!("{}info", self.url());
+        self.fetch_json(&url)
+    }
 }
 
 /// Hub session.
@@ -171,6 +177,10 @@ pub struct HubSession {
 }
 
 impl HubSession {
+    pub fn id(&self) -> u64 {
+        self.session_id
+    }
+
     /// adds peers to the hub session
     pub fn add_peers<T, U: TryIntoNodeId>(
         &self,
