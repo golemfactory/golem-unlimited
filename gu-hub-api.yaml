@@ -577,7 +577,13 @@ definitions:
           type: string
       options:
         $ref: '#/definitions/CreateOptions'
+
   CreateOptions:
+    anyOf:
+    - type: null
+    - $ref: '#/definitions/DockerCreateOptions'
+
+  DockerCreateOptions:
     type: object
     properties:
       volumes:
@@ -603,6 +609,10 @@ definitions:
     properties:
       exec:
         $ref: '#/definitions/ExecCommand'
+      open:
+        type: null
+      close:
+        type: null
       start:
         $ref: '#/definitions/StartCommand'
       stop:
