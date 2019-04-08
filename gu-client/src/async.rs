@@ -11,18 +11,19 @@ use gu_model::{
     HubInfo,
 };
 use gu_net::rpc::peer::PeerSessionInfo;
+use gu_net::rpc::{public_destination, PublicMessage};
 use gu_net::types::NodeId;
 use gu_net::types::TryIntoNodeId;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_derive::*;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, str};
 use url::Url;
-use std::marker::PhantomData;
-use gu_net::rpc::public_destination;
 
 pub type HubSessionRef = Handle<HubSession>;
 
@@ -505,21 +506,6 @@ impl Peer {
         );
         self.hub_session.hub_connection.fetch_json(&url)
     }
-
-    /// internal use only
-    pub fn rpc_call<T : super::PublicMessage + Serialize>(&self, msg : T) -> impl Future<Item=T::Result, Error=Error>
-    where T::Result : DeserializeOwned {
-        let url = format!("{}/send-to/{:?}/{}", self.hub_session.hub_connection.url(), self.node_id, T::ID);
-
-        let hub_connection = self.clone();
-        client::ClientRequest::post(url)
-            .json(msg)
-            .into_future()
-            .map_err(|e| Error::Other(format!("{}" ,e)))
-            .and_then(|r| r.send().from_err())
-            .and_then(|r| r.json().from_err())
-            .and_then(|r : T::Result| Ok(r))
-    }
 }
 
 /// Peer session.
@@ -678,4 +664,34 @@ impl ProviderRef {
                 })
             })
     }
+
+    /// internal use only
+    pub fn rpc_call<T: super::PublicMessage + Serialize + 'static>(
+        &self,
+        msg: T,
+    ) -> impl Future<Item = T::Result, Error = Error>
+    where
+        T::Result: DeserializeOwned,
+    {
+        let url = format!(
+            "{}peers/send-to/{:?}/{}",
+            self.connection.url(),
+            self.node_id,
+            T::ID
+        );
+
+        let hub_connection = self.clone();
+        client::ClientRequest::post(url)
+            .json(Body { b: msg })
+            .into_future()
+            .map_err(|e| Error::Other(format!("{}", e)))
+            .and_then(|r| r.send().from_err())
+            .and_then(|r| r.json().from_err())
+            .and_then(|r: T::Result| Ok(r))
+    }
+}
+
+#[derive(Serialize)]
+struct Body<T: Serialize + 'static> {
+    b: T,
 }

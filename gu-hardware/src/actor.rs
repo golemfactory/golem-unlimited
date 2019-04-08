@@ -4,7 +4,7 @@ use hostname::get_hostname;
 
 use disk::{DiskInfo, DiskQuery};
 use gu_actix::flatten::FlattenFuture;
-use gu_net::rpc::{RemotingContext, RemotingSystemService};
+use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
 use inner_actor::InnerActor;
 use ram::{RamInfo, RamQuery};
 
@@ -14,12 +14,12 @@ use num_cpus;
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HardwareQuery;
 
-impl HardwareQuery {
+impl PublicMessage for HardwareQuery {
     const ID: u32 = 19354;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum OsType {
+pub enum OsType {
     Windows,
     MacOs,
     Linux,
@@ -49,6 +49,16 @@ pub struct Hardware {
     #[serde(skip_serializing_if = "Option::is_none")]
     hostname: Option<String>,
     num_cores: usize,
+}
+
+impl Hardware {
+    pub fn num_cores(&self) -> usize {
+        self.num_cores
+    }
+
+    pub fn os(&self) -> Option<&OsType> {
+        self.os.as_ref()
+    }
 }
 
 impl Message for HardwareQuery {

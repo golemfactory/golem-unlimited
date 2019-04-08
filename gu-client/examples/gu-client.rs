@@ -65,6 +65,12 @@ enum ClientArgs {
         command: Option<Sessions>,
     },
 
+    #[structopt(name = "hardware")]
+    Hardware {
+        #[structopt(name = "NODE_ID", parse(try_from_str))]
+        provider_id: NodeId,
+    },
+
     #[structopt(name = "render")]
     Render(Render),
 }
@@ -1033,6 +1039,13 @@ fn main() -> Fallible<()> {
                 None => show_session(&driver, session_id),
             },
             ClientArgs::Render(render_opts) => render_task(&driver, render_opts),
+            ClientArgs::Hardware { provider_id } => Box::new(
+                driver
+                    .peer(provider_id)
+                    .rpc_call(gu_hardware::actor::HardwareQuery)
+                    .and_then(|h| Ok(eprintln!("h={:?}", h)))
+                    .from_err(),
+            ),
             v => {
                 eprintln!("unimplemented opts: {:?}", v);
                 unimplemented!()
