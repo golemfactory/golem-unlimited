@@ -1,5 +1,4 @@
 use actix::{Arbiter, System, SystemService};
-use actix_web::http::StatusCode;
 use actix_web::{
     client,
     error::{ErrorBadRequest, ErrorInternalServerError},
@@ -137,14 +136,14 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
             let plugins_to_install = if plugin_urls.len() > 1 {
                 plugin_urls
                     .into_iter()
-                    .filter(|(name, url)| {
+                    .filter(|(name, _url)| {
                         use std::io::Write;
                         print!("Install {}? (y/n) ", &name);
                         let _ = std::io::stdout().flush();
                         let mut install = String::new();
                         match std::io::stdin().read_line(&mut install) {
                             Ok(_) => install.trim().to_lowercase() == "y",
-                            Err(e) => false,
+                            Err(_) => false,
                         }
                     })
                     .collect()
@@ -384,21 +383,15 @@ fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
             };
             // sequential
             let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
-            let fut_vec = plugins.into_iter().fold(init, |prev, cur| {
-                Box::new(prev.and_then(move |_| download_and_save(cur)))
-            });
-            fut_vec.map(|_| ())
-            /*
-            // parallel
-            let joined_fut = future::join_all(
-                plugin_urls
-                    .into_iter()
-                    .map(move |(file_name, url)| download_and_save((file_name, url))),
-            future::Either::B(joined_fut.map(|_| ()))
-            );*/
+            plugins
+                .into_iter()
+                .fold(init, |prev, cur| {
+                    Box::new(prev.and_then(move |_| download_and_save(cur)))
+                })
+                .map(|_| ())
         })
         .map_err(|e| ErrorBadRequest(format!("Plugin installation error: {:?}", e)))
-        .and_then(|result| Ok(InstallQueryResult::Installed.to_http_response()))
+        .and_then(|_| Ok(InstallQueryResult::Installed.to_http_response()))
         .responder()
 }
 
