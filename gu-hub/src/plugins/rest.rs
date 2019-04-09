@@ -169,7 +169,7 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
                                     e
                                 )
                             })
-                            .and_then(|_| future::ok(println!("Operation successful."))),
+                            .and_then(|_| future::ok(println!("All selected plugins were installed."))),
                     )
                 },
             }
