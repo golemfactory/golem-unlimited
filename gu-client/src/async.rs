@@ -20,6 +20,7 @@ use serde_derive::*;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, str};
@@ -505,6 +506,15 @@ impl Peer {
             self.hub_session.hub_connection.hub_connection_inner.url, self.node_id
         );
         self.hub_session.hub_connection.fetch_json(&url)
+    }
+}
+
+impl From<Peer> for ProviderRef {
+    fn from(peer: Peer) -> Self {
+        Self {
+            connection: peer.hub_session.hub_connection,
+            node_id: peer.node_id
+        }
     }
 }
 
