@@ -133,8 +133,9 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
             error!("No plugins in the latest release of {}.", repo_name);
             return future::Either::A(future::err(()));
         } else {
-            let plugins_to_install = if plugin_urls.len() > 1 {
-                plugin_urls
+            let plugins_to_install = match plugin_urls.len() {
+                _ => {
+                    plugin_urls
                     .into_iter()
                     .filter(|(name, _url)| {
                         use std::io::Write;
@@ -147,20 +148,31 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
                         }
                     })
                     .collect()
-            } else if plugin_urls.len() == 1 {
-                println!("Installing {}.", plugin_urls[0].1);
-                plugin_urls
-            } else {
-                plugin_urls
+                },
+                1 => {
+                    println!("Installing {}.", plugin_urls[0].1);
+                    plugin_urls
+                },
+                0 => plugin_urls,
             };
-            future::Either::B(
-                ServerClient::post_json("/plug/install-github", plugins_to_install)
-                    .and_then(|r: RestResponse<InstallQueryResult>| {
-                        future::ok(debug!("{}", r.message.message()))
-                    })
-                    .map_err(|e| error!("Invalid hub response. Is hub running? Err: {}", e))
-                    .and_then(|_| future::ok(println!("Operation successful."))),
-            )
+            match plugins_to_install.len() {
+                0 => future::Either::A(future::ok(println!("No plugins were installed."))),
+                _ => {
+                    future::Either::B(
+                        ServerClient::post_json("/plug/install-github", plugins_to_install)
+                            .and_then(|r: RestResponse<InstallQueryResult>| {
+                                future::ok(debug!("{}", r.message.message()))
+                            })
+                            .map_err(|e| {
+                                error!(
+                                    "Invalid hub response. Please check if a local hub is running. Err: {}",
+                                    e
+                                )
+                            })
+                            .and_then(|_| future::ok(println!("Operation successful."))),
+                    )
+                },
+            }
         }
     })
 }
