@@ -93,7 +93,7 @@ impl PublicMessage for SessionUpdate {
     const ID: u32 = 38;
 }
 
-#[derive(Serialize, Deserialize, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum ResourceFormat {
     Raw,
@@ -106,7 +106,7 @@ impl Default for ResourceFormat {
     }
 }
 
-#[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Debug)]
+#[derive(Clone, Serialize, Deserialize, Hash, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Command {
     Exec {
