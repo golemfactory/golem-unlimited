@@ -508,6 +508,15 @@ impl Peer {
     }
 }
 
+impl From<Peer> for ProviderRef {
+    fn from(peer: Peer) -> Self {
+        Self {
+            connection: peer.hub_session.hub_connection,
+            node_id: peer.node_id,
+        }
+    }
+}
+
 /// Peer session.
 #[derive(Clone, Debug)]
 pub struct PeerSession {
@@ -550,7 +559,25 @@ impl PeerSession {
                 .from_err()
         })
         .and_then(|response| match response.status() {
-            http::StatusCode::OK => future::Either::A(response.json().from_err()),
+            http::StatusCode::OK => {
+                future::Either::A(future::Either::A(response.json().from_err()))
+            }
+            http::StatusCode::INTERNAL_SERVER_ERROR => {
+                if response.content_type() == "application/json"
+                    && response.headers().get("x-processing-error").is_some()
+                {
+                    future::Either::A(future::Either::B(
+                        response
+                            .json()
+                            .from_err()
+                            .and_then(|v: Vec<String>| Err(Error::ProcessingResult(v))),
+                    ))
+                } else {
+                    future::Either::B(future::err(Error::ResponseErr(
+                        http::StatusCode::INTERNAL_SERVER_ERROR,
+                    )))
+                }
+            }
             status => future::Either::B(future::err(Error::ResponseErr(status))),
         })
     }

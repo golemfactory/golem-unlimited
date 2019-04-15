@@ -336,7 +336,7 @@ impl Session {
         node_id: NodeId,
         deployment_id: String,
         commands: Vec<gu_model::envman::Command>,
-    ) -> impl Future<Item = Vec<String>, Error = SessionErr> {
+    ) -> impl Future<Item = Result<Vec<String>, Vec<String>>, Error = SessionErr> {
         if self.peers.get(&node_id).is_none() {
             return future::Either::A(future::err(SessionErr::NodeNotFound(node_id)));
         }
@@ -347,11 +347,7 @@ impl Session {
                     session_id: deployment_id,
                     commands: commands,
                 })
-                .map_err(|_| SessionErr::CannotUpdatePeerDeployment)
-                .map(|results| match results {
-                    Ok(r) => r,
-                    Err(e) => e,
-                }),
+                .map_err(|_| SessionErr::CannotUpdatePeerDeployment),
         )
     }
 

@@ -9,7 +9,6 @@ pub use gu_net::NodeId;
 
 pub use gu_net::rpc::PublicMessage;
 
-#[cfg(feature="integration_tests")]
+#[cfg(feature = "integration_tests")]
 #[cfg(test)]
 mod integration_tests;
-

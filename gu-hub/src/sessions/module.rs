@@ -355,7 +355,12 @@ fn update_deployment(
         ))
         .flatten_fut()
         .from_err()
-        .and_then(|results| Ok(HttpResponse::Ok().json(results)))
+        .and_then(|results| match results {
+            Ok(results) => Ok(HttpResponse::Ok().json(results)),
+            Err(results) => Ok(HttpResponse::InternalServerError()
+                .header("x-processing-error", "1")
+                .json(results)),
+        })
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder
