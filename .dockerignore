@@ -1,0 +1,12 @@
+/.idea/
+/.git/
+*.iml
+/target/
+/.vs
+/.vscode
+/Cargo.lock
+/cargo-count.dot
+
+/docker/
+/tests/
+
