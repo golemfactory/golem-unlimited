@@ -11,5 +11,5 @@ fn main() {
 
     // Generate the 'cargo:' key output
     //generate_cargo_keys(ConstantsFlags::all()).expect("Unable to generate the cargo keys!");
-    generate_version_rs(flags).expect("Unable to generate constants!");
+    generate_cargo_keys(flags).expect("Unable to generate constants!");
 }

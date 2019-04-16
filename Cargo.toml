@@ -18,6 +18,7 @@ members= [
     'gu-hdman',
     'update/update-trait',
     'update/update-macro',
+    'gu-plugin-api',
 ]
 
 [profile.release]
