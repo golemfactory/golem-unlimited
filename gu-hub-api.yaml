@@ -644,6 +644,14 @@ definitions:
         type: array
         items:
           type: string
+      net:
+        $ref: '#/definitions/DockerNetDef'
+
+  DockerNetDef:
+    type: object
+    properties:
+      host:
+        type: object
   VolumeDef:
     type: object
     properties:
