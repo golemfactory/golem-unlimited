@@ -23,13 +23,13 @@ fn main() {
         env_type: "docker".to_string(),
         image: Image {
             url: "tomcat:6.0.44".to_string(),
-            hash: "sha256:4f00109135274b73a9cd8b3a46f43353a095515088e724a442752a62e9cfa3b3".to_string(),
+            hash: "sha256:4f00109135274b73a9cd8b3a46f43353a095515088e724a442752a62e9cfa3b3"
+                .to_string(),
         },
         name: "tomcat".to_string(),
         tags: vec![],
         note: None,
-        options:
-        gu_model::dockerman::CreateOptions::default().with_net(NetDef::Host {}),
+        options: gu_model::dockerman::CreateOptions::default().with_net(NetDef::Host {}),
     });
     eprintln!("{}", s.unwrap());
 
