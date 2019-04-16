@@ -517,6 +517,10 @@ impl PeerSession {
         self.peer.node_id
     }
 
+    pub fn id(&self) -> &str {
+        self.session_id.as_ref()
+    }
+
     /// updates deployment session by sending multiple peer commands
     pub fn update(
         &self,
