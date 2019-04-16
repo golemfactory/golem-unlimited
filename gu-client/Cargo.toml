@@ -4,6 +4,10 @@ version = "0.1.0"
 authors=["golemfactory"]
 edition="2018"
 
+[features]
+default=[]
+integration_tests=[]
+
 [dependencies]
 gu-actix = { path="../gu-actix" }
 gu-net = { path="../gu-net" }

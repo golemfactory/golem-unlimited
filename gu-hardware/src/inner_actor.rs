@@ -1,8 +1,8 @@
 use actix::{Actor, ArbiterService, Context, Handler, MessageResult, Supervised};
 use sysinfo::{self, System, SystemExt};
 
-use disk::{disk_info, DiskQuery};
-use ram::{ram_info, RamQuery};
+use crate::disk::{disk_info, DiskQuery};
+use crate::ram::{ram_info, RamQuery};
 
 pub struct InnerActor {
     sys: System,
