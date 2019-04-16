@@ -71,11 +71,13 @@ impl DaemonProcess {
             );
             return Ok(false);
         }
-
-        let stdout = File::create(&self.work_dir.join(format!("{}.out", &self.name)))
-            .map_err(|_| "Cannot create daemon .out file".to_string())?;
-        let stderr = File::create(&self.work_dir.join(format!("{}.err", &self.name)))
-            .map_err(|_| "Cannot create daemon .err file".to_string())?;
+        let out_path = self.work_dir.join(&self.name);
+        let stdout_path = out_path.with_extension("out");
+        let stdout = File::create(&stdout_path)
+            .map_err(|e| format!("error creating stdout logs file {:?}: {}", stdout_path, e))?;
+        let stderr_path = out_path.with_extension("err");
+        let stderr = File::create(&stderr_path)
+            .map_err(|e| format!("error creating stderr logs file {:?}: {}", stderr_path, e))?;
 
         let mut out = stdout_file();
 
