@@ -83,8 +83,8 @@ impl Module for ConnectModule {
             .required(true)
             .takes_value(true)
             .multiple(true)
-            .value_name("IP:PORT")
-            .help("IP and PORT of a Hub");
+            .value_name("HostName:PORT")
+            .help("HOSTNAME and PORT of a Hub");
 
         let save = Arg::with_name("save")
             .short("S")
@@ -126,8 +126,16 @@ impl Module for ConnectModule {
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        let get_host: fn(&ArgMatches) -> Vec<SocketAddr> =
-            |m| Vec::from_iter(m.values_of("host").unwrap().map(|x| x.parse().unwrap()));
+        use std::net::ToSocketAddrs;
+
+        let get_host: fn(&ArgMatches) -> Vec<SocketAddr> = |m| {
+            Vec::from_iter(
+                m.values_of("host")
+                    .unwrap()
+                    .map(|x| x.to_socket_addrs().unwrap())
+                    .flatten(),
+            )
+        };
         let save = |matches: &ArgMatches| matches.is_present("save");
 
         let (name, m) = matches.subcommand();
