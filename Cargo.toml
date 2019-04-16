@@ -16,10 +16,11 @@ members= [
     'gu-model',
     'gu-client',
     'gu-hdman',
+    'update/update-trait',
+    'update/update-macro',
+    'gu-plugin-api',
 ]
 
 [profile.release]
 codegen-units = 1
 lto=true
-
-

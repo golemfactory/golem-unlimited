@@ -41,26 +41,32 @@ pub enum SessionOk {
     BlobAlreadyDeleted,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Fail, Clone)]
 pub enum SessionErr {
+    #[fail(display = "Id conflict")]
     OverwriteError,
+    #[fail(display = "Session not found")]
     SessionNotFoundError,
+    #[fail(display = "Blob not found")]
     BlobNotFoundError,
+    #[fail(display = "Blob locked")]
     BlobLockedError,
+    #[fail(display = "Cannot create directory: {}", _0)]
     DirectoryCreationError(String),
+    #[fail(display = "File related error: {}", _0)]
     FileError(String),
+    #[fail(display = "Actix mailbox error: {}", _0)]
     MailboxError(String),
+    #[fail(display = "{:?} node not found", _0)]
     NodeNotFound(NodeId),
+    #[fail(display = "{} deployment not found", _0)]
     DeploymentNotFound(String),
+    #[fail(display = "Cannot create peer deployment")]
     CannotCreatePeerDeployment,
+    #[fail(display = "Cannot delete peer deployment")]
     CannotDeletePeerDeployment,
+    #[fail(display = "Cannot update peer deployment")]
     CannotUpdatePeerDeployment,
-}
-
-impl ::std::fmt::Display for SessionErr {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-        write!(f, "session error")
-    }
 }
 
 impl From<MailboxError> for SessionErr {
@@ -70,8 +76,6 @@ impl From<MailboxError> for SessionErr {
 }
 
 impl actix_web::ResponseError for SessionErr {}
-
-impl ::std::error::Error for SessionErr {}
 
 impl Into<HttpResponse> for SessionOk {
     fn into(self) -> HttpResponse {
@@ -94,37 +98,14 @@ impl Into<HttpResponse> for SessionErr {
         error!("{:?}", &self);
 
         match self {
-            SessionErr::OverwriteError => HttpResponse::InternalServerError().body("Id conflict"),
-            SessionErr::SessionNotFoundError => HttpResponse::NotFound().body("Session not found"),
-            SessionErr::BlobNotFoundError => HttpResponse::NotFound().body("Blob not found"),
             SessionErr::BlobLockedError => {
-                HttpResponse::build(StatusCode::from_u16(423).expect("Wrong http code - 423"))
-                    .finish()
+                HttpResponse::build(StatusCode::from_u16(423).unwrap()).finish()
             }
-            SessionErr::DirectoryCreationError(s) => {
-                HttpResponse::InternalServerError().body(format!("Cannot create directory: {}", s))
-            }
-            SessionErr::FileError(s) => {
-                HttpResponse::InternalServerError().body(format!("File related error: {}", s))
-            }
-            SessionErr::MailboxError(s) => {
-                HttpResponse::InternalServerError().body(format!("Actix mailbox error: {}", s))
-            }
-            SessionErr::CannotCreatePeerDeployment => {
-                HttpResponse::InternalServerError().body(format!("Cannot create peer deployment."))
-            }
-            SessionErr::CannotDeletePeerDeployment => {
-                HttpResponse::InternalServerError().body(format!("Cannot delete peer deployment."))
-            }
-            SessionErr::CannotUpdatePeerDeployment => {
-                HttpResponse::InternalServerError().body(format!("Cannot update peer deployment."))
-            }
-            SessionErr::NodeNotFound(node_id) => {
-                HttpResponse::NotFound().body(format!("Node not found {:?}.", node_id))
-            }
-            SessionErr::DeploymentNotFound(node_id) => {
-                HttpResponse::NotFound().body(format!("Deployment not found {:?}.", node_id))
-            }
+            x @ SessionErr::SessionNotFoundError
+            | x @ SessionErr::BlobNotFoundError
+            | x @ SessionErr::NodeNotFound(_)
+            | x @ SessionErr::DeploymentNotFound(_) => HttpResponse::NotFound().body(x.to_string()),
+            x => HttpResponse::InternalServerError().body(x.to_string()),
         }
     }
 }

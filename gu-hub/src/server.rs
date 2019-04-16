@@ -157,9 +157,18 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
 
         let decorator = self.decorator.clone();
         let node_id = NodeId::from(key.address().as_ref());
+
+        match self.decorator.extract::<super::hub_info::InfoModule>() {
+            Some(v) => {
+                v.set_node_id(node_id);
+            }
+            None => {}
+        }
+
         let server = actix_web::server::new(move || {
             decorator.decorate_webapp(
                 actix_web::App::with_state(node_id)
+                    .middleware(actix_web::middleware::Logger::default())
                     .handler(
                         "/app",
                         actix_web::fs::StaticFiles::new("webapp")

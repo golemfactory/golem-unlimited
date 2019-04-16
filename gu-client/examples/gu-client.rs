@@ -27,10 +27,16 @@ use gu_model::envman::ResourceFormat;
 use gu_model::peers::PeerInfo;
 use gu_model::session::HubExistingSession;
 use gu_model::session::HubSessionSpec;
+use gu_model::session::SessionDetails;
+use gu_model::HubInfo;
 use gu_net::NodeId;
 
 #[derive(StructOpt, Debug)]
 enum ClientArgs {
+    /// Infomation about hub
+    #[structopt(name = "info")]
+    Info,
+
     /// Lists providers connected to hub.
     #[structopt(name = "prov-list")]
     ListProviders,
@@ -321,6 +327,20 @@ fn parse_frame_range(r: &str) -> Result<Vec<FrameRange>, failure::Error> {
         }
     }
     Err(Error::Other(format!("missing range desc")))?
+}
+
+fn show_info(info: HubInfo) {
+    use prettytable::{cell, format, row, Table};
+
+    let mut table = Table::new();
+    //table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+
+    table.add_row(row!["Id", "Value"]);
+    table.add_row(row!["NodeId", info.node_id]);
+    table.add_row(row!["Version", info.version]);
+    table.add_row(row!["Build.Ts", info.build.ts]);
+
+    table.printstd();
 }
 
 fn show_peers<Peers: IntoIterator<Item = PeerInfo>>(peers: Peers) {
@@ -699,8 +719,8 @@ fn blender_deployment_spec(
             peer.new_session(CreateSession::<CreateOptions> {
                 env_type: "docker".to_string(),
                 image: Image {
-                    url: "prekucki/gu-reneder-blender".to_string(),
-                    hash: "sha256:969d9f15e104697d902f3f785c8a51c6a7cc41f1f0278a4a7f4a400b07007158"
+                    url: "prekucki/gu-render-blender".to_string(),
+                    hash: "sha256:53d11e6866835986b625e9fb07aa73b31dc667da39fe04f56da0ef06a50e0083"
                         .to_string(),
                 },
                 name: "".to_string(),
@@ -717,7 +737,7 @@ fn blender_deployment_spec(
                             target: "/golem/output".into(),
                         },
                     ],
-                    cmd: None,
+                    ..CreateOptions::default()
                 },
             }),
         )
@@ -980,6 +1000,9 @@ fn main() -> Fallible<()> {
         let driver = HubConnection::default();
 
         match args {
+            ClientArgs::Info => Box::new(driver.info().and_then(|p| Ok(show_info(p))))
+                as Box<dyn Future<Item = (), Error = Error>>,
+
             ClientArgs::ListProviders => {
                 Box::new(driver.list_peers().and_then(|p| Ok(show_peers(p))))
             }

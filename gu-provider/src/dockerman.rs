@@ -13,7 +13,7 @@ use futures::prelude::*;
 use log::{debug, error, info};
 use serde_json::json;
 
-use gu_model::dockerman::{CreateOptions, VolumeDef};
+use gu_model::dockerman::{CreateOptions, NetDef, VolumeDef};
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::peer::PeerSessionStatus;
@@ -398,7 +398,12 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                 workspace
                     .create_dirs()
                     .expect("Creating session dirs failed");
-                let host_config = async_docker::models::HostConfig::new().with_binds(binds);
+                let mut host_config = async_docker::models::HostConfig::new().with_binds(binds);
+
+                let host_config = match msg.options.net {
+                    Some(NetDef::Host {}) => host_config.with_network_mode("host".to_string()),
+                    _ => host_config,
+                };
 
                 let opts = Self::container_config(url.clone(), host_config);
                 info!("config: {:?}", &opts);
@@ -552,9 +557,9 @@ impl Handler<SessionUpdate> for DockerMan {
 
     fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
         if !self.deploys.contains_deploy(&msg.session_id) {
-            return ActorResponse::reply(Err(
-                vec![Error::NoSuchSession(msg.session_id).to_string()],
-            ));
+            return ActorResponse::reply(Err(vec![
+                Error::NoSuchSession(msg.session_id).to_string()
+            ]));
         }
         let session_id = msg.session_id.clone();
 

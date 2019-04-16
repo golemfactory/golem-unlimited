@@ -45,6 +45,7 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                                         id: session_id,
                                         created: Some(session_info.created),
                                         name: session_info.name,
+                                        tags: session_info.tags.unwrap_or_default(),
                                         ..gu_model::session::SessionDetails::default()
                                     }
                                 })

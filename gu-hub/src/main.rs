@@ -6,7 +6,7 @@ mod version {
 
     use gu_base::*;
 
-    include!(concat!(env!("OUT_DIR"), "/version.rs"));
+    //include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
     struct Version;
 
@@ -26,10 +26,10 @@ mod version {
 
         fn args_consume(&mut self, matches: &ArgMatches) -> bool {
             if matches.is_present("ver-info") {
-                eprintln!("BUILD_TIMESTAMP  {}", VERGEN_BUILD_TIMESTAMP);
-                eprintln!("COMMIT_DATE      {}", VERGEN_COMMIT_DATE);
-                eprintln!("TARGET_TRIPLE    {}", VERGEN_TARGET_TRIPLE);
-                eprintln!("SEMVER           {}", VERGEN_SEMVER);
+                eprintln!("BUILD_TIMESTAMP  {}", env!("VERGEN_BUILD_TIMESTAMP"));
+                eprintln!("COMMIT_DATE      {}", env!("VERGEN_COMMIT_DATE"));
+                eprintln!("TARGET_TRIPLE    {}", env!("VERGEN_TARGET_TRIPLE"));
+                eprintln!("SEMVER           {}", env!("VERGEN_SEMVER"));
 
                 true
             } else {
@@ -39,8 +39,10 @@ mod version {
     }
 }
 
-const VERSION: &str = self::version::VERGEN_SEMVER_LIGHTWEIGHT;
+const VERSION: &str = env!("VERGEN_SEMVER_LIGHTWEIGHT");
 
+mod hub_info;
+mod local_service;
 mod peer;
 mod plugins;
 mod proxy_service;
@@ -62,8 +64,10 @@ fn main() {
             .chain(plugins::PluginModule::new())
             .chain(sessions::SessionsModule::default())
             .chain(proxy_service::module())
+            .chain(local_service::module())
             .chain(peer::PeerModule::new())
             .chain(AutocompleteModule::new())
+            .chain(hub_info::module())
             .chain(server::ServerModule::new()),
     );
 }

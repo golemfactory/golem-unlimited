@@ -63,7 +63,7 @@ impl PciDevice {
         }
         match str::from_utf8(&buf[0..n - 1]) {
             Ok(s) => {
-                let s = s.trim_right();
+                let s = s.trim_end();
                 if &s[0..2] != "0x" {
                     return Err(io::ErrorKind::InvalidInput.into());
                 }
