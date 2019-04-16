@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+use std::hash::Hash;
+
 use actix::prelude::*;
 use futures::prelude::*;
 use futures::sync::oneshot;
+
 use gu_actix::prelude::*;
-use std::collections::HashMap;
-use std::hash::Hash;
 
 pub trait CacheProvider {
     type Key: Eq + Hash + Clone + Send;

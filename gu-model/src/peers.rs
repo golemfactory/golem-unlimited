@@ -1,9 +1,9 @@
+use serde_derive::*;
+
+use gu_net::NodeId;
+
 use super::deployment::DeploymentInfo;
 use super::Tags;
-use gu_net::NodeId;
-use serde_derive::*;
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]

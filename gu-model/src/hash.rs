@@ -116,8 +116,6 @@ impl<'a> ParsedHash<'a> {
     }
 
     pub fn to_hash_str(&self) -> Result<String, Error> {
-        use std::str::from_utf8;
-
         Ok(format!("{}:{}", self.algo_name()?, self.value()?))
     }
 

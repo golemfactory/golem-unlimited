@@ -1,7 +1,7 @@
 #[macro_use]
-extern crate log;
-#[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
@@ -17,10 +17,10 @@ mod inner_actor;
 mod ram;
 mod storage;
 
-#[allow(deprecated)]
 pub mod error {
-    use actix::MailboxError;
     use std;
+
+    use actix::MailboxError;
 
     pub type Result<T> = std::result::Result<T, Error>;
 

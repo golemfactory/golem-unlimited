@@ -1,4 +1,7 @@
-use super::error::{Error, Result};
+use super::error::Result;
+
+#[cfg(feature = "clinfo")]
+pub use self::clinfo::Error as ClError;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct GpuCount {
@@ -49,9 +52,6 @@ pub fn gpu_count() -> Result<GpuCount> {
             }
         }))
 }
-
-#[cfg(feature = "clinfo")]
-pub use self::clinfo::Error as ClError;
 
 #[cfg(feature = "clinfo")]
 pub fn gpu_count() -> Result<GpuCount> {

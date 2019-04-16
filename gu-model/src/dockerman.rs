@@ -32,13 +32,13 @@ pub enum NetDef {
 impl VolumeDef {
     pub fn source_dir(&self) -> Option<&String> {
         match self {
-            VolumeDef::BindRw { src, target } => Some(src),
+            VolumeDef::BindRw { src, target: _ } => Some(src),
         }
     }
 
     pub fn target_dir(&self) -> Option<&String> {
         match self {
-            VolumeDef::BindRw { src, target } => Some(target),
+            VolumeDef::BindRw { src: _, target } => Some(target),
         }
     }
 }

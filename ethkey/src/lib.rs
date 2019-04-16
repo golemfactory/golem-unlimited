@@ -30,16 +30,9 @@
 //! ```
 //!
 
-use error_chain::{
-    error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
-    impl_extract_backtrace,
-};
-use log::info;
-use rand::{thread_rng, RngCore};
 use std::{
     fmt,
     fs::File,
-    io,
     num::NonZeroU32,
     path::{Path, PathBuf},
 };
@@ -49,9 +42,12 @@ use ethsign::{
     Protected,
 };
 pub use ethsign::{PublicKey, SecretKey, Signature};
+use log::info;
+use rand::{RngCore, thread_rng};
+
+pub use address::Address;
 
 mod address;
-pub use address::Address;
 
 /// 32 bytes Message for signing and verification
 pub type Message = [u8; 32];
@@ -87,17 +83,17 @@ impl EthAccount {
     }
 
     /// signs given message with self secret key
-    pub fn sign(&self, msg: &Message) -> Result<Signature> {
+    pub fn sign(&self, msg: &Message) -> error::Result<Signature> {
         Ok(self.secret.sign(msg)?)
     }
 
     /// verifies signature for given message and self public key
-    pub fn verify(&self, sig: &Signature, msg: &Message) -> Result<bool> {
+    pub fn verify(&self, sig: &Signature, msg: &Message) -> error::Result<bool> {
         Ok(self.public.verify(sig, msg)?)
     }
 
     /// reads keys from disk or generates new ones and stores to disk; password needed
-    pub fn load_or_generate<P, W>(file_path: P, password: W) -> Result<Box<Self>>
+    pub fn load_or_generate<P, W>(file_path: P, password: W) -> error::Result<Box<Self>>
     where
         P: AsRef<Path>,
         W: Into<Password>,
@@ -129,14 +125,14 @@ impl EthAccount {
     }
 
     /// stores keys on disk with changed password
-    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> Result<()> {
+    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> error::Result<()> {
         save_key(&self.secret, &self.file_path, new_password.into())?;
         info!("changed password for {}", self);
         Ok(())
     }
 }
 
-fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> Result<()>
+fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> error::Result<()>
 where
     P: AsRef<Path>,
     W: Into<Password>,
@@ -177,12 +173,20 @@ impl fmt::Debug for EthAccount {
     }
 }
 
-error_chain! {
-    foreign_links {
-        IoError(io::Error);
-        EthsignError(ethsign::Error);
-        Secp256k1Error(secp256k1::Error);
-        SerdeJsonError(serde_json::Error);
+#[allow(deprecated)]
+mod error {
+    use error_chain::{
+        error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
+        impl_extract_backtrace,
+    };
+
+    error_chain! {
+        foreign_links {
+            IoError(std::io::Error);
+            EthsignError(ethsign::Error);
+            Secp256k1Error(secp256k1::Error);
+            SerdeJsonError(serde_json::Error);
+        }
     }
 }
 
@@ -200,11 +204,13 @@ pub mod prelude {
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use std::{env, fs::File, path::PathBuf};
+
     use ethsign::keyfile::KeyFile;
     use rustc_hex::ToHex;
-    use std::{env, fs::File, path::PathBuf};
     use tempfile::tempdir;
+
+    use crate::prelude::*;
 
     fn tmp_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();

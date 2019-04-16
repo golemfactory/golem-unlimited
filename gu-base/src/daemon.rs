@@ -1,9 +1,5 @@
 #![allow(dead_code)]
 
-use daemonize::Daemonize;
-use libc::{
-    dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
-};
 use std::{
     fs::{create_dir_all, File},
     io::{Read, Write},
@@ -12,6 +8,11 @@ use std::{
     str,
     thread::sleep,
     time::Duration,
+};
+
+use daemonize::Daemonize;
+use libc::{
+    dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
 };
 
 pub enum ProcessStatus {
@@ -220,9 +221,11 @@ fn force_kill(pid: i32, file: &File) -> bool {
 mod tests {
     extern crate tempfile;
 
-    use daemon::{DaemonProcess, ProcessStatus};
-    use libc::getpid;
     use std::{path::PathBuf, process::Command, thread, time::Duration};
+
+    use libc::getpid;
+
+    use daemon::{DaemonProcess, ProcessStatus};
 
     fn tmp_work_dir() -> PathBuf {
         tempfile::tempdir().unwrap().into_path()

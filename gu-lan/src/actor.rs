@@ -1,36 +1,35 @@
-use actix::prelude::*;
-use futures::prelude::*;
-use tokio::prelude::*;
-
-use codec::MdnsCodec;
-use errors::{Error, ErrorKind, Result};
-use futures::sync::oneshot;
-use service::{ServiceInstance, ServicesDescription};
-use socket2::{Domain, Protocol, Socket, Type};
-
 use std::{
     collections::HashMap,
     net::{Ipv4Addr, SocketAddrV4},
 };
-
-use actix::AsyncContext;
-use codec::ParsedPacket;
-use continuous::{
-    ContinuousInstancesList, ForeignMdnsQueryInfo, NewInstance, ReceivedMdnsInstance, Subscribe,
-    Subscription,
-};
-use futures::sync::mpsc;
-use gu_actix::FlattenFuture;
-use service::{ServiceDescription, Services};
 use std::{
     collections::HashSet,
     net::SocketAddr::{self, V4},
     time::Duration,
 };
+
+use actix::AsyncContext;
+use actix::prelude::*;
+use futures::prelude::*;
+use futures::sync::mpsc;
+use futures::sync::oneshot;
+use socket2::{Domain, Protocol, Socket, Type};
 use tokio::{
     net::{UdpFramed, UdpSocket},
     reactor::Handle,
 };
+use tokio::prelude::*;
+
+use codec::MdnsCodec;
+use codec::ParsedPacket;
+use continuous::{
+    ContinuousInstancesList, ForeignMdnsQueryInfo, NewInstance, ReceivedMdnsInstance, Subscribe,
+    Subscription,
+};
+use errors::{Error, ErrorKind, Result};
+use gu_actix::FlattenFuture;
+use service::{ServiceInstance, ServicesDescription};
+use service::{ServiceDescription, Services};
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]
@@ -130,7 +129,7 @@ impl<T: MdnsConnection> MdnsActor<T> {
         socket.join_multicast_v4(&multicast_ip, &any_ip)?;
         socket.bind(&socket_address.into())?;
 
-        UdpSocket::from_std(socket.into_udp_socket(), &Handle::current()).map_err(Error::from)
+        UdpSocket::from_std(socket.into_udp_socket(), &Handle::default()).map_err(Error::from)
     }
 }
 
