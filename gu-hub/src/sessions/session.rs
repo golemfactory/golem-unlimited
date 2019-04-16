@@ -4,7 +4,9 @@ use chrono::DateTime;
 use chrono::Utc;
 use futures::{future, prelude::*, stream};
 use gu_base::files::{read_async, write_async};
+use gu_model::deployment::DeploymentInfo;
 use gu_model::session::{BlobInfo, Metadata};
+use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::{rpc::peer, NodeId};
 use serde_json;
 use sessions::{
@@ -291,6 +293,35 @@ impl Session {
                 .map_err(|_| SessionErr::CannotCreatePeerDeployment)
                 .and_then(|v| {
                     future::result(v).map_err(|_| SessionErr::CannotCreatePeerDeployment)
+                }),
+        )
+    }
+
+    pub fn list_deployments(
+        &self,
+        node_id: NodeId,
+    ) -> impl Future<Item = Vec<PeerSessionInfo>, Error = SessionErr> {
+        let peer_state = match self.peers.get(&node_id) {
+            None => return future::Either::A(future::err(SessionErr::NodeNotFound(node_id))),
+            Some(peer) => peer,
+        };
+        // TODO: Add reference counting here
+        let session_deployments = peer_state.deployments.clone();
+
+        future::Either::B(
+            peer(node_id)
+                .into_endpoint()
+                .send(gu_model::envman::GetSessions::default())
+                .map_err(move |_| SessionErr::NodeNotFound(node_id))
+                .and_then(|v| future::result(v).map_err(|_| SessionErr::CannotCreatePeerDeployment))
+                .and_then(move |deployments| {
+                    let v: Vec<_> = deployments
+                        .into_iter()
+                        .filter(move |deployment_info: &PeerSessionInfo| {
+                            session_deployments.contains(&deployment_info.id)
+                        })
+                        .collect();
+                    Ok(v)
                 }),
         )
     }

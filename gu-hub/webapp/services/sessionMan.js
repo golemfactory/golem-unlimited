@@ -224,6 +224,13 @@ angular.module('gu')
                 return $http.get(`/sessions/${this.id}/config`).then(response => response.data);
             }
 
+            updateConfig(updateFn) {
+                return this.getConfig().then(data => {
+                    updateFn(data);
+                    this.setConfig(data)
+                })
+            }
+
             peers() {
                 return $http.get(`/sessions/${this.id}/peers`).then(response => _.map(response.data, peer => peer.nodeId));
             }
@@ -257,9 +264,30 @@ angular.module('gu')
                     }
                     return undefined;
                 }
-
             }
 
+            get _url() {
+                return `/sessions/${this.id}`;
+            }
+        }
+
+        class HubSessionPeer {
+            constructor(hubSession, nodeId) {
+                this.hubSession = hubSession;
+                this.nodeId = nodeId;
+            }
+
+            get deployments() {
+                $http.get(`${this._url}/deployments`).then(response => {
+                    let deployments = response.data;
+
+                    return deployments.map(deployment => )
+                })
+            }
+
+            get _url() {
+                return `${this.hubSession._url}/peer/${this.nodeId}`;
+            }
         }
 
         return {
