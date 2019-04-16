@@ -6,7 +6,7 @@ use std::io;
 use std::sync::Arc;
 
 pub struct SyncReader<T, E> {
-    rx: Receiver<Result<T, E>>,
+    rx: Option<Receiver<Result<T, E>>>,
     task: Arc<AtomicTask>,
     buffer: Option<Bytes>,
 }
@@ -36,9 +36,9 @@ impl<T, E> Stream for AsyncReader<T, E> {
 impl io::Read for SyncReader<Bytes, io::Error> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         if self.buffer.is_none() {
-            let is_full = self.rx.is_full();
+            let is_full = self.rx.as_ref().unwrap().is_full();
 
-            let r = self.rx.recv();
+            let r = self.rx.as_ref().unwrap().recv();
             self.task.notify();
 
             match r {
@@ -61,6 +61,13 @@ impl io::Read for SyncReader<Bytes, io::Error> {
             buf[..l].copy_from_slice(xbuf.as_ref());
             Ok(l)
         }
+    }
+}
+
+impl<T, E> Drop for SyncReader<T, E> {
+    fn drop(&mut self) {
+        drop(self.rx.take());
+        self.task.notify();
     }
 }
 
@@ -154,7 +161,7 @@ pub fn async_to_sync<T, E>(cap: usize) -> (AsyncWriter<T, E>, SyncReader<T, E>) 
             task: task.clone(),
         },
         SyncReader {
-            rx,
+            rx: Some(rx),
             task: task.clone(),
             buffer: None,
         },
@@ -167,7 +174,7 @@ mod tests {
     use super::*;
     use actix::prelude::*;
     use futures::prelude::*;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
     use std::{io, thread};
     use tokio_timer::Interval;
 
@@ -177,21 +184,30 @@ mod tests {
 
         thread::spawn(move || {
             use std::io::{BufRead, BufReader, Read};
-            let mut buf = [0; 200];
+            let mut buf = [0; 15];
             let mut r = BufReader::new(rx);
 
             eprintln!("wait");
-            thread::sleep(Duration::from_secs(5));
+            thread::sleep(Duration::from_millis(50));
             eprintln!("start");
+            r.read_exact(&mut buf[..]).unwrap();
+            eprintln!("got: {}", std::str::from_utf8(&buf[..]).unwrap());
+            thread::sleep(Duration::from_millis(50));
+            r.read_exact(&mut buf[..]).unwrap();
+            eprintln!("got: {}", std::str::from_utf8(&buf[..]).unwrap());
+            thread::sleep(Duration::from_millis(50));
             r.read_exact(&mut buf[..]).unwrap();
             eprintln!("got: {}", std::str::from_utf8(&buf[..]).unwrap())
         });
 
         System::run(|| {
-            let f = Interval::new_interval(Duration::from_secs(1))
-                .map(|x| {
-                    eprintln!("it {:?}", x);
-                    Bytes::from(format!("{:?}\n", x))
+            let s = Instant::now();
+
+            let f = Interval::new_interval(Duration::from_millis(1))
+                .map(move |x| {
+                    let d = x.duration_since(s);
+                    eprintln!("it {:04}", d.as_millis());
+                    Bytes::from(format!("{:04}\n", d.as_millis()))
                 })
                 .map_err(|e| WriteError::Other(io::Error::new(io::ErrorKind::Other, e)))
                 .forward(tx)
