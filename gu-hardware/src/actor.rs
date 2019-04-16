@@ -2,14 +2,17 @@ use actix::{Actor, ActorResponse, Addr, ArbiterService, Handler, Message, WrapFu
 use futures::Future;
 use hostname::get_hostname;
 
-use disk::{DiskInfo, DiskQuery};
+use crate::disk::{DiskInfo, DiskQuery};
+use crate::inner_actor::InnerActor;
+use crate::ram::{RamInfo, RamQuery};
+use crate::storage::storage_info;
 use gu_actix::flatten::FlattenFuture;
 use gu_net::rpc::{RemotingContext, RemotingSystemService};
-use inner_actor::InnerActor;
-use ram::{RamInfo, RamQuery};
 
 use super::gpuinfo::{gpu_count, GpuCount};
 use num_cpus;
+
+pub use crate::storage::{StorageInfo, StorageQuery};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HardwareQuery;
@@ -125,5 +128,17 @@ impl Handler<HardwareQuery> for HardwareActor {
                 })
                 .into_actor(self),
         )
+    }
+}
+
+impl Handler<StorageQuery> for HardwareActor {
+    type Result = ActorResponse<Self, StorageInfo, String>;
+
+    fn handle(
+        &mut self,
+        msg: StorageQuery,
+        _ctx: &mut RemotingContext<Self>,
+    ) -> <Self as Handler<StorageQuery>>::Result {
+        ActorResponse::reply(storage_info(msg.path()).map_err(|e| e.to_string()))
     }
 }
