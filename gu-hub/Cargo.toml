@@ -36,7 +36,7 @@ actix_derive = "0.3.0"
 bytes = "0.4.10"
 sha1 = "0.6.0"
 
-mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
+mdns = { git = "https://github.com/plietar/rust-mdns" }
 
 prettytable-rs="0.7"
 chrono = { version = "0.4", features = ["serde"] }
