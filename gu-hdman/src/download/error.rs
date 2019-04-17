@@ -18,7 +18,7 @@ pub enum Error {
     Serialize(#[fail(cause)] bincode::Error),
 
     #[fail(display = "Overflow")]
-    Overflow,
+    Overflow(String),
 
     #[fail(display = "Canceled")]
     Canceled,
@@ -41,7 +41,7 @@ impl From<io::Error> for Error {
 
 impl<T: fmt::Debug + Send + Sync + 'static> From<OverflowError<T>> for Error {
     fn from(e: OverflowError<T>) -> Self {
-        Error::Overflow
+        Error::Overflow(format!("{}", e))
     }
 }
 
