@@ -51,6 +51,7 @@ pub mod error {
         StorageNotSupported,
     }
 
+    #[cfg(feature = "clinfo")]
     macro_rules! from_def {
         ($stype:ty => $opt:ident) => {
             impl From<$stype> for Error {

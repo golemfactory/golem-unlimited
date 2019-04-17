@@ -79,11 +79,13 @@ pub fn gpu_count() -> Result<GpuCount> {
 #[cfg(not(target_os = "linux"))]
 #[cfg(not(feature = "clinfo"))]
 pub fn gpu_count() -> Result<GpuCount> {
-    bail!("gpu detection supported only on ubuntu or with clinfo feature")
+    compile_error!("please enable clinfo feature when building for MacOS")
 }
 
 #[cfg(test)]
 mod test {
+    #[cfg(any(target_os = "linux", feature = "clinfo"))]
+    use super::gpu_count;
 
     #[test]
     #[cfg(any(target_os = "linux", feature = "clinfo"))]
