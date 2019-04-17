@@ -92,17 +92,13 @@ impl<P: CacheProvider + 'static> Message for DoFetchOnce<P> {
 impl<P: CacheProvider> AsyncCache<P> {}
 
 struct CacheRegistry<P: CacheProvider> {
-    provider: P,
     downloads: HashMap<P::Key, Vec<oneshot::Sender<Result<P::Value, P::Error>>>>,
 }
 
 impl<P: CacheProvider + Default> Default for CacheRegistry<P> {
     fn default() -> Self {
-        let provider = P::default();
-        let downloads = HashMap::new();
         CacheRegistry {
-            provider,
-            downloads,
+            downloads: HashMap::new(),
         }
     }
 }

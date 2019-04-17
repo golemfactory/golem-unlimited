@@ -130,7 +130,6 @@ pub struct UrlInfo {
     download_url: String,
     size: Option<u64>,
     check: CheckType,
-    accept_ranges: bool,
 }
 
 fn extract_check<M: actix_web::HttpMessage>(resp: &M) -> Result<CheckType, header::ToStrError> {
@@ -186,7 +185,6 @@ fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
                         download_url: url,
                         size,
                         check,
-                        accept_ranges: true,
                     }))
                 } else {
                     Err(Error::Other(format!(

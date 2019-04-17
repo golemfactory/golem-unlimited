@@ -20,11 +20,6 @@ pub(super) struct DownloadFile {
     map_offset: u64,
 }
 
-struct Chunk {
-    from: u64,
-    to: u64,
-}
-
 const MAGIC: [u8; 8] = [0xf4, 0xd4, 0xc7, 0xd1, 0x4d, 0x2f, 0xe2, 0x83];
 const CHUNK_SIZE: u64 = 1024 * 512;
 

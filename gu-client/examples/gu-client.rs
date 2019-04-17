@@ -136,9 +136,6 @@ enum Progress {
 
 #[derive(Debug)]
 enum MainSteps {
-    Init {
-        total_frames: u64,
-    },
     UploadFile {
         file_name: PathBuf,
         total_upload_progress: Progress,
@@ -187,7 +184,6 @@ impl Handler<MainSteps> for AsyncProgress {
 
     fn handle(&mut self, msg: MainSteps, _ctx: &mut Self::Context) -> Self::Result {
         match msg {
-            MainSteps::Init { total_frames } => (),
             MainSteps::UploadFile {
                 file_name,
                 total_upload_progress: Progress::Step(s, _),
