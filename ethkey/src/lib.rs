@@ -43,7 +43,7 @@ use ethsign::{
 };
 pub use ethsign::{PublicKey, SecretKey, Signature};
 use log::info;
-use rand::{RngCore, thread_rng};
+use rand::{thread_rng, RngCore};
 
 pub use address::Address;
 

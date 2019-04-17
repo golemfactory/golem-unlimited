@@ -1,7 +1,9 @@
+use std::{fmt, io};
+
 use failure::Fail;
 use futures::sync::oneshot;
+
 use gu_actix::safe::*;
-use std::{fmt, io};
 
 #[derive(Debug, Fail)]
 pub enum Error {

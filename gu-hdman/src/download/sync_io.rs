@@ -1,14 +1,16 @@
-use super::Error;
+use std::cell::RefCell;
+use std::io::prelude::*;
+use std::sync::Arc;
+use std::{fs, io, path};
+
 use futures::prelude::*;
 use futures::sync::oneshot;
 use futures_cpupool::CpuPool;
-use gu_actix::safe::*;
 use serde::{Deserialize, Serialize};
-use std::io::prelude::*;
-use std::{fs, io, path};
 
-use std::cell::RefCell;
-use std::sync::Arc;
+use gu_actix::safe::*;
+
+use super::Error;
 
 pub(super) struct DownloadFile {
     temp_file_name: path::PathBuf,
@@ -345,7 +347,7 @@ where
         cpu_pool
             .spawn_fn(move || {
                 let instance = Box::new(Some(builder()?));
-                tx.send(instance);
+                let _ = tx.send(instance);
                 Ok(())
             })
             .and_then(move |()| {
@@ -372,7 +374,7 @@ where
         let new_fut = after.and_then(move |mut it| {
             cpu_pool.spawn_fn(move || {
                 let r = f(it.as_mut().as_mut().unwrap());
-                tx.send(it);
+                let _ = tx.send(it);
                 Ok(r)
             })
         });
@@ -394,7 +396,7 @@ where
         let new_fut = after.and_then(move |mut it| {
             cpu_pool.spawn_fn(move || {
                 let r = f(it.take().unwrap());
-                tx.send(it);
+                let _ = tx.send(it);
                 Ok(r)
             })
         });

@@ -7,6 +7,7 @@ use actix_web::{
     },
     HttpResponse,
 };
+use failure::Fail;
 use log::error;
 use serde_json::Value;
 

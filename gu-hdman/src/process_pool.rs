@@ -1,15 +1,17 @@
-use actix::prelude::*;
-use futures::unsync::oneshot;
-use futures::{future, prelude::*};
-use gu_actix::{async_result, async_try};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::string;
+
+use actix::prelude::*;
+use futures::unsync::oneshot;
+use futures::{future, prelude::*};
 use tokio_io::io;
 use tokio_process::{Child, CommandExt};
+
+use gu_actix::{async_result, async_try};
 
 type Map<K, V> = HashMap<K, V>;
 
@@ -86,16 +88,16 @@ impl ProcessPool {
         let stdout = child.stdout().take().unwrap();
         let stderr = child.stderr().take().unwrap();
 
-        let pid = self.spawn_child(ctx, child);
+        self.spawn_child(ctx, child);
 
         async_result!(io::read_to_end(stdout, Vec::new())
             .map_err(|e| format!("stdout read fail: {}", e))
-            .and_then(|(stdout, bytes)| string::String::from_utf8(bytes)
+            .and_then(|(_stdout, bytes)| string::String::from_utf8(bytes)
                 .map_err(|e| format!("invalid output: {}", e)))
             .join(
                 io::read_to_end(stderr, Vec::new())
                     .map_err(|e| format!("stderr read fail: {}", e))
-                    .and_then(|(stdout, bytes)| string::String::from_utf8(bytes)
+                    .and_then(|(_stdout, bytes)| string::String::from_utf8(bytes)
                         .map_err(|e| format!("invalid output: {}", e)))
             ))
     }
@@ -145,14 +147,14 @@ impl ProcessPool {
 
     fn stop_process(&mut self, pid: Pid) -> Result<(), String> {
         if let Some(tx) = self.exec_processes.remove(&pid) {
-            tx.send(()).map_err(|e| format!("kill"))?
+            tx.send(()).map_err(|_e| format!("kill"))?
         }
         Ok(())
     }
 
     fn kill_all(&mut self) {
         // TODO: log error
-        self.exec_processes.drain().for_each(|(pid, tx)| {
+        self.exec_processes.drain().for_each(|(_pid, tx)| {
             let _ = tx.send(());
         });
     }
@@ -176,10 +178,12 @@ impl ProcessPool {
                         Ok(()) => future::Either::B(child),
                     },
                     Err(future::Either::A((e, _rx))) => future::Either::A(future::err(e)),
-                    Err(future::Either::B((e, child))) => future::Either::A(future::err(io_err(e))),
+                    Err(future::Either::B((e, _child))) => {
+                        future::Either::A(future::err(io_err(e)))
+                    }
                 })
                 .into_actor(self)
-                .then(move |r, act, ctx| {
+                .then(move |_r, act, _ctx| {
                     act.exec_processes.remove(&pid);
                     if Some(pid) == act.main_process {
                         act.kill_all()
@@ -218,7 +222,7 @@ impl Message for List {
 impl Handler<List> for ProcessPool {
     type Result = MessageResult<List>;
 
-    fn handle(&mut self, msg: List, ctx: &mut Self::Context) -> <Self as Handler<List>>::Result {
+    fn handle(&mut self, _msg: List, _ctx: &mut Self::Context) -> <Self as Handler<List>>::Result {
         MessageResult(self.exec_processes.keys().cloned().collect())
     }
 }
@@ -232,7 +236,7 @@ impl Message for Stop {
 impl Handler<Stop> for ProcessPool {
     type Result = Result<(), String>;
 
-    fn handle(&mut self, msg: Stop, ctx: &mut Self::Context) -> <Self as Handler<Stop>>::Result {
+    fn handle(&mut self, msg: Stop, _ctx: &mut Self::Context) -> <Self as Handler<Stop>>::Result {
         self.stop_process(msg.0)
     }
 }

@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use clap::AppSettings;
 
 use {
-    App,
-    ArgMatches, daemon::{DaemonProcess, ProcessStatus}, SubCommand,
+    daemon::{DaemonProcess, ProcessStatus},
+    App, ArgMatches, SubCommand,
 };
 
 enum GuServer {

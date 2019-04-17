@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use bytes::*;
 use crossbeam_channel::{self as cb, Receiver, Sender};
-use futures::{Async, Poll, Stream};
 use futures::task::AtomicTask;
+use futures::{Async, Poll, Stream};
 
 pub struct SyncReader<T, E> {
     rx: Receiver<Result<T, E>>,
@@ -164,8 +164,8 @@ pub fn async_to_sync<T, E>(cap: usize) -> (AsyncWriter<T, E>, SyncReader<T, E>) 
 
 #[cfg(test)]
 mod tests {
-    use std::{io, thread};
     use std::time::Duration;
+    use std::{io, thread};
 
     use actix::prelude::*;
     use futures::prelude::*;

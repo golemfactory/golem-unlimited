@@ -70,7 +70,7 @@ impl CacheProvider for ImageCacheProvider {
             DownloadOptionsBuilder::default()
                 .download(&image.url, p.to_string_lossy().into())
                 .for_each(|progress| Ok(eprintln!("progress={:?}", progress)))
-                .and_then(|v| Ok(p))
+                .and_then(|_v| Ok(p))
                 .map_err(|e| Error::Other(format!("{}", e))),
         )
     }

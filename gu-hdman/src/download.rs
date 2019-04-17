@@ -1,21 +1,22 @@
 /*
     Smart downloader
 */
+use std::sync::Arc;
+use std::time;
+
 use actix::prelude::*;
+use actix_web::http::header;
+use derive_builder::*;
 use futures::prelude::*;
 use futures_cpupool::CpuPool;
+
 use gu_actix::prelude::*;
-use std::time;
+
+pub use self::error::Error;
+use self::sync_io::{CheckType, DownloadFile, LogMetadata, Proxy};
 
 mod error;
 mod sync_io;
-
-use self::sync_io::{CheckType, DownloadFile, LogMetadata, Proxy};
-
-pub use self::error::Error;
-use actix_web::http::header;
-use derive_builder::*;
-use std::sync::Arc;
 
 #[derive(Builder, Clone)]
 pub struct DownloadOptions {
@@ -223,7 +224,7 @@ fn download(
             })
             .from_err()
         })
-        .and_then(move |mut download_file| {
+        .and_then(move |download_file| {
             download_file
                 .with(|df: &mut DownloadFile| {
                     let meta = df.meta();
@@ -237,7 +238,7 @@ fn download(
                     (Arc::new(meta), v)
                 })
                 .and_then(move |(meta, chunks)| {
-                    init_tx.unbounded_send(ProgressStatus {
+                    let _ = init_tx.unbounded_send(ProgressStatus {
                         total_to_download: Some(meta.size),
                         downloaded_bytes: 0,
                     });
@@ -267,7 +268,7 @@ fn download(
                 .buffer_unordered(connections as usize)
                 .fold(init_progress, move |mut progress, chunk| {
                     progress.downloaded_bytes += chunk.to - chunk.from;
-                    tx.unbounded_send(progress.clone());
+                    let _ = tx.unbounded_send(progress.clone());
                     Ok::<_, Error>(progress)
                 })
                 .and_then(|_| {

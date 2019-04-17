@@ -8,17 +8,17 @@ use std::{
     time::Duration,
 };
 
-use actix::AsyncContext;
 use actix::prelude::*;
+use actix::AsyncContext;
 use futures::prelude::*;
 use futures::sync::mpsc;
 use futures::sync::oneshot;
 use socket2::{Domain, Protocol, Socket, Type};
+use tokio::prelude::*;
 use tokio::{
     net::{UdpFramed, UdpSocket},
     reactor::Handle,
 };
-use tokio::prelude::*;
 
 use codec::MdnsCodec;
 use codec::ParsedPacket;
@@ -28,8 +28,8 @@ use continuous::{
 };
 use errors::{Error, ErrorKind, Result};
 use gu_actix::FlattenFuture;
-use service::{ServiceInstance, ServicesDescription};
 use service::{ServiceDescription, Services};
+use service::{ServiceInstance, ServicesDescription};
 
 /// Actor resolving mDNS services names into list of IPs
 #[derive(Debug, Default)]
