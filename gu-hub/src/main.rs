@@ -3,10 +3,7 @@ use gu_base::*;
 /* TODO: replace with a macro (the code is the same as in the gu-hub/src/main.rs file) */
 #[allow(dead_code)]
 mod version {
-
     use gu_base::*;
-
-    //include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
     struct Version;
 
