@@ -916,7 +916,7 @@ fn render_task(
                 })
         });
 
-        let mut frames_done = 0;
+        // TODO: let mut frames_done = 0;
 
         prepare_workers
             .join3(upload_blob, tasks)
