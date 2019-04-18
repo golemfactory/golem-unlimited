@@ -3,7 +3,6 @@ use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
 use futures::{future, prelude::*};
 use gu_actix::release::{AsyncRelease, Handle};
-use gu_model::peers::PeerInfo;
 use gu_model::{
     deployment::DeploymentInfo,
     envman,
@@ -11,7 +10,6 @@ use gu_model::{
     HubInfo,
 };
 use gu_net::rpc::peer::PeerSessionInfo;
-use gu_net::types::NodeId;
 use gu_net::types::TryIntoNodeId;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -23,6 +21,7 @@ use std::{env, str};
 use url::Url;
 
 pub type HubSessionRef = Handle<HubSession>;
+pub use gu_net::NodeId;
 
 /// Connection to a single hub.
 #[derive(Clone, Debug)]
