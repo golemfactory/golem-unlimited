@@ -64,11 +64,16 @@ pub(crate) fn entries_id_iter(path: &PathBuf) -> impl Iterator<Item = u64> {
                 .and_then(|e| {
                     e.file_name()
                         .to_str()
-                        .ok_or_else(|| error!("Invalid session filename"))
+                        .ok_or_else(|| {
+                            error!(
+                                "Invalid session filename: not valid unicode: {}",
+                                e.file_name().to_string_lossy()
+                            )
+                        })
                         .and_then(|s| {
                             s.clone().parse::<u64>().map_err(|e| {
                                 if !s.starts_with('.') {
-                                    error!("Invalid session filename: {}", e)
+                                    error!("Invalid session filename: {}: {}", s, e)
                                 }
                             })
                         })

@@ -747,7 +747,7 @@ fn blender_deployment_spec(
                             target: "/golem/output".into(),
                         },
                     ],
-                    cmd: None,
+                    ..CreateOptions::default()
                 },
             }),
         )
