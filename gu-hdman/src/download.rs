@@ -96,11 +96,7 @@ fn download_chunk(
             .from_err()
             .and_then(move |v| match v {
                 Ok(true) => {
-                    return future::Either::A(future::ok(Loop::Break(Chunk {
-                        chunk_nr,
-                        from,
-                        to,
-                    })));
+                    return future::Either::A(future::ok(Loop::Break(Chunk { chunk_nr, from, to })));
                 }
                 _ => future::Either::B(
                     client::get(&meta.url)
