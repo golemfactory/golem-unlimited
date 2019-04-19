@@ -8,9 +8,6 @@ use crate::ram::{RamInfo, RamQuery};
 use crate::storage::storage_info;
 use gu_actix::flatten::FlattenFuture;
 use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
-use inner_actor::InnerActor;
-use ram::{RamInfo, RamQuery};
-use gu_net::rpc::{RemotingContext, RemotingSystemService};
 
 use super::gpuinfo::{gpu_count, GpuCount};
 use num_cpus;
