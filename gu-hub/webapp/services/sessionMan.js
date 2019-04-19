@@ -337,7 +337,6 @@ angular.module('gu')
                 nativeSpec.envType = 'hd';
                 let os = await getOs(this.nodeId);
                 nativeSpec.image = spec.images[os];
-                $log.info('creating deployment=', nativeSpec, 'os=', os);
                 return await this.createDeployment(nativeSpec);
             }
 

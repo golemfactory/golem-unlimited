@@ -86,7 +86,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
 
     })
 
-    .controller('GuSessionsController', function ($scope, $http, $log, $uibModal, pluginManager, hubApi, sessionMan) {
+    .controller('GuSessionsController', function ($scope, $http, $log, $uibModal, pluginManager, hubApi, sessionMan, guProcessMan) {
 
         let baseTabs = $scope.$eval('backList');
 
@@ -102,6 +102,10 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             hubApi.listSessions().then(sessions => {
                 $scope.sessions = sessions;
             })
+        };
+
+        $scope.process = function(session) {
+            return guProcessMan.getProcess(session);
         };
 
 

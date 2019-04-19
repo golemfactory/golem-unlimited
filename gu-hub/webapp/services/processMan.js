@@ -1,5 +1,5 @@
 
-angular.module('gu').service('guProcessMan', function ($http, $log, $q, hubApi, guPeerMan) {
+angular.module('gu').service('guProcessMan', function ($http, $log, $q, hubApi, guPeerMan, $rootScope) {
     "use strict";
 
 
@@ -32,6 +32,7 @@ angular.module('gu').service('guProcessMan', function ($http, $log, $q, hubApi, 
             this.hubSession = hubSession;
             this._process = undefined;
             this._counters = {};
+            this._result = undefined;
         }
 
         get process() {
@@ -40,6 +41,10 @@ angular.module('gu').service('guProcessMan', function ($http, $log, $q, hubApi, 
 
         get progress() {
             return this._process ? this._process.progress : 100;
+        }
+
+        get lastResult() {
+            return this._result;
         }
 
         get isActive() {
@@ -59,7 +64,7 @@ angular.module('gu').service('guProcessMan', function ($http, $log, $q, hubApi, 
             return this._counters[nodeId] || 0;
         }
 
-        run(process) {
+        run(process, deployments) {
             if (this._process == process) {
                 return;
             }
@@ -68,9 +73,11 @@ angular.module('gu').service('guProcessMan', function ($http, $log, $q, hubApi, 
                 this._process = undefined;
                 oldProcess.stop();
             }
+
             this._process = process;
 
             let self = this;
+
             async function processWork(deployment) {
                 if (self._process !== process) {
                     return;
@@ -83,17 +90,50 @@ angular.module('gu').service('guProcessMan', function ($http, $log, $q, hubApi, 
                     self._incCnt(deployment.node.id);
 
                     if (self._process === process) {
-                        self.addResult(work, result);
+                        process.addResult(work, result);
+                        work = process.createWork();
                     }
-
-                    work = self.produceWork();
+                    else {
+                        break;
+                    }
                 }
             }
 
+            return Promise.all(deployments.map(deployment => processWork(deployment))).then(() => {
+                if (self._process == process) {
+                    self._result = process;
+                    self._process = undefined;
+                }
+                $rootScope.$apply();
+            });
+        }
 
+        stop() {
+            if (this._process) {
+                let oldProcess = this._process;
+                this._process = undefined;
+                oldProcess.stop();
+            }
         }
 
     }
 
+
+    let processes = new Map();
+
+
+    function getProcess(hubSession) {
+        if (processes.has(hubSession.id)) {
+            return processes.get(hubSession.id);
+        }
+        let manager = new ProcessManager(hubSession);
+        processes.set(hubSession.id, manager);
+        return manager;
+    }
+
+
+    return {
+        getProcess: getProcess
+    };
 
 });
