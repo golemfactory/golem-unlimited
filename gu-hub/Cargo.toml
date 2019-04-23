@@ -12,7 +12,6 @@ gu-persist = { path = "../gu-persist" }
 gu-actix = { path = "../gu-actix" }
 gu-lan = { path = "../gu-lan" }
 ethkey = { path = "../ethkey"}
-gu-hardware = { path = "../gu-hardware" }
 gu-event-bus = { path = "../gu-event-bus" }
 gu-model = { path = "../gu-model" }
 
@@ -41,10 +40,12 @@ prettytable-rs="0.7"
 chrono = { version = "0.4", features = ["serde"] }
 
 hostname = "^0.1"
+gu-hardware = { path = "../gu-hardware" }
 
 [features]
 default=[]
 #default=["actix-web/rust-tls"]
+clnifo=["gu-hardware/clinfo"]
 
 [package.metadata.deb]
 assets=[
