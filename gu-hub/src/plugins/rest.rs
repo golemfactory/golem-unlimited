@@ -1,3 +1,10 @@
+use std::ffi::OsStr;
+use std::{
+    fs::File,
+    io::{Cursor, Read},
+    path::{Path, PathBuf},
+};
+
 use actix::{Arbiter, System, SystemService};
 use actix_web::{
     client,
@@ -10,6 +17,7 @@ use futures::{
     prelude::*,
     stream::Stream,
 };
+
 use gu_hdman::download::DownloadOptionsBuilder;
 use plugins::{
     manager::{
@@ -20,11 +28,9 @@ use plugins::{
     rest_result::{InstallQueryResult, RestResponse, ToHttpResponse},
 };
 use server::HubClient as ServerClient;
-use std::{
-    fs::File,
-    io::{Cursor, Read},
-    path::{Path, PathBuf},
-};
+
+const GUPLUG_EXTENSION: &str = "guplug";
+pub(crate) const GUPLUGIN_EXTENSION: &str = "gu-plugin";
 
 pub fn list_query() {
     System::run(|| {
@@ -103,20 +109,15 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
         let assets_json = &json[0]["assets"];
         match assets_json {
             Array(assets) => {
-                return future::ok(
-                    assets
-                        .into_iter()
+                return future::ok(assets.into_iter()
                         .filter_map(|asset| match &asset["name"] {
-                            String(str) => {
-                                if str.ends_with(".guplug") || str.ends_with(".gu-plugin") {
+                            String(name)
+                                if name.ends_with(GUPLUG_EXTENSION)
+                                    || name.ends_with(GUPLUGIN_EXTENSION) =>
                                     Some((
-                                        str.clone(),
+                                        name.clone(),
                                         asset["browser_download_url"].as_str().unwrap().to_string(),
-                                    ))
-                                } else {
-                                    None
-                                }
-                            }
+                                    )),
                             _ => None,
                         })
                         .collect(),
@@ -180,20 +181,16 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
 pub fn install_query(path: PathBuf) {
     System::run(move || {
         Arbiter::spawn(
-            (if ["guplug", "gu-plugin"].iter().any(|ext| {
-                *ext == path
-                    .extension()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default()
-            }) {
-                future::Either::A(
-                    future::result(read_file(&path)).and_then(|buf| install_query_inner(buf)),
-                )
-            } else {
-                future::Either::B(install_from_github(&path))
-            })
-            .then(|_r: Result<(), ()>| Ok(System::current().stop())),
+            path.extension()
+                .and_then(OsStr::to_str)
+                .and_then(|ext| match ext {
+                    GUPLUG_EXTENSION | GUPLUGIN_EXTENSION => Some(future::Either::A(
+                        future::result(read_file(&path)).and_then(|buf| install_query_inner(buf)),
+                    )),
+                    _ => None,
+                })
+                .unwrap_or_else(|| future::Either::B(install_from_github(&path)))
+                .then(|_r: Result<(), ()>| Ok(System::current().stop())),
         )
     });
 }
