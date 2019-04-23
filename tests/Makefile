@@ -7,7 +7,7 @@ gu-client.tests:
 		 echo $$HUB_ADDR; \
 		 docker-compose exec prov gu-provider hubs connect -S $${HUB_ADDR}
 	docker-compose exec hub gu-hub --json peer list | jq '.[0]'
-	docker-compose exec hub /bin/bash -c "cd .. && cargo test -p gu-client --features integration_tests -- --nocapture"
+	docker-compose exec hub /bin/bash -c "cd ../gu-client && cargo test --features integration_tests -- --nocapture"
 
 
 
