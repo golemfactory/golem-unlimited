@@ -40,17 +40,12 @@ prettytable-rs="0.7"
 chrono = { version = "0.4", features = ["serde"] }
 
 hostname = "^0.1"
-
-[target.'cfg(not(target_os = "macos"))'.dependencies]
 gu-hardware = { path = "../gu-hardware" }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-gu-hardware = { path = "../gu-hardware", features=["clinfo"] }
-
 
 [features]
 default=[]
 #default=["actix-web/rust-tls"]
+clnifo=["gu-hardware/clinfo"]
 
 [package.metadata.deb]
 assets=[
