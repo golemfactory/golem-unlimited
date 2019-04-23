@@ -108,7 +108,7 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
                         .into_iter()
                         .filter_map(|asset| match &asset["name"] {
                             String(str) => {
-                                if str.ends_with(".guplug") {
+                                if str.ends_with(".guplug") || str.ends_with(".gu-plugin") {
                                     Some((
                                         str.clone(),
                                         asset["browser_download_url"].as_str().unwrap().to_string(),
@@ -180,13 +180,13 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
 pub fn install_query(path: PathBuf) {
     System::run(move || {
         Arbiter::spawn(
-            (if path
-                .extension()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default()
-                == "guplug"
-            {
+            (if vec!["guplug", "gu-plugin"].into_iter().any(|ext| {
+                ext == path
+                    .extension()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default()
+            }) {
                 future::Either::A(
                     future::result(read_file(&path)).and_then(|buf| install_query_inner(buf)),
                 )
