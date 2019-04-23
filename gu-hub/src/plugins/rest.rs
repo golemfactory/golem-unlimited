@@ -180,8 +180,8 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
 pub fn install_query(path: PathBuf) {
     System::run(move || {
         Arbiter::spawn(
-            (if vec!["guplug", "gu-plugin"].into_iter().any(|ext| {
-                ext == path
+            (if ["guplug", "gu-plugin"].iter().any(|ext| {
+                *ext == path
                     .extension()
                     .unwrap_or_default()
                     .to_str()
