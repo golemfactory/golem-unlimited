@@ -1,4 +1,5 @@
-# Golem Unlimited
+# Golem Unlimited 
+[![Build Status](https://travis-ci.org/golemfactory/golem-unlimited.svg?branch=release%2F0.2)](https://travis-ci.org/golemfactory/golem-unlimited)
 
 Golem Unlimited utilizes **trusted** heterogeneous computing resources which are part time idle. It is meant for data center-like setup (e.g., render farms, or desktops within organisation LAN) where network participants trust each other, but it will also support trusted P2P subnetworks (e.g., distributed team machines).
 
