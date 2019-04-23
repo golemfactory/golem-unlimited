@@ -460,9 +460,9 @@ impl Handler<SessionUpdate> for HdMan {
 
     fn handle(&mut self, msg: SessionUpdate, _ctx: &mut Self::Context) -> Self::Result {
         if !self.deploys.contains_deploy(&msg.session_id) {
-            return ActorResponse::reply(Err(
-                vec![Error::NoSuchSession(msg.session_id).to_string()],
-            ));
+            return ActorResponse::reply(Err(vec![
+                Error::NoSuchSession(msg.session_id).to_string()
+            ]));
         }
         let session_id = msg.session_id.clone();
 

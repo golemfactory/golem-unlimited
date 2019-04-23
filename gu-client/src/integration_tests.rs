@@ -34,14 +34,17 @@ fn test_list_peers() {
             let session_it = session.clone();
 
             futures::future::join_all(
-            session_peers.into_iter().map(move |peer| session_it.peer(peer.node_id).info()))
-                .and_then(|peers_details| Ok((peers_details, session)))
+                session_peers
+                    .into_iter()
+                    .map(move |peer| session_it.peer(peer.node_id).info()),
+            )
+            .and_then(|peers_details| Ok((peers_details, session)))
         });
 
     let (peers, session) = sys.block_on(alloc_peers).unwrap();
 
     eprintln!("peers={:?}", peers);
-//    assert_eq!(peers.len(), session_peers.len());
+    //    assert_eq!(peers.len(), session_peers.len());
 }
 
 /// Test if two ways of getting PeerInfo are consistent
