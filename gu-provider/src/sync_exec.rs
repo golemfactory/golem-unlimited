@@ -6,7 +6,6 @@ use log::debug;
 use error::*;
 use gu_actix::*;
 
-#[allow(deprecated)]
 pub mod error {
     use std::{io, process};
 

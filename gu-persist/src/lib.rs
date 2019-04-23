@@ -24,7 +24,6 @@ extern crate gu_base;
 extern crate tokio_fs;
 extern crate tokio_io;
 
-#[allow(deprecated)]
 pub mod error {
     use actix::MailboxError;
     use serde_json;
