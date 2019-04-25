@@ -1,17 +1,19 @@
-use actix_web::client::ClientResponse;
-use actix_web::http::header;
-use actix_web::HttpMessage;
-use futures::{future, prelude::*};
-use gu_actix::{async_result, async_try};
-use gu_base::files::read_async;
-use gu_base::files::{untgz_async, write_async};
-use gu_model::envman::ResourceFormat;
-use log::{debug, info};
 use std::{
     fs,
     path::{Path, PathBuf},
     time,
 };
+
+use actix_web::client::ClientResponse;
+use actix_web::http::header;
+use actix_web::HttpMessage;
+use futures::{future, prelude::*};
+use log::{debug, info};
+
+use gu_actix::{async_result, async_try};
+use gu_base::files::read_async;
+use gu_base::files::{untgz_async, write_async};
+use gu_model::envman::ResourceFormat;
 
 pub fn download_step(
     url: &str,
@@ -147,7 +149,7 @@ where
 
     flat::decode_tar(stream)
         .into_future()
-        .map_err(|(e, tail)| e.to_string())
+        .map_err(|(e, _tail)| e.to_string())
         .and_then(|(head, tail)| match head {
             Some(TarItem::Entry(entry)) => Ok((
                 entry.size(),
@@ -162,6 +164,7 @@ where
 
 // TODO: support redirect
 // TODO: support https
+#[allow(unused)]
 pub fn download(
     url: &str,
     output_path: PathBuf,

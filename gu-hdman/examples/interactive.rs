@@ -1,11 +1,11 @@
+use std::io::BufRead;
+use std::{io, thread};
+
 use actix::prelude::*;
 use futures::prelude::*;
 use futures::sync::mpsc;
-use gu_actix::flatten::FlattenFuture;
+
 use gu_hdman::process_pool::*;
-use std::io::BufRead;
-use std::result::Result;
-use std::{io, thread};
 
 fn stdin() -> impl Stream<Item = String, Error = io::Error> {
     let (tx, rx) = mpsc::unbounded();
@@ -16,7 +16,7 @@ fn stdin() -> impl Stream<Item = String, Error = io::Error> {
         }
     });
 
-    rx.map_err(|e| io::Error::new(io::ErrorKind::Other, "x"))
+    rx.map_err(|_e| io::Error::new(io::ErrorKind::Other, "stdin err"))
         .and_then(|r| r)
 }
 
@@ -29,7 +29,7 @@ fn main() {
                 .chain(futures::stream::once(Ok("eof".into())))
                 .map_err(|e| eprintln!("err={}", e))
                 .map(move |l| -> Box<dyn Future<Item = (), Error = ()>> {
-                    use futures::future::{self, Either};
+                    use futures::future;
                     if l.starts_with("run ") {
                         Box::new(
                             pp.send(Exec {

@@ -1,7 +1,7 @@
 #[macro_use]
-extern crate log;
-#[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
@@ -18,8 +18,9 @@ mod ram;
 mod storage;
 
 pub mod error {
-    use actix::MailboxError;
     use std;
+
+    use actix::MailboxError;
 
     pub type Result<T> = std::result::Result<T, Error>;
 
@@ -50,6 +51,7 @@ pub mod error {
         StorageNotSupported,
     }
 
+    #[cfg(feature = "clinfo")]
     macro_rules! from_def {
         ($stype:ty => $opt:ident) => {
             impl From<$stype> for Error {

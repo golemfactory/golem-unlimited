@@ -35,7 +35,6 @@ mod test {
     use super::Map;
     use crate::hub::Capability;
     use crate::{BuildInfo, HubInfo};
-    use actix_web::error::ParseError::Version;
     use serde_json;
 
     #[test]

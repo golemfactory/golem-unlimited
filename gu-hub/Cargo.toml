@@ -1,9 +1,10 @@
 [package]
-publish=false
 name = "gu-hub"
-version = "0.1.1"
+version = "0.1.2"
 license = "MIT"
+publish=false
 authors=["golemfactory"]
+edition = "2018"
 
 [dependencies]
 gu-base= { path="../gu-base" }
@@ -34,7 +35,7 @@ actix_derive = "0.3.0"
 bytes = "0.4.10"
 sha1 = "0.6.0"
 
-mdns = { git = "https://github.com/plietar/rust-mdns", rev = "0974ab4f" }
+mdns = { git = "https://github.com/plietar/rust-mdns" }
 
 prettytable-rs="0.7"
 chrono = { version = "0.4", features = ["serde"] }

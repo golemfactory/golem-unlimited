@@ -1,17 +1,19 @@
+use std::collections::{HashMap, HashSet};
+use std::net::SocketAddr;
+use std::str::FromStr;
+
+use log::error;
+use serde_derive::*;
+
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
+use gu_lan::HubDesc;
+use gu_net::NodeId;
 use gu_persist::config::{ConfigManager, GetConfig, HasSectionId, SetConfig};
 
 use crate::connect::{
     change_single_connection, edit_config_connect_mode, edit_config_hosts, ConnectionChange,
 };
 use crate::server::ConnectMode;
-use gu_lan::HubDesc;
-use gu_net::NodeId;
-use log::error;
-use serde_derive::*;
-use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
-use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
@@ -221,7 +223,7 @@ impl Module for PermissionModule {
                     *self = PermissionModule::ListSavedHubs;
                     return true;
                 }
-                if let Ok((node, ip, _)) = param_to_node_and_ip("get-node") {
+                if let Ok((node, _, _)) = param_to_node_and_ip("get-node") {
                     *self = PermissionModule::NodeAllowedStatus(node);
                     return true;
                 }
@@ -337,7 +339,7 @@ impl Module for PermissionModule {
                                     .flatten_fut()
                             })
                             .map_err(|_| eprintln!("Cannot save permissions."))
-                            .and_then(move |x| match node_id_copy {
+                            .and_then(move |_| match node_id_copy {
                                 None => futures::future::Either::A(
                                     edit_config_connect_mode(if turn_on {
                                         ConnectMode::Auto
@@ -346,7 +348,7 @@ impl Module for PermissionModule {
                                     })
                                     .map_err(|_| ()),
                                 ),
-                                Some(n) => futures::future::Either::B(
+                                Some(_node_id) => futures::future::Either::B(
                                     change_single_connection(
                                         ip_copy.unwrap(),
                                         if turn_on {

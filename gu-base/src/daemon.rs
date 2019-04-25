@@ -1,9 +1,5 @@
 #![allow(dead_code)]
 
-use daemonize::Daemonize;
-use libc::{
-    dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
-};
 use std::{
     fs::{create_dir_all, File},
     io::{Read, Write},
@@ -12,6 +8,11 @@ use std::{
     str,
     thread::sleep,
     time::Duration,
+};
+
+use daemonize::Daemonize;
+use libc::{
+    dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
 };
 
 pub enum ProcessStatus {
@@ -71,11 +72,13 @@ impl DaemonProcess {
             );
             return Ok(false);
         }
-
-        let stdout = File::create(&self.work_dir.join(format!("{}.out", &self.name)))
-            .map_err(|_| "Cannot create daemon .out file".to_string())?;
-        let stderr = File::create(&self.work_dir.join(format!("{}.err", &self.name)))
-            .map_err(|_| "Cannot create daemon .err file".to_string())?;
+        let out_path = self.work_dir.join(&self.name);
+        let stdout_path = out_path.with_extension("out");
+        let stdout = File::create(&stdout_path)
+            .map_err(|e| format!("error creating stdout logs file {:?}: {}", stdout_path, e))?;
+        let stderr_path = out_path.with_extension("err");
+        let stderr = File::create(&stderr_path)
+            .map_err(|e| format!("error creating stderr logs file {:?}: {}", stderr_path, e))?;
 
         let mut out = stdout_file();
 
@@ -218,9 +221,11 @@ fn force_kill(pid: i32, file: &File) -> bool {
 mod tests {
     extern crate tempfile;
 
-    use daemon::{DaemonProcess, ProcessStatus};
-    use libc::getpid;
     use std::{path::PathBuf, process::Command, thread, time::Duration};
+
+    use libc::getpid;
+
+    use daemon::{DaemonProcess, ProcessStatus};
 
     fn tmp_work_dir() -> PathBuf {
         tempfile::tempdir().unwrap().into_path()

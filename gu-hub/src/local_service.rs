@@ -1,17 +1,22 @@
 #![allow(dead_code)]
 
-use super::plugins::{self, ListPlugins, PluginEvent, PluginManager, PluginStatus};
-use actix::{fut, prelude::*};
-use actix_web::Responder;
-use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Json};
-use futures::{future, prelude::*};
-use gu_base::{ArgMatches, Module};
-use gu_event_bus;
 use std::collections::BTreeSet;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
 };
+
+use actix::{fut, prelude::*};
+use actix_web::Responder;
+use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Json};
+use futures::prelude::*;
+use log::debug;
+use serde_derive::*;
+
+use gu_base::{ArgMatches, Module};
+use gu_event_bus;
+
+use super::plugins::{self, ListPlugins, PluginEvent, PluginManager, PluginStatus};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -171,7 +176,7 @@ impl Module for LocalServiceModule {
         .route(
             "/service/local",
             actix_web::http::Method::GET,
-            move |r: HttpRequest<_>| Json(plugin_commands_r.read().unwrap().clone()),
+            move |_r: HttpRequest<_>| Json(plugin_commands_r.read().unwrap().clone()),
         )
         .handler("/service/local/", move |r: &HttpRequest<_>| {
             let tail = (&r.path()[15..]).to_string();
@@ -211,7 +216,7 @@ struct ProxyHandler(Arc<RwLock<BTreeMap<String, BTreeMap<String, String>>>>);
 struct ServiceRunner {}
 
 impl ServiceRunner {
-    fn new(config: ServiceConfig) -> Self {
+    fn new(_config: ServiceConfig) -> Self {
         ServiceRunner {}
     }
 }
@@ -223,7 +228,7 @@ enum ProxyPath {
 
 impl ProxyPath {
     fn create_request<S>(&self, path: &str, req: &HttpRequest<S>) -> impl Responder {
-        use actix_web::{client, http, Body};
+        use actix_web::{client, Body};
 
         let mut b = client::ClientRequest::build();
 
@@ -231,7 +236,7 @@ impl ProxyPath {
             ProxyPath::Remote { url } => {
                 b.uri(&format!("{}{}", url, path));
             }
-            ProxyPath::Local { cmd } => {
+            ProxyPath::Local { .. } => {
                 unimplemented!();
             }
         }

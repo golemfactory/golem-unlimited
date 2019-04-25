@@ -1,9 +1,9 @@
-use actix_web::dev::JsonBody;
+use std::env;
+
 use actix_web::{client, http::Method};
 use futures::future::*;
 use http::Uri;
 use serde_derive::*;
-use std::env;
 
 #[derive(Serialize)]
 enum Command {

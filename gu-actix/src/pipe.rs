@@ -1,9 +1,10 @@
+use std::io;
+use std::sync::Arc;
+
 use bytes::*;
 use crossbeam_channel::{self as cb, Receiver, Sender};
 use futures::task::AtomicTask;
 use futures::{Async, Poll, Stream};
-use std::io;
-use std::sync::Arc;
 
 pub struct SyncReader<T, E> {
     rx: Receiver<Result<T, E>>,
@@ -36,8 +37,6 @@ impl<T, E> Stream for AsyncReader<T, E> {
 impl io::Read for SyncReader<Bytes, io::Error> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         if self.buffer.is_none() {
-            let is_full = self.rx.is_full();
-
             let r = self.rx.recv();
             self.task.notify();
 
@@ -163,20 +162,21 @@ pub fn async_to_sync<T, E>(cap: usize) -> (AsyncWriter<T, E>, SyncReader<T, E>) 
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
-    use actix::prelude::*;
-    use futures::prelude::*;
     use std::time::Duration;
     use std::{io, thread};
+
+    use actix::prelude::*;
+    use futures::prelude::*;
     use tokio_timer::Interval;
+
+    use super::*;
 
     #[test]
     fn test_channel_from() {
         let (tx, rx) = async_to_sync(1);
 
         thread::spawn(move || {
-            use std::io::{BufRead, BufReader, Read};
+            use std::io::{BufReader, Read};
             let mut buf = [0; 200];
             let mut r = BufReader::new(rx);
 

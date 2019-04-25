@@ -1,12 +1,12 @@
 use actix::prelude::*;
 use futures::prelude::*;
+use structopt::StructOpt;
+
 use gu_client::r#async::*;
-use gu_client::sync;
 use gu_client::NodeId;
 use gu_model::dockerman::NetDef;
 use gu_model::envman::{Command, CreateSession, Image};
 use gu_model::session::HubSessionSpec;
-use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 struct ClientArgs {

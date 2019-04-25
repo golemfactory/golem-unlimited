@@ -183,7 +183,7 @@ where
     F: Fn() -> App<'static, 'static>,
 {
     pub fn run<M: Module + 'static + Sync + Send>(&mut self, mut module: M) {
-        let mut app_with_args = module.args_declare(self.0());
+        let app_with_args = module.args_declare(self.0());
         let matches = app_with_args.clone().get_matches();
 
         if !(module.args_autocomplete(&matches, &|| app_with_args.clone())
