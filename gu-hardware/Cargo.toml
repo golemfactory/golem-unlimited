@@ -47,3 +47,4 @@ required-features=["clinfo"]
 name="discovery"
 path="optional-example/discovery.rs"
 
+

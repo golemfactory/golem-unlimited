@@ -124,6 +124,7 @@ impl<T: MdnsConnection> MdnsActor<T> {
 
         let socket_address = SocketAddrV4::new(any_ip, T::port());
 
+        socket.set_reuse_port(true)?;
         socket.set_reuse_address(true)?;
         socket.set_multicast_loop_v4(true)?;
         socket.join_multicast_v4(&multicast_ip, &any_ip)?;
