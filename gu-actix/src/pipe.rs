@@ -37,8 +37,6 @@ impl<T, E> Stream for AsyncReader<T, E> {
 impl io::Read for SyncReader<Bytes, io::Error> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         if self.buffer.is_none() {
-            let _is_full = self.rx.is_full();
-
             let r = self.rx.recv();
             self.task.notify();
 

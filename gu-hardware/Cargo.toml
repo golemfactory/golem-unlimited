@@ -31,7 +31,7 @@ version="0.6"
 optional=true
 
 [features]
-default=['clinfo']
+default=[]
 clinfo=['cl-sys','smallvec']
 
 [dev-dependencies]

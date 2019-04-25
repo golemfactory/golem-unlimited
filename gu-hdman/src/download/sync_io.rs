@@ -255,10 +255,7 @@ impl DownloadFile {
         use crc::Hasher64;
 
         if chunk_nr >= self.meta.chunks {
-            Err(Error::Overflow(format!(
-                "chunk_nr: {} > chunks: {}",
-                chunk_nr, self.meta.chunks
-            )))
+            Err(Error::InvalidTrackingFile("chunk number beyond limit"))
         } else {
             let meta_crc64 = self.crc_map[chunk_nr as usize];
 

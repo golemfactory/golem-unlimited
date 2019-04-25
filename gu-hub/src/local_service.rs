@@ -236,7 +236,7 @@ impl ProxyPath {
             ProxyPath::Remote { url } => {
                 b.uri(&format!("{}{}", url, path));
             }
-            ProxyPath::Local { cmd: _ } => {
+            ProxyPath::Local { .. } => {
                 unimplemented!();
             }
         }

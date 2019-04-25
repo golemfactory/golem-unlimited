@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::hash::Hash;
 
 use actix::prelude::*;
@@ -11,8 +10,8 @@ use gu_actix::prelude::*;
 pub trait CacheProvider {
     type Key: Eq + Hash + Clone + Send;
     type Hint: Send;
-    type Value: Clone + Send + Debug;
-    type Error: Clone + From<oneshot::Canceled> + From<MailboxError> + Send + Debug;
+    type Value: Clone + Send;
+    type Error: Clone + From<oneshot::Canceled> + From<MailboxError> + Send;
     type CheckResult: IntoFuture<Item = Option<Self::Value>, Error = Self::Error>;
     type FetchResult: IntoFuture<Item = Self::Value, Error = Self::Error>;
 
@@ -111,7 +110,7 @@ impl<P: CacheProvider> CacheRegistry<P> {
         let _ = self.downloads.remove(&key).and_then(|v| {
             for endpoint in v {
                 match endpoint.send(result.clone()) {
-                    Err(e) => log::debug!("notification fail: {:?}", e),
+                    Err(_e) => log::debug!("notification fail"),
                     Ok(_) => (),
                 }
             }
