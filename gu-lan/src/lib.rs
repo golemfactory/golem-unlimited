@@ -35,6 +35,7 @@ pub use service::ServiceDescription;
 pub mod actor;
 mod codec;
 mod continuous;
+
 pub mod errors;
 pub mod module;
 mod service;

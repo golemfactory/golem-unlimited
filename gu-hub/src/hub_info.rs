@@ -1,10 +1,10 @@
-use actix::prelude::*;
+use std::sync::RwLock;
+
 use actix_web::Json;
+
 use gu_base::Module;
-use gu_model::{BuildInfo, HubInfo, Map, Version};
+use gu_model::{BuildInfo, HubInfo, Map};
 use gu_net::NodeId;
-use std::cell::{Ref, RefCell};
-use std::sync::{Arc, RwLock};
 
 pub struct InfoModule {
     ref_node_id: RwLock<Option<NodeId>>,

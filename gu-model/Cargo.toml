@@ -2,7 +2,7 @@
 name = "gu-model"
 version = "0.1.0"
 authors = ["Golem Factory"]
-edition='2018'
+edition="2018"
 
 [features]
 default=['hash']

@@ -1,5 +1,6 @@
-use failure::Fail;
 use std::fmt::Debug;
+
+use failure::Fail;
 
 #[derive(Fail, Debug)]
 #[fail(display = "number overflow")]
@@ -71,7 +72,6 @@ impl CastFrom<u32> for usize {
 
 #[cfg(test)]
 mod test {
-
     use super::*;
 
     #[test]

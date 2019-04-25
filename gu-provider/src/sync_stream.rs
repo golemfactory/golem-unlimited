@@ -1,13 +1,14 @@
 //! Implementation for sync stream feed
 
-use bytes::{BufMut, Bytes, BytesMut};
-use futures::prelude::*;
-use futures::{Async, Poll};
-use futures_cpupool::{CpuFuture, CpuPool};
 use std::collections::VecDeque;
 use std::io::{self, Write};
 use std::mem;
 use std::sync::{Arc, Mutex};
+
+use bytes::{BufMut, Bytes, BytesMut};
+use futures::prelude::*;
+use futures::{Async, Poll};
+use futures_cpupool::{CpuFuture, CpuPool};
 
 pub trait SyncWriteWorker {
     fn bind_writer(&mut self, w: SyncBuffer);
@@ -47,6 +48,7 @@ struct SyncWorkerAdapter<W: SyncWriteWorker + Send> {
 }
 
 impl<W: SyncWriteWorker + Send> SyncWorkerAdapter<W> {
+    #[allow(unused)]
     fn new(mut w: W) -> Self {
         let output = Arc::new(Mutex::new(VecDeque::new()));
         let buffer = SyncBuffer {
@@ -88,6 +90,7 @@ struct SyncStream<W: SyncWriteWorker + Send> {
 }
 
 impl<W: SyncWriteWorker + Send + 'static> SyncStream<W> {
+    #[allow(unused)]
     fn new(w: W) -> Self {
         let settings = actix_web::server::ServerSettings::default();
         let worker = SyncWorkerAdapter::new(w);
@@ -144,41 +147,4 @@ impl<W: SyncWriteWorker + Send + 'static> Stream for SyncStream<W> {
     fn poll(&mut self) -> Result<Async<Option<<Self as Stream>::Item>>, <Self as Stream>::Error> {
         self.poll_chunk()
     }
-}
-
-pub fn sync_stream<W: SyncWriteWorker + Send + 'static>(
-    w: W,
-) -> impl Stream<Item = Bytes, Error = io::Error> {
-    SyncStream::new(w)
-}
-
-struct InlineWorker<I, S> {
-    i: Option<I>,
-    s: Option<S>,
-}
-
-impl<
-        I: FnOnce(SyncBuffer) -> S + Send + 'static,
-        S: FnMut() -> io::Result<bool> + Send + 'static,
-    > SyncWriteWorker for InlineWorker<I, S>
-{
-    fn bind_writer(&mut self, w: SyncBuffer) {
-        self.s = Some((self.i.take().unwrap())(w));
-    }
-
-    fn write_chunk(&mut self) -> Result<bool, io::Error> {
-        (self.s.as_mut().unwrap())()
-    }
-}
-
-pub fn stream_fn<
-    I: FnOnce(SyncBuffer) -> S + Send + 'static,
-    S: FnMut() -> io::Result<bool> + Send + 'static,
->(
-    i: I,
-) -> impl Stream<Item = Bytes, Error = io::Error> {
-    sync_stream(InlineWorker {
-        i: Some(i),
-        s: None,
-    })
 }

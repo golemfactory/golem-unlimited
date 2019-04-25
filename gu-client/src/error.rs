@@ -1,6 +1,6 @@
-use crate::error::Error::InvalidPeer;
+use std::str;
+
 use failure::Fail;
-use std::{error, fmt, str};
 
 //
 /// Errors returned by Rust API for Golem Unlimited

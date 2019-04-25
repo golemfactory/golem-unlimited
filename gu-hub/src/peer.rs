@@ -8,15 +8,20 @@ use actix_web::{
     Scope,
 };
 use futures::prelude::*;
+use log::error;
+use prettytable::{cell, row};
+use serde_derive::*;
+use serde_json::Value as JsonValue;
+
 use gu_actix::prelude::*;
 use gu_base::{cli, App, AppSettings, ArgMatches, Decorator, Module, SubCommand};
 use gu_model::peers as peers_api;
 use gu_net::{
-    rpc::{peer::PeerInfo, public_destination, reply::CallRemote, reply::CallRemoteUntyped},
+    rpc::{peer, public_destination, reply::CallRemoteUntyped, reply::SendError, ReplyRouter},
     NodeId,
 };
-use serde_json::Value as JsonValue;
-use server::HubClient;
+
+use crate::server::HubClient;
 
 pub struct PeerModule {
     inner: State,
@@ -62,7 +67,7 @@ impl Module for PeerModule {
                 System::run(|| {
                     Arbiter::spawn(
                         HubClient::get("/peers")
-                            .and_then(|r: Vec<PeerInfo>| Ok(format_peer_table(r)))
+                            .and_then(|r: Vec<peer::PeerInfo>| Ok(format_peer_table(r)))
                             .map_err(|e| error!("{}", e))
                             .then(|_r| Ok(System::current().stop())),
                     )
@@ -86,7 +91,6 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         })
         .resource("/{nodeId}/deployments/{deploymentId}", |r| {
             use gu_model::envman::{Command, DestroySession, SessionUpdate};
-            use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
             r.method(Method::PATCH).with_async(
                 |(path, commands): (Path<DeploymentPath>, Json<Vec<Command>>)| {
                     peer(path.node_id)
@@ -127,7 +131,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                         _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
                     })
                     .and_then(|update_result| match update_result {
-                        Ok(update_result) => Ok(HttpResponse::NoContent().finish()),
+                        Ok(_update_result) => Ok(HttpResponse::NoContent().finish()),
                         Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
                     })
             })
@@ -141,10 +145,8 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
 }
 
 fn list_peers<S>(_r: HttpRequest<S>) -> impl Responder {
-    use gu_net::rpc::peer::*;
-
-    PeerManager::from_registry()
-        .send(ListPeers)
+    peer::PeerManager::from_registry()
+        .send(peer::ListPeers)
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| {
             //debug!("res={:?}", res);
@@ -167,10 +169,8 @@ struct DeploymentPath {
 }
 
 fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
-    use gu_net::rpc::peer::*;
-
-    PeerManager::from_registry()
-        .send(GetPeer(info.node_id))
+    peer::PeerManager::from_registry()
+        .send(peer::GetPeer(info.node_id))
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| match res {
             None => Ok(HttpResponse::build(StatusCode::NOT_FOUND).body("Peer not found")),
@@ -188,7 +188,6 @@ fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
 fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
     use gu_model::deployment::DeploymentInfo;
     use gu_model::envman::GetSessions;
-    use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
 
     peer(info.node_id)
         .into_endpoint()
@@ -216,9 +215,6 @@ fn new_deployment(
     info: Path<PeerPath>,
     body: Json<gu_model::envman::GenericCreateSession>,
 ) -> impl Responder {
-    use gu_model::envman::{CreateSession, Image};
-    use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
-
     peer(info.node_id)
         .into_endpoint()
         .send(body.into_inner())
@@ -249,8 +245,6 @@ fn call_remote_ep(
     destination_id: u32,
     arg: JsonValue,
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
-    use gu_net::rpc::ReplyRouter;
-
     ReplyRouter::from_registry()
         .send(CallRemoteUntyped(
             node_id,
@@ -287,7 +281,7 @@ fn peer_send_path<S: 'static>(r: HttpRequest<S>) -> impl Responder {
         .responder()
 }
 
-fn format_peer_table(peers: Vec<PeerInfo>) {
+fn format_peer_table(peers: Vec<peer::PeerInfo>) {
     cli::format_table(
         row!["Node id", "Name", "Connection", "Sessions"],
         || "No peers connected",

@@ -1,17 +1,5 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use gu_actix::prelude::*;
-
-use super::responses::*;
-use actix::{Actor, ActorResponse, Addr, AsyncContext, Context, Handler, Recipient, WrapFuture};
-use actix_web::{dev::Payload, fs::NamedFile, http::header::HeaderValue};
-use futures::{
-    future::{self, Shared, SharedError, SharedItem},
-    sync::oneshot::{self, Sender},
-    Future, Stream,
-};
-use gu_base::files::{read_async, write_async};
-use sha1::Sha1;
 use std::fmt::Debug;
 use std::{
     collections::BTreeMap,
@@ -20,6 +8,20 @@ use std::{
     ops::Deref,
     path::{Path, PathBuf},
 };
+
+use actix::prelude::*;
+use actix_web::{fs::NamedFile, http::header::HeaderValue};
+use futures::{
+    future::{self, Shared, SharedError, SharedItem},
+    sync::oneshot::{self, Sender},
+    Future, Stream,
+};
+use sha1::Sha1;
+
+use gu_actix::prelude::*;
+use gu_base::files::{read_async, write_async};
+
+use super::responses::*;
 
 struct FileLockActor {
     to_notify: Vec<Sender<()>>,
@@ -210,10 +212,8 @@ fn recalculate_sha1(path: PathBuf) -> impl Future<Item = Sha1, Error = SessionEr
 fn write_dag_future(
     queue: &mut BTreeMap<(u64, u64), Shared<Box<Future<Item = (), Error = ()> + Send>>>,
 ) -> impl Future<Item = (), Error = SessionErr> + Send {
-    use std::u64;
-
-    let write_begin = u64::MIN;
-    let write_end = u64::MAX;
+    let write_begin = std::u64::MIN;
+    let write_end = std::u64::MAX;
     let mut wait_list = Vec::new();
     let mut remove_list = Vec::new();
 
@@ -265,6 +265,7 @@ impl Blob {
         }
     }
 
+    #[allow(unused)]
     pub fn path(&self) -> &Path {
         self.path.as_ref()
     }

@@ -1,25 +1,29 @@
 //! Docker mode implementation
 
-use super::deployment::{DeployManager, Destroy, IntoDeployInfo};
-use super::envman;
-use crate::provision;
-use crate::workspace::{Workspace, WorkspacesManager};
+use std::borrow::Cow;
+use std::collections::HashSet;
+use std::path::PathBuf;
+
 use actix::prelude::*;
 use actix_web::http::StatusCode;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
 use futures::future;
 use futures::prelude::*;
+use log::{debug, error, info};
+use serde_json::json;
+
 use gu_model::dockerman::{CreateOptions, NetDef, VolumeDef};
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::peer::PeerSessionStatus;
 use gu_persist::config::ConfigModule;
-use log::{debug, error, info};
-use serde_json::json;
-use std::borrow::Cow;
-use std::collections::HashSet;
-use std::path::PathBuf;
+
+use crate::provision;
+use crate::workspace::{Workspace, WorkspacesManager};
+
+use super::deployment::{DeployManager, Destroy, IntoDeployInfo};
+use super::envman;
 
 // Actor.
 struct DockerMan {
@@ -47,31 +51,31 @@ struct DockerSession {
 
 impl DockerSession {
     fn do_open(&mut self) -> impl Future<Item = String, Error = String> {
-        self.container.start().then(|r| match r {
-            Ok(status) => Ok("OK".into()),
-            Err(e) => Err(format!("{}", e)),
-        })
+        self.container
+            .start()
+            .map_err(|e| format!("{}", e))
+            .and_then(|_| Ok("OK".into()))
     }
 
     fn do_close(&mut self) -> impl Future<Item = String, Error = String> {
         self.container
             .stop(None)
             .map_err(|e| format!("{}", e))
-            .and_then(|v| Ok("OK".into()))
+            .and_then(|_| Ok("OK".into()))
     }
 
     fn do_start(&mut self) -> impl Future<Item = String, Error = String> {
         self.container
             .start()
             .map_err(|e| format!("{}", e))
-            .and_then(|v| Ok("OK".into()))
+            .and_then(|_| Ok("OK".into()))
     }
 
     fn do_wait(&mut self) -> impl Future<Item = String, Error = String> {
         self.container
             .wait()
             .map_err(|e| format!("{}", e))
-            .and_then(|v| Ok("OK".into()))
+            .and_then(|_| Ok("OK".into()))
     }
 
     fn do_exec(
@@ -92,10 +96,8 @@ impl DockerSession {
         self.container
             .exec(&cfg)
             .map_err(|e| format!("{}", e))
-            .fold(String::new(), |mut s, (t, it)| {
-                use std::str;
-
-                match str::from_utf8(it.into_bytes().as_ref()) {
+            .fold(String::new(), |mut s, (_t, it)| {
+                match std::str::from_utf8(it.into_bytes().as_ref()) {
                     Ok(chunk_str) => s.push_str(chunk_str),
                     Err(_) => (),
                 };
@@ -349,7 +351,6 @@ impl DockerMan {
                     let src = workspace.path().join(src);
                     Some(format!("{}:{}", src.display(), target))
                 }
-                _ => None,
             })
             .collect();
 
@@ -390,14 +391,14 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
 
         match self.docker_api {
             Some(ref api) => {
-                let Image { url, hash } = msg.image.clone();
+                let Image { url, .. } = msg.image.clone();
 
                 let (binds, workspace) = self.binds_and_workspace(&msg);
 
                 workspace
                     .create_dirs()
                     .expect("Creating session dirs failed");
-                let mut host_config = async_docker::models::HostConfig::new().with_binds(binds);
+                let host_config = async_docker::models::HostConfig::new().with_binds(binds);
 
                 let host_config = match msg.options.net {
                     Some(NetDef::Host {}) => host_config.with_network_mode("host".to_string()),
@@ -472,10 +473,13 @@ fn run_command(
             .run_for_deployment(session_id, |deployment| {
                 deployment.do_exec(executable, args)
             }),
-        Command::Start { executable, args } => {
-            docker_man.run_for_deployment(session_id, DockerSession::do_start)
-        }
-        Command::Stop { child_id } => Box::new(fut::ok("Stop mock".to_string())),
+        // TODO: FIXME @destruktiv: same as Exec but async
+        Command::Start {
+            executable: _,
+            args: _,
+        } => docker_man.run_for_deployment(session_id, DockerSession::do_start),
+        // TODO: FIXME @destruktiv: same as Exec but async
+        Command::Stop { child_id: _ } => Box::new(fut::ok("Stop mock".to_string())),
         Command::Wait => docker_man.run_for_deployment(session_id, DockerSession::do_wait),
         Command::DownloadFile {
             uri,
@@ -583,7 +587,7 @@ impl Handler<DestroySession> for DockerMan {
         msg: DestroySession,
         _ctx: &mut Self::Context,
     ) -> <Self as Handler<DestroySession>>::Result {
-        let api = match self.docker_api {
+        let _api = match self.docker_api {
             Some(ref api) => api,
             _ => return ActorResponse::reply(Err(Error::UnknownEnv("docker".into()))),
         };
