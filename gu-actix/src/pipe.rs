@@ -1,11 +1,11 @@
-use std::{fmt, io};
 use std::fmt::Display;
 use std::sync::Arc;
+use std::{fmt, io};
 
 use bytes::*;
 use crossbeam_channel::{self as cb, Receiver, Sender};
-use futures::{Async, Poll, Stream};
 use futures::task::AtomicTask;
+use futures::{Async, Poll, Stream};
 
 pub struct SyncReader<T, E> {
     rx: Option<Receiver<Result<T, E>>>,
@@ -178,9 +178,8 @@ pub fn async_to_sync<T, E>(cap: usize) -> (AsyncWriter<T, E>, SyncReader<T, E>) 
 
 #[cfg(test)]
 mod tests {
-    use std::{io, thread};
-    use std::{io, thread};
     use std::time::{Duration, Instant};
+    use std::{io, thread};
 
     use actix::prelude::*;
     use futures::prelude::*;
@@ -193,7 +192,7 @@ mod tests {
         let (tx, rx) = async_to_sync(1);
 
         let t = thread::spawn(move || {
-            use std::io::{BufRead, BufReader, Read};
+            use std::io::{BufReader, Read};
             let mut buf = [0; 15];
             let mut r = BufReader::new(rx);
 
@@ -235,7 +234,7 @@ mod tests {
 
             let _ = sys.block_on(f);
             eprintln!("test done");
-            t.join();
+            let _ = t.join();
             eprintln!("test join done");
             drop(sys);
             eprintln!("test drop done");
