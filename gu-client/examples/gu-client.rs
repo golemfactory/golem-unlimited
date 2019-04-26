@@ -1040,10 +1040,6 @@ fn main() -> Fallible<()> {
                     .and_then(|h| Ok(eprintln!("h={:?}", h)))
                     .from_err(),
             ),
-            v => {
-                eprintln!("unimplemented opts: {:?}", v);
-                unimplemented!()
-            }
         }
     }))?;
 
