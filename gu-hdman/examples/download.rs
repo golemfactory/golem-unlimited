@@ -18,7 +18,7 @@ fn main() {
     let opt = DownloadOpts::from_args();
     let mut sys = System::new("test");
 
-    let mut progress = Rc::new(RefCell::new(None));
+    let progress = Rc::new(RefCell::new(None));
 
     let progress_ref = progress.clone();
 
@@ -28,7 +28,7 @@ fn main() {
         download_options.connect_retry(connect_retry);
     }
 
-    sys.block_on(
+    let _ = sys.block_on(
         download_options
             .download(
                 &opt.download_url,

@@ -1,5 +1,6 @@
-use super::Tags;
 use serde_derive::*;
+
+use super::Tags;
 
 pub type Pid = String;
 

@@ -1,11 +1,11 @@
-use actix::prelude::*;
-use futures::future::Shared;
-use futures::prelude::*;
-use futures::sync::oneshot;
-use gu_actix::prelude::*;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::marker::PhantomData;
+
+use actix::prelude::*;
+use futures::prelude::*;
+use futures::sync::oneshot;
+
+use gu_actix::prelude::*;
 
 pub trait CacheProvider {
     type Key: Eq + Hash + Clone + Send;
@@ -50,7 +50,7 @@ impl<P: CacheProvider + Default + 'static> ArbiterService for AsyncCache<P> {}
 impl<P: CacheProvider + Default + 'static> Handler<DoFetch<P>> for AsyncCache<P> {
     type Result = ActorResponse<Self, P::Value, P::Error>;
 
-    fn handle(&mut self, msg: DoFetch<P>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: DoFetch<P>, _ctx: &mut Self::Context) -> Self::Result {
         ActorResponse::r#async(
             self.provider
                 .fetch(msg.0, msg.1)
@@ -63,7 +63,7 @@ impl<P: CacheProvider + Default + 'static> Handler<DoFetch<P>> for AsyncCache<P>
 impl<P: CacheProvider + Default + Clone + 'static> Handler<DoFetchOnce<P>> for AsyncCache<P> {
     type Result = ActorResponse<Self, P::Value, P::Error>;
 
-    fn handle(&mut self, msg: DoFetchOnce<P>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: DoFetchOnce<P>, _ctx: &mut Self::Context) -> Self::Result {
         ActorResponse::r#async(
             self.provider
                 .try_get(&msg.0)
@@ -91,17 +91,13 @@ impl<P: CacheProvider + 'static> Message for DoFetchOnce<P> {
 impl<P: CacheProvider> AsyncCache<P> {}
 
 struct CacheRegistry<P: CacheProvider> {
-    provider: P,
     downloads: HashMap<P::Key, Vec<oneshot::Sender<Result<P::Value, P::Error>>>>,
 }
 
 impl<P: CacheProvider + Default> Default for CacheRegistry<P> {
     fn default() -> Self {
-        let provider = P::default();
-        let downloads = HashMap::new();
         CacheRegistry {
-            provider,
-            downloads,
+            downloads: HashMap::new(),
         }
     }
 }
@@ -114,8 +110,8 @@ impl<P: CacheProvider> CacheRegistry<P> {
         let _ = self.downloads.remove(&key).and_then(|v| {
             for endpoint in v {
                 match endpoint.send(result.clone()) {
-                    Err(e) => log::debug!("notification fail"),
-                    Ok(f) => (),
+                    Err(_e) => log::debug!("notification fail"),
+                    Ok(_) => (),
                 }
             }
             Some(())
@@ -161,7 +157,7 @@ impl<P: CacheProvider + Clone + 'static> Handler<DoGet<P>> for CacheRegistry<P> 
                 .send(DoFetch(k.clone(), h))
                 .flatten_fut()
                 .into_actor(self)
-                .then(move |v, act, ctx| fut::ok(act.result(&key, v))),
+                .then(move |v, act, _ctx| fut::ok(act.result(&key, v))),
         );
 
         return ActorResponse::r#async(rx.flatten_fut().into_actor(self));

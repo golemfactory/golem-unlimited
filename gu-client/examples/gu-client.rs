@@ -2,9 +2,20 @@
 Command line tool for management of gu-hub instance
 
 **/
+use std::cell::RefCell;
+use std::collections::BTreeSet;
+use std::io::Stdout;
+use std::iter::Peekable;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::{fs, io, thread};
+
 use actix::prelude::*;
 use failure::Fallible;
 use futures::{future, prelude::*};
+use serde::Serialize;
+use structopt::*;
+
 use gu_actix::pipe;
 use gu_actix::release::Handle;
 use gu_client::error::Error;
@@ -16,21 +27,8 @@ use gu_model::envman::ResourceFormat;
 use gu_model::peers::PeerInfo;
 use gu_model::session::HubExistingSession;
 use gu_model::session::HubSessionSpec;
-use gu_model::session::SessionDetails;
 use gu_model::HubInfo;
 use gu_net::NodeId;
-use serde::Serialize;
-use serde_derive::*;
-use std::cell::RefCell;
-use std::collections::BTreeSet;
-use std::fs::File;
-use std::io::Stdout;
-use std::iter::Peekable;
-use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
-use std::{fs, io, thread};
-use structopt::*;
 
 #[derive(StructOpt, Debug)]
 enum ClientArgs {
@@ -144,9 +142,6 @@ enum Progress {
 
 #[derive(Debug)]
 enum MainSteps {
-    Init {
-        total_frames: u64,
-    },
     UploadFile {
         file_name: PathBuf,
         total_upload_progress: Progress,
@@ -182,20 +177,19 @@ impl AsyncProgress {
 impl Actor for AsyncProgress {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
+    fn started(&mut self, _ctx: &mut Self::Context) {
         let mut mb = self.mb.take().unwrap();
         thread::spawn(move || mb.listen());
     }
 
-    fn stopped(&mut self, ctx: &mut Self::Context) {}
+    fn stopped(&mut self, _ctx: &mut Self::Context) {}
 }
 
 impl Handler<MainSteps> for AsyncProgress {
     type Result = ();
 
-    fn handle(&mut self, msg: MainSteps, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: MainSteps, _ctx: &mut Self::Context) -> Self::Result {
         match msg {
-            MainSteps::Init { total_frames } => (),
             MainSteps::UploadFile {
                 file_name,
                 total_upload_progress: Progress::Step(s, _),
@@ -205,7 +199,7 @@ impl Handler<MainSteps> for AsyncProgress {
                 self.upload_bar.set(s);
             }
             MainSteps::UploadFile {
-                file_name,
+                file_name: _,
                 total_upload_progress: Progress::Done,
             } => {
                 self.upload_bar.finish_println("upload done");
@@ -217,9 +211,6 @@ impl Handler<MainSteps> for AsyncProgress {
             }
             MainSteps::Done => {
                 self.main_bar.finish_println("rendering done");
-            }
-            e => {
-                //eprintln!("!!event={:?}", e);
             }
         }
     }
@@ -340,7 +331,7 @@ fn parse_frame_range(r: &str) -> Result<Vec<FrameRange>, failure::Error> {
 }
 
 fn show_info(info: HubInfo) {
-    use prettytable::{cell, format, row, Table};
+    use prettytable::{cell, row, Table};
 
     let mut table = Table::new();
     //table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
@@ -354,7 +345,7 @@ fn show_info(info: HubInfo) {
 }
 
 fn show_peers<Peers: IntoIterator<Item = PeerInfo>>(peers: Peers) {
-    use prettytable::{cell, format, row, Table};
+    use prettytable::{cell, row, Table};
 
     let mut table = Table::new();
     //table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
@@ -407,7 +398,7 @@ fn join_str<AsStr: AsRef<str>, Items: Iterator<Item = AsStr>>(items: Items) -> S
 
 fn show_peer(provider: ProviderRef) -> Box<dyn Future<Item = (), Error = gu_client::error::Error>> {
     Box::new(provider.deployments().and_then(|deployments| {
-        use prettytable::{cell, format, row, Table};
+        use prettytable::{cell, row, Table};
         let mut table = Table::new();
 
         table.set_titles(row!["Id", "Name", "Tags", "Note"]);
@@ -747,7 +738,7 @@ fn blender_deployment_spec(
                             target: "/golem/output".into(),
                         },
                     ],
-                    cmd: None,
+                    ..CreateOptions::default()
                 },
             }),
         )
@@ -762,7 +753,7 @@ fn render_task(
 
     let docker_mode = opts.docker;
     let frames = opts.frames();
-    let mut mb = AsyncProgress::new(frames.len() as u64, opts.resource.len() as u64).start();
+    let mb = AsyncProgress::new(frames.len() as u64, opts.resource.len() as u64).start();
 
     let spec = HubSessionSpec {
         expires: None,
@@ -819,11 +810,11 @@ fn render_task(
     };
 
     log::debug!("base={:?}, t={:?}", base_path, resources);
-    let (mut tx, rx) = pipe::sync_to_async(16);
+    let (tx, rx) = pipe::sync_to_async(16);
 
     let mut work_resources = resources.clone();
     let work_base = base_path.clone();
-    let mut upload_resources = mb.clone();
+    let upload_resources = mb.clone();
 
     thread::spawn(move || {
         use std::io::prelude::*;
@@ -904,7 +895,7 @@ fn render_task(
                 tokio_timer::Delay::new(
                     std::time::Instant::now() + std::time::Duration::from_secs(5),
                 )
-                .map_err(|e| Error::Other("time".into()))
+                .map_err(|e| Error::Other(format!("timer: {}", e)))
                 .map(move |_| blob.uri())
             })
         });
@@ -931,13 +922,12 @@ fn render_task(
                 })
         });
 
-        let mut frames_done = 0;
+        // TODO: let mut frames_done = 0;
 
         prepare_workers
             .join3(upload_blob, tasks)
             .and_then(move |(workers, blob_uri, tasks)| {
                 log::debug!("workers={:?}, blob_id={:?}", workers, blob_uri);
-                use futures::unsync::mpsc;
 
                 let workers = futures::future::join_all(
                     workers.into_iter().filter_map(|worker_opt| worker_opt).map(
@@ -958,7 +948,11 @@ fn render_task(
                                         Ok(Some(worker))
                                     }
                                     Err(e) => {
-                                        log::error!("resource download error on {:?}", worker);
+                                        log::error!(
+                                            "resource download error on {:?}: {}",
+                                            worker,
+                                            e
+                                        );
                                         Ok(None)
                                     }
                                 })

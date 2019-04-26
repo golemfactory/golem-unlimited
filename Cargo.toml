@@ -16,6 +16,8 @@ members= [
     'gu-model',
     'gu-client',
     'gu-hdman',
+    'update/update-trait',
+    'update/update-macro',
     'gu-plugin-api',
 ]
 
@@ -23,4 +25,5 @@ members= [
 codegen-units = 1
 lto=true
 
-
+[patch.crates-io]
+error-chain = { git = "https://github.com/golemfactory/error-chain.git" }
