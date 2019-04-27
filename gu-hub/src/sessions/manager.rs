@@ -400,7 +400,7 @@ impl Handler<DeleteDeployment> for SessionsManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<Vec<String>, SessionErr>")]
+#[rtype(result = "Result<Result<Vec<String>, Vec<String>>, SessionErr>")]
 pub struct UpdateDeployment {
     session_id: u64,
     node_id: NodeId,
@@ -425,7 +425,7 @@ impl UpdateDeployment {
 }
 
 impl Handler<UpdateDeployment> for SessionsManager {
-    type Result = ActorResponse<SessionsManager, Vec<String>, SessionErr>;
+    type Result = ActorResponse<SessionsManager, Result<Vec<String>, Vec<String>>, SessionErr>;
 
     fn handle(&mut self, msg: UpdateDeployment, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(session) = self.sessions.get_mut(&msg.session_id) {

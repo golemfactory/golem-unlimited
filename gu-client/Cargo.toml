@@ -21,6 +21,7 @@ serde_json = "1.0"
 url = "1.7.2"
 failure = "0.1.5"
 log="0.4"
+serde_derive = "1.0"
 
 [dev-dependencies]
 structopt= { version="0.2.14", default-features=false, features=["wrap_help", "suggestions", "color"]}
@@ -29,8 +30,9 @@ tar-async={git="https://github.com/prekucki/tar-async.git"}
 common-path="1.0"
 gu-actix={path="../gu-actix"}
 tar = "0.4"
-serde_derive = "1.0"
+
 crossbeam-channel = "0.3"
 env_logger="0.6"
 pbr="1.0"
 tokio-timer="0.2"
+gu-hardware={path="../gu-hardware"}
