@@ -7,7 +7,7 @@ use crate::inner_actor::InnerActor;
 use crate::ram::{RamInfo, RamQuery};
 use crate::storage::storage_info;
 use gu_actix::flatten::FlattenFuture;
-use gu_net::rpc::{RemotingContext, RemotingSystemService};
+use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
 
 use super::gpuinfo::{gpu_count, GpuCount};
 use num_cpus;
@@ -17,12 +17,12 @@ pub use crate::storage::{StorageInfo, StorageQuery};
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HardwareQuery;
 
-impl HardwareQuery {
+impl PublicMessage for HardwareQuery {
     const ID: u32 = 19354;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum OsType {
+pub enum OsType {
     Windows,
     MacOs,
     Linux,
@@ -52,6 +52,16 @@ pub struct Hardware {
     #[serde(skip_serializing_if = "Option::is_none")]
     hostname: Option<String>,
     num_cores: usize,
+}
+
+impl Hardware {
+    pub fn num_cores(&self) -> usize {
+        self.num_cores
+    }
+
+    pub fn os(&self) -> Option<&OsType> {
+        self.os.as_ref()
+    }
 }
 
 impl Message for HardwareQuery {

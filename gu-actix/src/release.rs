@@ -199,7 +199,7 @@ mod test {
             }
             eprintln!("c={}", COUNTER.load(Ordering::Relaxed));
             Arbiter::spawn(
-                tokio_timer::sleep(Duration::from_secs(2))
+                tokio_timer::sleep(Duration::from_millis(200))
                     .and_then(|_| {
                         System::current().stop();
                         Ok(())
@@ -209,7 +209,7 @@ mod test {
         });
 
         use std::thread::sleep;
-        sleep(Duration::from_secs(5));
+        sleep(Duration::from_secs(1));
         assert_eq!(0, COUNTER.load(Ordering::Relaxed))
     }
 }

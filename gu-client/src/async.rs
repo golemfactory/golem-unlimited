@@ -504,6 +504,15 @@ impl Peer {
     }
 }
 
+impl From<Peer> for ProviderRef {
+    fn from(peer: Peer) -> Self {
+        Self {
+            connection: peer.hub_session.hub_connection,
+            node_id: peer.node_id,
+        }
+    }
+}
+
 /// Peer session.
 #[derive(Clone, Debug)]
 pub struct PeerSession {
@@ -550,7 +559,25 @@ impl PeerSession {
                 .from_err()
         })
         .and_then(|response| match response.status() {
-            http::StatusCode::OK => future::Either::A(response.json().from_err()),
+            http::StatusCode::OK => {
+                future::Either::A(future::Either::A(response.json().from_err()))
+            }
+            http::StatusCode::INTERNAL_SERVER_ERROR => {
+                if response.content_type() == "application/json"
+                    && response.headers().get("x-processing-error").is_some()
+                {
+                    future::Either::A(future::Either::B(
+                        response
+                            .json()
+                            .from_err()
+                            .and_then(|v: Vec<String>| Err(Error::ProcessingResult(v))),
+                    ))
+                } else {
+                    future::Either::B(future::err(Error::ResponseErr(
+                        http::StatusCode::INTERNAL_SERVER_ERROR,
+                    )))
+                }
+            }
             status => future::Either::B(future::err(Error::ResponseErr(status))),
         })
     }
@@ -664,4 +691,33 @@ impl ProviderRef {
                 })
             })
     }
+
+    /// internal use only
+    pub fn rpc_call<T: super::PublicMessage + Serialize + 'static>(
+        &self,
+        msg: T,
+    ) -> impl Future<Item = T::Result, Error = Error>
+    where
+        T::Result: DeserializeOwned,
+    {
+        let url = format!(
+            "{}peers/send-to/{:?}/{}",
+            self.connection.url(),
+            self.node_id,
+            T::ID
+        );
+
+        client::ClientRequest::post(url)
+            .json(Body { b: msg })
+            .into_future()
+            .map_err(|e| Error::Other(format!("client request err: {}", e)))
+            .and_then(|r| r.send().from_err())
+            .and_then(|r| r.json().from_err())
+            .and_then(|r: T::Result| Ok(r))
+    }
+}
+
+#[derive(Serialize)]
+struct Body<T: Serialize + 'static> {
+    b: T,
 }
