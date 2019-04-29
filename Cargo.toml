@@ -24,3 +24,6 @@ members= [
 [profile.release]
 codegen-units = 1
 lto=true
+
+[patch.crates-io]
+error-chain = { git = "https://github.com/golemfactory/error-chain.git" }

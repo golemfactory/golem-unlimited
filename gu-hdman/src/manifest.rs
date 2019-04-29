@@ -21,7 +21,7 @@ pub enum Os {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[warn(non_camel_case_types)]
+#[allow(non_camel_case_types)]
 pub enum Arch {
     x86_64,
     Wasm32,

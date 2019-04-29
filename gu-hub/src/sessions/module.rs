@@ -1,23 +1,21 @@
-use actix::{Handler, MailboxError, Message, SystemService};
+use actix::SystemService;
 use actix_web::Path;
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
-    fs::NamedFile,
-    http,
-    http::{ContentEncoding, Method, StatusCode},
+    http::{Method, StatusCode},
     App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json,
     Responder, Result as ActixResult, Scope,
 };
 use futures::future::Future;
 use futures::stream::Stream;
+use serde_derive::*;
+
 use gu_actix::prelude::*;
 use gu_base::Module;
 use gu_model::session::HubSessionSpec;
 use gu_net::NodeId;
-use serde::de::DeserializeOwned;
-use serde_json::Value;
-use sessions::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
-use std::path::PathBuf;
+
+use super::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
 
 #[derive(Default)]
 pub struct SessionsModule {}
@@ -355,7 +353,12 @@ fn update_deployment(
         ))
         .flatten_fut()
         .from_err()
-        .and_then(|results| Ok(HttpResponse::Ok().json(results)))
+        .and_then(|results| match results {
+            Ok(results) => Ok(HttpResponse::Ok().json(results)),
+            Err(results) => Ok(HttpResponse::InternalServerError()
+                .header("x-processing-error", "1")
+                .json(results)),
+        })
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder

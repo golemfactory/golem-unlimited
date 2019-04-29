@@ -2,11 +2,23 @@
 //!
 //! Manages hub session state.
 //!
+
+use std::{cmp, collections::HashMap, fs, path::PathBuf};
+
 use actix::prelude::*;
-use futures::prelude::*;
-use gu_actix::prelude::*;
+use futures::{Future, IntoFuture};
+use log::error;
+use serde::{Deserialize, Serialize};
+
 use gu_net::NodeId;
-use std::marker::PhantomData;
+use gu_persist::config::ConfigModule;
+
+use super::session::Session;
+use super::{
+    blob::Blob,
+    responses::{SessionErr, SessionResult},
+    session::{entries_id_iter, SessionInfo},
+};
 
 #[derive(Default)]
 pub struct SessionsManager {
@@ -114,19 +126,6 @@ where
         }
     }
 }
-
-use super::session::Session;
-use futures::{future, Future, IntoFuture};
-use gu_model::session::Metadata;
-use gu_persist::config::ConfigModule;
-use serde_json::Value;
-use sessions::{
-    blob::Blob,
-    responses::{SessionErr, SessionOk, SessionResult},
-    session::{entries_id_iter, SessionInfo},
-};
-
-use std::{cmp, collections::HashMap, fs, path::PathBuf};
 
 impl SessionsManager {
     fn session_fn<R, F>(&self, id: u64, f: F) -> Result<R, SessionErr>
@@ -401,7 +400,7 @@ impl Handler<DeleteDeployment> for SessionsManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<Vec<String>, SessionErr>")]
+#[rtype(result = "Result<Result<Vec<String>, Vec<String>>, SessionErr>")]
 pub struct UpdateDeployment {
     session_id: u64,
     node_id: NodeId,
@@ -426,7 +425,7 @@ impl UpdateDeployment {
 }
 
 impl Handler<UpdateDeployment> for SessionsManager {
-    type Result = ActorResponse<SessionsManager, Vec<String>, SessionErr>;
+    type Result = ActorResponse<SessionsManager, Result<Vec<String>, Vec<String>>, SessionErr>;
 
     fn handle(&mut self, msg: UpdateDeployment, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(session) = self.sessions.get_mut(&msg.session_id) {

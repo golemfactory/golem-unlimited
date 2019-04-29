@@ -1,10 +1,5 @@
 #![allow(dead_code)]
 
-use gu_base::cli;
-use plugins::parser::{self, PathPluginParser, PluginParser};
-use semver::{Version, VersionReq};
-use serde::de::DeserializeOwned;
-use serde_json::{self, Value as JsonValue};
 use std::{
     collections::HashMap,
     fmt::{self, Debug},
@@ -12,6 +7,16 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
 };
+
+use semver::{Version, VersionReq};
+use serde::de::DeserializeOwned;
+use serde_derive::*;
+use serde_json::{self, Value as JsonValue};
+
+use gu_base::cli;
+use prettytable::{cell, row};
+
+use super::parser::{self, PathPluginParser, PluginParser};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PluginEvent {

@@ -1,7 +1,9 @@
+use std::{fmt, io};
+
 use failure::Fail;
 use futures::sync::oneshot;
+
 use gu_actix::safe::*;
-use std::{fmt, io};
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -40,7 +42,7 @@ impl From<io::Error> for Error {
 }
 
 impl<T: fmt::Debug + Send + Sync + 'static> From<OverflowError<T>> for Error {
-    fn from(e: OverflowError<T>) -> Self {
+    fn from(_e: OverflowError<T>) -> Self {
         Error::Overflow
     }
 }

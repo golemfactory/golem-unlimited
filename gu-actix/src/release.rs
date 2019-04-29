@@ -1,12 +1,10 @@
-use actix::prelude::*;
-use futures::prelude::*;
-use futures::unsync::oneshot;
-use std::cell::Cell;
-use std::cell::Ref;
-use std::cell::RefCell;
 use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
+
+use actix::prelude::*;
+use futures::prelude::*;
+use futures::unsync::oneshot;
 
 pub trait AsyncRelease: Send + 'static {
     type Result: Future<Item = ()> + 'static;
@@ -41,6 +39,7 @@ impl<T: AsyncRelease> Inner<T> {
         self.inner.as_ref().unwrap()
     }
 
+    #[allow(unused)]
     pub fn into_inner(mut self) -> T {
         self.inner.take().unwrap()
     }
@@ -160,17 +159,19 @@ impl<T: AsyncRelease> Handler<DropHandle<T>> for AsyncResourceManager {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::sync::atomic::{AtomicIsize, Ordering};
     use std::time::Duration;
+
     use tokio_timer::sleep;
 
-    static counter: AtomicIsize = AtomicIsize::new(0);
+    use super::*;
+
+    static COUNTER: AtomicIsize = AtomicIsize::new(0);
 
     struct T;
 
     fn new_item() -> T {
-        let _ = counter.fetch_add(1, Ordering::SeqCst);
+        let _ = COUNTER.fetch_add(1, Ordering::SeqCst);
         T
     }
 
@@ -179,7 +180,7 @@ mod test {
 
         fn release(self) -> <Self as AsyncRelease>::Result {
             Box::new(sleep(Duration::from_millis(100)).and_then(|_| {
-                let _ = counter.fetch_add(-1, Ordering::SeqCst);
+                let _ = COUNTER.fetch_add(-1, Ordering::SeqCst);
                 Ok(())
             }))
         }
@@ -190,15 +191,15 @@ mod test {
         let _ = System::run(|| {
             {
                 let a = Handle::new(new_item());
-                eprintln!("c={}", counter.load(Ordering::Relaxed));
+                eprintln!("c={}", COUNTER.load(Ordering::Relaxed));
                 let _b = Handle::new(new_item());
-                eprintln!("c={}", counter.load(Ordering::Relaxed));
+                eprintln!("c={}", COUNTER.load(Ordering::Relaxed));
                 let _c = a.clone();
-                eprintln!("c={}", counter.load(Ordering::Relaxed));
+                eprintln!("c={}", COUNTER.load(Ordering::Relaxed));
             }
-            eprintln!("c={}", counter.load(Ordering::Relaxed));
+            eprintln!("c={}", COUNTER.load(Ordering::Relaxed));
             Arbiter::spawn(
-                tokio_timer::sleep(Duration::from_secs(2))
+                tokio_timer::sleep(Duration::from_millis(200))
                     .and_then(|_| {
                         System::current().stop();
                         Ok(())
@@ -208,7 +209,7 @@ mod test {
         });
 
         use std::thread::sleep;
-        sleep(Duration::from_secs(5));
-        assert_eq!(0, counter.load(Ordering::Relaxed))
+        sleep(Duration::from_secs(1));
+        assert_eq!(0, COUNTER.load(Ordering::Relaxed))
     }
 }

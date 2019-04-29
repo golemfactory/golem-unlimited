@@ -18,10 +18,4 @@ pub use semver::Version;
 
 pub use hub::{BuildInfo, HubInfo};
 
-mod error {
-
-    pub enum UpdateError {}
-
-}
-
 pub use chrono;
