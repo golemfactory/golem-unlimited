@@ -43,6 +43,9 @@ async_docker = { git = "https://github.com/golemfactory/async-docker", optional 
 tar-async = { git = "https://github.com/prekucki/tar-async.git" }
 #async_docker = { path = "../../async-docker", optional = true }
 
+[build-dependencies]
+vergen = "3"
+
 [features]
 default = ["env-docker"]
 clinfo = ["gu-hardware/clinfo"]
@@ -56,6 +59,3 @@ assets = [
 ]
 
 maintainer-scripts = "deployment/deb"
-
-[build-dependencies]
-vergen = "3"
