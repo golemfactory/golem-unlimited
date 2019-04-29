@@ -5,33 +5,33 @@ edition = "2018"
 
 
 #[features]
-#default=["ssl"]
-#ssl=["actix-web/rust-tls"]
+#default = ["ssl"]
+#ssl = ["actix-web/rust-tls"]
 
 [dependencies]
 
-tokio-process="0.2.3"
+tokio-process = "0.2.3"
 serde_derive = "1.0"
 serde = "1.0.80"
 semver = { version = "0.9", features = ["serde"] }
-actix="0.7"
-actix-web = { version = "0.7", default-features=false}
-futures="0.1"
-futures-cpupool="0.1"
-tokio-io="0.1.11"
+actix = "0.7"
+actix-web = { version = "0.7", default-features = false }
+futures = "0.1"
+futures-cpupool = "0.1"
+tokio-io = "0.1.11"
 
 gu-actix = { path = "../gu-actix" }
-gu-model = { path = "../gu-model", features=["hash"] }
-bytes="0.4"
-bincode="1.0.1"
-failure="0.1"
+gu-model = { path = "../gu-model", features = ["hash"] }
+bytes = "0.4"
+bincode = "1.0.1"
+failure = "0.1"
 crc = "1.0.0"
 log = "0.4.6"
 chrono = { version = "0.4", features = ["serde"] }
-derive_builder="0.7"
+derive_builder = "0.7"
 
 [dev-dependencies]
-tokio-stdin="0.1.1"
-serde_json="1.0"
-pbr="1.0"
+tokio-stdin = "0.1.1"
+serde_json = "1.0"
+pbr = "1.0"
 structopt = { version = "0.2" }

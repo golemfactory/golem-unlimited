@@ -4,47 +4,41 @@ version = "0.1.1"
 edition = "2018"
 
 [dependencies]
-gu-actix= { path="../gu-actix" }
-gu-base= { path="../gu-base" }
-gu-net= { path="../gu-net" }
-gu-persist = { path="../gu-persist" }
+gu-actix = { path = "../gu-actix" }
+gu-base = { path = "../gu-base" }
+gu-net = { path = "../gu-net" }
+gu-persist = { path = "../gu-persist" }
 
-sysinfo = "0.5"
-log = "0.4"
 actix = "0.7"
-futures = "0.1"
-serde = "1.0"
-serde_json = "1.0"
-serde_derive = "1.0"
-actix-web = { version = "0.7", default-features=false}
-hostname = "^0.1"
-num_cpus = "1.0"
+actix-web = { version = "0.7", default-features = false }
+cl-sys = { version = "0.4", optional = true }
 failure = "0.1.5"
+futures = "0.1"
+hostname = "^0.1"
+log = "0.4"
 nix = "0.13.0"
-
-[dependencies.cl-sys]
-version="0.4"
-optional=true
-
-[dependencies.smallvec]
-version="0.6"
-optional=true
-
-[features]
-default=[]
-clinfo=['cl-sys','smallvec']
+num_cpus = "1.0"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+smallvec = { version = "0.6", optional = true }
+sysinfo = "0.5"
 
 [dev-dependencies]
 gu-actix = { path = "../gu-actix" }
 serde_json = "1.0"
 
-[[example]]
-name="clinfo"
-path="optional-example/clinfo.rs"
-required-features=["clinfo"]
+[features]
+default = []
+clinfo = ["cl-sys", "smallvec"]
 
 [[example]]
-name="discovery"
-path="optional-example/discovery.rs"
+name = "clinfo"
+path = "optional-example/clinfo.rs"
+required-features = ["clinfo"]
+
+[[example]]
+name = "discovery"
+path = "optional-example/discovery.rs"
 
 

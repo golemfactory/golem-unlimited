@@ -2,53 +2,51 @@
 name = "gu-provider"
 version = "0.2.0"
 license = "MIT"
-publish=false
-authors=["golemfactory"]
+publish = false
+authors = ["golemfactory"]
 edition = "2018"
 
-[features]
-default=['env-docker']
-clinfo=["gu-hardware/clinfo"]
-env-docker=['async_docker']
-
 [dependencies]
-crc="1.8.1"
-futures="0.1"
-tokio-io="0.1"
-actix_derive = "0.3.0"
-actix = "0.7"
-actix-web = {version= "0.7", default-features = false}
-serde_derive = "1.0"
-serde_json = "1.0.32"
-serde = "1.0.80"
-
-log = "0.4"
-clap = "2.32"
-error-chain = "0.12"
-tokio-uds = "0.2"
-uuid = { version = "0.7", features = ["v4"] }
-bytes = "0.4"
-flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
-tar = "0.4"
-prettytable-rs = "0.7"
-mdns = { git = "https://github.com/plietar/rust-mdns" }
-crossbeam-channel="0.3.6"
-futures-cpupool="0.1"
-
-gu-base= { path="../gu-base" }
+ethkey = { path = "../ethkey" }
 gu-actix = { path = "../gu-actix" }
+gu-base = { path = "../gu-base" }
+gu-hardware = { path = "../gu-hardware" }
+gu-hdman = { path = "../gu-hdman" }
+gu-lan = { path = "../gu-lan" }
+gu-model = { path = "../gu-model" }
 gu-net = { path = "../gu-net" }
 gu-persist = { path = "../gu-persist" }
-gu-lan = { path = "../gu-lan"}
-ethkey = { path = "../ethkey"}
-gu-hardware = { path = "../gu-hardware"}
-gu-model = { path = "../gu-model" }
-gu-hdman = { path = "../gu-hdman" }
 
+actix = "0.7"
+actix-web = { version = "0.7", default-features = false }
+actix_derive = "0.3.0"
+bytes = "0.4"
+clap = "2.32"
+crc = "1.8.1"
+crossbeam-channel = "0.3.6"
+error-chain = "0.12"
+flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
+futures = "0.1"
+futures-cpupool = "0.1"
+log = "0.4"
+mdns = { git = "https://github.com/plietar/rust-mdns" }
+prettytable-rs = "0.7"
+serde = "1.0.80"
+serde_derive = "1.0"
+serde_json = "1.0.32"
+tar = "0.4"
+tokio-io = "0.1"
+tokio-uds = "0.2"
+uuid = { version = "0.7", features = ["v4"] }
 
-async_docker={git = "https://github.com/golemfactory/async-docker", optional=true, branch="swagger", version="0.1.1" }
-tar-async={git="https://github.com/prekucki/tar-async.git"}
-#async_docker={path = "../../async-docker", optional=true }
+async_docker = { git = "https://github.com/golemfactory/async-docker", optional = true, branch = "swagger", version = "0.1.1" }
+tar-async = { git = "https://github.com/prekucki/tar-async.git" }
+#async_docker = { path = "../../async-docker", optional = true }
+
+[features]
+default = ["env-docker"]
+clinfo = ["gu-hardware/clinfo"]
+env-docker = ["async_docker"]
 
 [package.metadata.deb]
 depends = "$auto, systemd"
@@ -56,9 +54,8 @@ assets = [
     ["target/release/gu-provider", "usr/bin/", "755"],
     ["deployment/gu-provider.service", "lib/systemd/system/", "644"],
 ]
-#conf-files=["etc/golem-monitor-replicator"]
 
-maintainer-scripts="deployment/deb"
+maintainer-scripts = "deployment/deb"
 
 [build-dependencies]
 vergen = "3"
