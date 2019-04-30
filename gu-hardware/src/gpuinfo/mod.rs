@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::error::Result;
 
 #[cfg(feature = "clinfo")]
@@ -79,7 +81,7 @@ pub fn gpu_count() -> Result<GpuCount> {
 #[cfg(not(target_os = "linux"))]
 #[cfg(not(feature = "clinfo"))]
 pub fn gpu_count() -> Result<GpuCount> {
-    compile_error!("gpu detection supported only on ubuntu or with clinfo feature")
+    compile_error!("gpu detection supported only on linux or with clinfo feature")
 }
 
 #[cfg(test)]

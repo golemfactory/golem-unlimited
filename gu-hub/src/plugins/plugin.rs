@@ -1,15 +1,10 @@
-#![allow(dead_code)]
-
 use std::{
-    collections::HashMap,
-    fmt::{self, Debug},
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
+    collections::HashMap, fmt::{self, Debug}, fs::File, io::Read, path::{Path, PathBuf}
 };
 
 use prettytable::{cell, row};
 use semver::{Version, VersionReq};
+use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use serde_json::{self, Value as JsonValue};
 
@@ -50,10 +45,6 @@ pub struct PluginMetadata {
 }
 
 impl PluginMetadata {
-    pub fn version(&self) -> Version {
-        self.version.clone()
-    }
-
     pub fn gu_version_req(&self) -> VersionReq {
         self.gu_version_req.clone()
     }
@@ -228,10 +219,6 @@ impl Plugin {
 
     pub fn inactivate(&mut self) {
         self.status = PluginStatus::Installed;
-    }
-
-    pub fn log_error(&mut self, _s: String) {
-        self.status = PluginStatus::Error;
     }
 
     pub fn status(&self) -> PluginStatus {

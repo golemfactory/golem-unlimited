@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use actix::prelude::*;
 use actix_web::{self, App, AsyncResponder, HttpRequest, HttpResponse, Responder};
 use futures::{future, prelude::*};
+use serde::{Deserialize, Serialize};
 
 use gu_base::Module;
 

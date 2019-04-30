@@ -1,8 +1,7 @@
-use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
-use std::str::FromStr;
+use std::{collections::{HashMap, HashSet}, net::SocketAddr, str::FromStr};
 
 use log::error;
+use serde::{Deserialize, Serialize};
 
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_lan::HubDesc;

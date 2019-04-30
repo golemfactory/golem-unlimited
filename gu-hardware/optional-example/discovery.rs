@@ -1,9 +1,8 @@
 use actix::prelude::*;
-use gu_net::rpc::start_actor;
-
-//use std::path::PathBuf;
 use futures::prelude::*;
+
 use gu_hardware::actor::{HardwareActor, HardwareQuery};
+use gu_net::rpc::start_actor;
 
 fn main() {
     System::run(|| {

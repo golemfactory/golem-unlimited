@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use update_macro::Update;
 use update_trait::UpdateTrait;
 
@@ -23,7 +21,6 @@ struct C {
 #[derive(Update, Debug, PartialEq)]
 enum E {
     Single(A),
-    Double(B, B),
     Empty,
     Click { x: i64, opt: Option<bool> },
 }

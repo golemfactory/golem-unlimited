@@ -1,17 +1,13 @@
-#![allow(dead_code)]
-
-use std::collections::BTreeSet;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{Arc, RwLock},
 };
 
 use actix::{fut, prelude::*};
-use actix_web::Responder;
-use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Json};
+use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Json, Responder};
 use futures::prelude::*;
 use log::debug;
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 
 use gu_base::{ArgMatches, Module};
 use gu_event_bus;
@@ -35,7 +31,6 @@ pub fn module() -> impl Module {
 struct ProxyManager {
     // Plugin -> Set of Commands
     plugin_commands: Arc<RwLock<BTreeMap<String, BTreeSet<String>>>>,
-    command_proxy_path: Arc<RwLock<BTreeMap<String, ProxyPath>>>,
 }
 
 impl ProxyManager {
@@ -143,11 +138,9 @@ fn split_path2(path: &str) -> Option<(&str, &str, &str)> {
 impl Module for LocalServiceModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
         let plugin_commands = self.plugin_commands.clone();
-        let command_proxy_path = self.command_proxy_path.clone();
         self.manager = Some(
             ProxyManager {
                 plugin_commands,
-                command_proxy_path,
             }
             .start(),
         );
@@ -210,20 +203,8 @@ impl Module for LocalServiceModule {
     }
 }
 
-struct ProxyHandler(Arc<RwLock<BTreeMap<String, BTreeMap<String, String>>>>);
-
-#[derive(Debug)]
-struct ServiceRunner {}
-
-impl ServiceRunner {
-    fn new(_config: ServiceConfig) -> Self {
-        ServiceRunner {}
-    }
-}
-
 enum ProxyPath {
     Remote { url: String },
-    Local { cmd: String },
 }
 
 impl ProxyPath {
@@ -235,9 +216,6 @@ impl ProxyPath {
         match self {
             ProxyPath::Remote { url } => {
                 b.uri(&format!("{}{}", url, path));
-            }
-            ProxyPath::Local { .. } => {
-                unimplemented!();
             }
         }
 

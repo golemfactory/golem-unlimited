@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
 use std::{
@@ -7,12 +6,13 @@ use std::{
     sync::Arc,
 };
 
+use ::actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
 use futures::{future, prelude::*};
 use log::{error, info};
+use serde::{Deserialize, Serialize};
 
-use ::actix::prelude::*;
 use ethkey::prelude::*;
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{
@@ -147,10 +147,6 @@ impl Module for ServerModule {
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
         app
     }
-}
-
-fn p2p_server(_r: &HttpRequest) -> &'static str {
-    "ok"
 }
 
 #[derive(Default)]

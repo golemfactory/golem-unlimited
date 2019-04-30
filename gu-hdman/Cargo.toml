@@ -11,8 +11,7 @@ edition = "2018"
 [dependencies]
 
 tokio-process = "0.2.3"
-serde_derive = "1.0"
-serde = "1.0.80"
+serde = { version = "1.0", features = ["derive"] }
 semver = { version = "0.9", features = ["serde"] }
 actix = "0.7"
 actix-web = { version = "0.7", default-features = false }

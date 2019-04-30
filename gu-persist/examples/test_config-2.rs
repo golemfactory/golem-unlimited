@@ -1,20 +1,15 @@
-#![allow(dead_code)]
-
 extern crate actix;
 extern crate env_logger;
 extern crate futures;
 extern crate gu_actix;
 extern crate gu_persist;
+extern crate serde;
 
 use std::sync::Arc;
 
 use actix::prelude::*;
 use futures::prelude::*;
-
-enum Cmd {
-    Fetch(String),
-    Put(String, String),
-}
+use serde::{Deserialize, Serialize};
 
 struct MyActor;
 

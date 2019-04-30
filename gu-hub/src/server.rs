@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{borrow::Cow, net::ToSocketAddrs, sync::Arc};
 
 use actix::prelude::*;
@@ -7,6 +5,7 @@ use actix_web;
 use clap::{App, ArgMatches};
 use futures::Future;
 use log::error;
+use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
 use gu_actix::*;
@@ -16,8 +15,8 @@ use gu_base::{
 };
 use gu_lan::MdnsPublisher;
 use gu_net::{
-    rpc::{self, mock},
     NodeId,
+    rpc::{self, mock},
 };
 use gu_persist::{
     config::{self, ConfigManager, ConfigModule},

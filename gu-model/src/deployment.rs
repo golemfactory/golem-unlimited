@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::Tags;
 
 pub type Pid = String;

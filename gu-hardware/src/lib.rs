@@ -9,7 +9,6 @@ use gu_net::rpc::RemotingSystemService;
 pub mod actor;
 pub mod gpuinfo;
 
-mod cli;
 mod disk;
 mod inner_actor;
 mod ram;

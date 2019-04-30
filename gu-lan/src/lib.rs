@@ -1,33 +1,37 @@
 //! mDNS discovery for Golem Unlimited nodes.
 //!
 
+extern crate actix;
+extern crate actix_web;
+extern crate bytes;
+extern crate clap;
+extern crate dns_parser;
 #[macro_use]
 extern crate error_chain;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate prettytable;
-
+extern crate futures;
 extern crate gu_actix;
 extern crate gu_base;
 extern crate gu_net;
-
-extern crate bytes;
+extern crate hostname;
+#[macro_use]
+extern crate log;
 extern crate mdns;
+#[macro_use]
+extern crate prettytable;
 extern crate rand;
+extern crate serde;
 extern crate serde_json;
 extern crate socket2;
-
-extern crate actix;
-extern crate actix_web;
-extern crate clap;
-extern crate dns_parser;
-extern crate futures;
-extern crate hostname;
 extern crate tokio;
 extern crate tokio_codec;
 
+use std::net::SocketAddr;
+
+use mdns::{Responder, Service};
+use serde::{Deserialize, Serialize};
+
 pub use continuous::{NewInstance, Subscription};
+use gu_net::NodeId;
 pub use service::ServiceDescription;
 
 pub mod actor;
@@ -39,8 +43,6 @@ pub mod module;
 mod service;
 
 pub const ID_LAN: u32 = 576411;
-use gu_net::NodeId;
-use std::net::SocketAddr;
 
 /// Hub mDNS data
 #[derive(Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -123,8 +125,6 @@ pub fn list_hubs() -> impl futures::Future<Item = Vec<HubDesc>, Error = ()> {
         })
         .map_err(|_e| ())
 }
-
-use mdns::{Responder, Service};
 
 pub struct MdnsPublisher {
     is_hub: bool,

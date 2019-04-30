@@ -1,13 +1,12 @@
-use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
-use std::collections::hash_map::{Entry, OccupiedEntry};
-use std::collections::HashSet;
-use std::fs::OpenOptions;
-use std::path::Path;
+use std::{
+    collections::{hash_map::{Entry, OccupiedEntry}, HashMap, HashSet},
+    fs, fs::OpenOptions, path::{Path, PathBuf}, process, result, time
+};
 
 use actix::{fut, prelude::*};
-use futures::future;
-use futures::prelude::*;
+use futures::{future, prelude::*};
 use log::{debug, error, info};
+use serde::{Deserialize, Serialize};
 
 use gu_actix::prelude::*;
 use gu_hdman::image_manager;
