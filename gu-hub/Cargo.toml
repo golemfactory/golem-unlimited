@@ -46,7 +46,7 @@ gu-hardware = { path = "../gu-hardware" }
 [features]
 default=[]
 #default=["actix-web/rust-tls"]
-clnifo=["gu-hardware/clinfo"]
+clinfo=["gu-hardware/clinfo"]
 
 [package.metadata.deb]
 assets=[
