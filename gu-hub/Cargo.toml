@@ -39,9 +39,9 @@ zip = "0.4"
 vergen = "3.0.4"
 
 [features]
-#default = ["actix-web/rust-tls"]
-default = []
-clinfo = ["gu-hardware/clinfo"]
+default=[]
+#default=["actix-web/rust-tls"]
+clinfo=["gu-hardware/clinfo"]
 
 [package.metadata.deb]
 assets = [
