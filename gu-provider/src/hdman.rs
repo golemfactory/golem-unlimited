@@ -1,38 +1,37 @@
+use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashSet;
 use std::fs::OpenOptions;
 use std::path::Path;
-use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
 
 use actix::{fut, prelude::*};
 use futures::future;
 use futures::prelude::*;
 use log::{debug, error, info};
-use serde_derive::*;
 
 use gu_actix::prelude::*;
 use gu_hdman::image_manager;
 use gu_model::envman::*;
 use gu_net::rpc::{
-    peer::{PeerSessionInfo, PeerSessionStatus},
     *,
+    peer::{PeerSessionInfo, PeerSessionStatus},
 };
 use gu_persist::config::ConfigModule;
 
 use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 
-/** Host direct manager.
+use super::{
+    envman, status,
+    sync_exec::{Exec, ExecResult, SyncExecManager},
+};
+/**
 
-
+Host direct manager.
 
 */
 use super::id::generate_new_id;
 use super::provision::{download_step, untgz, upload_step};
 use super::workspace::{Workspace, WorkspacesManager};
-use super::{
-    envman, status,
-    sync_exec::{Exec, ExecResult, SyncExecManager},
-};
 
 impl IntoDeployInfo for HdSessionInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo {

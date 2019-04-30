@@ -2,8 +2,6 @@
 extern crate failure;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate serde_derive;
 
 use gu_base::Module;
 use gu_net::rpc::RemotingSystemService;

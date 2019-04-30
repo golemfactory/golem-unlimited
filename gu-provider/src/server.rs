@@ -1,35 +1,37 @@
 #![allow(dead_code)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use crate::connect::ListingType;
-use crate::connect::{
-    self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
-    ConnectionChangeMessage, Disconnect, ListSockets,
+use std::{
+    collections::HashSet,
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
 };
-use crate::hdman::HdMan;
-use ::actix::prelude::*;
+
 use actix_web::*;
 use clap::ArgMatches;
-use ethkey::prelude::*;
 use futures::{future, prelude::*};
+use log::{error, info};
+
+use ::actix::prelude::*;
+use ethkey::prelude::*;
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     Decorator, Module,
 };
 use gu_lan::MdnsPublisher;
-use gu_net::{rpc, NodeId};
+use gu_net::{NodeId, rpc};
 use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
     http::{ServerClient, ServerConfig},
 };
-use log::{error, info};
-use serde_derive::*;
-use std::{
-    collections::HashSet,
-    net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
+
+use crate::connect::{
+    self, AutoMdns, Connect, ConnectionChange, ConnectionChangeMessage, ConnectManager,
+    ConnectModeMessage, Disconnect, ListSockets,
 };
+use crate::connect::ListingType;
+use crate::hdman::HdMan;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

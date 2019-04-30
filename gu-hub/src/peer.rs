@@ -1,24 +1,23 @@
 //!
 
 use actix::prelude::*;
-use actix_web::http::Method;
-use actix_web::http::StatusCode;
 use actix_web::{
-    self, http, AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder,
+    self, AsyncResponder, FromRequest, http, HttpRequest, HttpResponse, Json, Path, Responder,
     Scope,
 };
+use actix_web::http::Method;
+use actix_web::http::StatusCode;
 use futures::prelude::*;
 use log::error;
 use prettytable::{cell, row};
-use serde_derive::*;
 use serde_json::Value as JsonValue;
 
 use gu_actix::prelude::*;
-use gu_base::{cli, App, AppSettings, ArgMatches, Decorator, Module, SubCommand};
+use gu_base::{App, AppSettings, ArgMatches, cli, Decorator, Module, SubCommand};
 use gu_model::peers as peers_api;
 use gu_net::{
-    rpc::{peer, public_destination, reply::CallRemoteUntyped, reply::SendError, ReplyRouter},
     NodeId,
+    rpc::{peer, public_destination, reply::CallRemoteUntyped, reply::SendError, ReplyRouter},
 };
 
 use crate::server::HubClient;

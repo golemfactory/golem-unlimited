@@ -1,14 +1,13 @@
 use actix::SystemService;
-use actix_web::Path;
 use actix_web::{
-    error::{ErrorBadRequest, ErrorInternalServerError},
-    http::{Method, StatusCode},
-    App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json,
+    App,
+    AsyncResponder,
+    error::{ErrorBadRequest, ErrorInternalServerError}, Error as ActixError, http::{Method, StatusCode}, HttpMessage, HttpRequest, HttpResponse, Json,
     Responder, Result as ActixResult, Scope,
 };
+use actix_web::Path;
 use futures::future::Future;
 use futures::stream::Stream;
-use serde_derive::*;
 
 use gu_actix::prelude::*;
 use gu_base::Module;

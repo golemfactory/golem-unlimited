@@ -8,13 +8,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use prettytable::{cell, row};
 use semver::{Version, VersionReq};
 use serde::de::DeserializeOwned;
-use serde_derive::*;
 use serde_json::{self, Value as JsonValue};
 
 use gu_base::cli;
-use prettytable::{cell, row};
 
 use super::parser::{self, PathPluginParser, PluginParser};
 

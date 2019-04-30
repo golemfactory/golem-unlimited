@@ -1,7 +1,6 @@
 use actix::prelude::*;
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::PublicMessage;
-use serde_derive::*;
 use std::{fmt, io};
 
 /// Errors

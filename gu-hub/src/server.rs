@@ -7,7 +7,6 @@ use actix_web;
 use clap::{App, ArgMatches};
 use futures::Future;
 use log::error;
-use serde_derive::*;
 
 use ethkey::prelude::*;
 use gu_actix::*;

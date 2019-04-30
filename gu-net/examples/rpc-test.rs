@@ -12,9 +12,6 @@ extern crate smallvec;
 #[macro_use]
 extern crate log;
 
-#[macro_use]
-extern crate serde_derive;
-
 use actix::prelude::*;
 use gu_net::rpc::*;
 

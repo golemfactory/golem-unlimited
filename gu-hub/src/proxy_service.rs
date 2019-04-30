@@ -9,7 +9,6 @@ use actix::{fut, prelude::*};
 use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse};
 use futures::{future, prelude::*};
 use log::debug;
-use serde_derive::*;
 
 use gu_base::{ArgMatches, Module};
 use gu_event_bus;

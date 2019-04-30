@@ -1,9 +1,10 @@
+use std::collections::BTreeMap;
+
 use actix::prelude::*;
 use actix_web::{self, App, AsyncResponder, HttpRequest, HttpResponse, Responder};
 use futures::{future, prelude::*};
+
 use gu_base::Module;
-use serde_derive::*;
-use std::collections::BTreeMap;
 
 pub fn module() -> impl Module {
     StatusModule

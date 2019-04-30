@@ -1,17 +1,15 @@
 #![allow(dead_code)]
 
 extern crate actix;
+extern crate env_logger;
 extern crate futures;
 extern crate gu_actix;
 extern crate gu_persist;
-#[macro_use]
-extern crate serde_derive;
 
-extern crate env_logger;
+use std::sync::Arc;
 
 use actix::prelude::*;
 use futures::prelude::*;
-use std::sync::Arc;
 
 enum Cmd {
     Fetch(String),
