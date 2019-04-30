@@ -9,9 +9,7 @@ use std::{
 };
 
 use daemonize::Daemonize;
-use libc::{
-    dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDOUT_FILENO,
-};
+use libc::{dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDOUT_FILENO};
 
 pub enum ProcessStatus {
     Running(i32),

@@ -20,17 +20,17 @@ use gu_base::{
     Decorator, Module,
 };
 use gu_lan::MdnsPublisher;
-use gu_net::{NodeId, rpc};
+use gu_net::{rpc, NodeId};
 use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
     http::{ServerClient, ServerConfig},
 };
 
-use crate::connect::{
-    self, AutoMdns, Connect, ConnectionChange, ConnectionChangeMessage, ConnectManager,
-    ConnectModeMessage, Disconnect, ListSockets,
-};
 use crate::connect::ListingType;
+use crate::connect::{
+    self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
+    ConnectionChangeMessage, Disconnect, ListSockets,
+};
 use crate::hdman::HdMan;
 
 #[derive(Serialize, Deserialize, Clone)]

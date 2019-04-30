@@ -1,9 +1,9 @@
 use actix::SystemService;
 use actix_web::{
-    App, AsyncResponder,
-    error::{ErrorBadRequest, ErrorInternalServerError}, Error as ActixError,
-    http::{Method, StatusCode}, HttpMessage, HttpRequest, HttpResponse, Json,
-    Path, Responder, Result as ActixResult, Scope,
+    error::{ErrorBadRequest, ErrorInternalServerError},
+    http::{Method, StatusCode},
+    App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json, Path,
+    Responder, Result as ActixResult, Scope,
 };
 use futures::{future::Future, stream::Stream};
 use serde::Deserialize;

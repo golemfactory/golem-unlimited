@@ -4,7 +4,9 @@ use std::{
 };
 
 use actix::{fut, prelude::*};
-use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Json, Responder};
+use actix_web::{
+    self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Json, Responder,
+};
 use futures::prelude::*;
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -138,12 +140,7 @@ fn split_path2(path: &str) -> Option<(&str, &str, &str)> {
 impl Module for LocalServiceModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
         let plugin_commands = self.plugin_commands.clone();
-        self.manager = Some(
-            ProxyManager {
-                plugin_commands,
-            }
-            .start(),
-        );
+        self.manager = Some(ProxyManager { plugin_commands }.start());
         false
     }
 

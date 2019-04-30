@@ -1,11 +1,15 @@
 use std::{
-    collections::HashMap, fmt::{self, Debug}, fs::File, io::Read, path::{Path, PathBuf}
+    collections::HashMap,
+    fmt::{self, Debug},
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
 };
 
 use prettytable::{cell, row};
 use semver::{Version, VersionReq};
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::{self, Value as JsonValue};
 
 use gu_base::cli;

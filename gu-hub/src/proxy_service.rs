@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::{Arc, RwLock}};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
 use actix::{fut, prelude::*};
 use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse};

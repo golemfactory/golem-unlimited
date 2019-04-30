@@ -15,8 +15,8 @@ use gu_base::{
 };
 use gu_lan::MdnsPublisher;
 use gu_net::{
-    NodeId,
     rpc::{self, mock},
+    NodeId,
 };
 use gu_persist::{
     config::{self, ConfigManager, ConfigModule},

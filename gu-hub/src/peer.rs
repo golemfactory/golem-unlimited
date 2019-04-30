@@ -2,8 +2,9 @@
 
 use actix::prelude::*;
 use actix_web::{
-    self, AsyncResponder, FromRequest, http::{Method, StatusCode}, HttpRequest, HttpResponse,
-    Json, Path, Responder, Scope,
+    self,
+    http::{Method, StatusCode},
+    AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder, Scope,
 };
 use futures::prelude::*;
 use log::error;
@@ -12,11 +13,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 use gu_actix::prelude::*;
-use gu_base::{App, AppSettings, ArgMatches, cli, Decorator, Module, SubCommand};
+use gu_base::{cli, App, AppSettings, ArgMatches, Decorator, Module, SubCommand};
 use gu_model::peers as peers_api;
 use gu_net::{
-    NodeId,
     rpc::{peer, public_destination, reply::CallRemoteUntyped, reply::SendError, ReplyRouter},
+    NodeId,
 };
 
 use crate::server::HubClient;

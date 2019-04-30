@@ -10,8 +10,8 @@ use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
 pub use crate::disk::{DiskInfo, DiskQuery};
 use crate::inner_actor::InnerActor;
 pub use crate::ram::{RamInfo, RamQuery};
-pub use crate::storage::{StorageInfo, StorageQuery};
 use crate::storage::storage_info;
+pub use crate::storage::{StorageInfo, StorageQuery};
 
 use super::gpuinfo::{gpu_count, GpuCount};
 

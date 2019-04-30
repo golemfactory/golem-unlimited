@@ -1,4 +1,8 @@
-use std::{collections::{HashMap, HashSet}, net::SocketAddr, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    str::FromStr,
+};
 
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -9,7 +13,7 @@ use gu_net::NodeId;
 use gu_persist::config::{ConfigManager, GetConfig, HasSectionId, SetConfig};
 
 use crate::connect::{
-    change_single_connection, ConnectionChange, edit_config_connect_mode, edit_config_hosts,
+    change_single_connection, edit_config_connect_mode, edit_config_hosts, ConnectionChange,
 };
 use crate::server::ConnectMode;
 
