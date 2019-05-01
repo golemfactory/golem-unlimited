@@ -116,12 +116,12 @@ impl Module for ServerModule {
     }
 }
 
-fn mdns_publisher(port: u16, node_id: NodeId) -> MdnsPublisher {
-    let _ = mdns::Responder::new().expect("Failed to run mDNS publisher");
+fn mdns_publisher(port: u16, node_id: NodeId) -> std::io::Result<MdnsPublisher> {
+    let _ = mdns::Responder::new()?;
 
     let mut publisher = MdnsPublisher::init_publisher(port, node_id.to_string(), true);
     publisher.start();
-    publisher
+    Ok(publisher)
 }
 
 fn chat_route(
@@ -203,7 +203,13 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
         };
 
         if c.publish_service {
-            Box::leak(Box::new(mdns_publisher(c.p2p_port, node_id)));
+            match mdns_publisher(c.p2p_port, node_id) {
+                // we use Box::leak to prevent publisher from being dropped
+                Ok(publisher) => {
+                    Box::leak(Box::new(publisher));
+                }
+                Err(e) => error!("Failed to run mDNS publisher: {}", e),
+            }
         }
 
         Ok(())
