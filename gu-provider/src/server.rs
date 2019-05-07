@@ -217,11 +217,16 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
                 .and_then(|config: ProviderConfig, act: &mut Self, _ctx| {
+                    use tokio_uds;
+                    let listener =
+                        tokio_uds::UnixListener::bind("/tmp/gu-provider.socket").unwrap();
+
                     let keys =
                         EthAccount::load_or_generate(ConfigModule::new().keystore_path(), "")
                             .unwrap();
 
-                    let _ = server.bind(config.p2p_addr()).unwrap().start();
+                    //let _ = server.bind(config.p2p_addr()).unwrap().start();
+                    let _ = server.start_incoming(listener.incoming(), false);
 
                     act.node_id = Some(get_node_id(keys));
                     act.p2p_port = Some(config.p2p_port);

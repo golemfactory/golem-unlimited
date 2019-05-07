@@ -7,6 +7,7 @@ use futures::Future;
 use gu_base::{cli, Decorator, Module};
 use service::{ServiceInstance, ServicesDescription};
 use std::{collections::HashSet, net::Ipv4Addr};
+use actix_web::{http,AsyncResponder,HttpRequest,HttpResponse,Scope,Responder};
 
 fn format_addresses(addrs_v4: &Vec<Ipv4Addr>, ports: &Vec<u16>) -> String {
     let mut res = String::new();
@@ -119,4 +120,25 @@ impl Module for LanModule {
             _ => (),
         }
     }
+
+    fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
+        app.scope("/lan", lan_methods)
+    }
+}
+
+fn lan_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
+    scope
+        .route("/list", http::Method::GET, list_hubs)
+}
+
+fn list_hubs<S>(_r: HttpRequest<S>) -> impl Responder {
+    use actix::{SystemService};
+    let mdns_actor = MdnsActor::<OneShot>::from_registry();
+
+    mdns_actor
+        .send(ServicesDescription::new(vec!["hub".into()]))
+        .map_err(|e| error!("error! {}", e))
+        .and_then(|r| Ok(HttpResponse::Ok().json(r.unwrap_or(HashSet::new()))))
+        .map_err(|_| actix_web::error::ErrorInternalServerError(""))
+        .responder()
 }
