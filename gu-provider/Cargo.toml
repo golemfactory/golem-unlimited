@@ -37,6 +37,9 @@ tar = "0.4"
 tokio-io = "0.1"
 tokio-uds = "0.2"
 uuid = { version = "0.7", features = ["v4"] }
+crossbeam-channel="0.3.6"
+futures-cpupool="0.1"
+windows-service = "0.2.0"
 
 async_docker = { git = "https://github.com/golemfactory/async-docker", optional = true, branch = "swagger", version = "0.1.1" }
 tar-async = { git = "https://github.com/prekucki/tar-async.git" }

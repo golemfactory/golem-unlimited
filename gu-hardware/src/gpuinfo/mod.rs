@@ -81,7 +81,13 @@ pub fn gpu_count() -> Result<GpuCount> {
 #[cfg(not(target_os = "linux"))]
 #[cfg(not(feature = "clinfo"))]
 pub fn gpu_count() -> Result<GpuCount> {
-    compile_error!("gpu detection supported only on linux or with clinfo feature")
+    Ok(GpuCount {
+        amd: 0,
+        nvidia: 0,
+        intel: 0,
+        other: 0
+    })
+    // compile_error!("gpu detection supported only on ubuntu or with clinfo feature")
 }
 
 #[cfg(test)]

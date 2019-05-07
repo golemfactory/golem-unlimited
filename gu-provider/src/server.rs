@@ -16,10 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{
-    daemon_lib::{DaemonCommand, DaemonHandler},
-    Decorator, Module,
-};
+use gu_base::{Decorator, Module, SubCommand};
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
@@ -33,6 +30,8 @@ use crate::connect::{
     ConnectionChangeMessage, Disconnect, ListSockets,
 };
 use crate::hdman::HdMan;
+use windows_service::service::{ServiceStatus, ServiceState, ServiceExitCode};
+use windows_service::service_dispatcher;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -95,13 +94,13 @@ impl HasSectionId for ProviderConfig {
 }
 
 pub struct ServerModule {
-    daemon_command: DaemonCommand,
+    run: bool,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
-            daemon_command: DaemonCommand::None,
+            run: false,
         }
     }
 }
@@ -114,23 +113,27 @@ fn get_node_id(keys: Box<EthAccount>) -> NodeId {
 
 impl Module for ServerModule {
     fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
-        app.subcommand(DaemonHandler::subcommand())
+        app.subcommand(SubCommand::with_name("server")
+            .about("Runs Golem Unlimited server"))
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         self.daemon_command = DaemonHandler::consume(matches);
         self.daemon_command != DaemonCommand::None
+        if let Some(m) = matches.subcommand_matches("server") {
+            self.run = true;
+        }
+        self.run
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
 
-        if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
+        if !self.run {
             return;
         }
-
-        let sys = System::new("gu-provider");
+        println!("dupa");
 
         let socket_path = config_module.runtime_dir().join("gu-provider.socket");
         let keystore_path = config_module.keystore_path();
@@ -146,13 +149,85 @@ impl Module for ServerModule {
                 keystore_path,
             });
         });
+        println!("dupa");
 
-        let _ = sys.run();
+        service_dispatcher::start("brand_new", ffi_service_main).map_err(|e| println!("{:?}", e));
+        println!("dupa");
     }
 
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
         app
     }
+}
+
+define_windows_service!(ffi_service_main, my_service_main);
+use std::ffi::OsString;
+
+use windows_service::service::ServiceType;
+
+const SERVICE_NAME: &str = "brand_new";
+const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
+
+pub fn my_service_main(_arguments: Vec<OsString>) {
+    println!("dupa");
+    if let Err(_e) = run_service() {
+        // Handle the error, by logging or something.
+    }
+}
+
+pub fn run_service() -> windows_service::Result<()> {
+    use windows_service::{service_dispatcher, service_control_handler};
+    use windows_service::service_control_handler::ServiceControlHandlerResult;
+    use windows_service::service::ServiceControl;
+    use std::time::Duration;
+    use windows_service::service::ServiceControlAccept;
+
+    // Define system service event handler that will be receiving service events.
+    let event_handler = move |control_event| -> ServiceControlHandlerResult {
+        match control_event {
+            // Notifies a service to report its current status information to the service
+            // control manager. Always return NoError even if not implemented.
+            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+            ServiceControl::Stop => ServiceControlHandlerResult::NoError,
+            _ => ServiceControlHandlerResult::NotImplemented,
+        }
+    };
+
+    // Register system service event handler.
+    // The returned status handle should be used to report service status changes to the system.
+    let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)?;
+
+    // Tell the system that service is running
+    status_handle.set_service_status(ServiceStatus {
+        service_type: SERVICE_TYPE,
+        current_state: ServiceState::Running,
+        controls_accepted: ServiceControlAccept::STOP,
+        exit_code: ServiceExitCode::Win32(0),
+        checkpoint: 0,
+        wait_hint: Duration::default(),
+    })?;
+
+    println!("dupa");
+
+    let sys = System::new("gu-provider");
+    let _ = sys.run();
+
+    // Tell the system that service has stopped.
+    status_handle.set_service_status(ServiceStatus {
+        service_type: SERVICE_TYPE,
+        current_state: ServiceState::Stopped,
+        controls_accepted: ServiceControlAccept::empty(),
+        exit_code: ServiceExitCode::Win32(0),
+        checkpoint: 0,
+        wait_hint: Duration::default(),
+    })?;
+
+    Ok(())
+}
+
+
+fn p2p_server(_r: &HttpRequest) -> &'static str {
+    "ok"
 }
 
 #[derive(Default)]

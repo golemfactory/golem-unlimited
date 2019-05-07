@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate windows_service;
+
 extern crate futures;
 
 use gu_base::*;

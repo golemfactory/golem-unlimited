@@ -81,9 +81,7 @@ impl Actor for HardwareActor {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.bind::<HardwareQuery>(HardwareQuery::ID);
 
-        self.gpu_count = gpu_count()
-            .or_else(|e| Err(error!("gpu detection: {}", e)))
-            .ok();
+        self.gpu_count = Err(error!("gpu detection"));
         self.hostname = get_hostname()
     }
 }
