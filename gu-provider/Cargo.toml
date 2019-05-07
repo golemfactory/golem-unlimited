@@ -34,6 +34,7 @@ prettytable-rs = "0.7"
 mdns = { git = "https://github.com/plietar/rust-mdns" }
 crossbeam-channel="0.3.6"
 futures-cpupool="0.1"
+windows-service = "0.2.0"
 
 gu-base= { path="../gu-base" }
 gu-actix = { path = "../gu-actix" }
