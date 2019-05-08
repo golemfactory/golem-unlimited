@@ -1,10 +1,16 @@
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use log::error;
 use serde_derive::*;
 
+use actix::prelude::*;
+use actix_web::{http, AsyncResponder, HttpRequest, HttpResponse, Responder, Scope};
+use futures::prelude::*;
+
+use gu_actix::prelude::*;
 use gu_base::{App, Arg, ArgMatches, Decorator, Module, SubCommand};
 use gu_lan::HubDesc;
 use gu_net::NodeId;
@@ -72,6 +78,32 @@ enum PermissionModule {
     DenyNode(Option<NodeId>, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> manual mode, connect only to selected hubs */
     NodeAllowedStatus(Option<NodeId>), /* Some(n) => is access granted for n, None => is auto mode on */
     ListSavedHubs,
+}
+
+fn list_saved_hubs_future() -> impl Future<Item = String, Error = ()> {
+    ConfigManager::from_registry()
+        .send(GetConfig::new())
+        .flatten_fut()
+        .and_then(move |c: Arc<PermissionConfig>| {
+            let mut output: Vec<HubDesc> =
+                c.saved_hub_desc.values().cloned().collect::<Vec<HubDesc>>();
+            output.sort_unstable_by(|a, b| a.host_name.cmp(&b.host_name));
+            Ok(serde_json::to_string_pretty(&output).unwrap())
+        })
+        .map_err(|e| error!("{}", e))
+}
+
+fn get_node_status_future(node_id_or_auto: Option<NodeId>) -> impl Future<Item = bool, Error = ()> {
+    ConfigManager::from_registry()
+        .send(GetConfig::new())
+        .flatten_fut()
+        .and_then(move |c: Arc<PermissionConfig>| {
+            Ok(match node_id_or_auto {
+                Some(node_id) => c.is_managed_by(&node_id),
+                None => c.allow_any,
+            })
+        })
+        .map_err(|e| error!("{}", e))
 }
 
 impl Module for PermissionModule {
@@ -243,10 +275,6 @@ impl Module for PermissionModule {
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
-        use actix::prelude::*;
-        use futures::prelude::*;
-        use gu_actix::prelude::*;
-        use std::sync::Arc;
         match self {
             PermissionModule::None => (),
             PermissionModule::Join(ref_group_id, _hub_address) => {
@@ -274,24 +302,11 @@ impl Module for PermissionModule {
             PermissionModule::NodeAllowedStatus(node_id_or_automatic) => {
                 let node_id_or_automatic_copy = node_id_or_automatic.clone();
                 System::run(move || {
-                    let config_manager = ConfigManager::from_registry();
                     Arbiter::spawn(
-                        config_manager
-                            .send(GetConfig::new())
-                            .flatten_fut()
-                            .and_then(move |c: Arc<PermissionConfig>| {
-                                println!(
-                                    "{}",
-                                    match node_id_or_automatic_copy {
-                                        Some(node_id) => c.is_managed_by(&node_id),
-                                        None => c.allow_any,
-                                    }
-                                );
-                                futures::future::ok(())
-                            })
-                            .map_err(|_| System::current().stop())
-                            .and_then(|_r| Ok(System::current().stop())),
-                    );
+                        get_node_status_future(node_id_or_automatic_copy)
+                            .and_then(|status| Ok(println!("{}", status)))
+                            .then(|_| Ok(System::current().stop())),
+                    )
                 });
             }
             PermissionModule::AllowNode(node_id, ip, host_name)
@@ -366,25 +381,38 @@ impl Module for PermissionModule {
             }
             PermissionModule::ListSavedHubs => {
                 System::run(move || {
-                    let config_manager = ConfigManager::from_registry();
                     Arbiter::spawn(
-                        config_manager
-                            .send(GetConfig::new())
-                            .flatten_fut()
-                            .and_then(move |c: Arc<PermissionConfig>| {
-                                let mut output: Vec<HubDesc> =
-                                    c.saved_hub_desc.values().cloned().collect::<Vec<HubDesc>>();
-                                output.sort_unstable_by(|a, b| a.host_name.cmp(&b.host_name));
-                                println!("{}", serde_json::to_string_pretty(&output).unwrap());
-                                futures::future::ok(())
-                            })
-                            .map_err(|_| System::current().stop())
-                            .and_then(|_r| Ok(System::current().stop())),
-                    );
+                        list_saved_hubs_future()
+                            .and_then(|hubs| Ok(println!("{}", hubs)))
+                            .then(|_| Ok(System::current().stop())),
+                    )
                 });
             }
         }
     }
+
+    fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
+        app.scope("/config", config_methods)
+    }
+}
+
+fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
+    scope
+        /*.route("/0x...", http::Method::GET, _) get-node node_id/auto
+        .route("/0x...", http::Method::PUT, _) allow-node node_id, ip_port, host_name
+        .route("/0x...", http::Method::DELETE, _) deny-node node_id, ip_port, host_name
+        .route("/any", http::Method::PUT, _) allow-all
+        .route("/any", http::Method::DELETE, _) deny-unknown*/
+        //.route("/0x...", http::Method::GET, _)
+        .route("/saved", http::Method::GET, |_: HttpRequest<_>| to_responder(list_saved_hubs_future()))
+}
+
+fn to_responder<T: std::fmt::Display>(
+    fut: impl Future<Item = T, Error = ()> + 'static,
+) -> impl Responder {
+    fut.and_then(|response| Ok(HttpResponse::Ok().body(format!("{}", response))))
+        .map_err(|_| actix_web::error::ErrorInternalServerError(""))
+        .responder()
 }
 
 fn check_box(v: bool) -> &'static str {
@@ -396,12 +424,8 @@ fn check_box(v: bool) -> &'static str {
 }
 
 fn run_configure() {
-    use actix::prelude::*;
-    use futures::prelude::*;
-    use gu_actix::prelude::*;
     use gu_lan;
     use std::io;
-    use std::sync::Arc;
 
     fn toggle_managed_by(config: &mut PermissionConfig, hub: &gu_lan::HubDesc) {
         let node_id = hub.node_id;
