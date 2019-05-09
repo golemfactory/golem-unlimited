@@ -21,6 +21,9 @@ struct C {
 #[derive(Update, Debug, PartialEq)]
 enum E {
     Single(A),
+    // checks only if compilation for such case works
+    #[allow(unused)]
+    Double(B, B),
     Empty,
     Click { x: i64, opt: Option<bool> },
 }

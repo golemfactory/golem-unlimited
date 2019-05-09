@@ -202,6 +202,9 @@ impl Module for LocalServiceModule {
 
 enum ProxyPath {
     Remote { url: String },
+    // TODO: needs implementation
+    #[allow(unused)]
+    Local { cmd: String },
 }
 
 impl ProxyPath {
@@ -213,6 +216,9 @@ impl ProxyPath {
         match self {
             ProxyPath::Remote { url } => {
                 b.uri(&format!("{}{}", url, path));
+            }
+            ProxyPath::Local { .. } => {
+                unimplemented!();
             }
         }
 
