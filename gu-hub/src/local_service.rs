@@ -201,10 +201,14 @@ impl Module for LocalServiceModule {
 }
 
 enum ProxyPath {
-    Remote { url: String },
+    Remote {
+        url: String,
+    },
     // TODO: needs implementation
     #[allow(unused)]
-    Local { cmd: String },
+    Local {
+        cmd: String,
+    },
 }
 
 impl ProxyPath {

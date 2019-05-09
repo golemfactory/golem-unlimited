@@ -25,7 +25,10 @@ enum E {
     #[allow(unused)]
     Double(B, B),
     Empty,
-    Click { x: i64, opt: Option<bool> },
+    Click {
+        x: i64,
+        opt: Option<bool>,
+    },
 }
 
 #[test]
