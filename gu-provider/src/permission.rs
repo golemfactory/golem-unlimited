@@ -7,7 +7,7 @@ use log::error;
 use serde_derive::*;
 
 use actix::prelude::*;
-use actix_web::{http, AsyncResponder, HttpRequest, HttpResponse, Responder, Scope};
+use actix_web::{http, AsyncResponder, HttpRequest, HttpResponse, Path, Responder, Scope};
 use futures::prelude::*;
 
 use gu_actix::prelude::*;
@@ -20,6 +20,7 @@ use crate::connect::{
     change_single_connection, edit_config_connect_mode, edit_config_hosts, ConnectionChange,
 };
 use crate::server::ConnectMode;
+use futures::future;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
@@ -70,13 +71,19 @@ impl HasSectionId for PermissionConfig {
     const SECTION_ID: &'static str = "permission";
 }
 
+#[derive(Clone)]
+enum NodeOrAuto {
+    Node(NodeId),
+    Auto,
+}
+
 enum PermissionModule {
     None,
     Join(NodeId, Option<SocketAddr>),
     Configure,
-    AllowNode(Option<NodeId>, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> auto mode, grant access to every hub */
-    DenyNode(Option<NodeId>, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> manual mode, connect only to selected hubs */
-    NodeAllowedStatus(Option<NodeId>), /* Some(n) => is access granted for n, None => is auto mode on */
+    AllowNode(NodeOrAuto, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> auto mode, grant access to every hub */
+    DenyNode(NodeOrAuto, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> manual mode, connect only to selected hubs */
+    NodeAllowedStatus(NodeOrAuto), /* Some(n) => is access granted for n, None => is auto mode on */
     ListSavedHubs,
 }
 
@@ -93,14 +100,14 @@ fn list_saved_hubs_future() -> impl Future<Item = String, Error = ()> {
         .map_err(|e| error!("{}", e))
 }
 
-fn get_node_status_future(node_id_or_auto: Option<NodeId>) -> impl Future<Item = bool, Error = ()> {
+fn get_node_status_future(node_or_auto: NodeOrAuto) -> impl Future<Item = bool, Error = ()> {
     ConfigManager::from_registry()
         .send(GetConfig::new())
         .flatten_fut()
         .and_then(move |c: Arc<PermissionConfig>| {
-            Ok(match node_id_or_auto {
-                Some(node_id) => c.is_managed_by(&node_id),
-                None => c.allow_any,
+            Ok(match node_or_auto {
+                NodeOrAuto::Node(node_id) => c.is_managed_by(&node_id),
+                NodeOrAuto::Auto => c.allow_any,
             })
         })
         .map_err(|e| error!("{}", e))
@@ -219,19 +226,19 @@ impl Module for PermissionModule {
                     }
                     let params = values.unwrap().into_iter().collect::<Vec<_>>();
                     if param_name == "get-node" && params.len() == 1 && params[0] == "auto" {
-                        return Ok((None, None, None));
+                        return Ok((NodeOrAuto::Auto, None, None));
                     }
                     match NodeId::from_str(params[0]) {
                         Ok(node) => {
                             if params.len() == 1 && param_name == "get-node" {
-                                Ok((Some(node), None, None))
+                                Ok((NodeOrAuto::Node(node), None, None))
                             } else if params.len() < 2 || params.len() > 3 {
                                 Err(())
                             } else {
                                 let sock_addr: SocketAddr =
                                     params[1].parse().expect("Expected ip:port.");
                                 Ok((
-                                    Some(node),
+                                    NodeOrAuto::Node(node),
                                     Some(sock_addr),
                                     Some(
                                         (if params.len() == 2 { "" } else { params[2] })
@@ -244,11 +251,11 @@ impl Module for PermissionModule {
                     }
                 };
                 if cmd.is_present("allow-all") {
-                    *self = PermissionModule::AllowNode(None, None, None);
+                    *self = PermissionModule::AllowNode(NodeOrAuto::Auto, None, None);
                     return true;
                 }
                 if cmd.is_present("deny-unknown") {
-                    *self = PermissionModule::DenyNode(None, None, None);
+                    *self = PermissionModule::DenyNode(NodeOrAuto::Auto, None, None);
                     return true;
                 }
                 if cmd.is_present("list-saved-hubs") {
@@ -299,23 +306,24 @@ impl Module for PermissionModule {
                 });
             }
             PermissionModule::Configure => run_configure(),
-            PermissionModule::NodeAllowedStatus(node_id_or_automatic) => {
-                let node_id_or_automatic_copy = node_id_or_automatic.clone();
+            PermissionModule::NodeAllowedStatus(node_or_auto) => {
+                let node_or_auto_copy = node_or_auto.clone();
                 System::run(move || {
                     Arbiter::spawn(
-                        get_node_status_future(node_id_or_automatic_copy)
+                        get_node_status_future(node_or_auto_copy)
                             .and_then(|status| Ok(println!("{}", status)))
                             .then(|_| Ok(System::current().stop())),
                     )
                 });
             }
-            PermissionModule::AllowNode(node_id, ip, host_name)
-            | PermissionModule::DenyNode(node_id, ip, host_name) => {
+            PermissionModule::AllowNode(node_or_auto, ip, host_name)
+            | PermissionModule::DenyNode(node_or_auto, ip, host_name) => {
                 let turn_on = match self {
                     PermissionModule::AllowNode(_, _, _) => true,
                     _ => false,
                 };
-                let node_id_copy = node_id.clone();
+                let node_or_auto_copy = node_or_auto.clone();
+                let node_or_auto_copy_2 = node_or_auto.clone();
                 let ip_copy = ip.clone();
                 let host_name_copy = host_name.clone();
                 System::run(move || {
@@ -326,20 +334,20 @@ impl Module for PermissionModule {
                             .flatten_fut()
                             .and_then(move |c: Arc<PermissionConfig>| {
                                 let mut new_config = (*c).clone();
-                                match node_id_copy {
-                                    None => {
+                                match node_or_auto_copy {
+                                    NodeOrAuto::Auto => {
                                         new_config.allow_any = turn_on;
                                     }
-                                    Some(n) => {
+                                    NodeOrAuto::Node(n) => {
                                         let perm = Permission::ManagedBy(n.clone());
                                         if turn_on {
                                             if host_name_copy.is_some() && ip_copy.is_some() {
                                                 new_config.saved_hub_desc.insert(
-                                                    n,
+                                                    n.clone(),
                                                     HubDesc {
                                                         address: ip_copy.unwrap(),
                                                         host_name: host_name_copy.unwrap(),
-                                                        node_id: n,
+                                                        node_id: n.clone(),
                                                     },
                                                 );
                                             }
@@ -354,8 +362,8 @@ impl Module for PermissionModule {
                                     .flatten_fut()
                             })
                             .map_err(|_| eprintln!("Cannot save permissions."))
-                            .and_then(move |_| match node_id_copy {
-                                None => futures::future::Either::A(
+                            .and_then(move |_| match node_or_auto_copy_2 {
+                                NodeOrAuto::Auto => futures::future::Either::A(
                                     edit_config_connect_mode(if turn_on {
                                         ConnectMode::Auto
                                     } else {
@@ -363,7 +371,7 @@ impl Module for PermissionModule {
                                     })
                                     .map_err(|_| ()),
                                 ),
-                                Some(_node_id) => futures::future::Either::B(
+                                NodeOrAuto::Node(_node_id) => futures::future::Either::B(
                                     change_single_connection(
                                         ip_copy.unwrap(),
                                         if turn_on {
@@ -398,13 +406,32 @@ impl Module for PermissionModule {
 
 fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
-        /*.route("/0x...", http::Method::GET, _) get-node node_id/auto
-        .route("/0x...", http::Method::PUT, _) allow-node node_id, ip_port, host_name
-        .route("/0x...", http::Method::DELETE, _) deny-node node_id, ip_port, host_name
-        .route("/any", http::Method::PUT, _) allow-all
-        .route("/any", http::Method::DELETE, _) deny-unknown*/
-        //.route("/0x...", http::Method::GET, _)
-        .route("/saved", http::Method::GET, |_: HttpRequest<_>| to_responder(list_saved_hubs_future()))
+        .resource("/{node_id}", |r| {
+            r.get().with_async(|path: Path<String>| {
+                let node_or_auto_res = match path.as_str() {
+                    "auto" => Ok(NodeOrAuto::Auto),
+                    id => match NodeId::from_str(id) {
+                        Ok(node_id) => Ok(NodeOrAuto::Node(node_id)),
+                        Err(_) => Err(()),
+                    },
+                };
+                node_or_auto_res
+                    .into_future()
+                    .map_err(|_| actix_web::error::ErrorInternalServerError("bad format"))
+                    .and_then(|node_or_auto| {
+                        get_node_status_future(node_or_auto)
+                            .map_err(|_| actix_web::error::ErrorNotFound(""))
+                            .and_then(|selected| {
+                                future::ok::<_, actix_web::Error>(
+                                    HttpResponse::Ok().body(format!("{}", selected)),
+                                )
+                            })
+                    })
+            });
+        })
+        .route("/nodes?saved", http::Method::GET, |_: HttpRequest<_>| {
+            to_responder(list_saved_hubs_future())
+        })
 }
 
 fn to_responder<T: std::fmt::Display>(

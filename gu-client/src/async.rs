@@ -45,7 +45,7 @@ impl Default for HubConnection {
 }
 
 impl HubConnection {
-    /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61621
+    /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61622
     pub fn from_addr<T: Into<String>>(addr: T) -> Result<HubConnection, Error> {
         Url::parse(&format!("http://{}/", addr.into()))
             .map_err(Error::InvalidAddress)
