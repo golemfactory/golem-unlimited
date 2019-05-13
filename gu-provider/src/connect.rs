@@ -420,7 +420,7 @@ pub(crate) fn change_single_connection(
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
-        /* TODO change from vector to hashset */
+
         config.hub_addrs = config
             .hub_addrs
             .into_iter()

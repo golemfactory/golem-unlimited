@@ -7,7 +7,7 @@ use log::error;
 use serde_derive::*;
 
 use actix::prelude::*;
-use actix_web::{http, AsyncResponder, HttpRequest, HttpResponse, Path, Responder, Scope};
+use actix_web::{HttpResponse, Path, Query, Scope};
 use futures::prelude::*;
 
 use gu_actix::prelude::*;
@@ -111,6 +111,71 @@ fn get_node_status_future(node_or_auto: NodeOrAuto) -> impl Future<Item = bool, 
             })
         })
         .map_err(|e| error!("{}", e))
+}
+
+fn set_node_status_future(
+    turn_on: bool,
+    node_or_auto: NodeOrAuto,
+    ip: Option<SocketAddr>,
+    host_name: Option<String>,
+) -> impl Future<Item = (), Error = ()> {
+    let node_or_auto_copy = node_or_auto.clone();
+    let config_manager = ConfigManager::from_registry();
+    config_manager
+        .send(GetConfig::new())
+        .flatten_fut()
+        .and_then(move |c: Arc<PermissionConfig>| {
+            let mut new_config = (*c).clone();
+            match node_or_auto {
+                NodeOrAuto::Auto => {
+                    new_config.allow_any = turn_on;
+                }
+                NodeOrAuto::Node(n) => {
+                    let perm = Permission::ManagedBy(n.clone());
+                    if turn_on {
+                        if host_name.is_some() && ip.is_some() {
+                            new_config.saved_hub_desc.insert(
+                                n.clone(),
+                                HubDesc {
+                                    address: ip.unwrap(),
+                                    host_name: host_name.unwrap(),
+                                    node_id: n.clone(),
+                                },
+                            );
+                        }
+                        new_config.permissions.insert(perm);
+                    } else {
+                        new_config.permissions.remove(&perm);
+                    }
+                }
+            };
+            config_manager
+                .send(SetConfig::new(new_config))
+                .flatten_fut()
+        })
+        .map_err(|_| eprintln!("Cannot save permissions."))
+        .and_then(move |_| match node_or_auto_copy {
+            NodeOrAuto::Auto => futures::future::Either::A(
+                edit_config_connect_mode(if turn_on {
+                    ConnectMode::Auto
+                } else {
+                    ConnectMode::Manual
+                })
+                .map_err(|_| ()),
+            ),
+            NodeOrAuto::Node(_node_id) => futures::future::Either::B(
+                change_single_connection(
+                    ip.unwrap(),
+                    if turn_on {
+                        ConnectionChange::Connect
+                    } else {
+                        ConnectionChange::Disconnect
+                    },
+                )
+                .map_err(|_| ()),
+            ),
+        })
+        .map(|_| ())
 }
 
 impl Module for PermissionModule {
@@ -323,68 +388,13 @@ impl Module for PermissionModule {
                     _ => false,
                 };
                 let node_or_auto_copy = node_or_auto.clone();
-                let node_or_auto_copy_2 = node_or_auto.clone();
                 let ip_copy = ip.clone();
                 let host_name_copy = host_name.clone();
                 System::run(move || {
-                    let config_manager = ConfigManager::from_registry();
                     Arbiter::spawn(
-                        config_manager
-                            .send(GetConfig::new())
-                            .flatten_fut()
-                            .and_then(move |c: Arc<PermissionConfig>| {
-                                let mut new_config = (*c).clone();
-                                match node_or_auto_copy {
-                                    NodeOrAuto::Auto => {
-                                        new_config.allow_any = turn_on;
-                                    }
-                                    NodeOrAuto::Node(n) => {
-                                        let perm = Permission::ManagedBy(n.clone());
-                                        if turn_on {
-                                            if host_name_copy.is_some() && ip_copy.is_some() {
-                                                new_config.saved_hub_desc.insert(
-                                                    n.clone(),
-                                                    HubDesc {
-                                                        address: ip_copy.unwrap(),
-                                                        host_name: host_name_copy.unwrap(),
-                                                        node_id: n.clone(),
-                                                    },
-                                                );
-                                            }
-                                            new_config.permissions.insert(perm);
-                                        } else {
-                                            new_config.permissions.remove(&perm);
-                                        }
-                                    }
-                                };
-                                config_manager
-                                    .send(SetConfig::new(new_config))
-                                    .flatten_fut()
-                            })
-                            .map_err(|_| eprintln!("Cannot save permissions."))
-                            .and_then(move |_| match node_or_auto_copy_2 {
-                                NodeOrAuto::Auto => futures::future::Either::A(
-                                    edit_config_connect_mode(if turn_on {
-                                        ConnectMode::Auto
-                                    } else {
-                                        ConnectMode::Manual
-                                    })
-                                    .map_err(|_| ()),
-                                ),
-                                NodeOrAuto::Node(_node_id) => futures::future::Either::B(
-                                    change_single_connection(
-                                        ip_copy.unwrap(),
-                                        if turn_on {
-                                            ConnectionChange::Connect
-                                        } else {
-                                            ConnectionChange::Disconnect
-                                        },
-                                    )
-                                    .map_err(|_| ()),
-                                ),
-                            })
-                            .then(|_r| Ok(System::current().stop())),
-                    );
+                        set_node_status_future(turn_on, node_or_auto_copy, ip_copy, host_name_copy)
+                            .then(|_| Ok(System::current().stop())),
+                    )
                 });
             }
             PermissionModule::ListSavedHubs => {
@@ -400,22 +410,40 @@ impl Module for PermissionModule {
     }
 
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
-        app.scope("/config", config_methods)
+        app.scope("/nodes", config_methods)
+    }
+}
+
+fn extract_node_or_auto(path: Path<String>) -> Result<NodeOrAuto, ()> {
+    match path.as_str() {
+        "auto" => Ok(NodeOrAuto::Auto),
+        id => match NodeId::from_str(id) {
+            Ok(node_id) => Ok(NodeOrAuto::Node(node_id)),
+            Err(_) => Err(()),
+        },
     }
 }
 
 fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
-        .resource("/{node_id}", |r| {
+        .resource("", |r| {
+            r.get().with_async(|q: Query<HashMap<String, String>>| {
+                (if q.contains_key("saved") {
+                    Ok(())
+                } else {
+                    Err(actix_web::error::ErrorBadRequest("Add ?saved to url"))
+                })
+                .into_future()
+                .and_then(|_| {
+                    list_saved_hubs_future()
+                        .map_err(|_| actix_web::error::ErrorInternalServerError("Hub listing"))
+                        .and_then(|r| future::ok(HttpResponse::Ok().body(format!("{}", r))))
+                })
+            });
+        })
+        .resource("{node_id}", |r| {
             r.get().with_async(|path: Path<String>| {
-                let node_or_auto_res = match path.as_str() {
-                    "auto" => Ok(NodeOrAuto::Auto),
-                    id => match NodeId::from_str(id) {
-                        Ok(node_id) => Ok(NodeOrAuto::Node(node_id)),
-                        Err(_) => Err(()),
-                    },
-                };
-                node_or_auto_res
+                extract_node_or_auto(path)
                     .into_future()
                     .map_err(|_| actix_web::error::ErrorInternalServerError("bad format"))
                     .and_then(|node_or_auto| {
@@ -428,18 +456,19 @@ fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
                             })
                     })
             });
+            /* TODO */
+            //r.put().with_async(|path: Path<String>| {});
+            r.delete().with_async(|path: Path<String>| {
+                extract_node_or_auto(path)
+                    .into_future()
+                    .map_err(|_| actix_web::error::ErrorInternalServerError("bad format"))
+                    .and_then(|node_or_auto| {
+                        set_node_status_future(false, node_or_auto, None, None)
+                            .map_err(|_| actix_web::error::ErrorInternalServerError(""))
+                            .and_then(|_| Ok(HttpResponse::Ok().finish()))
+                    })
+            });
         })
-        .route("/nodes?saved", http::Method::GET, |_: HttpRequest<_>| {
-            to_responder(list_saved_hubs_future())
-        })
-}
-
-fn to_responder<T: std::fmt::Display>(
-    fut: impl Future<Item = T, Error = ()> + 'static,
-) -> impl Responder {
-    fut.and_then(|response| Ok(HttpResponse::Ok().body(format!("{}", response))))
-        .map_err(|_| actix_web::error::ErrorInternalServerError(""))
-        .responder()
 }
 
 fn check_box(v: bool) -> &'static str {
