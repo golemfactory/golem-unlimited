@@ -1,6 +1,6 @@
 [package]
 name = "gu-hub"
-version = "0.1.2"
+version = "0.2.1"
 license = "MIT"
 publish = false
 authors = ["golemfactory"]
