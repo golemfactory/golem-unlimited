@@ -1,10 +1,11 @@
-#![allow(dead_code)]
+use std::path::{Path, PathBuf};
 
-use crate::error::{Error, Result};
 use actix::Message;
 #[cfg(unix)]
 use nix::sys::statvfs::statvfs;
-use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
+
+use crate::error::{Error, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StorageInfo {

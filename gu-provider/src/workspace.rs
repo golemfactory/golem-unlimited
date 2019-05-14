@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use gu_model::dockerman::VolumeDef;
 use gu_persist::config::ConfigModule;
 use log::{debug, error};
@@ -77,10 +75,12 @@ impl Workspace {
         }
     }
 
+    #[allow(unused)]
     pub fn metadata(&self) -> &Value {
         &self.metadata
     }
 
+    #[allow(unused)]
     pub fn set_metadata(&mut self, val: Value) {
         self.metadata = val;
     }
@@ -89,6 +89,7 @@ impl Workspace {
         self.volumes.insert(s);
     }
 
+    #[allow(unused)]
     pub fn remove_volume(&mut self, s: &VolumeDef) {
         self.volumes.remove(s);
     }

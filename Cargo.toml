@@ -1,29 +1,27 @@
 [workspace]
 
-
-members= [
-    'ethkey',
-    'gu-actix',
-    'gu-base',
-    'gu-webapp',
-    'gu-provider',
-    'gu-hub',
-    'gu-net',
-    'gu-persist',
-    'gu-lan',
-    'gu-hardware',
-    'gu-event-bus',
-    'gu-model',
-    'gu-client',
-    'gu-hdman',
-    'update/update-trait',
-    'update/update-macro',
-    'gu-plugin-api',
+members = [
+    "ethkey",
+    "gu-actix",
+    "gu-base",
+    "gu-provider",
+    "gu-hub",
+    "gu-net",
+    "gu-persist",
+    "gu-lan",
+    "gu-hardware",
+    "gu-event-bus",
+    "gu-model",
+    "gu-client",
+    "gu-hdman",
+    "update/update-trait",
+    "update/update-macro",
+    "gu-plugin-api",
 ]
 
 [profile.release]
 codegen-units = 1
-lto=true
+lto = true
 
 [patch.crates-io]
 error-chain = { git = "https://github.com/golemfactory/error-chain.git" }
