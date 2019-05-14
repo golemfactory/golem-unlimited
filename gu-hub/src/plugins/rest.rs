@@ -1,3 +1,9 @@
+use std::{
+    fs::File,
+    io::{Cursor, Read},
+    path::{Path, PathBuf},
+};
+
 use actix::{Arbiter, System, SystemService};
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
@@ -8,19 +14,17 @@ use futures::{
     future::{self, Future},
     stream::Stream,
 };
-use plugins::{
+use log::{debug, error};
+
+use crate::server::HubClient as ServerClient;
+
+use super::{
     manager::{
         ChangePluginState, InstallDevPlugin, InstallPlugin, ListPlugins, PluginFile, PluginManager,
         QueriedStatus,
     },
     plugin::{format_plugins_table, PluginInfo},
     rest_result::{InstallQueryResult, RestResponse, ToHttpResponse},
-};
-use server::HubClient as ServerClient;
-use std::{
-    fs::File,
-    io::{Cursor, Read},
-    path::{Path, PathBuf},
 };
 
 pub fn list_query() {

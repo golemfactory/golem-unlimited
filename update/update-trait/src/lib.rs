@@ -68,7 +68,7 @@ impl<T: Primitive> UpdateTrait for T {
     }
 }
 
-trait Primitive: Sized + FromStr + ToString {}
+pub trait Primitive: Sized + FromStr + ToString {}
 
 macro_rules! primitive_impl {
     ($($t:ty),+) => {

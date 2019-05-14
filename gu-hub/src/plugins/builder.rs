@@ -1,19 +1,23 @@
-use actix::{
-    fut::WrapFuture, Actor, ActorResponse, Arbiter, ArbiterService, Context, Handler, Message,
-    Supervised, System,
-};
-use futures::future::{self, Future};
-use gu_base::{App, Arg, ArgMatches, SubCommand};
-use plugins::{
-    plugin::{DirectoryHandler, PluginHandler},
-    rest,
-};
 use std::{
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
+
+use actix::{
+    fut::WrapFuture, Actor, ActorResponse, Arbiter, ArbiterService, Context, Handler, Message,
+    Supervised, System,
+};
+use futures::future::{self, Future};
+use log::error;
 use zip::{write::FileOptions, ZipWriter};
+
+use gu_base::{App, Arg, ArgMatches, SubCommand};
+
+use crate::plugins::{
+    plugin::{DirectoryHandler, PluginHandler},
+    rest,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct PluginBuilder;

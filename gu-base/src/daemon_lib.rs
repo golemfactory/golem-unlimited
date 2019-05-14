@@ -1,5 +1,7 @@
-use clap::AppSettings;
 use std::path::{Path, PathBuf};
+
+use clap::AppSettings;
+
 use {
     daemon::{DaemonProcess, ProcessStatus},
     App, ArgMatches, SubCommand,

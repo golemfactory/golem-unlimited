@@ -1,23 +1,27 @@
 #![allow(dead_code)]
 
-use actix::{Actor, Context, Handler, Message, MessageResult, Supervised, SystemService};
-use bytes::Bytes;
-use gu_event_bus::post_event;
-use gu_persist::config::ConfigModule;
-use plugins::{
-    parser::{BytesPluginParser, PluginParser, ZipParser},
-    plugin::{
-        DirectoryHandler, Plugin, PluginEvent, PluginHandler, PluginInfo, PluginStatus, ZipHandler,
-    },
-    rest_result::InstallQueryResult,
-};
-use semver::Version;
 use std::{
     collections::HashMap,
     fmt,
     fs::{self, remove_file, DirBuilder},
     io::{BufReader, Cursor},
     path::PathBuf,
+};
+
+use actix::{Actor, Context, Handler, Message, MessageResult, Supervised, SystemService};
+use bytes::Bytes;
+use log::{info, warn};
+use semver::Version;
+
+use gu_event_bus::post_event;
+use gu_persist::config::ConfigModule;
+
+use super::{
+    parser::{BytesPluginParser, PluginParser, ZipParser},
+    plugin::{
+        DirectoryHandler, Plugin, PluginEvent, PluginHandler, PluginInfo, PluginStatus, ZipHandler,
+    },
+    rest_result::InstallQueryResult,
 };
 
 #[derive(Debug)]
@@ -50,7 +54,7 @@ impl Default for PluginManager {
 
 impl PluginManager {
     fn install_plugin<T: 'static + PluginHandler>(&mut self, handler: T) -> InstallQueryResult {
-        use plugins::rest_result::InstallQueryResult::*;
+        use super::rest_result::InstallQueryResult::*;
 
         let mut plugin = Plugin::new(handler);
         plugin.activate();

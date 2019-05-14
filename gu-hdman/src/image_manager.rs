@@ -1,13 +1,15 @@
-use super::cache::{resolve, CacheProvider};
-use super::download::DownloadOptionsBuilder;
+use std::path::PathBuf;
+
 use actix::prelude::*;
-use actix::spawn;
 use failure::Fail;
 use futures::prelude::*;
 use futures::sync::oneshot::Canceled;
+
 use gu_model::envman::Image;
 use gu_model::hash::{Error as HashParseError, ParsedHash};
-use std::path::{Path, PathBuf};
+
+use super::cache::{resolve, CacheProvider};
+use super::download::DownloadOptionsBuilder;
 
 #[derive(Clone, Debug, Fail)]
 pub enum Error {
@@ -68,7 +70,7 @@ impl CacheProvider for ImageCacheProvider {
             DownloadOptionsBuilder::default()
                 .download(&image.url, p.to_string_lossy().into())
                 .for_each(|progress| Ok(eprintln!("progress={:?}", progress)))
-                .and_then(|v| Ok(p))
+                .and_then(|_v| Ok(p))
                 .map_err(|e| Error::Other(format!("{}", e))),
         )
     }

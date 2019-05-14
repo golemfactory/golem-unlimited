@@ -1,7 +1,14 @@
-use crate::error::Error;
+use std::sync::Arc;
+use std::time::Duration;
+use std::{env, str};
+
 use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
 use futures::{future, prelude::*};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use url::Url;
+
 use gu_actix::release::{AsyncRelease, Handle};
 use gu_model::peers::PeerInfo;
 use gu_model::{
@@ -10,20 +17,10 @@ use gu_model::{
     session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata},
     HubInfo,
 };
-use gu_net::rpc::peer::PeerSessionInfo;
-use gu_net::rpc::{public_destination, PublicMessage};
 use gu_net::types::NodeId;
 use gu_net::types::TryIntoNodeId;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use serde_derive::*;
-use std::borrow::Borrow;
-use std::collections::VecDeque;
-use std::marker::PhantomData;
-use std::sync::Arc;
-use std::time::Duration;
-use std::{env, str};
-use url::Url;
+
+use crate::error::Error;
 
 pub type HubSessionRef = Handle<HubSession>;
 
@@ -211,7 +208,6 @@ impl HubSession {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CreateRequest(e))),
         };
-        let session_id = self.session_id.clone();
 
         future::Either::B(
             request
@@ -711,11 +707,10 @@ impl ProviderRef {
             T::ID
         );
 
-        let hub_connection = self.clone();
         client::ClientRequest::post(url)
             .json(Body { b: msg })
             .into_future()
-            .map_err(|e| Error::Other(format!("{}", e)))
+            .map_err(|e| Error::Other(format!("client request err: {}", e)))
             .and_then(|r| r.send().from_err())
             .and_then(|r| r.json().from_err())
             .and_then(|r: T::Result| Ok(r))

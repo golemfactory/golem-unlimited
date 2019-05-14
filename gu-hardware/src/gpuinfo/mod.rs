@@ -1,4 +1,7 @@
-use super::error::{Error, Result};
+use super::error::Result;
+
+#[cfg(feature = "clinfo")]
+pub use self::clinfo::Error as ClError;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct GpuCount {
@@ -21,7 +24,7 @@ pub fn gpu_count() -> Result<GpuCount> {
     use self::linux_pci_scan::*;
 
     Ok(pci_devices()
-        .map_err(|e| Error::Io(e))?
+        .map_err(|e| super::error::Error::Io(e))?
         .filter_map(|device_ref| device_ref.ok())
         .filter(|device| match device.class_code() {
             Ok(code) => code == CL_DEVICE_TYPE_GPU || code == CL_DEVICE_TYPE_ACCELERATOR,
@@ -51,9 +54,6 @@ pub fn gpu_count() -> Result<GpuCount> {
 }
 
 #[cfg(feature = "clinfo")]
-pub use self::clinfo::Error as ClError;
-
-#[cfg(feature = "clinfo")]
 pub fn gpu_count() -> Result<GpuCount> {
     use self::clinfo::*;
 
@@ -79,13 +79,13 @@ pub fn gpu_count() -> Result<GpuCount> {
 #[cfg(not(target_os = "linux"))]
 #[cfg(not(feature = "clinfo"))]
 pub fn gpu_count() -> Result<GpuCount> {
-    bail!("gpu detection supported only on ubuntu or with clinfo feature")
+    compile_error!("gpu detection supported only on ubuntu or with clinfo feature")
 }
 
 #[cfg(test)]
 mod test {
-
-    use super::*;
+    #[cfg(any(target_os = "linux", feature = "clinfo"))]
+    use super::gpu_count;
 
     #[test]
     #[cfg(any(target_os = "linux", feature = "clinfo"))]

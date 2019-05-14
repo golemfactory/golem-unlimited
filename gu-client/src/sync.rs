@@ -1,8 +1,9 @@
-use actix::prelude::*;
-use futures::prelude::*;
-use futures::sync::oneshot;
 use std::sync::mpsc;
 use std::thread;
+
+use actix::prelude::*;
+use futures::prelude::*;
+
 pub struct SystemHandle(Addr<Runner>);
 
 struct Runner;
@@ -25,7 +26,7 @@ pub fn start() -> SystemHandle {
 
         let runner = Runner.start();
 
-        tx.send(runner);
+        let _ = tx.send(runner);
 
         let _ = system.run();
     });
@@ -60,17 +61,14 @@ where
     fn handle(
         &mut self,
         msg: CallWith<mpsc::Sender<Result<FR::Item, FR::Error>>, F>,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> Self::Result {
         let tx = msg.0;
         let future = (msg.1)();
 
         ActorResponse::r#async(
             future
-                .then(move |r| {
-                    tx.send(r);
-                    Ok::<(), ()>(())
-                })
+                .then(move |r| tx.send(r).map(|_| ()))
                 .map_err(|_| ())
                 .into_actor(self),
         )

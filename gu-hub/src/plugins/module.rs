@@ -1,7 +1,10 @@
-use actix_web;
-use gu_base::{App, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
-use plugins::{self, builder::BuildPluginQuery, manager::QueriedStatus, rest::scope};
 use std::path::PathBuf;
+
+use actix_web;
+
+use gu_base::{App, AppSettings, Arg, ArgMatches, Decorator, Module, SubCommand};
+
+use super::{builder, manager::QueriedStatus, rest};
 
 #[derive(Debug)]
 pub struct PluginModule {
@@ -17,7 +20,7 @@ enum Command {
     Uninstall(String),
     Activate(String),
     Inactivate(String),
-    Build(BuildPluginQuery),
+    Build(builder::BuildPluginQuery),
 }
 
 impl PluginModule {
@@ -66,7 +69,7 @@ impl Module for PluginModule {
                     SubCommand::with_name("uninstall")
                         .about("Uninstalls the plugin")
                         .arg(Arg::from(&plugin)),
-                    plugins::builder::subcommand(),
+                    builder::subcommand(),
                 ]),
         )
     }
@@ -125,21 +128,21 @@ impl Module for PluginModule {
     fn run<D: Decorator + Clone + 'static>(&self, _decorator: D) {
         match self.command {
             Command::None => (),
-            Command::List => plugins::rest::list_query(),
-            Command::Install(ref path) => plugins::rest::install_query(path.into()),
-            Command::Dev(ref path) => plugins::rest::dev_query(path.to_path_buf()),
-            Command::Uninstall(ref name) => plugins::rest::uninstall_query(name.to_string()),
+            Command::List => rest::list_query(),
+            Command::Install(ref path) => rest::install_query(path.into()),
+            Command::Dev(ref path) => rest::dev_query(path.to_path_buf()),
+            Command::Uninstall(ref name) => rest::uninstall_query(name.to_string()),
             Command::Activate(ref name) => {
-                plugins::rest::status_query(name.to_string(), QueriedStatus::Activate)
+                rest::status_query(name.to_string(), QueriedStatus::Activate)
             }
             Command::Inactivate(ref name) => {
-                plugins::rest::status_query(name.to_string(), QueriedStatus::Inactivate)
+                rest::status_query(name.to_string(), QueriedStatus::Inactivate)
             }
-            Command::Build(ref obj) => plugins::builder::build_query(obj),
+            Command::Build(ref obj) => builder::build_query(obj),
         }
     }
 
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
-        app.scope("/plug", scope)
+        app.scope("/plug", rest::scope)
     }
 }

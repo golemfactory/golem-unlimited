@@ -1,16 +1,16 @@
-use super::Error;
-use futures::prelude::*;
-use futures::sync::{mpsc, oneshot};
-use futures_cpupool::CpuPool;
-use gu_actix::safe::*;
-use serde::{Deserialize, Serialize};
-use serde_derive::*;
+use std::cell::RefCell;
 use std::io::prelude::*;
+use std::sync::Arc;
 use std::{fs, io, path};
 
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::sync::Arc;
+use futures::prelude::*;
+use futures::sync::oneshot;
+use futures_cpupool::CpuPool;
+use serde::{Deserialize, Serialize};
+
+use gu_actix::safe::*;
+
+use super::Error;
 
 pub(super) struct DownloadFile {
     temp_file_name: path::PathBuf,
@@ -18,11 +18,6 @@ pub(super) struct DownloadFile {
     meta: LogMetadata,
     crc_map: Vec<u64>,
     map_offset: u64,
-}
-
-struct Chunk {
-    from: u64,
-    to: u64,
 }
 
 const MAGIC: [u8; 8] = [0xf4, 0xd4, 0xc7, 0xd1, 0x4d, 0x2f, 0xe2, 0x83];
@@ -125,7 +120,7 @@ fn recover_file(
     let chunks = file_meta.chunks;
     let mut crc_map = Vec::with_capacity(chunks.cast_into()?);
 
-    for chunk_nr in 0..chunks {
+    for _ in 0..chunks {
         let chunk_crc64 = read_u64(&mut part_file)?;
         crc_map.push(chunk_crc64);
     }
@@ -166,7 +161,7 @@ fn new_part_file(
     debug_assert_eq!(part_file.seek(io::SeekFrom::Current(0))?, map_offset);
     let crc_map = (0..meta.chunks).map(|_| 0u64).collect();
 
-    for i in 0..meta.chunks {
+    for _ in 0..meta.chunks {
         write_u64(&mut part_file, 0)?;
     }
     debug_assert_eq!(part_file.seek(io::SeekFrom::Current(0))?, tail_offset);
@@ -260,7 +255,7 @@ impl DownloadFile {
         use crc::Hasher64;
 
         if chunk_nr >= self.meta.chunks {
-            Err(Error::Overflow)
+            Err(Error::InvalidTrackingFile("chunk number beyond limit"))
         } else {
             let meta_crc64 = self.crc_map[chunk_nr as usize];
 
@@ -344,7 +339,7 @@ where
         cpu_pool
             .spawn_fn(move || {
                 let instance = Box::new(Some(builder()?));
-                tx.send(instance);
+                let _ = tx.send(instance);
                 Ok(())
             })
             .and_then(move |()| {
@@ -371,7 +366,7 @@ where
         let new_fut = after.and_then(move |mut it| {
             cpu_pool.spawn_fn(move || {
                 let r = f(it.as_mut().as_mut().unwrap());
-                tx.send(it);
+                let _ = tx.send(it);
                 Ok(r)
             })
         });
@@ -393,7 +388,7 @@ where
         let new_fut = after.and_then(move |mut it| {
             cpu_pool.spawn_fn(move || {
                 let r = f(it.take().unwrap());
-                tx.send(it);
+                let _ = tx.send(it);
                 Ok(r)
             })
         });

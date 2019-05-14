@@ -112,6 +112,7 @@ impl Platform {
         Ok(Devices(devices.into_iter()))
     }
 
+    #[allow(unused)]
     pub fn name(&self) -> String {
         unsafe {
             extract_string(|param_value_size, param_value, param_value_size_ret| {
@@ -161,6 +162,7 @@ impl Device {
     }
 
     #[inline]
+    #[allow(unused)]
     pub fn name(&self) -> String {
         unsafe { self.extract(CL_DEVICE_NAME).unwrap() }
     }

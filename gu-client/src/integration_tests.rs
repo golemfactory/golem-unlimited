@@ -1,9 +1,9 @@
 use actix::prelude::*;
 use futures::prelude::*;
 
-use crate::r#async::*;
 use gu_model::session::HubSessionSpec;
-use gu_net::rpc::ws::start_connection;
+
+use crate::r#async::*;
 
 #[test]
 fn test_list_peers() {
@@ -18,7 +18,7 @@ fn test_list_peers() {
                 .new_session(HubSessionSpec::default())
                 .and_then(move |session| Ok((connection, session, peers)))
         })
-        .and_then(|(connection, session, peers)| {
+        .and_then(|(_connection, session, peers)| {
             let peers: Vec<_> = peers.collect();
             session
                 .add_peers(peers.clone().into_iter().map(|p| p.node_id))
@@ -28,7 +28,7 @@ fn test_list_peers() {
                     })
                 })
         })
-        .and_then(|(peers, session_peers, session)| {
+        .and_then(|(_peers, session_peers, session)| {
             eprintln!("checking session peers");
             let session_it = session.clone();
 
@@ -40,7 +40,7 @@ fn test_list_peers() {
             .and_then(|peers_details| Ok((peers_details, session)))
         });
 
-    let (peers, session) = sys.block_on(alloc_peers).unwrap();
+    let (peers, _session) = sys.block_on(alloc_peers).unwrap();
 
     eprintln!("peers={:?}", peers);
     //    assert_eq!(peers.len(), session_peers.len());
