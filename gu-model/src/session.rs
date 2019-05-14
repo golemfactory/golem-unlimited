@@ -1,10 +1,10 @@
-use super::Map;
-use super::Tags;
 use chrono::prelude::*;
 use chrono::DateTime;
-use serde::Deserialize;
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+
+use super::Map;
+use super::Tags;
 
 #[derive(Serialize, Deserialize)]
 pub struct HubSessionUpdate {
@@ -101,8 +101,9 @@ pub struct BlobInfo {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_metadata() {

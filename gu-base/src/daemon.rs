@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{
     fs::{create_dir_all, File},
     io::{Read, Write},
@@ -11,9 +9,7 @@ use std::{
 };
 
 use daemonize::Daemonize;
-use libc::{
-    dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDERR_FILENO, STDOUT_FILENO,
-};
+use libc::{dup, flock, getpid, kill, LOCK_EX, LOCK_NB, SIGKILL, SIGQUIT, STDOUT_FILENO};
 
 pub enum ProcessStatus {
     Running(i32),
@@ -22,7 +18,6 @@ pub enum ProcessStatus {
 
 pub struct DaemonProcess {
     name: String,
-    status: ProcessStatus,
     work_dir: PathBuf,
     pid_path: PathBuf,
 }
@@ -35,7 +30,6 @@ impl DaemonProcess {
     {
         DaemonProcess {
             name: name.as_ref().into(),
-            status: ProcessStatus::Stopped,
             work_dir: work_dir.as_ref().into(),
             pid_path: work_dir.as_ref().join(format!("{}.pid", name.as_ref())),
         }
@@ -179,10 +173,6 @@ unsafe fn fd_to_file(std: c_int) -> File {
 
 fn stdout_file() -> File {
     unsafe { fd_to_file(STDOUT_FILENO) }
-}
-
-fn stderr_file() -> File {
-    unsafe { fd_to_file(STDERR_FILENO) }
 }
 
 fn send_kill(pid: i32, sig: c_int) {

@@ -1,7 +1,6 @@
 use gu_base::*;
 
 /* TODO: replace with a macro (the code is the same as in the gu-hub/src/main.rs file) */
-#[allow(dead_code)]
 mod version {
     use gu_base::*;
 
@@ -55,6 +54,7 @@ fn main() {
     })
     .run(
         LogModule
+            .chain(version::module())
             .chain(gu_persist::config::ConfigModule::new())
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())

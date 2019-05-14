@@ -1,8 +1,8 @@
-#![allow(dead_code)]
+use actix::Message;
+use serde::{Deserialize, Serialize};
+use sysinfo::SystemExt;
 
 use crate::error::Result;
-use actix::Message;
-use sysinfo::SystemExt;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RamInfo {

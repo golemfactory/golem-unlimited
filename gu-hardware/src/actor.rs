@@ -1,18 +1,19 @@
 use actix::{Actor, ActorResponse, Addr, ArbiterService, Handler, Message, WrapFuture};
 use futures::Future;
 use hostname::get_hostname;
+use num_cpus;
+use serde::{Deserialize, Serialize};
 
-use crate::disk::{DiskInfo, DiskQuery};
-use crate::inner_actor::InnerActor;
-use crate::ram::{RamInfo, RamQuery};
-use crate::storage::storage_info;
 use gu_actix::flatten::FlattenFuture;
 use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
 
-use super::gpuinfo::{gpu_count, GpuCount};
-use num_cpus;
-
+pub use crate::disk::{DiskInfo, DiskQuery};
+use crate::inner_actor::InnerActor;
+pub use crate::ram::{RamInfo, RamQuery};
+use crate::storage::storage_info;
 pub use crate::storage::{StorageInfo, StorageQuery};
+
+use super::gpuinfo::{gpu_count, GpuCount};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HardwareQuery;

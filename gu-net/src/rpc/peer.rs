@@ -1,5 +1,6 @@
 use super::super::NodeId;
 use actix::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
