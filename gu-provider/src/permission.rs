@@ -81,9 +81,9 @@ enum PermissionModule {
     None,
     Join(NodeId, Option<SocketAddr>),
     Configure,
-    AllowNode(NodeOrAuto, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> auto mode, grant access to every hub */
-    DenyNode(NodeOrAuto, Option<SocketAddr>, Option<String>), /* node, ip, name; 3x None -> manual mode, connect only to selected hubs */
-    NodeAllowedStatus(NodeOrAuto), /* Some(n) => is access granted for n, None => is auto mode on */
+    AllowNode(NodeOrAuto, Option<SocketAddr>, Option<String>), /* all params required when Node(NodeId) is used */
+    DenyNode(NodeOrAuto, Option<SocketAddr>, Option<String>), /* all params required when Node(NodeId) is used */
+    NodeAllowedStatus(NodeOrAuto),
     ListSavedHubs,
 }
 
