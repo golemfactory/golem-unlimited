@@ -424,6 +424,13 @@ fn extract_node_or_auto(path: Path<String>) -> Result<NodeOrAuto, ()> {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct IpAndHostName {
+    pub address: Option<SocketAddr>,
+    pub host_name: Option<String>,
+}
+
 fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .resource("", |r| {
@@ -456,18 +463,27 @@ fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
                             })
                     })
             });
-            /* TODO */
-            //r.put().with_async(|path: Path<String>| {});
-            r.delete().with_async(|path: Path<String>| {
-                extract_node_or_auto(path)
-                    .into_future()
-                    .map_err(|_| actix_web::error::ErrorInternalServerError("bad format"))
-                    .and_then(|node_or_auto| {
-                        set_node_status_future(false, node_or_auto, None, None)
+
+            let put_delete_handler = |turn_on: bool| {
+                move |(path, hub): (Path<String>, actix_web::Json<IpAndHostName>)| {
+                    extract_node_or_auto(path)
+                        .into_future()
+                        .map_err(|_| actix_web::error::ErrorInternalServerError("bad format"))
+                        .and_then(move |node_or_auto| {
+                            set_node_status_future(
+                                turn_on,
+                                node_or_auto,
+                                hub.address,
+                                hub.host_name.clone(),
+                            )
                             .map_err(|_| actix_web::error::ErrorInternalServerError(""))
                             .and_then(|_| Ok(HttpResponse::Ok().finish()))
-                    })
-            });
+                        })
+                }
+            };
+
+            r.put().with_async(put_delete_handler(true));
+            r.delete().with_async(put_delete_handler(false));
         })
 }
 
@@ -592,4 +608,20 @@ fn run_configure() {
 
 pub fn module() -> impl Module {
     PermissionModule::None
+}
+
+#[cfg(test)]
+mod test {
+    use super::IpAndHostName;
+
+    #[test]
+    fn test_serialize() {
+        let input = r#"{
+            "hostName": "localhost",
+            "address": "127.0.0.1:80"
+            }"#;
+
+        let _: IpAndHostName = serde_json::from_str(input).unwrap();
+    }
+
 }
