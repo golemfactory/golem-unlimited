@@ -1,13 +1,16 @@
-use actix::prelude::*;
-use errors::Result;
-use std::fmt::Display;
-use std::result::Result as StdResult;
-use std::str::FromStr;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
+    fmt::Display,
     net::Ipv4Addr,
+    result::Result as StdResult,
+    str::FromStr,
 };
+
+use actix::prelude::*;
+use serde::Serialize;
+
+use errors::Result;
 
 /// Struct describing single service in .local domain's network
 ///

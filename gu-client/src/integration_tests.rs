@@ -1,4 +1,5 @@
 use actix::prelude::*;
+use futures::future;
 use futures::prelude::*;
 
 use gu_model::session::HubSessionSpec;
@@ -44,4 +45,20 @@ fn test_list_peers() {
 
     eprintln!("peers={:?}", peers);
     //    assert_eq!(peers.len(), session_peers.len());
+}
+
+/// Test if two ways of getting PeerInfo are consistent
+#[test]
+fn test_peer_info() {
+    let mut sys = System::new("test");
+    let connection = HubConnection::default();
+    let fut = connection.list_peers().and_then(move |mut peers| {
+        let peerinfo = peers.next().unwrap();
+        let node_id = peerinfo.node_id;
+        let peerinfo2 = connection.peer(node_id).info();
+        future::ok(peerinfo).join(peerinfo2)
+    });
+
+    let (pi, pi2) = sys.block_on(fut).unwrap();
+    assert_eq!(pi.node_id, pi2.node_id);
 }

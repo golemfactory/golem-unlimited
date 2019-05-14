@@ -1,10 +1,12 @@
-#![allow(dead_code)]
+use std::path::PathBuf;
+
+use actix::Message;
+use serde::{Deserialize, Serialize};
+use sysinfo::{DiskExt, DiskType, SystemExt};
+
+use gu_persist::config::ConfigModule;
 
 use crate::error::{Error, Result};
-use actix::Message;
-use gu_persist::config::ConfigModule;
-use std::path::PathBuf;
-use sysinfo::{DiskExt, DiskType, SystemExt};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiskInfo {

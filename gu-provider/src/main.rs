@@ -23,9 +23,9 @@ mod dockerman {
     pub use gu_base::empty::module;
 }
 
-#[allow(dead_code)]
 mod version {
     use gu_base::*;
+
     struct Version;
 
     pub fn module() -> impl gu_base::Module {
