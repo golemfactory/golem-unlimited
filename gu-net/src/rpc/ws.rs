@@ -452,7 +452,10 @@ impl ConnectionSupervisor {
                     act.connection = Some(r);
                 })
                 .map_err(|err, act, ctx| {
-                    error!("fatal, restart, {:?}, peer address: {}", &err, act.peer_address);
+                    error!(
+                        "fatal, restart, {:?}, peer address: {}",
+                        &err, act.peer_address
+                    );
                 }),
         );
     }

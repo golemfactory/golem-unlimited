@@ -6,6 +6,7 @@ use actor::{MdnsActor, OneShot};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Decorator, Module};
+use serde::Serialize;
 use service::{ServiceInstance, ServicesDescription};
 use std::{collections::HashSet, net::Ipv4Addr};
 
