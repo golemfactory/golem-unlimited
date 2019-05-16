@@ -330,7 +330,7 @@ paths:
           in: body
           required: true
           schema:
-            $ref: '#/definitions/DeploymentSpec'
+            $ref: '#/definitions/DeploymentInfo'
       responses:
         '201':
           description: created

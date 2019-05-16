@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{borrow::Cow, net::ToSocketAddrs, sync::Arc};
 
 use actix::prelude::*;
@@ -7,7 +5,7 @@ use actix_web;
 use clap::{App, ArgMatches};
 use futures::Future;
 use log::error;
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
 use gu_actix::*;

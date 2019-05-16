@@ -1,8 +1,10 @@
+use std::{fmt, io};
+
 use actix::prelude::*;
+use serde::{Deserialize, Serialize};
+
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::PublicMessage;
-use serde_derive::*;
-use std::{fmt, io};
 
 /// Errors
 // impl note: can not use error_chain bc it does not support SerDe
@@ -181,9 +183,9 @@ impl Message for DestroySession {
 
 #[cfg(test)]
 mod test {
+    use serde_json;
 
     use super::*;
-    use serde_json;
 
     #[test]
     fn test_create_session_deserialization() {

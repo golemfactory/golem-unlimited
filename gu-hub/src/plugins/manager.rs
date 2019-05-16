@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{
     collections::HashMap,
     fmt,
@@ -253,7 +251,6 @@ pub enum QueriedStatus {
     Activate,
     Inactivate,
     Uninstall,
-    LogError(String),
 }
 
 impl fmt::Display for QueriedStatus {
@@ -292,7 +289,6 @@ impl Handler<ChangePluginState> for PluginManager {
                 .map(|plug| match msg.state.clone() {
                     QueriedStatus::Activate => plug.activate(),
                     QueriedStatus::Inactivate => plug.inactivate(),
-                    QueriedStatus::LogError(s) => plug.log_error(s),
                     _ => unreachable!(),
                 }),
         };

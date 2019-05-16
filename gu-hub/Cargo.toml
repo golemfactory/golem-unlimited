@@ -1,47 +1,42 @@
 [package]
 name = "gu-hub"
-version = "0.1.2"
+version = "0.2.1"
 license = "MIT"
-publish=false
-authors=["golemfactory"]
+publish = false
+authors = ["golemfactory"]
 edition = "2018"
 
 [dependencies]
-gu-base= { path="../gu-base" }
-gu-net= { path="../gu-net" }
-gu-persist = { path = "../gu-persist" }
+ethkey = { path = "../ethkey" }
 gu-actix = { path = "../gu-actix" }
-gu-lan = { path = "../gu-lan" }
-ethkey = { path = "../ethkey"}
+gu-base = { path = "../gu-base" }
 gu-event-bus = { path = "../gu-event-bus" }
+gu-hardware = { path = "../gu-hardware" }
+gu-lan = { path = "../gu-lan" }
 gu-model = { path = "../gu-model" }
-
-clap = "2.32"
-log="0.4"
-
-serde = "1.0"
-serde_derive = "1.0"
-serde_json="1.0"
-
-failure="0.1"
-
-futures = "0.1"
-semver = { version = "0.9", features = ["serde"] }
-zip = "0.4"
+gu-net = { path = "../gu-net" }
+gu-persist = { path = "../gu-persist" }
 
 actix = "0.7"
-actix-web = {version= "0.7", default-features=false}
+actix-web = { version = "0.7", default-features = false }
 actix_derive = "0.3.0"
 bytes = "0.4.10"
-sha1 = "0.6.0"
-
-mdns = { git = "https://github.com/plietar/rust-mdns" }
-
-prettytable-rs="0.7"
 chrono = { version = "0.4", features = ["serde"] }
-
+clap = "2.32"
+failure = "0.1"
+futures = "0.1"
 hostname = "^0.1"
-gu-hardware = { path = "../gu-hardware" }
+log = "0.4"
+mdns = { git = "https://github.com/plietar/rust-mdns" }
+prettytable-rs = "0.7"
+semver = { version = "0.9", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha1 = "0.6.0"
+zip = "0.4"
+
+[build-dependencies]
+vergen = "3.0.4"
 
 [features]
 default=[]
@@ -49,25 +44,22 @@ default=[]
 clinfo=["gu-hardware/clinfo"]
 
 [package.metadata.deb]
-assets=[
-    ["webapp/ui-bootstrap-tpls-2.5.0.min.js", "usr/lib/golemu/webapp/","644"],
-    ["webapp/icons/unlimited-logo.svg","usr/lib/golemu/webapp/icons/","644"],
-    ["webapp/icons/unlimited-logo-b&w.svg","usr/lib/golemu/webapp/icons/","644"],
-    ["webapp/icons/providers.svg","usr/lib/golemu/webapp/icons/","644"],
-    ["webapp/icons/status.svg","usr/lib/golemu/webapp/icons/","644"],
-    ["webapp/icons/refresh.svg","usr/lib/golemu/webapp/icons/","644"],
-    ["webapp/icons/rendering.svg","usr/lib/golemu/webapp/icons/","644"],
-    ["webapp/providers.html","usr/lib/golemu/webapp/","644"],
-    ["webapp/status.html","usr/lib/golemu/webapp/","644"],
-    ["webapp/modal-confirm.html","usr/lib/golemu/webapp/","644"],
-    ["webapp/index.html","usr/lib/golemu/webapp/","644"],
-    ["webapp/hdsession.html","usr/lib/golemu/webapp/","644"],
-    ["webapp/app.js","usr/lib/golemu/webapp/","644"],
+assets = [
+    ["webapp/ui-bootstrap-tpls-2.5.0.min.js", "usr/lib/golemu/webapp/", "644"],
+    ["webapp/icons/unlimited-logo.svg", "usr/lib/golemu/webapp/icons/", "644"],
+    ["webapp/icons/unlimited-logo-b&w.svg", "usr/lib/golemu/webapp/icons/", "644"],
+    ["webapp/icons/providers.svg", "usr/lib/golemu/webapp/icons/", "644"],
+    ["webapp/icons/status.svg", "usr/lib/golemu/webapp/icons/", "644"],
+    ["webapp/icons/refresh.svg", "usr/lib/golemu/webapp/icons/", "644"],
+    ["webapp/icons/rendering.svg", "usr/lib/golemu/webapp/icons/", "644"],
+    ["webapp/providers.html", "usr/lib/golemu/webapp/", "644"],
+    ["webapp/status.html", "usr/lib/golemu/webapp/", "644"],
+    ["webapp/modal-confirm.html", "usr/lib/golemu/webapp/", "644"],
+    ["webapp/index.html", "usr/lib/golemu/webapp/", "644"],
+    ["webapp/hdsession.html", "usr/lib/golemu/webapp/", "644"],
+    ["webapp/app.js", "usr/lib/golemu/webapp/", "644"],
     ["target/release/gu-hub", "usr/bin/", "755"],
     ["deployment/gu-hub.service", "lib/systemd/system/", "644"],
 ]
 
-maintainer-scripts="deployment/deb"
-
-[build-dependencies]
-vergen = "3.0.4"
+maintainer-scripts = "deployment/deb"

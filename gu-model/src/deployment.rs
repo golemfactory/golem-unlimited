@@ -1,4 +1,4 @@
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 
 use super::Tags;
 

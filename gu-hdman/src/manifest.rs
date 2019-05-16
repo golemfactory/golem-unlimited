@@ -1,5 +1,4 @@
-use serde_derive::*;
-//use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -50,9 +49,9 @@ pub struct HdManifest {
 
 #[cfg(test)]
 mod tests {
+    use serde_json;
 
     use super::*;
-    use serde_json;
 
     #[test]
     fn test_gu_factor() {

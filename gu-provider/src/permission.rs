@@ -1,10 +1,12 @@
-use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    str::FromStr,
+    sync::Arc,
+};
 
 use log::error;
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 
 use actix::prelude::*;
 use actix_web::{HttpResponse, Path, Query, Scope};

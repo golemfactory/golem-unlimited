@@ -204,6 +204,7 @@ fn macro_for_struct(input: syn::ItemStruct) -> TokenStream {
     result.into()
 }
 
+/// Faciliates to implement CLI update options for cofig structures and enums
 #[proc_macro_derive(Update)]
 pub fn update_derive(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);

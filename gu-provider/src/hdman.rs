@@ -1,14 +1,18 @@
-use std::collections::hash_map::{Entry, OccupiedEntry};
-use std::collections::HashSet;
-use std::fs::OpenOptions;
-use std::path::Path;
-use std::{collections::HashMap, fs, path::PathBuf, process, result, time};
+use std::{
+    collections::{
+        hash_map::{Entry, OccupiedEntry},
+        HashMap, HashSet,
+    },
+    fs,
+    fs::OpenOptions,
+    path::{Path, PathBuf},
+    process, result, time,
+};
 
 use actix::{fut, prelude::*};
-use futures::future;
-use futures::prelude::*;
+use futures::{future, prelude::*};
 use log::{debug, error, info};
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 
 use gu_actix::prelude::*;
 use gu_hdman::image_manager;
@@ -21,9 +25,9 @@ use gu_persist::config::ConfigModule;
 
 use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 
-/** Host direct manager.
+/**
 
-
+Host direct manager.
 
 */
 use super::id::generate_new_id;

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -9,7 +7,7 @@ use actix::{fut, prelude::*};
 use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse};
 use futures::{future, prelude::*};
 use log::debug;
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 
 use gu_base::{ArgMatches, Module};
 use gu_event_bus;
@@ -152,5 +150,3 @@ impl Module for ProxyModule {
         })
     }
 }
-
-struct ProxyHandler(Arc<RwLock<BTreeMap<String, BTreeMap<String, String>>>>);
