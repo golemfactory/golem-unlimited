@@ -10,7 +10,7 @@ use ::actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
 use futures::{future, prelude::*};
-use log::{error, info};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
@@ -216,8 +216,23 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .into_actor(self)
                 .and_then(|config: ProviderConfig, act: &mut Self, _ctx| {
                     use tokio_uds;
-                    let listener =
-                        tokio_uds::UnixListener::bind("/tmp/gu-provider.socket").unwrap();
+                    let global_uds_path = "/var/run/gu-provider.socket";
+                    let listener = tokio_uds::UnixListener::bind(global_uds_path)
+                        .or_else(|e| {
+                            info!("Cannot bind to socket ({}), error: {}.", global_uds_path, e);
+                            if (std::path::Path::new(global_uds_path)).exists() {
+                                info!("Removing {} and trying to bind again.", global_uds_path);
+                                let _ = std::fs::remove_file(global_uds_path).or_else(|e| {
+                                    warn!("{}", e);
+                                    Err(e)
+                                });
+                                tokio_uds::UnixListener::bind(global_uds_path)
+                            } else {
+                                error!("Cannot bind to socket.");
+                                Err(e)
+                            }
+                        })
+                        .unwrap();
 
                     let keys =
                         EthAccount::load_or_generate(ConfigModule::new().keystore_path(), "")
