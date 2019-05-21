@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use clap::AppSettings;
+use clap::{Arg,AppSettings};
 
 use {
     daemon::{DaemonProcess, ProcessStatus},
@@ -34,6 +34,7 @@ pub struct DaemonHandler {
     server: GuServer,
     command: DaemonCommand,
     work_dir: PathBuf,
+    run_with_user_priviledges: bool,
 }
 
 impl DaemonHandler {
@@ -42,14 +43,16 @@ impl DaemonHandler {
             server: GuServer::Hub,
             command,
             work_dir: work_dir.as_ref().into(),
+            run_with_user_priviledges: false,
         }
     }
 
-    pub fn provider<P: AsRef<Path>>(command: DaemonCommand, work_dir: P) -> Self {
+    pub fn provider<P: AsRef<Path>>(command: DaemonCommand, work_dir: P, run_with_user_priviledges: bool) -> Self {
         DaemonHandler {
             server: GuServer::Provider,
             command,
             work_dir: work_dir.as_ref().into(),
+            run_with_user_priviledges: run_with_user_priviledges,
         }
     }
 
@@ -63,6 +66,11 @@ impl DaemonHandler {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .about("Runs, gets status or stops a server on this machine")
             .subcommands(vec![run, start, stop, status])
+            .arg(
+                Arg::with_name("local")
+                    .long("local")
+                    .help("Local server (without special privileges)"),
+            )
     }
 
     pub fn consume(matches: &ArgMatches) -> DaemonCommand {

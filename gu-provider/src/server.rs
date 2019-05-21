@@ -95,12 +95,14 @@ impl HasSectionId for ProviderConfig {
 
 pub struct ServerModule {
     daemon_command: DaemonCommand,
+    run_with_user_priviledges: bool,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
             daemon_command: DaemonCommand::None,
+            run_with_user_priviledges: false,
         }
     }
 }
@@ -117,8 +119,10 @@ impl Module for ServerModule {
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        if let Some(cmd) = matches.subcommand_matches("server") {
+            self.run_with_user_priviledges = cmd.is_present("local");
+        }
         self.daemon_command = DaemonHandler::consume(matches);
-
         self.daemon_command != DaemonCommand::None
     }
 
@@ -127,18 +131,29 @@ impl Module for ServerModule {
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
 
-        if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
+        if !DaemonHandler::provider(
+            self.daemon_command,
+            config_module.work_dir(),
+            self.run_with_user_priviledges,
+        )
+        .run()
+        {
             return;
         }
 
         let sys = System::new("gu-provider");
+
+        let run_with_user_priviledges = self.run_with_user_priviledges;
 
         gu_base::run_once(move || {
             let dec = decorator.to_owned();
             let config_module: &ConfigModule = dec.extract().unwrap();
             let _ = HdMan::start(config_module);
 
-            ProviderServer::from_registry().do_send(InitServer { decorator });
+            ProviderServer::from_registry().do_send(InitServer {
+                decorator,
+                run_with_user_priviledges: run_with_user_priviledges,
+            });
         });
 
         let _ = sys.run();
@@ -194,6 +209,7 @@ impl Handler<PublishMdns> for ProviderServer {
 #[rtype(result = "Result<(), ()>")]
 struct InitServer<D: Decorator> {
     decorator: D,
+    run_with_user_priviledges: bool,
 }
 
 impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
@@ -201,6 +217,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
 
     fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
         use std::ops::Deref;
+
+        let run_with_user_priviledges = msg.run_with_user_priviledges;
 
         let server = server::new(move || {
             msg.decorator
@@ -214,9 +232,13 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .and_then(|config: Arc<ProviderConfig>| Ok(config.deref().clone()))
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
-                .and_then(|config: ProviderConfig, act: &mut Self, _ctx| {
+                .and_then(move |config: ProviderConfig, act: &mut Self, _ctx| {
                     use tokio_uds;
                     let global_uds_path = "/var/run/gu-provider.socket";
+                    info!("local {}", run_with_user_priviledges);
+                    /*
+                    TODO local socket
+                    */
                     let listener = tokio_uds::UnixListener::bind(global_uds_path)
                         .or_else(|e| {
                             info!("Cannot bind to socket ({}), error: {}.", global_uds_path, e);
