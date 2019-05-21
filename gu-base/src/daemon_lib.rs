@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use clap::{Arg,AppSettings};
+use clap::{AppSettings, Arg};
 
 use {
     daemon::{DaemonProcess, ProcessStatus},
@@ -47,7 +47,11 @@ impl DaemonHandler {
         }
     }
 
-    pub fn provider<P: AsRef<Path>>(command: DaemonCommand, work_dir: P, run_with_user_priviledges: bool) -> Self {
+    pub fn provider<P: AsRef<Path>>(
+        command: DaemonCommand,
+        work_dir: P,
+        run_with_user_priviledges: bool,
+    ) -> Self {
         DaemonHandler {
             server: GuServer::Provider,
             command,

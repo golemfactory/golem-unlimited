@@ -234,21 +234,32 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .into_actor(self)
                 .and_then(move |config: ProviderConfig, act: &mut Self, _ctx| {
                     use tokio_uds;
-                    let global_uds_path = "/var/run/gu-provider.socket";
-                    info!("local {}", run_with_user_priviledges);
-                    /*
-                    TODO local socket
-                    */
-                    let listener = tokio_uds::UnixListener::bind(global_uds_path)
+                    let uds_path = if run_with_user_priviledges {
+                        format!(
+                            "{}/.local/run/golemunlimited/gu-provider.socket",
+                            std::env::var("HOME").unwrap()
+                        )
+                    } else {
+                        "/var/run/gu-provider.socket".to_string()
+                    };
+                    let dir_path = std::path::Path::new(&uds_path).parent().unwrap();
+                    if !dir_path.exists() {
+                        info!("Creating {:?}.", dir_path);
+                        let _ = std::fs::create_dir_all(dir_path)
+                            .and_then(|_| Ok(info!("Created {:?}.", dir_path)))
+                            .or_else(|_| Err(warn!("Cannot create {:?}.", dir_path)));
+                    }
+                    let listener = tokio_uds::UnixListener::bind(&uds_path)
                         .or_else(|e| {
-                            info!("Cannot bind to socket ({}), error: {}.", global_uds_path, e);
-                            if (std::path::Path::new(global_uds_path)).exists() {
-                                info!("Removing {} and trying to bind again.", global_uds_path);
-                                let _ = std::fs::remove_file(global_uds_path).or_else(|e| {
+                            info!("Cannot bind to socket ({}), error: {}.", uds_path, e);
+                            if (std::path::Path::new(&uds_path)).exists() {
+                                info!("Removing {}.", uds_path);
+                                let _ = std::fs::remove_file(&uds_path).or_else(|e| {
                                     warn!("{}", e);
                                     Err(e)
                                 });
-                                tokio_uds::UnixListener::bind(global_uds_path)
+                                info!("Binding again to {}.", uds_path);
+                                tokio_uds::UnixListener::bind(&uds_path)
                             } else {
                                 error!("Cannot bind to socket.");
                                 Err(e)
