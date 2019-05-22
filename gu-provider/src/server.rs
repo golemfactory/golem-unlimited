@@ -234,7 +234,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                             std::env::var("HOME").unwrap()
                         )
                     } else {
-                        "/var/run/gu-provider.socket".to_string()
+                        "/var/run/golemu/gu-provider.socket".to_string()
                     };
                     let dir_path = std::path::Path::new(&uds_path).parent().unwrap();
                     if !dir_path.exists() {
