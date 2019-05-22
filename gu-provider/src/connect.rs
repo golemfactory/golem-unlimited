@@ -483,7 +483,7 @@ fn edit_config_list(
             new_set.insert(s);
         }),
         ConnectionChange::Disconnect => modify_addrs.into_iter().for_each(|s| {
-            new_set.insert(s);
+            new_set.remove(s);
         }),
     }
 
