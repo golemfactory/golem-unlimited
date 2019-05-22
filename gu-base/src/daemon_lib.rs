@@ -34,7 +34,6 @@ pub struct DaemonHandler {
     server: GuServer,
     command: DaemonCommand,
     work_dir: PathBuf,
-    run_with_user_priviledges: bool,
 }
 
 impl DaemonHandler {
@@ -43,20 +42,14 @@ impl DaemonHandler {
             server: GuServer::Hub,
             command,
             work_dir: work_dir.as_ref().into(),
-            run_with_user_priviledges: false,
         }
     }
 
-    pub fn provider<P: AsRef<Path>>(
-        command: DaemonCommand,
-        work_dir: P,
-        run_with_user_priviledges: bool,
-    ) -> Self {
+    pub fn provider<P: AsRef<Path>>(command: DaemonCommand, work_dir: P) -> Self {
         DaemonHandler {
             server: GuServer::Provider,
             command,
             work_dir: work_dir.as_ref().into(),
-            run_with_user_priviledges: run_with_user_priviledges,
         }
     }
 
@@ -71,8 +64,9 @@ impl DaemonHandler {
             .about("Runs, gets status or stops a server on this machine")
             .subcommands(vec![run, start, stop, status])
             .arg(
-                Arg::with_name("local")
-                    .long("local")
+                Arg::with_name("user")
+                    .long("user")
+                    .short("u")
                     .help("Local server (without special privileges)"),
             )
     }

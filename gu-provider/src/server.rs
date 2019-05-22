@@ -120,7 +120,7 @@ impl Module for ServerModule {
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         if let Some(cmd) = matches.subcommand_matches("server") {
-            self.run_with_user_priviledges = cmd.is_present("local");
+            self.run_with_user_priviledges = cmd.is_present("user");
         }
         self.daemon_command = DaemonHandler::consume(matches);
         self.daemon_command != DaemonCommand::None
@@ -131,13 +131,7 @@ impl Module for ServerModule {
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
 
-        if !DaemonHandler::provider(
-            self.daemon_command,
-            config_module.work_dir(),
-            self.run_with_user_priviledges,
-        )
-        .run()
-        {
+        if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
             return;
         }
 
