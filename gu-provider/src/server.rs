@@ -255,9 +255,13 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                                 info!("Binding again to {}.", uds_path);
                                 tokio_uds::UnixListener::bind(&uds_path)
                             } else {
-                                error!("Cannot bind to socket.");
                                 Err(e)
                             }
+                        })
+                        .map_err(|e| {
+                            if run_with_user_priviledges { error!("Cannot bind to socket: {}.", uds_path) }
+                            else { error!("Please run with --user to create and use a unix domain socket in the user home directory") }
+                            e
                         })
                         .unwrap();
 
