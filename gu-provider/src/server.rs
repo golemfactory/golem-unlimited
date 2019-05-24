@@ -243,7 +243,6 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     type Result = ActorResponse<Self, (), ()>;
 
     fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
-        error!("yea boi");
         use std::ops::Deref;
 
         let uds_path = msg.clone().socket_path;
@@ -303,8 +302,6 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     act.node_id = Some(get_node_id(keys));
                     act.p2p_port = Some(config.p2p_port);
 
-                    error!("yea boi");
-
                     // Init mDNS publisher
                     act.mdns_publisher = MdnsPublisher::init_publisher(
                         config.p2p_port,
@@ -317,7 +314,6 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                         ConnectManager::init(act.node_id.unwrap(), config.hub_addrs).start();
                     connect.do_send(AutoMdns(config.connect_mode == ConnectMode::Auto));
                     act.connections = Some(connect);
-                    error!("yea boi");
 
                     future::ok(()).into_actor(act)
                 }),
