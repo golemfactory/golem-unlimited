@@ -52,21 +52,21 @@
                                 Id='gu_providerEXE'
                                 Name='gu_provider.exe'
                                 DiskId='1'
-                                Source='C:\Users\imapp\IdeaProjects\windows-service-rs\target\debug\examples\ping_service.exe'
+                                Source='C:\Users\imapp\source\repos\golemfactory\golem-unlimited\target\release\gu-provider.exe'
                                 KeyPath='yes'>
                             </File>
                             <ServiceInstall
                                     Id="ServiceInstaller"
                                     Type="ownProcess"
-                                    Name="brand_new"
-                                    DisplayName="-------------------------------------"
-                                    Description="_____________________________________"
+                                    Name="gu-provider"
+                                    DisplayName="Golem Unlimited's Provider"
+                                    Description="Instance of a Golem Unlimited network"
                                     Account="[SERVICEACCOUNT]"
                                     Password="[SERVICEPASSWORD]"
                                     Start="auto"
                                     ErrorControl="normal"
                                     Arguments="server"/>
-                            <ServiceControl Id="StartService" Start="install" Stop="both" Remove="uninstall" Name="brand_new" Wait="yes" />
+                            <ServiceControl Id="StartService" Start="install" Stop="both" Remove="uninstall" Name="gu-provider" Wait="yes" />
                         </Component>
                     </Directory>
                 </Directory>
