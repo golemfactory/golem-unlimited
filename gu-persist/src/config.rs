@@ -211,8 +211,8 @@ impl ConfigModule {
     }
 
     /// TODO: for extracted sessions
-    pub fn work_dir(&self) -> &Path {
-        self.0.data_local_dir()
+    pub fn work_dir(&self) -> PathBuf {
+        self.0.data_local_dir().to_path_buf().join("data")
     }
 
     /// TODO: for downloaded images
@@ -223,6 +223,11 @@ impl ConfigModule {
     /// TODO: for configs and ethkeys
     pub fn config_dir(&self) -> &Path {
         self.0.config_dir()
+    }
+
+    pub fn runtime_dir(&self) -> PathBuf {
+        /* self.0.runtime_dir() is not used, because XDG_RUNTIME_DIR (e.g. /run/user/{uid}/ does not exist when the user is not logged in */
+        self.0.data_local_dir().to_path_buf().join("run")
     }
 
     pub fn keystore_path(&self) -> PathBuf {
