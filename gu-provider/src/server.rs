@@ -27,8 +27,9 @@ use std::{
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
-use windows_service::service::{ServiceStatus, ServiceState, ServiceExitCode};
-use windows_service::service_dispatcher;
+
+#[cfg(unix)]
+use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -91,12 +92,18 @@ impl HasSectionId for ProviderConfig {
 }
 
 pub struct ServerModule {
+    #[cfg(unix)]
+    daemon_command: DaemonCommand,
+    #[cfg(windows)]
     run: bool,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
+            #[cfg(unix)]
+            daemon_command: DaemonCommand::None,
+            #[cfg(windows)]
             run: false,
         }
     }
@@ -109,13 +116,27 @@ fn get_node_id(keys: Box<EthAccount>) -> NodeId {
 }
 
 impl Module for ServerModule {
+    #[cfg(unix)]
+    fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
+        app.subcommand(DaemonHandler::subcommand())
+    }
+
+    #[cfg(windows)]
     fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
         app.subcommand(SubCommand::with_name("server")
             .about("Runs Golem Unlimited server"))
     }
 
+    #[cfg(unix)]
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        if let Some(m) = matches.subcommand_matches("server") {
+        self.daemon_command = DaemonHandler::consume(matches);
+
+        self.daemon_command != DaemonCommand::None
+    }
+
+    #[cfg(windows)]
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        if let Some(_) = matches.subcommand_matches("server") {
             self.run = true;
         }
         self.run
@@ -123,13 +144,16 @@ impl Module for ServerModule {
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
         use gu_base;
-        let dec = decorator.clone();
-        let config_module: &ConfigModule = dec.extract().unwrap();
 
-        if !self.run {
-            return;
+        #[cfg(unix)]
+        {
+            let config_module: &ConfigModule = decorator.clone().extract().unwrap();
+            if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
+                return;
+            }
         }
-        println!("dupa");
+
+        let sys = System::new("gu-provider");
 
         gu_base::run_once(move || {
             let dec = decorator.to_owned();
@@ -138,82 +162,14 @@ impl Module for ServerModule {
 
             ProviderServer::from_registry().do_send(InitServer { decorator });
         });
-        println!("dupa");
 
-        service_dispatcher::start("brand_new", ffi_service_main).map_err(|e| println!("{:?}", e));
-        println!("dupa");
+        let _ = sys.run();
     }
 
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
         app
     }
 }
-
-define_windows_service!(ffi_service_main, my_service_main);
-use std::ffi::OsString;
-
-use windows_service::service::ServiceType;
-
-const SERVICE_NAME: &str = "brand_new";
-const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
-
-pub fn my_service_main(_arguments: Vec<OsString>) {
-    println!("dupa");
-    if let Err(_e) = run_service() {
-        // Handle the error, by logging or something.
-    }
-}
-
-pub fn run_service() -> windows_service::Result<()> {
-    use windows_service::{service_dispatcher, service_control_handler};
-    use windows_service::service_control_handler::ServiceControlHandlerResult;
-    use windows_service::service::ServiceControl;
-    use std::time::Duration;
-    use windows_service::service::ServiceControlAccept;
-
-    // Define system service event handler that will be receiving service events.
-    let event_handler = move |control_event| -> ServiceControlHandlerResult {
-        match control_event {
-            // Notifies a service to report its current status information to the service
-            // control manager. Always return NoError even if not implemented.
-            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
-            ServiceControl::Stop => ServiceControlHandlerResult::NoError,
-            _ => ServiceControlHandlerResult::NotImplemented,
-        }
-    };
-
-    // Register system service event handler.
-    // The returned status handle should be used to report service status changes to the system.
-    let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)?;
-
-    // Tell the system that service is running
-    status_handle.set_service_status(ServiceStatus {
-        service_type: SERVICE_TYPE,
-        current_state: ServiceState::Running,
-        controls_accepted: ServiceControlAccept::STOP,
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 0,
-        wait_hint: Duration::default(),
-    })?;
-
-    println!("dupa");
-
-    let sys = System::new("gu-provider");
-    let _ = sys.run();
-
-    // Tell the system that service has stopped.
-    status_handle.set_service_status(ServiceStatus {
-        service_type: SERVICE_TYPE,
-        current_state: ServiceState::Stopped,
-        controls_accepted: ServiceControlAccept::empty(),
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 0,
-        wait_hint: Duration::default(),
-    })?;
-
-    Ok(())
-}
-
 
 fn p2p_server(_r: &HttpRequest) -> &'static str {
     "ok"
@@ -270,6 +226,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     type Result = ActorResponse<Self, (), ()>;
 
     fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
+        error!("yea boi");
         use std::ops::Deref;
 
         let server = server::new(move || {
@@ -294,6 +251,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     act.node_id = Some(get_node_id(keys));
                     act.p2p_port = Some(config.p2p_port);
 
+                    error!("yea boi");
+
                     // Init mDNS publisher
                     act.mdns_publisher = MdnsPublisher::init_publisher(
                         config.p2p_port,
@@ -306,6 +265,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                         ConnectManager::init(act.node_id.unwrap(), config.hub_addrs).start();
                     connect.do_send(AutoMdns(config.connect_mode == ConnectMode::Auto));
                     act.connections = Some(connect);
+                    error!("yea boi");
 
                     future::ok(()).into_actor(act)
                 }),
