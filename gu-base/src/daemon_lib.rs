@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use clap::{AppSettings, Arg};
+use clap::AppSettings;
 
 use {
     daemon::{DaemonProcess, ProcessStatus},
@@ -63,12 +63,6 @@ impl DaemonHandler {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .about("Runs, gets status or stops a server on this machine")
             .subcommands(vec![run, start, stop, status])
-            .arg(
-                Arg::with_name("user")
-                    .long("user")
-                    .short("u")
-                    .help("Local server (without special privileges)"),
-            )
     }
 
     pub fn consume(matches: &ArgMatches) -> DaemonCommand {

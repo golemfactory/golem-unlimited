@@ -119,9 +119,6 @@ impl Module for ServerModule {
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        if let Some(cmd) = matches.subcommand_matches("server") {
-            self.run_with_user_priviledges = cmd.is_present("user");
-        }
         self.daemon_command = DaemonHandler::consume(matches);
         self.daemon_command != DaemonCommand::None
     }

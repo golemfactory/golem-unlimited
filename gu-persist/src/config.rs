@@ -5,7 +5,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{self, Value as JsonValue};
 
 use gu_actix::*;
-use gu_base::{App, Arg, Module};
+use gu_base::{App, Arg, ArgMatches, Module};
 
 pub use super::error::*;
 use super::storage::{Fetch, Put};
@@ -201,33 +201,55 @@ impl Handler<SetConfigPath> for ConfigManager {
     }
 }
 
-pub struct ConfigModule(ProjectDirs);
+pub struct ConfigModule {
+    dirs: ProjectDirs,
+    run_with_user_priviledges: bool,
+}
 
 impl ConfigModule {
     const KEYSTORE_FILE: &'static str = "keystore.json";
 
     pub fn new() -> Self {
-        ConfigModule(ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap())
+        ConfigModule {
+            dirs: ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap(),
+            run_with_user_priviledges: false,
+        }
     }
 
     /// TODO: for extracted sessions
     pub fn work_dir(&self) -> PathBuf {
-        self.0.data_local_dir().to_path_buf().join("data")
+        if self.run_with_user_priviledges {
+            self.dirs.data_local_dir().to_path_buf().join("data")
+        } else {
+            "/var/lib/golemu/data/".into()
+        }
     }
 
     /// TODO: for downloaded images
-    pub fn cache_dir(&self) -> &Path {
-        self.0.cache_dir()
+    pub fn cache_dir(&self) -> PathBuf {
+        if self.run_with_user_priviledges {
+            self.dirs.cache_dir().to_path_buf()
+        } else {
+            "/var/cache/golemu/".into()
+        }
     }
 
     /// TODO: for configs and ethkeys
-    pub fn config_dir(&self) -> &Path {
-        self.0.config_dir()
+    pub fn config_dir(&self) -> PathBuf {
+        if self.run_with_user_priviledges {
+            self.dirs.config_dir().to_path_buf()
+        } else {
+            "/var/lib/golemu/conf".into()
+        }
     }
 
     pub fn runtime_dir(&self) -> PathBuf {
-        /* self.0.runtime_dir() is not used, because XDG_RUNTIME_DIR (e.g. /run/user/{uid}/ does not exist when the user is not logged in */
-        self.0.data_local_dir().to_path_buf().join("run")
+        if self.run_with_user_priviledges {
+            /* self.dirs.runtime_dir() is not used, because XDG_RUNTIME_DIR (e.g. /run/user/{uid}/ does not exist when the user is not logged in */
+            self.dirs.data_local_dir().to_path_buf().join("run")
+        } else {
+            "/var/run/golemu/".into()
+        }
     }
 
     pub fn keystore_path(&self) -> PathBuf {
@@ -246,6 +268,17 @@ impl Module for ConfigModule {
                 .value_name("PATH")
                 .help("config dir path"),
         )
+        .arg(
+            Arg::with_name("user")
+                .long("user")
+                .short("u")
+                .help("Local server (without special privileges)"),
+        )
+    }
+
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        self.run_with_user_priviledges = matches.is_present("user");
+        false
     }
 }
 
