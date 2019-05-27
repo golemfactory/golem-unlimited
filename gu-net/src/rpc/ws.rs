@@ -94,6 +94,7 @@ impl<S> Worker<S> {
             node_id: self.peer_node_id.unwrap(),
             recipient: ctx.address().recipient(),
         });
+        // TODO modify
         PeerManager::from_registry().do_send(peer::UpdatePeer::Update(peer::PeerInfo {
             node_name: String::new(),
             peer_addr: self.peer_addr.map(|addr| format!("{}", addr)),
