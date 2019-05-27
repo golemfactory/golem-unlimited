@@ -1,12 +1,7 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 use std::{
-    any::Any,
-    borrow::Cow,
-    collections::HashMap,
-    marker::PhantomData,
-    path::PathBuf,
-    sync::Arc,
+    any::Any, borrow::Cow, collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc,
 };
 
 use actix::{fut, prelude::*};

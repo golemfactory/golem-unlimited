@@ -3,6 +3,7 @@
 use std::{
     collections::HashSet,
     net::{SocketAddr, ToSocketAddrs},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -95,14 +96,12 @@ impl HasSectionId for ProviderConfig {
 
 pub struct ServerModule {
     daemon_command: DaemonCommand,
-    run_with_user_priviledges: bool,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
             daemon_command: DaemonCommand::None,
-            run_with_user_priviledges: false,
         }
     }
 }
@@ -134,7 +133,8 @@ impl Module for ServerModule {
 
         let sys = System::new("gu-provider");
 
-        let run_with_user_priviledges = self.run_with_user_priviledges;
+        let socket_path = config_module.runtime_dir().join("gu-provider.socket");
+        let keystore_path = config_module.keystore_path();
 
         gu_base::run_once(move || {
             let dec = decorator.to_owned();
@@ -143,7 +143,8 @@ impl Module for ServerModule {
 
             ProviderServer::from_registry().do_send(InitServer {
                 decorator,
-                run_with_user_priviledges: run_with_user_priviledges,
+                socket_path,
+                keystore_path,
             });
         });
 
@@ -196,11 +197,12 @@ impl Handler<PublishMdns> for ProviderServer {
     }
 }
 
-#[derive(Message, Clone, Copy)]
+#[derive(Message, Clone)]
 #[rtype(result = "Result<(), ()>")]
 struct InitServer<D: Decorator> {
     decorator: D,
-    run_with_user_priviledges: bool,
+    socket_path: PathBuf,
+    keystore_path: PathBuf,
 }
 
 impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
@@ -209,8 +211,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
         use std::ops::Deref;
 
-        let run_with_user_priviledges = msg.run_with_user_priviledges;
-
+        let uds_path = msg.clone().socket_path;
+        let keystore_path = msg.clone().keystore_path;
         let server = server::new(move || {
             msg.decorator
                 .decorate_webapp(App::new().scope("/m", rpc::mock::scope))
@@ -225,15 +227,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .into_actor(self)
                 .and_then(move |config: ProviderConfig, act: &mut Self, _ctx| {
                     use tokio_uds;
-                    let uds_path = if run_with_user_priviledges {
-                        format!(
-                            "{}/.local/run/golemunlimited/gu-provider.socket",
-                            std::env::var("HOME").unwrap()
-                        )
-                    } else {
-                        "/var/run/golemu/gu-provider.socket".to_string()
-                    };
-                    let dir_path = std::path::Path::new(&uds_path).parent().unwrap();
+                    let dir_path = uds_path.parent().unwrap();
                     if !dir_path.exists() {
                         info!("Creating {:?}.", dir_path);
                         let _ = std::fs::create_dir_all(dir_path)
@@ -242,29 +236,26 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     }
                     let listener = tokio_uds::UnixListener::bind(&uds_path)
                         .or_else(|e| {
-                            info!("Cannot bind to socket ({}), error: {}.", uds_path, e);
+                            info!("Cannot bind to socket ({:?}), error: {}.", uds_path, e);
                             if (std::path::Path::new(&uds_path)).exists() {
-                                info!("Removing {}.", uds_path);
+                                info!("Removing {:?}.", uds_path);
                                 let _ = std::fs::remove_file(&uds_path).or_else(|e| {
                                     warn!("{}", e);
                                     Err(e)
                                 });
-                                info!("Binding again to {}.", uds_path);
+                                info!("Binding again to {:?}.", uds_path);
                                 tokio_uds::UnixListener::bind(&uds_path)
                             } else {
                                 Err(e)
                             }
                         })
                         .map_err(|e| {
-                            if run_with_user_priviledges { error!("Cannot bind to socket: {}.", uds_path) }
-                            else { error!("Please run with --user to create and use a unix domain socket in the user home directory") }
+                            error!("Cannot bind to: {:?}. Please run with --user to create and use a unix domain socket in the user home directory", uds_path);
                             e
                         })
                         .unwrap();
 
-                    let keys =
-                        EthAccount::load_or_generate(ConfigModule::new().keystore_path(), "")
-                            .unwrap();
+                    let keys = EthAccount::load_or_generate(keystore_path, "").unwrap();
 
                     //let _ = server.bind(config.p2p_addr()).unwrap().start();
                     let _ = server.start_incoming(listener.incoming(), false);
