@@ -239,7 +239,7 @@ impl ConfigModule {
         if self.run_with_user_priviledges {
             self.dirs.config_dir().to_path_buf()
         } else {
-            "/var/lib/golemu/conf".into()
+            "/var/lib/golemu/conf/".into()
         }
     }
 
