@@ -52,7 +52,7 @@
                                 Id='gu_providerEXE'
                                 Name='gu_provider.exe'
                                 DiskId='1'
-                                Source='C:\Users\imapp\source\repos\golemfactory\golem-unlimited\target\release\gu-provider.exe'
+                                Source='..\target\release\gu-provider.exe'
                                 KeyPath='yes'>
                             </File>
                             <ServiceInstall
