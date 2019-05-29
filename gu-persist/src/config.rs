@@ -1,7 +1,12 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 use std::{
-    any::Any, borrow::Cow, collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc,
+    any::Any,
+    borrow::Cow,
+    collections::HashMap,
+    marker::PhantomData,
+    path::PathBuf,
+    sync::{Arc, RwLock},
 };
 
 use actix::{fut, prelude::*};
@@ -196,55 +201,59 @@ impl Handler<SetConfigPath> for ConfigManager {
     }
 }
 
-pub struct ConfigModule {
-    dirs: ProjectDirs,
-    run_with_user_priviledges: bool,
+pub struct ConfigModule;
+
+struct ConfigPaths {
+    work_dir: PathBuf,
+    cache_dir: PathBuf,
+    config_dir: PathBuf,
+    runtime_dir: PathBuf,
+}
+
+lazy_static! {
+    static ref CONFIG_PATHS_LOCK: RwLock<ConfigPaths> = RwLock::new(ConfigPaths {
+        work_dir: PathBuf::from("/var/lib/golemu/data/"),
+        cache_dir: PathBuf::from("/var/cache/golemu/"),
+        config_dir: PathBuf::from("/var/lib/golemu/conf/"),
+        runtime_dir: PathBuf::from("/var/run/golemu/"),
+    });
+}
+
+pub fn set_config_paths_local() {
+    let dirs = ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap();
+    let paths = ConfigPaths {
+        work_dir: dirs.data_local_dir().to_path_buf().join("data"),
+        cache_dir: dirs.cache_dir().to_path_buf(),
+        config_dir: dirs.config_dir().to_path_buf(),
+        runtime_dir: dirs.data_local_dir().to_path_buf().join("run"),
+    };
+    *CONFIG_PATHS_LOCK.write().unwrap() = paths;
 }
 
 impl ConfigModule {
     const KEYSTORE_FILE: &'static str = "keystore.json";
 
     pub fn new() -> Self {
-        ConfigModule {
-            dirs: ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap(),
-            run_with_user_priviledges: false,
-        }
+        ConfigModule {}
     }
 
     /// TODO: for extracted sessions
     pub fn work_dir(&self) -> PathBuf {
-        if self.run_with_user_priviledges {
-            self.dirs.data_local_dir().to_path_buf().join("data")
-        } else {
-            "/var/lib/golemu/data/".into()
-        }
+        CONFIG_PATHS_LOCK.read().unwrap().work_dir.clone()
     }
 
     /// TODO: for downloaded images
     pub fn cache_dir(&self) -> PathBuf {
-        if self.run_with_user_priviledges {
-            self.dirs.cache_dir().to_path_buf()
-        } else {
-            "/var/cache/golemu/".into()
-        }
+        CONFIG_PATHS_LOCK.read().unwrap().cache_dir.clone()
     }
 
     /// TODO: for configs and ethkeys
     pub fn config_dir(&self) -> PathBuf {
-        if self.run_with_user_priviledges {
-            self.dirs.config_dir().to_path_buf()
-        } else {
-            "/var/lib/golemu/conf/".into()
-        }
+        CONFIG_PATHS_LOCK.read().unwrap().config_dir.clone()
     }
 
     pub fn runtime_dir(&self) -> PathBuf {
-        if self.run_with_user_priviledges {
-            /* self.dirs.runtime_dir() is not used, because XDG_RUNTIME_DIR (e.g. /run/user/{uid}/ does not exist when the user is not logged in */
-            self.dirs.data_local_dir().to_path_buf().join("run")
-        } else {
-            "/var/run/golemu/".into()
-        }
+        CONFIG_PATHS_LOCK.read().unwrap().runtime_dir.clone()
     }
 
     pub fn keystore_path(&self) -> PathBuf {
@@ -272,7 +281,9 @@ impl Module for ConfigModule {
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        self.run_with_user_priviledges = matches.is_present("user");
+        if matches.is_present("user") {
+            set_config_paths_local()
+        }
         false
     }
 }
