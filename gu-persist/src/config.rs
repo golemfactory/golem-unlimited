@@ -163,9 +163,12 @@ impl<T: ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
 
 pub struct ConfigModule;
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ConfigPaths {
     work_dir: PathBuf,
     cache_dir: PathBuf,
+    #[serde(skip)]
     config_dir: PathBuf,
     runtime_dir: PathBuf,
 }
@@ -180,7 +183,30 @@ lazy_static! {
 }
 
 fn set_config_path(config_path: PathBuf) {
-    (*CONFIG_PATHS_LOCK.write().unwrap()).config_dir = config_path;
+    let mut unlocked_paths = CONFIG_PATHS_LOCK.write().unwrap();
+    let dir_paths = config_path.clone().join("dir-paths.json");
+    let join_if_relative = |path: PathBuf, config_dir: &PathBuf| {
+        if path.is_relative() {
+            config_dir.join(path)
+        } else {
+            path
+        }
+    };
+    if let Ok(data) = std::fs::read_to_string(dir_paths.clone()) {
+        let config_paths: ConfigPaths =
+            serde_json::from_str(&data).expect(&format!("Cannot deserialize {:?}", dir_paths));
+        unlocked_paths.work_dir = join_if_relative(config_paths.work_dir, &config_path);
+        unlocked_paths.cache_dir = join_if_relative(config_paths.cache_dir, &config_path);
+        unlocked_paths.runtime_dir = join_if_relative(config_paths.runtime_dir, &config_path);
+    } else {
+        info!(
+            "Could not find {:?}. Using paths: {} and config path: {:?}.",
+            dir_paths,
+            serde_json::to_string(&*unlocked_paths).unwrap(),
+            config_path.clone()
+        );
+    }
+    unlocked_paths.config_dir = config_path;
 }
 
 fn set_paths_local() {
@@ -250,8 +276,8 @@ impl Module for ConfigModule {
         }
         match matches.value_of("config-dir") {
             Some(path) => {
+                info!("Using config dir: {}", path);
                 set_config_path(PathBuf::from(path));
-                info!("Using config dir: {}", path)
             }
             _ => (),
         }
