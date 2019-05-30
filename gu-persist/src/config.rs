@@ -31,9 +31,10 @@ pub struct ConfigManager {
 
 impl ConfigManager {
     fn storage(&mut self) -> &Addr<Storage> {
+        let config_dir = ConfigModule::new().config_dir();
         let storage = match self.storage.take() {
             Some(v) => v,
-            None => SyncArbiter::start(1, || Storage::from_path(default_config_dir())),
+            None => SyncArbiter::start(1, move || Storage::from_path(&config_dir)),
         };
         self.storage = Some(storage);
         self.storage.as_ref().unwrap()
@@ -42,14 +43,6 @@ impl ConfigManager {
 
 impl Actor for ConfigManager {
     type Context = Context<Self>;
-}
-
-fn default_config_dir() -> PathBuf {
-    use directories::ProjectDirs;
-
-    let p = ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap();
-
-    p.config_dir().into()
 }
 
 impl Supervised for ConfigManager {}
@@ -95,13 +88,6 @@ impl<T: ConfigSection> SetConfig<T> {
     pub fn new(inner: T) -> Self {
         SetConfig(Arc::new(inner))
     }
-}
-
-#[derive(Message)]
-#[rtype(result = "Result<()>")]
-pub enum SetConfigPath {
-    Default(Cow<'static, str>),
-    FsPath(Cow<'static, str>),
 }
 
 impl<T: ConfigSection + 'static + Send + Sync> Handler<GetConfig<T>> for ConfigManager {
@@ -175,32 +161,6 @@ impl<T: ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
     }
 }
 
-impl Handler<SetConfigPath> for ConfigManager {
-    type Result = Result<()>;
-
-    fn handle(&mut self, msg: SetConfigPath, _ctx: &mut Self::Context) -> Self::Result {
-        let path = match msg {
-            SetConfigPath::Default(app_name) => {
-                use directories::ProjectDirs;
-
-                ProjectDirs::from("network", "Golem", app_name.as_ref())
-                    .unwrap()
-                    .config_dir()
-                    .into()
-            }
-            SetConfigPath::FsPath(path) => PathBuf::from(path.as_ref()),
-        };
-
-        info!("new config path={:?}", path);
-
-        let file_storage = SyncArbiter::start(1, move || Storage::from_path(&path));
-
-        self.storage = Some(file_storage);
-
-        Ok(())
-    }
-}
-
 pub struct ConfigModule;
 
 struct ConfigPaths {
@@ -219,7 +179,11 @@ lazy_static! {
     });
 }
 
-pub fn set_config_paths_local() {
+fn set_config_path(config_path: PathBuf) {
+    (*CONFIG_PATHS_LOCK.write().unwrap()).config_dir = config_path;
+}
+
+fn set_paths_local() {
     let dirs = ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap();
     let paths = ConfigPaths {
         work_dir: dirs.data_local_dir().to_path_buf().join("data"),
@@ -282,7 +246,14 @@ impl Module for ConfigModule {
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         if matches.is_present("user") {
-            set_config_paths_local()
+            set_paths_local()
+        }
+        match matches.value_of("config-dir") {
+            Some(path) => {
+                set_config_path(PathBuf::from(path));
+                info!("Using config dir: {}", path)
+            }
+            _ => (),
         }
         false
     }
