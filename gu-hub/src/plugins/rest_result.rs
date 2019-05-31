@@ -1,7 +1,8 @@
+use std::fmt::Debug;
+
 use actix_web::{http::StatusCode, HttpResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
-use std::fmt::Debug;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RestResponse<T> {
