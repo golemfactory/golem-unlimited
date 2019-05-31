@@ -149,8 +149,16 @@ impl Module for ServerModule {
 
         #[cfg(unix)]
         {
-            let config_module: &ConfigModule = decorator.clone().extract().unwrap();
+            let dec = decorator.clone();
+            let config_module: &ConfigModule = dec.extract().unwrap();
             if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
+                return;
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if !self.run {
                 return;
             }
         }

@@ -7,7 +7,6 @@ actix = "0.7"
 actix-web = { version = "0.7", default-features = false }
 bytes = "0.4.10"
 clap = "2.32"
-daemonize = "0.3.0"
 env_logger = "0.5"
 flate2 = "1.0.4"
 futures = "0.1"

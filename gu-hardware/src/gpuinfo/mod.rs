@@ -85,7 +85,7 @@ pub fn gpu_count() -> Result<GpuCount> {
         amd: 0,
         nvidia: 0,
         intel: 0,
-        other: 0
+        other: 0,
     })
     // compile_error!("gpu detection supported only on ubuntu or with clinfo feature")
 }
