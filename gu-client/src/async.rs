@@ -10,10 +10,10 @@ use serde::Serialize;
 use url::Url;
 
 use gu_actix::release::{AsyncRelease, Handle};
-use gu_model::peers::PeerInfo;
 use gu_model::{
     deployment::DeploymentInfo,
     envman,
+    peers::PeerInfo,
     session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata},
     HubInfo,
 };

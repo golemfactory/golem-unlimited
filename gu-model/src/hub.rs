@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
+use gu_net::NodeId;
+
 use super::chrono::{DateTime, Utc};
 use super::{Map, Version};
-use gu_net::NodeId;
-use serde_derive::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -32,10 +34,12 @@ pub struct HubInfo {
 
 #[cfg(test)]
 mod test {
-    use super::Map;
+    use serde_json;
+
     use crate::hub::Capability;
     use crate::{BuildInfo, HubInfo};
-    use serde_json;
+
+    use super::Map;
 
     #[test]
     fn test_serialize() {

@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::error::Result;
 
 #[cfg(feature = "clinfo")]

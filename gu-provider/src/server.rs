@@ -1,17 +1,19 @@
-#![allow(dead_code)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use crate::connect::ListingType;
-use crate::connect::{
-    self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
-    ConnectionChangeMessage, Disconnect, ListSockets,
+use std::{
+    collections::HashSet,
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
 };
-use crate::hdman::HdMan;
+
 use ::actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
-use ethkey::prelude::*;
 use futures::{future, prelude::*};
+use log::{error, info};
+use serde::{Deserialize, Serialize};
+
+use ethkey::prelude::*;
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{Decorator, Module, SubCommand};
 use gu_lan::MdnsPublisher;
@@ -20,13 +22,13 @@ use gu_persist::{
     config::{ConfigManager, ConfigModule, GetConfig, HasSectionId},
     http::{ServerClient, ServerConfig},
 };
-use log::{error, info};
-use serde_derive::*;
-use std::{
-    collections::HashSet,
-    net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
+
+use crate::connect::ListingType;
+use crate::connect::{
+    self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
+    ConnectionChangeMessage, Disconnect, ListSockets,
 };
+use crate::hdman::HdMan;
 
 #[cfg(unix)]
 use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
@@ -169,10 +171,6 @@ impl Module for ServerModule {
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
         app
     }
-}
-
-fn p2p_server(_r: &HttpRequest) -> &'static str {
-    "ok"
 }
 
 #[derive(Default)]

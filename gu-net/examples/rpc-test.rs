@@ -6,14 +6,13 @@ extern crate actix_web;
 extern crate env_logger;
 extern crate futures;
 extern crate rand;
+#[macro_use]
+extern crate serde;
 extern crate serde_json;
 extern crate smallvec;
 
 #[macro_use]
 extern crate log;
-
-#[macro_use]
-extern crate serde_derive;
 
 use actix::prelude::*;
 use gu_net::rpc::*;

@@ -1,16 +1,15 @@
 //!
 
 use actix::prelude::*;
-use actix_web::http::Method;
-use actix_web::http::StatusCode;
 use actix_web::{
-    self, http, AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder,
-    Scope,
+    self,
+    http::{Method, StatusCode},
+    AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder, Scope,
 };
 use futures::prelude::*;
 use log::error;
 use prettytable::{cell, row};
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 use gu_actix::prelude::*;
@@ -83,7 +82,7 @@ impl Module for PeerModule {
 
 pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
-        .route("", http::Method::GET, list_peers)
+        .route("", Method::GET, list_peers)
         .resource("/{nodeId}", |r| r.get().with(fetch_peer))
         .resource("/{nodeId}/deployments", |r| {
             r.get().with(fetch_deployments);
@@ -136,10 +135,10 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     })
             })
         })
-        .route("/send-to", http::Method::POST, peer_send)
+        .route("/send-to", Method::POST, peer_send)
         .route(
             "/send-to/{nodeId}/{destinationId}",
-            http::Method::POST,
+            Method::POST,
             peer_send_path,
         )
 }

@@ -1,17 +1,16 @@
 use actix::SystemService;
-use actix_web::Path;
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
     http::{Method, StatusCode},
-    App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json,
+    App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json, Path,
     Responder, Result as ActixResult, Scope,
 };
-use futures::future::Future;
-use futures::stream::Stream;
-use serde_derive::*;
+use futures::{future::Future, stream::Stream};
+use serde::Deserialize;
 
 use gu_actix::prelude::*;
 use gu_base::Module;
+use gu_model::deployment::DeploymentInfo;
 use gu_model::session::HubSessionSpec;
 use gu_net::NodeId;
 
@@ -102,6 +101,24 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .resource("/{sessionId}/peers/{nodeId}/deployments", |r| {
             r.name("hub-session-peers-deployments");
             r.post().with_async(create_deployment);
+
+            let session_maanger = SessionsManager::from_registry();
+            r.get().with_async(move |p: Path<SessionPeerPath>| {
+                let node_id = p.node_id;
+                session_maanger
+                    .send(manager::Update::new(p.session_id, move |session| {
+                        session.list_deployments(node_id)
+                    }))
+                    .flatten_fut()
+                    .and_then(|deployments| {
+                        Ok(HttpResponse::Ok().json(
+                            deployments
+                                .into_iter()
+                                .map(|s| s.into())
+                                .collect::<Vec<DeploymentInfo>>(),
+                        ))
+                    })
+            })
         })
         .resource(
             "/{sessionId}/peers/{nodeId}/deployments/{deploymentId}",
