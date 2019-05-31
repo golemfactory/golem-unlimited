@@ -7,7 +7,7 @@ authors=["golemfactory"]
 edition = "2018"
 
 [features]
-default=['env-docker', 'win-service']
+default=['env-docker']
 win-service=['windows-service']
 clinfo=["gu-hardware/clinfo"]
 env-docker=['async_docker']
