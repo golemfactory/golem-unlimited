@@ -148,6 +148,3 @@ fn windows_inner() {
         log::error!("{:?}", e);
     });
 }
-
-
-
