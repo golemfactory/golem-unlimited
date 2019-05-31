@@ -192,19 +192,26 @@ fn set_config_path(config_path: PathBuf) {
             path
         }
     };
-    if let Ok(data) = std::fs::read_to_string(dir_paths.clone()) {
+    if let Ok(data) = std::fs::read_to_string(&dir_paths) {
         let config_paths: ConfigPaths =
             serde_json::from_str(&data).expect(&format!("Cannot deserialize {:?}", dir_paths));
         unlocked_paths.work_dir = join_if_relative(config_paths.work_dir, &config_path);
         unlocked_paths.cache_dir = join_if_relative(config_paths.cache_dir, &config_path);
         unlocked_paths.runtime_dir = join_if_relative(config_paths.runtime_dir, &config_path);
     } else {
-        info!(
-            "Could not find {:?}. Using paths: {} and config path: {:?}.",
-            dir_paths,
-            serde_json::to_string(&*unlocked_paths).unwrap(),
-            config_path.clone()
+        let default_content = serde_json::to_string_pretty(&*unlocked_paths).unwrap();
+        error!(
+            "Could not find {:?}; creating this file using defaults: {}.",
+            &dir_paths, &default_content,
         );
+        use std::{
+            fs::{create_dir_all, File},
+            io::Write,
+        };
+        if !config_path.exists() {
+            let _ = create_dir_all(&config_path).map_err(|e| error!("{}", e));
+        }
+        let _ = File::create(dir_paths).and_then(|mut f| f.write_all(default_content.as_bytes()));
     }
     unlocked_paths.config_dir = config_path;
 }
@@ -260,7 +267,7 @@ impl Module for ConfigModule {
                 .short("c")
                 .takes_value(true)
                 .value_name("PATH")
-                .help("config dir path"),
+                .help("Set config dir path."),
         )
         .arg(
             Arg::with_name("user")
