@@ -11,7 +11,7 @@
 <Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
     <Product
         Id='*'
-        Name='gu_provider'
+        Name='Golem Unlimited Provider'
         UpgradeCode='705B21C0-7C31-4893-BBC5-4BD89CB80109'
         Manufacturer='golemfactory'
         Language='1033'
@@ -37,12 +37,12 @@
 
         <Directory Id='TARGETDIR' Name='SourceDir'>
             <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
-                <Directory Id='APPLICATIONFOLDER' Name='gu_provider'>
+                <Directory Id='APPLICATIONFOLDER' Name='GolemUnlimited'>
                     <Component Id='License' Guid='*' Win64='$(var.Win64)'>
                         <File Id='LicenseFile'
                             Name='License'
                             DiskId='1'
-                            Source='LICENSE.rtf'
+                            Source='wix\LICENSE.rtf'
                             KeyPath='yes'/>
                     </Component>
 
@@ -92,7 +92,7 @@
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
         </UI>
-        <WixVariable Id='WixUILicenseRtf' Value='LICENSE.rtf'/>
+        <WixVariable Id='WixUILicenseRtf' Value='wix\LICENSE.rtf'/>
     </Product>
 
 </Wix>
