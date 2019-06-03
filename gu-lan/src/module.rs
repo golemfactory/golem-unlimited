@@ -158,7 +158,7 @@ fn list_hubs<S>(_r: HttpRequest<S>) -> impl Responder {
                         serv_type: instance.service(),
                         host_name: instance.host.clone(),
                         addr: format_addresses(&instance.addrs_v4, &instance.ports),
-                        desc: instance.txt.join(""),
+                        desc: instance.txt.join("\n"),
                     })
                     .collect::<Vec<Reply>>(),
             ))

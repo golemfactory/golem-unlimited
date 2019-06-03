@@ -143,7 +143,10 @@ where
         crypto: secret.to_crypto(&password.into(), KEY_ITERATIONS)?,
         address: Some(Bytes(secret.public().address().to_vec())),
     };
-    let parent_dir = file_path.as_ref().parent().unwrap();
+    let parent_dir = file_path.as_ref().parent().ok_or(std::io::Error::new(
+        std::io::ErrorKind::Other,
+        "Cannot find parent dir",
+    ))?;
     if !parent_dir.exists() {
         info!("Creating dir {:?} for key file.", parent_dir);
         std::fs::create_dir_all(parent_dir)?

@@ -457,7 +457,7 @@ fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     .map_err(|_| actix_web::error::ErrorInternalServerError("bad format"))
                     .and_then(|node_or_auto| {
                         get_node_status_future(node_or_auto)
-                            .map_err(|_| actix_web::error::ErrorNotFound(""))
+                            .map_err(|_| actix_web::error::ErrorNotFound("node not found"))
                             .and_then(|selected| {
                                 future::ok::<_, actix_web::Error>(
                                     HttpResponse::Ok().body(format!("{}", selected)),
@@ -478,7 +478,9 @@ fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
                                 hub.address,
                                 hub.host_name.clone(),
                             )
-                            .map_err(|_| actix_web::error::ErrorInternalServerError(""))
+                            .map_err(|_| {
+                                actix_web::error::ErrorInternalServerError("cannot delete node")
+                            })
                             .and_then(|_| Ok(HttpResponse::Ok().finish()))
                         })
                 }

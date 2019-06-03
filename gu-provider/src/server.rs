@@ -250,7 +250,11 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                             }
                         })
                         .map_err(|e| {
-                            error!("Cannot bind to: {:?}. Please run with --user to create and use a unix domain socket in the user home directory", uds_path);
+                            error!(
+                                "Cannot bind to: {:?}. Please run with --user to create and \
+                                 use a unix domain socket in the user home directory",
+                                uds_path
+                            );
                             e
                         })
                         .unwrap();
