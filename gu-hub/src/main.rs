@@ -44,7 +44,6 @@ mod plugins;
 mod proxy_service;
 mod server;
 mod sessions;
-mod tags;
 
 fn main() {
     GuApp(|| {
