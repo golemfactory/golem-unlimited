@@ -440,7 +440,7 @@ fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
                 (if q.contains_key("saved") {
                     Ok(())
                 } else {
-                    Err(actix_web::error::ErrorBadRequest("Add ?saved to url"))
+                    Err(actix_web::error::ErrorBadRequest("Add \"?saved\" to url"))
                 })
                 .into_future()
                 .and_then(|_| {
