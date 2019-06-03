@@ -226,43 +226,45 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
                 .and_then(move |config: ProviderConfig, act: &mut Self, _ctx| {
-                    use tokio_uds;
-                    let dir_path = uds_path.parent().unwrap();
-                    if !dir_path.exists() {
-                        info!("Creating {:?}.", dir_path);
-                        let _ = std::fs::create_dir_all(dir_path)
-                            .and_then(|_| Ok(info!("Created {:?}.", dir_path)))
-                            .or_else(|_| Err(warn!("Cannot create {:?}.", dir_path)));
-                    }
-                    let listener = tokio_uds::UnixListener::bind(&uds_path)
-                        .or_else(|e| {
-                            info!("Cannot bind to socket ({:?}), error: {}.", uds_path, e);
-                            if (std::path::Path::new(&uds_path)).exists() {
-                                info!("Removing {:?}.", uds_path);
-                                let _ = std::fs::remove_file(&uds_path).or_else(|e| {
-                                    warn!("{}", e);
-                                    Err(e)
-                                });
-                                info!("Binding again to {:?}.", uds_path);
-                                tokio_uds::UnixListener::bind(&uds_path)
-                            } else {
-                                Err(e)
-                            }
-                        })
-                        .map_err(|e| {
-                            error!(
-                                "Cannot bind to: {:?}. Please run with --user to create and \
-                                 use a unix domain socket in the user home directory",
-                                uds_path
-                            );
-                            e
-                        })
-                        .unwrap();
-
                     let keys = EthAccount::load_or_generate(keystore_path, "").unwrap();
 
-                    //let _ = server.bind(config.p2p_addr()).unwrap().start();
-                    let _ = server.start_incoming(listener.incoming(), false);
+                    if cfg!(unix) {
+                        use tokio_uds;
+                        let dir_path = uds_path.parent().unwrap();
+                        if !dir_path.exists() {
+                            info!("Creating {:?}.", dir_path);
+                            let _ = std::fs::create_dir_all(dir_path)
+                                .and_then(|_| Ok(info!("Created {:?}.", dir_path)))
+                                .or_else(|_| Err(warn!("Cannot create {:?}.", dir_path)));
+                        }
+                        let listener = tokio_uds::UnixListener::bind(&uds_path)
+                            .or_else(|e| {
+                                info!("Cannot bind to socket ({:?}), error: {}.", uds_path, e);
+                                if (std::path::Path::new(&uds_path)).exists() {
+                                    info!("Removing {:?}.", uds_path);
+                                    let _ = std::fs::remove_file(&uds_path).or_else(|e| {
+                                        warn!("{}", e);
+                                        Err(e)
+                                    });
+                                    info!("Binding again to {:?}.", uds_path);
+                                    tokio_uds::UnixListener::bind(&uds_path)
+                                } else {
+                                    Err(e)
+                                }
+                            })
+                            .map_err(|e| {
+                                error!(
+                                    "Cannot bind to: {:?}. Please run with --user to create and \
+                                     use a unix domain socket in the user home directory",
+                                    uds_path
+                                );
+                                e
+                            })
+                            .unwrap();
+                        let _ = server.start_incoming(listener.incoming(), false);
+                    } else {
+                        let _ = server.bind(config.p2p_addr()).unwrap().start();
+                    }
 
                     act.node_id = Some(get_node_id(keys));
                     act.p2p_port = Some(config.p2p_port);
