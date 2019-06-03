@@ -59,8 +59,8 @@ impl Workspace {
         &self.name
     }
 
-    pub fn tags(&self) -> Vec<String> {
-        Vec::from_iter(self.tags.iter().cloned())
+    pub fn tags(&self) -> Set<String> {
+        Set::from_iter(self.tags.iter().cloned())
     }
 
     pub fn add_tags<T: IntoIterator<Item = String>>(&mut self, tags: T) {
@@ -158,9 +158,9 @@ mod tests {
 
         work.add_tags(tags.clone());
         work.add_tags(["tag1".to_string()].to_vec());
-        assert_eq!(work.tags(), tags);
+        assert_eq!(work.tags(), tags.into_iter().collect());
 
         work.remove_tags(["tag1".to_string()].to_vec());
-        assert_eq!(work.tags(), ["tag2".to_string()].to_vec());
+        assert_eq!(work.tags(), ["tag2".to_string()].iter().cloned().collect());
     }
 }

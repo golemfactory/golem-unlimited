@@ -1,7 +1,9 @@
 use super::super::NodeId;
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, BTreeSet, HashSet};
+
+pub type Tags = BTreeSet<String>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -10,7 +12,7 @@ pub struct PeerInfo {
     pub peer_addr: Option<String>,
     pub node_id: NodeId,
     pub sessions: Vec<PeerSessionInfo>,
-    pub tags: Vec<String>,
+    pub tags: Tags,
 }
 
 pub enum State {
@@ -45,7 +47,7 @@ pub struct PeerSessionInfo {
     pub id: String,
     pub name: String,
     pub status: PeerSessionStatus,
-    pub tags: Vec<String>,
+    pub tags: Tags,
     pub note: Option<String>,
     pub processes: HashSet<String>,
 }
@@ -129,4 +131,17 @@ impl Handler<GetPeer> for PeerManager {
     ) -> <Self as Handler<GetPeer>>::Result {
         MessageResult(self.peers.get(&msg.0).cloned())
     }
+}
+
+// Tag management
+#[derive(Message)]
+pub struct AddTags {
+    node: NodeId,
+    tags: Tags,
+}
+
+#[derive(Message)]
+pub struct DeleteTags {
+    node: NodeId,
+    tags: Tags,
 }

@@ -100,7 +100,7 @@ impl<S> Worker<S> {
             peer_addr: self.peer_addr.map(|addr| format!("{}", addr)),
             node_id: self.peer_node_id.unwrap(),
             sessions: Vec::new(),
-            tags: Vec::new(),
+            tags: Default::default(),
         }))
     }
 }

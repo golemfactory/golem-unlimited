@@ -98,10 +98,6 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
             r.get().with_async(list_peers);
             r.post().with_async(add_peers);
         })
-        .resource("/{sessionId}/peers/addTags", |r| {
-            r.name("hub-session-peers-addtags");
-            r.patch().with_async(add_tags);
-        })
         .resource("/{sessionId}/peers/{nodeId}/deployments", |r| {
             r.name("hub-session-peers-deployments");
             r.post().with_async(create_deployment);
@@ -290,11 +286,6 @@ fn list_blobs(
         .from_err()
         .and_then(|list| Ok(HttpResponse::Ok().json(list)))
 }
-
-fn add_tags(path: Path<SessionPath>) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
-    TagManager::from_registry()
-}
-
 
 fn list_peers(
     path: Path<SessionPath>,

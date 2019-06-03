@@ -135,6 +135,8 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                     })
             })
         })
+        .resource("/{nodeId}/addTags", |r| r.get().with_async(add_tags))
+        .resource("/{nodeId}/deleteTags", |r| r.get().with_async(delete_tags))
         .route("/send-to", Method::POST, peer_send)
         .route(
             "/send-to/{nodeId}/{destinationId}",
@@ -182,6 +184,14 @@ fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
             })),
         })
         .responder()
+}
+
+fn add_tags(path: Path<PeerPath>) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    futures::future::ok(HttpResponse::Ok().body("OK")).responder()
+}
+
+fn delete_tags(path: Path<PeerPath>) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    futures::future::ok(HttpResponse::Ok().body("OK")).responder()
 }
 
 fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
