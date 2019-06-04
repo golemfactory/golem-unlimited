@@ -1,9 +1,10 @@
 use actix::{
     Actor, ActorResponse, ArbiterService, Context, Handler, Message, Supervised, WrapFuture,
 };
+use actix_web::client::Connection;
 use actix_web::{self, client::ClientRequest, http, Body};
 use bytes::Bytes;
-use config::{self, ConfigManager, HasSectionId};
+use config::{self, ConfigManager, ConfigModule, HasSectionId};
 use futures::{future, Future};
 use gu_actix::flatten::FlattenFuture;
 use serde::{
@@ -26,8 +27,15 @@ mod error {
             SerdeJson(e: serde_json::Error) {}
             SendRequestError(e: actix_web::client::SendRequestError) {}
             ConfigError {}
+            IOError(e: std::io::Error) {}
         }
 
+    }
+
+    impl From<std::io::Error> for Error {
+        fn from(e: std::io::Error) -> Self {
+            ErrorKind::IOError(e).into()
+        }
     }
 
     impl From<JsonPayloadError> for Error {
@@ -168,7 +176,11 @@ impl<C: 'static> Supervised for ServerClient<C> {}
 impl<C: 'static + Default> ArbiterService for ServerClient<C> {}
 
 pub trait IntoRequest {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error>;
+    fn into_request(
+        self,
+        url: &str,
+        connection: Option<Connection>,
+    ) -> Result<ClientRequest, actix_web::Error>;
 
     fn path(&self) -> &str;
 }
@@ -182,10 +194,17 @@ impl<T> ResourceGet<T> {
 }
 
 impl<T> IntoRequest for ResourceGet<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
-        ClientRequest::get(url)
-            .header("Accept", "application/json")
-            .finish()
+    fn into_request(
+        self,
+        url: &str,
+        connection: Option<Connection>,
+    ) -> Result<ClientRequest, actix_web::Error> {
+        let mut builder = ClientRequest::build();
+        if connection.is_some() {
+            builder.with_connection(connection.unwrap());
+        }
+        builder.method(http::Method::GET).uri(url);
+        builder.header("Accept", "application/json").finish()
     }
 
     fn path(&self) -> &str {
@@ -202,10 +221,17 @@ impl<T> ResourceDelete<T> {
 }
 
 impl<T> IntoRequest for ResourceDelete<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
-        ClientRequest::delete(url)
-            .header("Accept", "application/json")
-            .finish()
+    fn into_request(
+        self,
+        url: &str,
+        connection: Option<Connection>,
+    ) -> Result<ClientRequest, actix_web::Error> {
+        let mut builder = ClientRequest::build();
+        if connection.is_some() {
+            builder.with_connection(connection.unwrap());
+        }
+        builder.method(http::Method::DELETE).uri(url);
+        builder.header("Accept", "application/json").finish()
     }
 
     fn path(&self) -> &str {
@@ -222,8 +248,15 @@ impl<T> ResourcePatch<T> {
 }
 
 impl<T> IntoRequest for ResourcePatch<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
+    fn into_request(
+        self,
+        url: &str,
+        connection: Option<Connection>,
+    ) -> Result<ClientRequest, actix_web::Error> {
         let mut builder = ClientRequest::build();
+        if connection.is_some() {
+            builder.with_connection(connection.unwrap());
+        }
         builder.method(http::Method::PATCH).uri(url);
         builder.header("Accept", "application/json").finish()
     }
@@ -242,8 +275,17 @@ impl<T> ResourcePost<T> {
 }
 
 impl<T> IntoRequest for ResourcePost<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
-        ClientRequest::post(url)
+    fn into_request(
+        self,
+        url: &str,
+        connection: Option<Connection>,
+    ) -> Result<ClientRequest, actix_web::Error> {
+        let mut builder = ClientRequest::build();
+        if connection.is_some() {
+            builder.with_connection(connection.unwrap());
+        }
+        builder.method(http::Method::POST).uri(url);
+        builder
             .header("Accept", "application/json")
             .body::<Body>(Body::from(self.1))
     }
@@ -262,8 +304,17 @@ impl<T> ResourcePut<T> {
 }
 
 impl<T> IntoRequest for ResourcePut<T> {
-    fn into_request(self, url: &str) -> Result<ClientRequest, actix_web::Error> {
-        ClientRequest::put(url).body::<Body>(Body::from(self.1))
+    fn into_request(
+        self,
+        url: &str,
+        connection: Option<Connection>,
+    ) -> Result<ClientRequest, actix_web::Error> {
+        let mut builder = ClientRequest::build();
+        if connection.is_some() {
+            builder.with_connection(connection.unwrap());
+        }
+        builder.method(http::Method::PUT).uri(url);
+        builder.body::<Body>(Body::from(self.1))
     }
 
     fn path(&self) -> &str {
@@ -303,28 +354,66 @@ where
         use actix_web::HttpMessage;
         use futures::future;
 
-        ActorResponse::r#async(
-            ConfigManager::from_registry()
-                .send(config::GetConfig::new())
-                .flatten_fut()
-                .map_err(|_e| error::ErrorKind::ConfigError.into())
-                .and_then(move |config: Arc<C>| {
-                    let url = format!("http://127.0.0.1:{}{}", config.port(), msg.path());
-                    let client = match msg.into_request(&url) {
-                        Ok(cli) => cli,
-                        Err(err) => return future::Either::B(future::err(err.into())),
-                    };
-                    future::Either::A(
-                        client
-                            .send()
-                            .map_err(|e| error::ErrorKind::SendRequestError(e).into())
-                            .and_then(|r| {
-                                r.json::<T>()
-                                    .map_err(move |e| error::ErrorKind::Json(e).into())
-                            }),
-                    )
-                })
-                .into_actor(self),
-        )
+        let path = msg.path().to_string();
+
+        if cfg!(unix) {
+            ActorResponse::r#async(
+                ConfigManager::from_registry()
+                    .send(config::GetConfig::new())
+                    .flatten_fut()
+                    .map_err(|_e| error::ErrorKind::ConfigError.into())
+                    .and_then(move |config: Arc<C>| {
+                        let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
+                        use tokio_uds::UnixStream;
+                        let uds_path = ConfigModule::new().runtime_dir().join("gu-provider.socket");
+                        info!("Connecting to unix domain socket at {:?}", &uds_path);
+                        UnixStream::connect(uds_path)
+                            .map_err(|e| error::ErrorKind::IOError(e).into())
+                            .join(future::ok(url))
+                    })
+                    //.map_err(|e| error::ErrorKind::ActixError(e).into()),
+                    .and_then(move |(stream, url)| {
+                        let connection = actix_web::client::Connection::from_stream(stream);
+                        let client = match msg.into_request(&url, Some(connection)) {
+                            Ok(cli) => cli,
+                            Err(err) => return future::Either::B(future::err(err.into())),
+                        };
+                        future::Either::A(
+                            client
+                                .send()
+                                .map_err(|e| error::ErrorKind::SendRequestError(e).into())
+                                .and_then(|r| {
+                                    r.json::<T>()
+                                        .map_err(move |e| error::ErrorKind::Json(e).into())
+                                }),
+                        )
+                    })
+                    .into_actor(self),
+            )
+        } else {
+            ActorResponse::r#async(
+                ConfigManager::from_registry()
+                    .send(config::GetConfig::new())
+                    .flatten_fut()
+                    .map_err(|_e| error::ErrorKind::ConfigError.into())
+                    .and_then(move |config: Arc<C>| {
+                        let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
+                        let client = match msg.into_request(&url, None) {
+                            Ok(cli) => cli,
+                            Err(err) => return future::Either::B(future::err(err.into())),
+                        };
+                        future::Either::A(
+                            client
+                                .send()
+                                .map_err(|e| error::ErrorKind::SendRequestError(e).into())
+                                .and_then(|r| {
+                                    r.json::<T>()
+                                        .map_err(move |e| error::ErrorKind::Json(e).into())
+                                }),
+                        )
+                    })
+                    .into_actor(self),
+            )
+        }
     }
 }
