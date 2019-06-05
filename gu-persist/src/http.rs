@@ -1,8 +1,9 @@
 use actix::{
-    Actor, ActorResponse, ArbiterService, Context, Handler, Message, Supervised, WrapFuture,
+    Actor, ActorResponse, ArbiterService, Context, Handler, Message, Supervised, SystemService,
+    WrapFuture,
 };
 use actix_web::client::Connection;
-use actix_web::{self, client::ClientRequest, http, Body};
+use actix_web::{self, client::ClientRequest, http, Body, HttpMessage};
 use bytes::Bytes;
 use config::{self, ConfigManager, ConfigModule, HasSectionId};
 use futures::{future, Future};
@@ -352,11 +353,7 @@ where
     /* Using Unix domain sockets on macOS and Linux, TCP sockets on Windows. */
     #[cfg(unix)]
     fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
-        use actix::SystemService;
-        use actix_web::HttpMessage;
-        use futures::future;
         let path = msg.path().to_string();
-
         ActorResponse::r#async(
             ConfigManager::from_registry()
                 .send(config::GetConfig::new())
@@ -393,9 +390,6 @@ where
 
     #[cfg(not(unix))]
     fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
-        use actix::SystemService;
-        use actix_web::HttpMessage;
-        use futures::future;
         let path = msg.path().to_string();
         ActorResponse::r#async(
             ConfigManager::from_registry()
