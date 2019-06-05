@@ -356,6 +356,7 @@ where
 
         let path = msg.path().to_string();
 
+        /* Using Unix domain sockets on macOS and Linux, TCP sockets on Windows. */
         if cfg!(unix) {
             ActorResponse::r#async(
                 ConfigManager::from_registry()
@@ -371,7 +372,6 @@ where
                             .map_err(|e| error::ErrorKind::IOError(e).into())
                             .join(future::ok(url))
                     })
-                    //.map_err(|e| error::ErrorKind::ActixError(e).into()),
                     .and_then(move |(stream, url)| {
                         let connection = actix_web::client::Connection::from_stream(stream);
                         let client = match msg.into_request(&url, Some(connection)) {
