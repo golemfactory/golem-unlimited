@@ -349,71 +349,76 @@ where
 {
     type Result = ActorResponse<ServerClient<C>, T, ClientError>;
 
+    /* Using Unix domain sockets on macOS and Linux, TCP sockets on Windows. */
+    #[cfg(unix)]
     fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
         use actix::SystemService;
         use actix_web::HttpMessage;
         use futures::future;
-
         let path = msg.path().to_string();
 
-        /* Using Unix domain sockets on macOS and Linux, TCP sockets on Windows. */
-        if cfg!(unix) {
-            ActorResponse::r#async(
-                ConfigManager::from_registry()
-                    .send(config::GetConfig::new())
-                    .flatten_fut()
-                    .map_err(|_e| error::ErrorKind::ConfigError.into())
-                    .and_then(move |config: Arc<C>| {
-                        let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
-                        use tokio_uds::UnixStream;
-                        let uds_path = ConfigModule::new().runtime_dir().join("gu-provider.socket");
-                        info!("Connecting to unix domain socket at {:?}", &uds_path);
-                        UnixStream::connect(uds_path)
-                            .map_err(|e| error::ErrorKind::IOError(e).into())
-                            .join(future::ok(url))
-                    })
-                    .and_then(move |(stream, url)| {
-                        let connection = actix_web::client::Connection::from_stream(stream);
-                        let client = match msg.into_request(&url, Some(connection)) {
-                            Ok(cli) => cli,
-                            Err(err) => return future::Either::B(future::err(err.into())),
-                        };
-                        future::Either::A(
-                            client
-                                .send()
-                                .map_err(|e| error::ErrorKind::SendRequestError(e).into())
-                                .and_then(|r| {
-                                    r.json::<T>()
-                                        .map_err(move |e| error::ErrorKind::Json(e).into())
-                                }),
-                        )
-                    })
-                    .into_actor(self),
-            )
-        } else {
-            ActorResponse::r#async(
-                ConfigManager::from_registry()
-                    .send(config::GetConfig::new())
-                    .flatten_fut()
-                    .map_err(|_e| error::ErrorKind::ConfigError.into())
-                    .and_then(move |config: Arc<C>| {
-                        let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
-                        let client = match msg.into_request(&url, None) {
-                            Ok(cli) => cli,
-                            Err(err) => return future::Either::B(future::err(err.into())),
-                        };
-                        future::Either::A(
-                            client
-                                .send()
-                                .map_err(|e| error::ErrorKind::SendRequestError(e).into())
-                                .and_then(|r| {
-                                    r.json::<T>()
-                                        .map_err(move |e| error::ErrorKind::Json(e).into())
-                                }),
-                        )
-                    })
-                    .into_actor(self),
-            )
-        }
+        ActorResponse::r#async(
+            ConfigManager::from_registry()
+                .send(config::GetConfig::new())
+                .flatten_fut()
+                .map_err(|_e| error::ErrorKind::ConfigError.into())
+                .and_then(move |config: Arc<C>| {
+                    let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
+                    use tokio_uds::UnixStream;
+                    let uds_path = ConfigModule::new().runtime_dir().join("gu-provider.socket");
+                    info!("Connecting to unix domain socket at {:?}", &uds_path);
+                    UnixStream::connect(uds_path)
+                        .map_err(|e| error::ErrorKind::IOError(e).into())
+                        .join(future::ok(url))
+                })
+                .and_then(move |(stream, url)| {
+                    let connection = actix_web::client::Connection::from_stream(stream);
+                    let client = match msg.into_request(&url, Some(connection)) {
+                        Ok(cli) => cli,
+                        Err(err) => return future::Either::B(future::err(err.into())),
+                    };
+                    future::Either::A(
+                        client
+                            .send()
+                            .map_err(|e| error::ErrorKind::SendRequestError(e).into())
+                            .and_then(|r| {
+                                r.json::<T>()
+                                    .map_err(move |e| error::ErrorKind::Json(e).into())
+                            }),
+                    )
+                })
+                .into_actor(self),
+        )
+    }
+
+    #[cfg(not(unix))]
+    fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
+        use actix::SystemService;
+        use actix_web::HttpMessage;
+        use futures::future;
+        let path = msg.path().to_string();
+        ActorResponse::r#async(
+            ConfigManager::from_registry()
+                .send(config::GetConfig::new())
+                .flatten_fut()
+                .map_err(|_e| error::ErrorKind::ConfigError.into())
+                .and_then(move |config: Arc<C>| {
+                    let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
+                    let client = match msg.into_request(&url, None) {
+                        Ok(cli) => cli,
+                        Err(err) => return future::Either::B(future::err(err.into())),
+                    };
+                    future::Either::A(
+                        client
+                            .send()
+                            .map_err(|e| error::ErrorKind::SendRequestError(e).into())
+                            .and_then(|r| {
+                                r.json::<T>()
+                                    .map_err(move |e| error::ErrorKind::Json(e).into())
+                            }),
+                    )
+                })
+                .into_actor(self),
+        )
     }
 }
