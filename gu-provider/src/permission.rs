@@ -89,10 +89,15 @@ enum PermissionModule {
     ListSavedHubs,
 }
 
-fn list_saved_hubs_future() -> impl Future<Item = String, Error = ()> {
+fn config_future(
+) -> impl Future<Item = std::sync::Arc<PermissionConfig>, Error = gu_persist::error::Error> {
     ConfigManager::from_registry()
         .send(GetConfig::new())
         .flatten_fut()
+}
+
+fn list_saved_hubs_future() -> impl Future<Item = String, Error = ()> {
+    config_future()
         .and_then(move |c: Arc<PermissionConfig>| {
             let mut output: Vec<HubDesc> =
                 c.saved_hub_desc.values().cloned().collect::<Vec<HubDesc>>();
@@ -102,10 +107,33 @@ fn list_saved_hubs_future() -> impl Future<Item = String, Error = ()> {
         .map_err(|e| error!("{}", e))
 }
 
+fn get_allowed_nodes_and_auto_future() -> impl Future<Item = String, Error = ()> {
+    #[derive(Serialize)]
+    struct Reply {
+        auto: bool,
+        allow: Vec<NodeId>,
+    }
+    config_future()
+        .and_then(move |c: Arc<PermissionConfig>| {
+            let nodes: Vec<NodeId> = c
+                .permissions
+                .iter()
+                .filter_map(|e| match e {
+                    Permission::ManagedBy(n) => Some(*n),
+                    _ => None,
+                })
+                .collect();
+            Ok(serde_json::to_string_pretty(&Reply {
+                auto: c.allow_any,
+                allow: nodes,
+            })
+            .unwrap())
+        })
+        .map_err(|e| error!("{}", e))
+}
+
 fn get_node_status_future(node_or_auto: NodeOrAuto) -> impl Future<Item = bool, Error = ()> {
-    ConfigManager::from_registry()
-        .send(GetConfig::new())
-        .flatten_fut()
+    config_future()
         .and_then(move |c: Arc<PermissionConfig>| {
             Ok(match node_or_auto {
                 NodeOrAuto::Node(node_id) => c.is_managed_by(&node_id),
@@ -438,16 +466,12 @@ fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .resource("", |r| {
             r.get().with_async(|q: Query<HashMap<String, String>>| {
                 (if q.contains_key("saved") {
-                    Ok(())
+                    futures::future::Either::A(list_saved_hubs_future())
                 } else {
-                    Err(actix_web::error::ErrorBadRequest("Add \"?saved\" to url"))
+                    futures::future::Either::B(get_allowed_nodes_and_auto_future())
                 })
-                .into_future()
-                .and_then(|_| {
-                    list_saved_hubs_future()
-                        .map_err(|_| actix_web::error::ErrorInternalServerError("Hub listing"))
-                        .and_then(|r| future::ok(HttpResponse::Ok().body(format!("{}", r))))
-                })
+                .map_err(|_| actix_web::error::ErrorInternalServerError("Hub listing"))
+                .and_then(|r| future::ok(HttpResponse::Ok().body(format!("{}", r))))
             });
         })
         .resource("{node_id}", |r| {
@@ -514,9 +538,7 @@ fn run_configure() {
     }
 
     System::run(|| {
-        let get_config = ConfigManager::from_registry()
-            .send(GetConfig::new())
-            .flatten_fut()
+        let get_config = config_future()
             .map_err(|e| error!("{}", e))
             .and_then(|c: Arc<PermissionConfig>| Ok(c));
 
