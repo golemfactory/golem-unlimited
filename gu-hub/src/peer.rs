@@ -186,12 +186,38 @@ fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
         .responder()
 }
 
-fn add_tags(path: Path<PeerPath>) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
-    futures::future::ok(HttpResponse::Ok().body("OK")).responder()
+fn add_tags(
+    path: Path<PeerPath>,
+    body: Json<peer::Tags>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    let payload = peer::AddTags {
+        node: path.node_id,
+        tags: body.into_inner(),
+    };
+    peer::PeerManager::from_registry()
+        .send(payload)
+        .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
+        .and_then(|res| match res {
+            None => Ok(HttpResponse::build(StatusCode::NOT_FOUND).body("Peer not found")),
+            Some(_) => Ok(HttpResponse::Ok().body("Tags added successfully")),
+        })
 }
 
-fn delete_tags(path: Path<PeerPath>) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
-    futures::future::ok(HttpResponse::Ok().body("OK")).responder()
+fn delete_tags(
+    path: Path<PeerPath>,
+    body: Json<peer::Tags>,
+) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
+    let payload = peer::DeleteTags {
+        node: path.node_id,
+        tags: body.into_inner(),
+    };
+    peer::PeerManager::from_registry()
+        .send(payload)
+        .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
+        .and_then(|res| match res {
+            None => Ok(HttpResponse::build(StatusCode::NOT_FOUND).body("Peer not found")),
+            Some(_) => Ok(HttpResponse::Ok().body("Tags deleted successfully")),
+        })
 }
 
 fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {

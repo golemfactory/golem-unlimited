@@ -1,8 +1,9 @@
 use super::super::NodeId;
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
+// TODO or HashSet?
 pub type Tags = BTreeSet<String>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -134,14 +135,48 @@ impl Handler<GetPeer> for PeerManager {
 }
 
 // Tag management
-#[derive(Message)]
 pub struct AddTags {
-    node: NodeId,
-    tags: Tags,
+    pub node: NodeId,
+    pub tags: Tags,
 }
 
-#[derive(Message)]
+impl Message for AddTags {
+    type Result = Option<()>;
+}
+
+impl Handler<AddTags> for PeerManager {
+    type Result = Option<()>;
+    fn handle(&mut self, msg: AddTags, ctx: &mut Self::Context) -> Self::Result {
+        let mut peer = self
+            .peers
+            .get_mut(&msg.node)?;
+        let mut tags = &mut peer.tags;
+        for tag in msg.tags {
+            tags.insert(tag);
+        }
+        Some(())
+    }
+}
+
 pub struct DeleteTags {
-    node: NodeId,
-    tags: Tags,
+    pub node: NodeId,
+    pub tags: Tags,
+}
+
+impl Message for DeleteTags {
+    type Result = Option<()>;
+}
+
+impl Handler<DeleteTags> for PeerManager {
+    type Result = Option<()>;
+    fn handle(&mut self, msg: DeleteTags, ctx: &mut Self::Context) -> Self::Result {
+        let mut peer = self
+            .peers
+            .get_mut(&msg.node)?;
+        let mut tags = &mut peer.tags;
+        for tag in msg.tags {
+            tags.remove(&tag);
+        }
+        Some(())
+    }
 }
