@@ -20,6 +20,7 @@ extern crate lazy_static;
 
 extern crate byteorder;
 extern crate gu_actix;
+extern crate gu_persist;
 extern crate rand;
 
 use futures::{future, stream};

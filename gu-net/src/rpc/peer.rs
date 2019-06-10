@@ -1,7 +1,12 @@
-use super::super::NodeId;
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::path::PathBuf;
+        use std::fs;
+
+
+use super::super::NodeId;
+use gu_persist::config::ConfigModule;
 
 // TODO or HashSet?
 pub type Tags = BTreeSet<String>;
@@ -65,16 +70,32 @@ impl Message for UpdatePeer {
 
 pub struct PeerManager {
     peers: HashMap<NodeId, PeerInfo>,
+    path: PathBuf,
+    saved_tags: HashMap<NodeId, Tags>,
 }
 
 impl Actor for PeerManager {
     type Context = Context<Self>;
+
+    fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
+        self.path = ConfigModule::new().work_dir().join("tags");
+        let tags_serialized = fs::read_to_string(&self.path).unwrap(); // FIXME
+        let tags: HashMap<NodeId, Tags> =
+            serde_json::from_str(&tags_serialized).unwrap_or_default(); // FIXME
+        self.saved_tags = tags;
+    }
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        let tags_serialized = serde_json::to_string(&self.saved_tags).unwrap(); // FIXME
+        fs::write(&self.path, tags_serialized).unwrap(); // FIXME
+    }
 }
 
 impl Default for PeerManager {
     fn default() -> Self {
         PeerManager {
             peers: HashMap::new(),
+            path: PathBuf::new(),
         }
     }
 }
@@ -88,7 +109,10 @@ impl Handler<UpdatePeer> for PeerManager {
 
     fn handle(&mut self, msg: UpdatePeer, ctx: &mut Self::Context) {
         match msg {
-            UpdatePeer::Update(info) => {
+            UpdatePeer::Update(mut info) => {
+                if Some(tags) = self.saved_tags.get(info.node_id) {
+                    info.tags = tags;
+                }
                 let _ = self.peers.insert(info.node_id, info);
             }
             UpdatePeer::Delete(node_id) => {
@@ -147,9 +171,7 @@ impl Message for AddTags {
 impl Handler<AddTags> for PeerManager {
     type Result = Option<()>;
     fn handle(&mut self, msg: AddTags, ctx: &mut Self::Context) -> Self::Result {
-        let mut peer = self
-            .peers
-            .get_mut(&msg.node)?;
+        let mut peer = self.peers.get_mut(&msg.node)?;
         let mut tags = &mut peer.tags;
         for tag in msg.tags {
             tags.insert(tag);
@@ -170,9 +192,7 @@ impl Message for DeleteTags {
 impl Handler<DeleteTags> for PeerManager {
     type Result = Option<()>;
     fn handle(&mut self, msg: DeleteTags, ctx: &mut Self::Context) -> Self::Result {
-        let mut peer = self
-            .peers
-            .get_mut(&msg.node)?;
+        let mut peer = self.peers.get_mut(&msg.node)?;
         let mut tags = &mut peer.tags;
         for tag in msg.tags {
             tags.remove(&tag);

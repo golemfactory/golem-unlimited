@@ -4,6 +4,7 @@ version = "0.1.0"
 
 [dependencies]
 gu-actix = { path = "../gu-actix" }
+gu-persist = { path = "../gu-persist" }
 
 actix = "0.7"
 actix-web = { version = "0.7", default-features = false }
@@ -21,4 +22,3 @@ serde_json = "1.0"
 sha3 = "0.7"
 smallvec = "0.6"
 tokio-io = "0.1"
-
