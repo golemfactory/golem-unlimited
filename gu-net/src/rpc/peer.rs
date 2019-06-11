@@ -86,6 +86,9 @@ impl Actor for PeerManager {
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
+        // FIXME: this is wrong. we never consider the new tags
+        let tags_new = self.peers.values().map(|info| info.tags);
+        let tags = self.saved_tags.extend(tags_new);
         let tags_serialized = serde_json::to_string(&self.saved_tags).unwrap(); // FIXME
         fs::write(&self.path, tags_serialized).unwrap(); // FIXME
     }
@@ -96,6 +99,7 @@ impl Default for PeerManager {
         PeerManager {
             peers: HashMap::new(),
             path: PathBuf::new(),
+            saved_tags: Default::default()
         }
     }
 }
@@ -110,7 +114,7 @@ impl Handler<UpdatePeer> for PeerManager {
     fn handle(&mut self, msg: UpdatePeer, ctx: &mut Self::Context) {
         match msg {
             UpdatePeer::Update(mut info) => {
-                if Some(tags) = self.saved_tags.get(info.node_id) {
+                if let Some(tags) = self.saved_tags.get(&info.node_id) {
                     info.tags = tags;
                 }
                 let _ = self.peers.insert(info.node_id, info);
@@ -173,6 +177,7 @@ impl Handler<AddTags> for PeerManager {
     fn handle(&mut self, msg: AddTags, ctx: &mut Self::Context) -> Self::Result {
         let mut peer = self.peers.get_mut(&msg.node)?;
         let mut tags = &mut peer.tags;
+        // TODO can we use extend?
         for tag in msg.tags {
             tags.insert(tag);
         }
