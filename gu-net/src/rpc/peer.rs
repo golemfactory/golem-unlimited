@@ -1,9 +1,8 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::fs;
 use std::path::PathBuf;
-        use std::fs;
-
 
 use super::super::NodeId;
 use gu_persist::config::ConfigModule;
@@ -86,9 +85,12 @@ impl Actor for PeerManager {
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
-        // FIXME: this is wrong. we never consider the new tags
-        let tags_new = self.peers.values().map(|info| info.tags);
-        let tags = self.saved_tags.extend(tags_new);
+        let tags_new = self
+            .peers
+            .iter()
+            .map(|(node, info)| (*node, info.tags.clone())); // TODO can we avoid the clone?
+        self.saved_tags.extend(tags_new);
+
         let tags_serialized = serde_json::to_string(&self.saved_tags).unwrap(); // FIXME
         fs::write(&self.path, tags_serialized).unwrap(); // FIXME
     }
@@ -99,7 +101,7 @@ impl Default for PeerManager {
         PeerManager {
             peers: HashMap::new(),
             path: PathBuf::new(),
-            saved_tags: Default::default()
+            saved_tags: Default::default(),
         }
     }
 }
@@ -115,7 +117,7 @@ impl Handler<UpdatePeer> for PeerManager {
         match msg {
             UpdatePeer::Update(mut info) => {
                 if let Some(tags) = self.saved_tags.get(&info.node_id) {
-                    info.tags = tags;
+                    info.tags = tags.clone(); // TODO can we avoid the clone?
                 }
                 let _ = self.peers.insert(info.node_id, info);
             }
