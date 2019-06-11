@@ -88,7 +88,8 @@ impl Actor for PeerManager {
         let tags_new = self
             .peers
             .iter()
-            .map(|(node, info)| (*node, info.tags.clone())); // TODO can we avoid the clone?
+            .cloned()
+            .map(|(node, info)| (node, info.tags)); // TODO can we avoid the clone?
         self.saved_tags.extend(tags_new);
 
         let tags_serialized = serde_json::to_string(&self.saved_tags).unwrap(); // FIXME
