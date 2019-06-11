@@ -88,8 +88,7 @@ impl Actor for PeerManager {
         let tags_new = self
             .peers
             .iter()
-            .cloned()
-            .map(|(node, info)| (node, info.tags)); // TODO can we avoid the clone?
+            .map(|(node, info)| (*node, info.tags.clone())); // TODO can we avoid the clone?
         self.saved_tags.extend(tags_new);
 
         let tags_serialized = serde_json::to_string(&self.saved_tags).unwrap(); // FIXME
@@ -180,10 +179,7 @@ impl Handler<AddTags> for PeerManager {
     fn handle(&mut self, msg: AddTags, ctx: &mut Self::Context) -> Self::Result {
         let mut peer = self.peers.get_mut(&msg.node)?;
         let mut tags = &mut peer.tags;
-        // TODO can we use extend?
-        for tag in msg.tags {
-            tags.insert(tag);
-        }
+        tags.extend(msg.tags);
         Some(())
     }
 }
