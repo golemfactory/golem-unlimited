@@ -180,6 +180,7 @@ lazy_static! {
         config_dir: PathBuf::from("/var/lib/golemu/conf/"),
         runtime_dir: PathBuf::from("/var/run/golemu/"),
     });
+    static ref CONFIG_DIR_ENV_VAR_LOCK: RwLock<Option<PathBuf>> = RwLock::new(None);
 }
 
 fn set_config_path(config_path: PathBuf) {
@@ -262,6 +263,11 @@ impl ConfigModule {
 
 impl Module for ConfigModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
+        *CONFIG_DIR_ENV_VAR_LOCK.write().unwrap() = match app.get_name() {
+            "Golem Unlimited Provider" => std::env::var("GU_PROV_CONF_DIR").ok().map(PathBuf::from),
+            "Golem Unlimited Hub" => std::env::var("GU_HUB_CONF_DIR").ok().map(PathBuf::from),
+            _ => None,
+        };
         app.arg(
             Arg::with_name("config-dir")
                 .short("c")
@@ -281,6 +287,12 @@ impl Module for ConfigModule {
         if matches.is_present("user") {
             set_paths_local()
         }
+        /* override config dir path if env variable is defined */
+        match *CONFIG_DIR_ENV_VAR_LOCK.read().unwrap() {
+            Some(ref path) => set_config_path(path.clone()),
+            None => (),
+        }
+        /* override config dir path if -c argument was used */
         match matches.value_of("config-dir") {
             Some(path) => {
                 info!("Using config dir: {}", path);
