@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use super::super::NodeId;
 use gu_persist::config::ConfigModule;
 
-// TODO or HashSet?
 pub type Tags = BTreeSet<String>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -78,9 +77,10 @@ impl Actor for PeerManager {
 
     fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
         self.path = ConfigModule::new().work_dir().join("tags");
-        let tags_serialized = fs::read_to_string(&self.path).unwrap(); // FIXME
-        let tags: HashMap<NodeId, Tags> =
-            serde_json::from_str(&tags_serialized).unwrap_or_default(); // FIXME
+        let tags_serialized = fs::read_to_string(&self.path)
+            .unwrap_or_else(|e| panic!("Error reading saved tags: {}", e));
+        let tags: HashMap<NodeId, Tags> = serde_json::from_str(&tags_serialized)
+            .unwrap_or_else(|e| panic!("Deserialization of saved tags failed: {}", e));
         self.saved_tags = tags;
     }
 
@@ -91,8 +91,10 @@ impl Actor for PeerManager {
             .map(|(node, info)| (*node, info.tags.clone())); // TODO can we avoid the clone?
         self.saved_tags.extend(tags_new);
 
-        let tags_serialized = serde_json::to_string(&self.saved_tags).unwrap(); // FIXME
-        fs::write(&self.path, tags_serialized).unwrap(); // FIXME
+        let tags_serialized =
+            serde_json::to_string(&self.saved_tags).expect("Serialization of tags failed");
+        fs::write(&self.path, tags_serialized)
+            .unwrap_or_else(|e| error!("Error saving tags: {}", e));
     }
 }
 
