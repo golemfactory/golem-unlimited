@@ -2,11 +2,12 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+
 
 use super::super::NodeId;
 use gu_persist::config::ConfigModule;
-
+use std::io;
+use std::path::PathBuf;
 pub type Tags = BTreeSet<String>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -77,8 +78,15 @@ impl Actor for PeerManager {
 
     fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
         self.path = ConfigModule::new().work_dir().join("tags");
-        let tags_serialized = fs::read_to_string(&self.path)
-            .unwrap_or_else(|e| panic!("Error reading saved tags: {}", e));
+        // FIXME this one is awful
+        let tags_serialized = fs::read_to_string(&self.path).unwrap_or_else(|e| match e.kind() {
+            io::ErrorKind::NotFound => "{}".into(),
+            _ => panic!(
+                "Error reading saved tags from {}: {:?}",
+                self.path.to_string_lossy(),
+                e
+            ),
+        });
         let tags: HashMap<NodeId, Tags> = serde_json::from_str(&tags_serialized)
             .unwrap_or_else(|e| panic!("Deserialization of saved tags failed: {}", e));
         self.saved_tags = tags;
@@ -93,8 +101,13 @@ impl Actor for PeerManager {
 
         let tags_serialized =
             serde_json::to_string(&self.saved_tags).expect("Serialization of tags failed");
-        fs::write(&self.path, tags_serialized)
-            .unwrap_or_else(|e| error!("Error saving tags: {}", e));
+        fs::write(&self.path, tags_serialized).unwrap_or_else(|e| {
+            error!(
+                "Error saving tags to {}: {}",
+                self.path.to_string_lossy(),
+                e
+            )
+        });
     }
 }
 
@@ -204,5 +217,52 @@ impl Handler<DeleteTags> for PeerManager {
             tags.remove(&tag);
         }
         Some(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::prelude::*;
+    #[test]
+    fn test_tags() {
+        let node = NodeId::default();
+        let info = PeerInfo {
+            node_name: "".into(),
+            peer_addr: None,
+            node_id: node,
+            sessions: vec![],
+            tags: Tags::default(),
+        };
+
+        let mut system = System::new("test");
+        // TODO in this test the PeerManager is probably not stopped,
+        // no tags are serialized afterwards
+        let mgr = PeerManager::default().start();
+        let fut = mgr
+            .send(UpdatePeer::Update(info))
+            .and_then(|()| mgr.send(GetPeer(node)))
+            .and_then(|info| Ok(info.unwrap().tags))
+            .and_then(|tags| {
+                // FIXME this test will fail if there are some saved tags
+                // in ~/.local/share/golemunlimited/tags
+                // we probably need to mock the path
+                assert_eq!(tags, Tags::default());
+                Ok(())
+            })
+            .and_then(|()| {
+                let mut new_tags = Tags::default();
+                new_tags.insert("test".into());
+                mgr.send(AddTags {
+                    node: node,
+                    tags: new_tags,
+                })
+            })
+            .and_then(|ret| {
+                ret.unwrap();
+                System::current().stop();
+                Ok(())
+            });
+        system.block_on(fut).unwrap();
     }
 }
