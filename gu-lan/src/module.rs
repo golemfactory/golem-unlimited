@@ -1,10 +1,12 @@
 //! Command line module for one-shot service discovery
 
 use actix::{Arbiter, System};
+use actix_web::{http, AsyncResponder, HttpRequest, HttpResponse, Responder, Scope};
 use actor::{MdnsActor, OneShot};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use futures::Future;
 use gu_base::{cli, Decorator, Module};
+use serde::Serialize;
 use service::{ServiceInstance, ServicesDescription};
 use std::{collections::HashSet, net::Ipv4Addr};
 
@@ -119,4 +121,48 @@ impl Module for LanModule {
             _ => (),
         }
     }
+
+    fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
+        app.scope("/lan", lan_methods)
+    }
+}
+
+fn lan_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
+    scope.route("/list", http::Method::GET, list_hubs)
+}
+
+fn list_hubs<S>(_r: HttpRequest<S>) -> impl Responder {
+    use actix::SystemService;
+    let mdns_actor = MdnsActor::<OneShot>::from_registry();
+
+    #[derive(Serialize)]
+    struct Reply {
+        #[serde(rename(serialize = "Service type"))]
+        serv_type: String,
+        #[serde(rename(serialize = "Host name"))]
+        host_name: String,
+        #[serde(rename(serialize = "Addresses"))]
+        addr: String,
+        #[serde(rename(serialize = "Description"))]
+        desc: String,
+    }
+
+    mdns_actor
+        .send(ServicesDescription::new(vec!["hub".into()]))
+        .map_err(|e| error!("error! {}", e))
+        .and_then(|r| {
+            Ok(HttpResponse::Ok().json(
+                r.unwrap_or(HashSet::new())
+                    .iter()
+                    .map(|instance| Reply {
+                        serv_type: instance.service(),
+                        host_name: instance.host.clone(),
+                        addr: format_addresses(&instance.addrs_v4, &instance.ports),
+                        desc: instance.txt.join("\n"),
+                    })
+                    .collect::<Vec<Reply>>(),
+            ))
+        })
+        .map_err(|_| actix_web::error::ErrorInternalServerError(""))
+        .responder()
 }

@@ -32,9 +32,8 @@ struct DockerMan {
     workspaces_man: WorkspacesManager,
 }
 
-impl Default for DockerMan {
-    fn default() -> Self {
-        let config = ConfigModule::new();
+impl DockerMan {
+    fn new(config: &ConfigModule) -> Self {
         DockerMan {
             docker_api: None,
             deploys: DeployManager::default(),
@@ -604,9 +603,10 @@ impl Handler<DestroySession> for DockerMan {
 struct Init;
 
 impl gu_base::Module for Init {
-    fn run<D: gu_base::Decorator + Clone + 'static>(&self, _decorator: D) {
-        gu_base::run_once(|| {
-            let _ = DockerMan::default().start();
+    fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
+        gu_base::run_once(move || {
+            let config_module: &ConfigModule = decorator.extract().unwrap();
+            let _ = DockerMan::new(&config_module).start();
         });
     }
 }

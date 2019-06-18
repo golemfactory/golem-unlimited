@@ -37,15 +37,13 @@ impl Default for PluginManager {
         let gu_version = Version::parse(env!("CARGO_PKG_VERSION"))
             .expect("Failed to run UI Plugin Manager:\nCouldn't parse crate version");
 
-        info!(
-            "Plugins dir: {:?}",
-            ConfigModule::new().work_dir().join("plugins")
-        );
+        let plugins_dir = ConfigModule::new().work_dir().join("plugins");
+        info!("Plugins dir: {:?}", &plugins_dir);
 
         Self {
             gu_version,
             plugins: HashMap::new(),
-            directory: ConfigModule::new().work_dir().join("plugins"),
+            directory: plugins_dir,
         }
     }
 }
