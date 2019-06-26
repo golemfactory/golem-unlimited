@@ -291,13 +291,13 @@ impl Module for ConfigModule {
                 .short("c")
                 .takes_value(true)
                 .value_name("PATH")
-                .help("Set config dir path."),
+                .help("Set configuration directory path."),
         )
         .arg(
             Arg::with_name("user")
                 .long("user")
                 .global(true)
-                .help("Uses user install directory for your platform. Typically ~/.local/, or %APPDATA% on Windows."),
+                .help("Set application directories in local user directory (e.g. ~/.local/)"),
         )
     }
 
