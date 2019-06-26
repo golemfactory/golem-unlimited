@@ -297,7 +297,7 @@ impl Module for ConfigModule {
             Arg::with_name("user")
                 .long("user")
                 .global(true)
-                .help("Local server (without special privileges)"),
+                .help("Uses user install directory for your platform. Typically ~/.local/, or %APPDATA% on Windows."),
         )
     }
 
