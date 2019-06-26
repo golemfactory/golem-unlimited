@@ -1,6 +1,6 @@
 use std::env;
 
-use actix_web::{client, http::Method};
+use awc::{self, http::Method};
 use futures::future::*;
 use http::Uri;
 use serde::Serialize;
@@ -28,7 +28,7 @@ pub fn register_service(url: &str, cmd_name: &str) -> impl Future<Item = (), Err
         cmd_name: cmd_name.into(),
         url: url.into(),
     };
-    let client = client::Client::default();
+    let client = awc::Client::default();
 
     get_service_url()
         .into_future()

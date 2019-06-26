@@ -1,12 +1,11 @@
 [package]
 name = "gu-plugin-api"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["golemfactory"]
 edition = "2018"
 
 [dependencies]
-actix = "0.7"
-actix-web = { version = "1.0.0-alpha.3", default-features = false, features = ["rust-tls", "client"] }
+awc="0.2.1"
 futures = "0.1.25"
 http = "0.1.1"
 log = "0.4"

@@ -279,6 +279,7 @@ impl Module for ConfigModule {
             Arg::with_name("user")
                 .long("user")
                 .short("u")
+                .global(true)
                 .help("Local server (without special privileges)"),
         )
     }

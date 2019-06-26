@@ -1,5 +1,4 @@
 extern crate actix;
-extern crate actix_web;
 extern crate bytes;
 extern crate futures;
 extern crate gu_client;
@@ -52,7 +51,7 @@ fn main() {
                 .and_then(|(hub_session, blob)| {
                     println!("Another blob: {:?}", blob);
                     let bytes = Bytes::from("abcde");
-                    let stream = stream::iter_ok::<Vec<Bytes>, actix_web::Error>(vec![
+                    let stream = stream::iter_ok::<Vec<Bytes>, actix::MailboxError>(vec![
                         bytes,
                         Bytes::from("test!"),
                     ]);

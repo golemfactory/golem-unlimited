@@ -9,22 +9,22 @@ pub enum Error {
     #[fail(display = "invalid address: {}", _0)]
     InvalidAddress(#[fail(cause)] url::ParseError),
     #[fail(display = "invalid response: {}", _0)]
-    InvalidJSONResponse(#[fail(cause)] actix_web::error::JsonPayloadError),
+    InvalidJSONResponse(awc::error::JsonPayloadError),
 
     #[fail(display = "resource not found")]
     ResourceNotFound,
 
     #[fail(display = "bad response {}", _0)]
-    ResponseErr(actix_web::http::StatusCode),
+    ResponseErr(awc::http::StatusCode),
     #[fail(display = "{}", _0)]
     Utf8Error(#[fail(cause)] str::Utf8Error),
     #[fail(display = "{}", _0)]
-    SendRequestError(#[fail(cause)] actix_web::client::SendRequestError),
+    SendRequestError(String),
     #[fail(display = "{}", _0)]
-    PayloadError(#[fail(cause)] actix_web::error::PayloadError),
+    PayloadError(awc::error::PayloadError),
 
     #[fail(display = "{}", _0)]
-    CreateRequest(actix_web::Error),
+    CreateRequest(awc::error::ConnectError),
 
     #[fail(display = "invalid peer {}", _0)]
     InvalidPeer(String),
@@ -45,20 +45,20 @@ impl From<str::Utf8Error> for Error {
     }
 }
 
-impl From<actix_web::client::SendRequestError> for Error {
-    fn from(e: actix_web::client::SendRequestError) -> Self {
-        Error::SendRequestError(e)
+impl From<awc::error::SendRequestError> for Error {
+    fn from(e: awc::error::SendRequestError) -> Self {
+        Error::SendRequestError(format!("{}", e))
     }
 }
 
-impl From<actix_web::error::JsonPayloadError> for Error {
-    fn from(e: actix_web::error::JsonPayloadError) -> Self {
+impl From<awc::error::JsonPayloadError> for Error {
+    fn from(e: awc::error::JsonPayloadError) -> Self {
         Error::InvalidJSONResponse(e)
     }
 }
 
-impl From<actix_web::error::PayloadError> for Error {
-    fn from(e: actix_web::error::PayloadError) -> Self {
+impl From<awc::error::PayloadError> for Error {
+    fn from(e: awc::error::PayloadError) -> Self {
         Error::PayloadError(e)
     }
 }

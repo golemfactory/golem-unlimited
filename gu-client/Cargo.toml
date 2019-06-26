@@ -11,8 +11,10 @@ gu-hardware = { path = "../gu-hardware" }
 gu-model = { path = "../gu-model" }
 gu-net = { path = "../gu-net" }
 
-actix = "0.7"
-actix-web = { version = "0.7", default-features = false }
+actix = "0.8"
+awc="0.2.1"
+actix-http="0.2.4"
+
 bytes = "0.4.10"
 failure = "0.1.5"
 futures = "0.1"
