@@ -183,6 +183,24 @@ lazy_static! {
     static ref CONFIG_DIR_ENV_VAR_LOCK: RwLock<Option<PathBuf>> = RwLock::new(None);
 }
 
+fn create_app_dirs() -> std::io::Result<()> {
+    let paths = CONFIG_PATHS_LOCK.read().unwrap();
+    for dir in &[
+        &paths.work_dir,
+        &paths.cache_dir,
+        &paths.config_dir,
+        &paths.runtime_dir,
+    ] {
+        if !dir.exists() {
+            std::fs::create_dir_all(&dir).map_err(|e| {
+                error!("Cannot create {:?}.", dir);
+                e
+            })?
+        }
+    }
+    Ok(())
+}
+
 fn set_config_path(config_path: PathBuf) {
     let mut unlocked_paths = CONFIG_PATHS_LOCK.write().unwrap();
     let dir_paths = config_path.clone().join("dir-paths.json");
@@ -273,13 +291,13 @@ impl Module for ConfigModule {
                 .short("c")
                 .takes_value(true)
                 .value_name("PATH")
-                .help("Set config dir path."),
+                .help("Set configuration directory path."),
         )
         .arg(
             Arg::with_name("user")
                 .long("user")
-                .short("u")
-                .help("Local server (without special privileges)"),
+                .global(true)
+                .help("Set application directories in local user directory (e.g. ~/.local/)"),
         )
     }
 
@@ -300,6 +318,7 @@ impl Module for ConfigModule {
             }
             _ => (),
         }
+        let _ = create_app_dirs().map_err(|_| error!("Cannot create app dirs. Please use --user option to use local user home dirs (recommended) or -c to set config dir."));
         false
     }
 }
