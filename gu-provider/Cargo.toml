@@ -15,7 +15,7 @@ gu-hdman = { path = "../gu-hdman" }
 gu-lan = { path = "../gu-lan" }
 gu-model = { path = "../gu-model" }
 gu-net = { path = "../gu-net" }
-gu-persist = { path = "../gu-persist" }
+gu-persist = { path = "../gu-persist", features=["uds_server"] }
 
 actix = "0.7"
 actix-web = { version = "0.7", default-features = false }
