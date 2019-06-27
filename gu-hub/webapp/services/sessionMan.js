@@ -102,7 +102,7 @@ angular.module('gu')
             console.log('selected peers for', peers);
 
             function isInList(nodeId) {
-                let v = _.any(peers, p => p == nodeId);
+                let v = _.any(peers, p => p.nodeId ? p.nodeId === nodeId : p === nodeId);
                 console.log('nodeId=', nodeId, 'peers=', peers, 'v=', v);
                 return v;
             }
@@ -110,7 +110,6 @@ angular.module('gu')
             const peersPromise = $http.get('/peers').then(r => r.data)
                 .then(peers => _.filter(peers, peer => isInList(peer.nodeId)))
                 .then(peers => {
-                    console.log('peers=', peers);
                     return peers;
                 });
 
@@ -231,7 +230,7 @@ angular.module('gu')
                 })
             }
 
-            get peers() {
+            peers() {
                 return $http.get(`/sessions/${this.id}/peers`).then(response => _.map(response.data, peer => new HubSessionPeer(this, peer.nodeId, peer)));
             }
 
