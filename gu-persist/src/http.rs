@@ -351,7 +351,7 @@ where
     type Result = ActorResponse<ServerClient<C>, T, ClientError>;
 
     /* Using Unix domain sockets on macOS and Linux, TCP sockets on Windows. */
-    #[cfg(unix)]
+    #[cfg(all(unix, feature="uds_server"))]
     fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
         let path = msg.path().to_string();
         ActorResponse::r#async(
@@ -388,7 +388,7 @@ where
         )
     }
 
-    #[cfg(not(unix))]
+    #[cfg(not(all(unix, feature="uds_server")))]
     fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
         let path = msg.path().to_string();
         ActorResponse::r#async(
