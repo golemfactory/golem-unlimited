@@ -362,10 +362,8 @@ angular.module('gu')
                 }
             }
 
-            update(commands) {
-                return $http.patch(this._url, commands).then(response => {
-                    return response.data;
-                });
+            async update(commands) {
+                return (await $http.patch(this._url, commands)).data
             }
 
             async tags(refresh) {
