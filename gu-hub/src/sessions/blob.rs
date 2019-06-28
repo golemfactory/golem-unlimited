@@ -40,7 +40,7 @@ impl FileLockActor {
     fn new(path: PathBuf, new: bool) -> Self {
         let sha1_fut: Box<Future<Item = Sha1, Error = SessionErr> + Send> = match new {
             false => Box::new(recalculate_sha1(path.clone())),
-            true => Box::new(future::err(SessionErr::BlobLockedError)),
+            true => Box::new(future::err(SessionErr::BlobNotYetUploaded)),
         };
 
         FileLockActor {
@@ -79,7 +79,9 @@ impl Handler<ReadAccessRequest> for FileLockActor {
     type Result = ActorResponse<Self, ReadAccess, SessionErr>;
 
     fn handle(&mut self, _msg: ReadAccessRequest, ctx: &mut Context<Self>) -> Self::Result {
-        ActorResponse::r#async(
+        log::debug!("Read access request for {:?}", self.path);
+        ActorResponse::r#async({
+            log::debug!("{} writers for {:?}", self.writers, self.path);
             match self.writers {
                 0 => future::Either::A({
                     let rec = ctx.address().recipient();
@@ -94,8 +96,8 @@ impl Handler<ReadAccessRequest> for FileLockActor {
                 }),
                 _ => future::Either::B(future::err(SessionErr::BlobLockedError)),
             }
-            .into_actor(self),
-        )
+            .into_actor(self)
+        })
     }
 }
 
@@ -107,6 +109,7 @@ impl Handler<WriteAccessRequest> for FileLockActor {
     type Result = ActorResponse<Self, WriteAccess, SessionErr>;
 
     fn handle(&mut self, _msg: WriteAccessRequest, ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!("Write access request  for {:?}", self.path);
         self.writers += 1;
         let readers = self.readers;
         let recipient = ctx.address().recipient();

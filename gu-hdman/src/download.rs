@@ -74,7 +74,7 @@ fn download_chunk(
     from: u64,
     to: u64,
 ) -> impl Future<Item = Chunk, Error = Error> {
-    use actix_web::{client, http::header, HttpMessage};
+    use actix_web::{client, HttpMessage};
     use futures::future::{self, loop_fn, Loop};
     let limit = (to - from) as usize;
 
@@ -147,7 +147,7 @@ fn extract_check<M: actix_web::HttpMessage>(resp: &M) -> Result<CheckType, heade
 
 */
 fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
-    use actix_web::{client, http::header, HttpMessage};
+    use actix_web::{client, HttpMessage};
     use futures::future::{loop_fn, Loop};
 
     loop_fn((url.to_owned(), 0), |(url, retry)| {
