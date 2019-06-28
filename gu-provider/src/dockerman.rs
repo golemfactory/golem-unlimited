@@ -110,7 +110,6 @@ impl DockerSession {
         content: bytes::Bytes,
         file_path: String,
     ) -> impl Future<Item = String, Error = String> {
-
         let mut outf = Vec::new();
         match (|| -> std::io::Result<()> {
             let mut b = tar::Builder::new(&mut outf);

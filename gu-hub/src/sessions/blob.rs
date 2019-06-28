@@ -96,7 +96,7 @@ impl Handler<ReadAccessRequest> for FileLockActor {
                 }),
                 _ => future::Either::B(future::err(SessionErr::BlobLockedError)),
             }
-                .into_actor(self)
+            .into_actor(self)
         })
     }
 }
