@@ -123,7 +123,6 @@ impl Module for ServerModule {
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
-        use gu_base;
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
 
@@ -229,7 +228,6 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                     let keys = EthAccount::load_or_generate(keystore_path, "").unwrap();
 
                     if cfg!(unix) {
-                        use tokio_uds;
                         let dir_path = uds_path.parent().unwrap();
                         if !dir_path.exists() {
                             info!("Creating {:?}.", dir_path);

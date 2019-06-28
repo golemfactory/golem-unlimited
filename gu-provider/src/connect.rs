@@ -444,7 +444,6 @@ where
     A: 'static,
     F: Fn(&C, A) -> Option<C> + 'static,
 {
-    use futures::{future, Future};
     use std::{ops::Deref, sync::Arc};
     let manager = ConfigManager::from_registry();
 

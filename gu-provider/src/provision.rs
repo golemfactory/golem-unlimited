@@ -60,7 +60,6 @@ pub fn download_step(
 
                                 if entry_type.is_dir() {
                                     // is directory
-                                    use std::fs;
                                     let dir_name = output_path.join(path);
                                     if !dir_name.exists() {
                                         let _ = async_try!(fs::create_dir_all(dir_name)
@@ -219,6 +218,9 @@ where
     let header = content_length(&resp).and_then(|length| {
         let mut header = tar::Header::new_ustar();
         header.set_size(length);
+        header.set_mode(0o644);
+        header.set_uid(0);
+        header.set_gid(0);
         header
             .set_path(path)
             .map_err(|_| "Incorrect filepath - cannot be set as filepath in tar".to_string())?;

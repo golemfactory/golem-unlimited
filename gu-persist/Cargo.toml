@@ -2,6 +2,9 @@
 name = "gu-persist"
 version = "0.1.0"
 
+[features]
+uds_server=[]
+
 [dependencies]
 gu-actix = { path = "../gu-actix" }
 gu-base = { path = "../gu-base" }
