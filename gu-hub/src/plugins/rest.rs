@@ -135,7 +135,6 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
 }
 
 fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
-    use actix_web::AsyncResponder;
     let manager = PluginManager::from_registry();
 
     manager

@@ -79,9 +79,9 @@ impl Handler<ReadAccessRequest> for FileLockActor {
     type Result = ActorResponse<Self, ReadAccess, SessionErr>;
 
     fn handle(&mut self, _msg: ReadAccessRequest, ctx: &mut Context<Self>) -> Self::Result {
-        debug!("Read access request for {:?}", self.path);
+        log::debug!("Read access request for {:?}", self.path);
         ActorResponse::r#async({
-            debug!("{} writers for {:?}", self.writers, self.path);
+            log::debug!("{} writers for {:?}", self.writers, self.path);
             match self.writers {
                 0 => future::Either::A({
                     let rec = ctx.address().recipient();
@@ -109,7 +109,7 @@ impl Handler<WriteAccessRequest> for FileLockActor {
     type Result = ActorResponse<Self, WriteAccess, SessionErr>;
 
     fn handle(&mut self, _msg: WriteAccessRequest, ctx: &mut Context<Self>) -> Self::Result {
-        debug!("Write access request  for {:?}", self.path);
+        log::debug!("Write access request  for {:?}", self.path);
         self.writers += 1;
         let readers = self.readers;
         let recipient = ctx.address().recipient();

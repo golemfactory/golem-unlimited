@@ -60,7 +60,6 @@ pub fn download_step(
 
                                 if entry_type.is_dir() {
                                     // is directory
-                                    use std::fs;
                                     let dir_name = output_path.join(path);
                                     if !dir_name.exists() {
                                         let _ = async_try!(fs::create_dir_all(dir_name)

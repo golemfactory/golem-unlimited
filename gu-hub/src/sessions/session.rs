@@ -404,7 +404,6 @@ fn drop_peer_deployment(
     session_id: String,
 ) -> impl Future<Item = (), Error = SessionErr> {
     use gu_model::envman::DestroySession;
-    use gu_net::rpc::peer;
 
     peer(node_id)
         .into_endpoint()

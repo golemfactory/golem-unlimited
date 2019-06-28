@@ -524,7 +524,6 @@ fn check_box(v: bool) -> &'static str {
 }
 
 fn run_configure() {
-    use gu_lan;
     use std::io;
 
     fn toggle_managed_by(config: &mut PermissionConfig, hub: &gu_lan::HubDesc) {
