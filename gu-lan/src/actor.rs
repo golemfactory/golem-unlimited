@@ -246,7 +246,6 @@ impl<T: MdnsConnection> Actor for MdnsActor<T> {
 
     /// Creates stream handler for incoming mDNS packets
     fn started(&mut self, ctx: &mut Self::Context) {
-
         let socket = Self::create_mdns_socket().expect("Creation of mDNS socket failed");
         let (sink, stream) = UdpFramed::new(socket, MdnsCodec(T::unicast_query())).split();
 
