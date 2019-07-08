@@ -33,7 +33,6 @@ where
     use std::collections::hash_map::RandomState;
     use std::collections::HashMap;
     use std::iter::FromIterator;
-    use std::iter::IntoIterator;
 
     let mut vec = Vec::new();
     for row in it {
