@@ -42,7 +42,7 @@ pub fn format_instances_table(instances: &HashSet<ServiceInstance>) {
 }
 
 fn run_client(instances: &String) {
-    use actix::{self, SystemService};
+    use actix::SystemService;
 
     let sys = actix::System::new("gu-lan");
     let instances = instances.split(',').map(|s| s.to_string().into()).collect();
