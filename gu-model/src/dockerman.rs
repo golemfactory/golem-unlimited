@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct CreateOptions {
     #[serde(default)]
     pub volumes: Vec<VolumeDef>,
@@ -23,7 +23,7 @@ pub enum VolumeDef {
     BindRw { src: String, target: String },
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum NetDef {
     #[serde(rename = "host")]
     Host {},
