@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 
-
 use super::super::NodeId;
 use gu_persist::config::ConfigModule;
 use std::io;
@@ -71,6 +70,17 @@ pub struct PeerManager {
     peers: HashMap<NodeId, PeerInfo>,
     path: PathBuf,
     saved_tags: HashMap<NodeId, Tags>,
+}
+
+impl PeerManager {
+    fn get_tags_mut<'a>(&'a mut self, node_id: &NodeId) -> Option<&'a mut Tags> {
+        //let peers = &mut self.peers;
+        let saved_tags = &mut self.saved_tags;
+        let tags = self.peers
+            .get_mut(node_id)
+            .map(|peer| &mut peer.tags);
+        tags.or_else(move || saved_tags.get_mut(node_id))
+    }
 }
 
 impl Actor for PeerManager {
@@ -186,16 +196,18 @@ pub struct AddTags {
 }
 
 impl Message for AddTags {
-    type Result = Option<()>;
+    type Result = Result<(), ()>;
 }
 
 impl Handler<AddTags> for PeerManager {
-    type Result = Option<()>;
+    type Result = Result<(), ()>;
     fn handle(&mut self, msg: AddTags, ctx: &mut Self::Context) -> Self::Result {
-        let mut peer = self.peers.get_mut(&msg.node)?;
-        let mut tags = &mut peer.tags;
+        // If the peer is connected, then we should modify self.peers, as it will be
+        // written at the actor stop.
+        // Otherwise, we need to change self.saved_tags
+        let mut tags = self.get_tags_mut(&msg.node).ok_or(())?;
         tags.extend(msg.tags);
-        Some(())
+        Ok(())
     }
 }
 
@@ -205,18 +217,17 @@ pub struct DeleteTags {
 }
 
 impl Message for DeleteTags {
-    type Result = Option<()>;
+    type Result = Result<(), ()>;
 }
 
 impl Handler<DeleteTags> for PeerManager {
-    type Result = Option<()>;
+    type Result = Result<(), ()>;
     fn handle(&mut self, msg: DeleteTags, ctx: &mut Self::Context) -> Self::Result {
-        let mut peer = self.peers.get_mut(&msg.node)?;
-        let mut tags = &mut peer.tags;
+        let mut tags = self.get_tags_mut(&msg.node).ok_or(())?;
         for tag in msg.tags {
             tags.remove(&tag);
         }
-        Some(())
+        Ok(())
     }
 }
 
