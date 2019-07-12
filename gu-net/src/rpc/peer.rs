@@ -86,7 +86,6 @@ impl Actor for PeerManager {
 
     fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
         self.path = ConfigModule::new().work_dir().join("tags");
-        // FIXME this one is awful
         let tags_serialized = fs::read_to_string(&self.path).unwrap_or_else(|e| match e.kind() {
             io::ErrorKind::NotFound => "{}".into(),
             _ => panic!(
@@ -101,21 +100,16 @@ impl Actor for PeerManager {
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
-        let tags_new = self
-            .peers
-            .iter()
-            .map(|(node, info)| (*node, info.tags.clone())); // TODO can we avoid the clone?
+        let path = &self.path;
+
+        // it's ok to drain peers, since the actor has already stopped
+        let tags_new = self.peers.drain().map(|(node, info)| (node, info.tags));
         self.saved_tags.extend(tags_new);
 
         let tags_serialized =
             serde_json::to_string(&self.saved_tags).expect("Serialization of tags failed");
-        fs::write(&self.path, tags_serialized).unwrap_or_else(|e| {
-            error!(
-                "Error saving tags to {}: {}",
-                self.path.to_string_lossy(),
-                e
-            )
-        });
+        fs::write(path, tags_serialized)
+            .unwrap_or_else(|e| error!("Error saving tags to {}: {}", path.to_string_lossy(), e));
     }
 }
 
@@ -140,7 +134,9 @@ impl Handler<UpdatePeer> for PeerManager {
         match msg {
             UpdatePeer::Update(mut info) => {
                 if let Some(tags) = self.saved_tags.get(&info.node_id) {
-                    info.tags = tags.clone(); // TODO can we avoid the clone?
+                    // TODO REVIEW we could avoid the clone by using remove
+                    // instead, but should we?
+                    info.tags = tags.clone();
                 }
                 let _ = self.peers.insert(info.node_id, info);
             }
@@ -245,8 +241,8 @@ mod tests {
         };
 
         let mut system = System::new("test");
-        // TODO in this test the PeerManager is probably not stopped,
-        // no tags are serialized afterwards
+        // TODO even when we stop the actix system, PeerManager is not stopped,
+        // so we don't test writing the tags to persistent storage
         let mgr = PeerManager::default().start();
         let fut = mgr
             .send(UpdatePeer::Update(info))
@@ -254,7 +250,7 @@ mod tests {
             .and_then(|info| Ok(info.unwrap().tags))
             .and_then(|tags| {
                 // FIXME this test will fail if there are some saved tags
-                // in ~/.local/share/golemunlimited/tags
+                // in /var/lib/golemu/data/tags
                 // we probably need to mock the path
                 assert_eq!(tags, Tags::default());
                 Ok(())
