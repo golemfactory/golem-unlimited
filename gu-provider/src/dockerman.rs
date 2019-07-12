@@ -420,11 +420,15 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                 ActorResponse::r#async(fut::wrap_future(pull_and_create).and_then(
                     move |id, act: &mut DockerMan, _| {
                         if let Some(ref api) = act.docker_api {
-                            let deploy = DockerSession {
+                            let mut deploy = DockerSession {
                                 workspace,
                                 container: api.container(Cow::from(id.clone())),
                                 status: PeerSessionStatus::CREATED,
                             };
+                            if msg.options.autostart {
+                                info!("Autostarting the container");
+                                deploy.do_start();
+                            }
                             act.deploys.insert_deploy(id.clone(), deploy);
                             fut::ok(id)
                         } else {
