@@ -420,7 +420,7 @@ pub(crate) fn change_single_connection(
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
-        /* TODO change from vector to hashset */
+
         config.hub_addrs = config
             .hub_addrs
             .into_iter()
@@ -483,7 +483,7 @@ fn edit_config_list(
             new_set.insert(s);
         }),
         ConnectionChange::Disconnect => modify_addrs.into_iter().for_each(|s| {
-            new_set.insert(s);
+            new_set.remove(&s);
         }),
     }
 
