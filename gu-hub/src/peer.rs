@@ -198,8 +198,8 @@ fn add_tags(
         .send(payload)
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| match res {
-            None => Ok(HttpResponse::build(StatusCode::NOT_FOUND).body("Peer not found")),
-            Some(_) => Ok(HttpResponse::Ok().body("Tags added successfully")),
+            Ok(()) => Ok(HttpResponse::Ok().body("Tags added successfully")),
+            Err(()) => Ok(HttpResponse::build(StatusCode::NOT_FOUND).body("Peer not found")),
         })
 }
 
@@ -215,8 +215,8 @@ fn delete_tags(
         .send(payload)
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| match res {
-            None => Ok(HttpResponse::build(StatusCode::NOT_FOUND).body("Peer not found")),
-            Some(_) => Ok(HttpResponse::Ok().body("Tags deleted successfully")),
+            Ok(()) => Ok(HttpResponse::Ok().body("Tags added successfully")),
+            Err(()) => Ok(HttpResponse::build(StatusCode::NOT_FOUND).body("Peer not found")),
         })
 }
 

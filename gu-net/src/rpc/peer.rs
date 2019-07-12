@@ -76,9 +76,7 @@ impl PeerManager {
     fn get_tags_mut<'a>(&'a mut self, node_id: &NodeId) -> Option<&'a mut Tags> {
         //let peers = &mut self.peers;
         let saved_tags = &mut self.saved_tags;
-        let tags = self.peers
-            .get_mut(node_id)
-            .map(|peer| &mut peer.tags);
+        let tags = self.peers.get_mut(node_id).map(|peer| &mut peer.tags);
         tags.or_else(move || saved_tags.get_mut(node_id))
     }
 }
