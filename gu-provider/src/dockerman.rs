@@ -425,14 +425,18 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                                 container: api.container(Cow::from(id.clone())),
                                 status: PeerSessionStatus::CREATED,
                             };
-                            if msg.options.autostart {
+                            let maybe_start = if msg.options.autostart {
                                 info!("Autostarting the container");
-                                deploy.do_start();
-                            }
+                                let autostart_future = fut::wrap_future(deploy.do_start());
+                                let x: Box<ActorFuture<Actor=_, Item=String, Error=String>> = Box::new(autostart_future);
+                                fut::Either::A(autostart_future)
+                            } else {
+                                fut::Either::B(future::ok(()))
+                            };
                             act.deploys.insert_deploy(id.clone(), deploy);
-                            fut::ok(id)
+                            fut::Either::A(maybe_start.and_then(|_| fut::ok(id));
                         } else {
-                            fut::err(Error::UnknownEnv(msg.env_type.clone()))
+                            fut::Either::B(fut::err(Error::UnknownEnv(msg.env_type.clone())))
                         }
                     },
                 ))
