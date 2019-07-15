@@ -11,7 +11,7 @@ use std::{
 
 use actix::{fut, prelude::*};
 use futures::{future, prelude::*};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 
 use gu_actix::prelude::*;
@@ -295,7 +295,14 @@ fn run_command(
     match command {
         Command::Open => Box::new(fut::ok("Open mock".to_string())),
         Command::Close => Box::new(fut::ok("Close mock".to_string())),
-        Command::Exec { executable, args } => {
+        Command::Exec {
+            executable,
+            args,
+            options,
+        } => {
+            if options != Default::default() {
+                warn!("ExecOptions unimplemented in hdman");
+            }
             let executable = session.get_session_exec_path(&executable);
             let session_id = session_id.clone();
             let session_dir = session.workspace.path().to_owned();
