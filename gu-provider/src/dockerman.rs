@@ -81,15 +81,23 @@ impl DockerSession {
         &mut self,
         executable: String,
         mut args: Vec<String>,
+        options: ExecOptions,
     ) -> impl Future<Item = String, Error = String> {
         args.insert(0, executable);
         let cfg = {
             use async_docker::models::*;
 
-            ExecConfig::new()
+            let mut config = ExecConfig::new()
                 .with_attach_stdout(true)
                 .with_attach_stderr(true)
-                .with_cmd(args)
+                .with_cmd(args);
+            if let Some(user) = options.user {
+                config.set_user(user)
+            }
+            if let Some(working_dir) = options.working_dir {
+                config.set_working_dir(working_dir)
+            }
+            config
         };
 
         self.container
@@ -469,10 +477,13 @@ fn run_command(
     match command {
         Command::Open => docker_man.run_for_deployment(session_id, DockerSession::do_open),
         Command::Close => docker_man.run_for_deployment(session_id, DockerSession::do_close),
-        Command::Exec { executable, args } => docker_man
-            .run_for_deployment(session_id, |deployment| {
-                deployment.do_exec(executable, args)
-            }),
+        Command::Exec {
+            executable,
+            args,
+            options,
+        } => docker_man.run_for_deployment(session_id, |deployment| {
+            deployment.do_exec(executable, args, options)
+        }),
         // TODO: FIXME @destruktiv: same as Exec but async
         Command::Start {
             executable: _,
