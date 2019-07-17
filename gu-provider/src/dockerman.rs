@@ -64,10 +64,14 @@ impl DockerSession {
     }
 
     fn do_start(&mut self) -> impl Future<Item = String, Error = String> {
+        let id = self.container.id().to_owned();
         self.container
             .start()
             .map_err(|e| format!("{}", e))
-            .and_then(|_| Ok("OK".into()))
+            .and_then(move |_| {
+                info!("Container {} started", id);
+                Ok("OK".into())
+            })
     }
 
     fn do_wait(&mut self) -> impl Future<Item = String, Error = String> {
@@ -122,7 +126,9 @@ impl DockerSession {
             }
         })() {
             Ok(rp) => rp,
-            Err(e) => return future::Either::B(future::err(format!("Error stripping path: {}", e))),
+            Err(e) => {
+                return future::Either::B(future::err(format!("Error stripping path: {}", e)))
+            }
         };
 
         match (|| -> std::io::Result<()> {
