@@ -299,16 +299,32 @@ impl Handler<ConnectModeMessage> for ProviderServer {
                 .send(AutoMdns(msg.mode == ConnectMode::Auto))
                 .map_err(|e| e.to_string())
                 .and_then(|r| r);
+            let list_fut = connections
+                .send(ListSockets)
+                .map_err(|e| e.to_string())
+                .and_then(|r| r);
+            let c = connections.clone();
+
+            self.publish_service(msg.mode == ConnectMode::Auto);
 
             return ActorResponse::r#async(
                 config_fut
-                    .join(state_fut)
+                    .join3(state_fut, list_fut)
                     .map_err(|e| e.to_string())
-                    .and_then(|a| {
-                        Ok(match a {
-                            (None, None) => None,
-                            _ => Some(()),
-                        })
+                    .and_then(|(cfg, st, list)| {
+                        if cfg == None && st == None {
+                            return future::Either::A(future::ok(None));
+                        } else {
+                            future::Either::B(
+                                future::join_all(list.into_iter().map(move |(hub, _)| {
+                                    info!("Disconnecting {:?}.", hub);
+                                    c.send(Disconnect(hub))
+                                        .map_err(|e| e.to_string())
+                                        .and_then(|a| a)
+                                }))
+                                .and_then(|_| future::ok(Some(()))),
+                            )
+                        }
                     })
                     .into_actor(self),
             );
