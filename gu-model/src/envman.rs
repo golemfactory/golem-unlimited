@@ -108,12 +108,6 @@ impl Default for ResourceFormat {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Default, Hash, Eq, PartialEq, Debug)]
-pub struct ExecOptions {
-    pub user: Option<String>,
-    pub working_dir: Option<String>,
-}
-
 #[derive(Clone, Serialize, Deserialize, Hash, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Command {
@@ -121,7 +115,9 @@ pub enum Command {
         // return cmd output
         executable: String,
         args: Vec<String>,
-        options: ExecOptions,
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        working_dir: Option<String>,
     },
     Open,
     Close,
@@ -240,6 +236,7 @@ mod test {
         if let Command::Exec {
             ref executable,
             ref args,
+            ..
         } = u.commands[0]
         {
             assert_eq!(executable, "gu-mine");
