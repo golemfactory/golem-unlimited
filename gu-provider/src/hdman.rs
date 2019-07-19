@@ -286,7 +286,7 @@ fn run_command(
     hd_man: &mut HdMan,
     session_id: String,
     command: Command,
-) -> Box<ActorFuture<Actor = HdMan, Item = String, Error = String>> {
+) -> Box<dyn ActorFuture<Actor = HdMan, Item = String, Error = String>> {
     let session = match hd_man.get_session_mut(&session_id) {
         Ok(a) => a,
         Err(e) => return Box::new(fut::err(e.to_string())),
@@ -298,10 +298,10 @@ fn run_command(
         Command::Exec {
             executable,
             args,
-            options,
+            working_dir,
         } => {
-            if options != Default::default() {
-                warn!("ExecOptions unimplemented in hdman");
+            if working_dir != None {
+                warn!("working_dir unimplemented in hdman");
             }
             let executable = session.get_session_exec_path(&executable);
             let session_id = session_id.clone();

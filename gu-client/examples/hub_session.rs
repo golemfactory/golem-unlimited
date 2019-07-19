@@ -102,7 +102,7 @@ fn main() {
                         envman::Command::Exec {
                             executable: "gu-factor".to_string(),
                             args: vec!["100".to_string()],
-                            options: Default::default(),
+                            working_dir: None
                         },
                         envman::Command::AddTags(vec!["my_tag_2".to_string()]),
                     ]))
