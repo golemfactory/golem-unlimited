@@ -300,12 +300,10 @@ fn run_command(
             args,
             working_dir,
         } => {
-            if working_dir != None {
-                warn!("working_dir unimplemented in hdman");
-            }
             let executable = session.get_session_exec_path(&executable);
             let session_id = session_id.clone();
             let session_dir = session.workspace.path().to_owned();
+            let cwd = session_dir.join(working_dir.unwrap_or_default());
 
             info!("executing sync: {} {:?}", executable, args);
             Box::new(
@@ -314,7 +312,7 @@ fn run_command(
                         .send(Exec::Run {
                             executable,
                             args,
-                            cwd: session_dir.clone(),
+                            cwd,
                         })
                         .flatten_fut()
                         .map_err(move |e| e.to_string()),
