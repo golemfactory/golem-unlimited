@@ -109,8 +109,9 @@ impl Default for ResourceFormat {
 }
 
 #[derive(Clone, Serialize, Deserialize, Default, Hash, Eq, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecOptions {
-    pub user: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub working_dir: Option<String>,
 }
 
@@ -240,6 +241,7 @@ mod test {
         if let Command::Exec {
             ref executable,
             ref args,
+            ..
         } = u.commands[0]
         {
             assert_eq!(executable, "gu-mine");

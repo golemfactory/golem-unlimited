@@ -581,6 +581,7 @@ fn run_worker<S: Stream<Item = (Blob, BlenderTaskSpec), Error = Error>>(
                         Command::Exec {
                             executable: "./gu-render".into(),
                             args: Vec::new(),
+                            options: Default::default(),
                         },
                         Command::UploadFile {
                             uri: blob.uri(),

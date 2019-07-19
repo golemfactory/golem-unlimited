@@ -91,9 +91,6 @@ impl DockerSession {
                 .with_attach_stdout(true)
                 .with_attach_stderr(true)
                 .with_cmd(args);
-            if let Some(user) = options.user {
-                config.set_user(user)
-            }
             if let Some(working_dir) = options.working_dir {
                 config.set_working_dir(working_dir)
             }
