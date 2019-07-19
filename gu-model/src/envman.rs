@@ -122,6 +122,7 @@ pub enum Command {
         // return cmd output
         executable: String,
         args: Vec<String>,
+        #[serde(default)]
         options: ExecOptions,
     },
     Open,
