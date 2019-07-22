@@ -629,7 +629,7 @@ impl Handler<AutoMdns> for ConnectManager {
             ActorResponse::r#async(
                 MdnsActor::<Continuous>::from_registry()
                     .send(SubscribeInstance {
-                        service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),
+                        service: ServiceDescription::new("_gu_hub._tcp", "local"),
                         rec: ctx.address().recipient(),
                     })
                     .flatten_fut()
