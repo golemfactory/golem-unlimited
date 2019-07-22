@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use actix::prelude::*;
 use actix_web::http::StatusCode;
@@ -64,10 +64,14 @@ impl DockerSession {
     }
 
     fn do_start(&mut self) -> impl Future<Item = String, Error = String> {
+        let id = self.container.id().to_owned();
         self.container
             .start()
             .map_err(|e| format!("{}", e))
-            .and_then(|_| Ok("OK".into()))
+            .and_then(move |_| {
+                info!("Container {} started", id);
+                Ok("OK".into())
+            })
     }
 
     fn do_wait(&mut self) -> impl Future<Item = String, Error = String> {
@@ -81,15 +85,20 @@ impl DockerSession {
         &mut self,
         executable: String,
         mut args: Vec<String>,
+        working_dir: Option<String>,
     ) -> impl Future<Item = String, Error = String> {
         args.insert(0, executable);
         let cfg = {
             use async_docker::models::*;
 
-            ExecConfig::new()
+            let mut config = ExecConfig::new()
                 .with_attach_stdout(true)
                 .with_attach_stderr(true)
-                .with_cmd(args)
+                .with_cmd(args);
+            if let Some(working_dir) = working_dir {
+                config.set_working_dir(working_dir)
+            }
+            config
         };
 
         self.container
@@ -111,12 +120,28 @@ impl DockerSession {
         file_path: String,
     ) -> impl Future<Item = String, Error = String> {
         let mut outf = Vec::new();
+
+        // tar expects a relative path, so strip the leading `/`
+        let rel_path = match (|| -> Result<_, std::path::StripPrefixError> {
+            let path = Path::new(&file_path);
+            if path.is_absolute() {
+                Ok(Cow::from(path.strip_prefix("/")?))
+            } else {
+                Ok(Cow::from(path))
+            }
+        })() {
+            Ok(rp) => rp,
+            Err(e) => {
+                return future::Either::B(future::err(format!("Error stripping path: {}", e)))
+            }
+        };
+
         match (|| -> std::io::Result<()> {
             let mut b = tar::Builder::new(&mut outf);
 
             let mut header = tar::Header::new_ustar();
             header.set_size(content.len() as u64);
-            header.set_path(&file_path)?;
+            header.set_path(&rel_path)?;
             header.set_mode(0o644);
             header.set_uid(0);
             header.set_gid(0);
@@ -420,15 +445,23 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                 ActorResponse::r#async(fut::wrap_future(pull_and_create).and_then(
                     move |id, act: &mut DockerMan, _| {
                         if let Some(ref api) = act.docker_api {
-                            let deploy = DockerSession {
+                            let mut deploy = DockerSession {
                                 workspace,
                                 container: api.container(Cow::from(id.clone())),
                                 status: PeerSessionStatus::CREATED,
                             };
+                            let maybe_start = if msg.options.autostart {
+                                info!("Autostarting the container");
+                                let autostart_future =
+                                    deploy.do_start().map_err(Error::Error).map(|_| ());
+                                fut::Either::A(fut::wrap_future(autostart_future))
+                            } else {
+                                fut::Either::B(fut::ok(()))
+                            };
                             act.deploys.insert_deploy(id.clone(), deploy);
-                            fut::ok(id)
+                            fut::Either::A(maybe_start.and_then(|_, _, _| fut::ok(id)))
                         } else {
-                            fut::err(Error::UnknownEnv(msg.env_type.clone()))
+                            fut::Either::B(fut::err(Error::UnknownEnv(msg.env_type.clone())))
                         }
                     },
                 ))
@@ -469,10 +502,13 @@ fn run_command(
     match command {
         Command::Open => docker_man.run_for_deployment(session_id, DockerSession::do_open),
         Command::Close => docker_man.run_for_deployment(session_id, DockerSession::do_close),
-        Command::Exec { executable, args } => docker_man
-            .run_for_deployment(session_id, |deployment| {
-                deployment.do_exec(executable, args)
-            }),
+        Command::Exec {
+            executable,
+            args,
+            working_dir,
+        } => docker_man.run_for_deployment(session_id, |deployment| {
+            deployment.do_exec(executable, args, working_dir)
+        }),
         // TODO: FIXME @destruktiv: same as Exec but async
         Command::Start {
             executable: _,

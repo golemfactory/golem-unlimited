@@ -11,7 +11,7 @@ use std::{
 
 use actix::{fut, prelude::*};
 use futures::{future, prelude::*};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 
 use gu_actix::prelude::*;
@@ -286,7 +286,7 @@ fn run_command(
     hd_man: &mut HdMan,
     session_id: String,
     command: Command,
-) -> Box<ActorFuture<Actor = HdMan, Item = String, Error = String>> {
+) -> Box<dyn ActorFuture<Actor = HdMan, Item = String, Error = String>> {
     let session = match hd_man.get_session_mut(&session_id) {
         Ok(a) => a,
         Err(e) => return Box::new(fut::err(e.to_string())),
@@ -295,10 +295,15 @@ fn run_command(
     match command {
         Command::Open => Box::new(fut::ok("Open mock".to_string())),
         Command::Close => Box::new(fut::ok("Close mock".to_string())),
-        Command::Exec { executable, args } => {
+        Command::Exec {
+            executable,
+            args,
+            working_dir,
+        } => {
             let executable = session.get_session_exec_path(&executable);
             let session_id = session_id.clone();
             let session_dir = session.workspace.path().to_owned();
+            let cwd = session_dir.join(working_dir.unwrap_or_default());
 
             info!("executing sync: {} {:?}", executable, args);
             Box::new(
@@ -307,7 +312,7 @@ fn run_command(
                         .send(Exec::Run {
                             executable,
                             args,
-                            cwd: session_dir.clone(),
+                            cwd,
                         })
                         .flatten_fut()
                         .map_err(move |e| e.to_string()),

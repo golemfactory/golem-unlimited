@@ -304,22 +304,70 @@ impl Handler<ConnectModeMessage> for ProviderServer {
     fn handle(&mut self, msg: ConnectModeMessage, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {
             let mode = msg.mode.clone();
-            let config_fut =
+            let save_fut =
                 optional_save_future(move || connect::edit_config_connect_mode(mode), msg.save);
             let state_fut = connections
                 .send(AutoMdns(msg.mode == ConnectMode::Auto))
                 .map_err(|e| e.to_string())
                 .and_then(|r| r);
+            let list_fut = connections
+                .send(ListSockets)
+                .map_err(|e| e.to_string())
+                .and_then(|r| r);
+            let get_saved_hubs_fut = ConfigManager::from_registry()
+                .send(GetConfig::new())
+                .flatten_fut()
+                .and_then(move |c: Arc<ProviderConfig>| future::ok(c.hub_addrs.clone()))
+                .map_err(|e| e.to_string());
+
+            let connections_copy = connections.clone();
+            let auto_on = msg.mode == ConnectMode::Auto;
+
+            info!("Connect automatically: {}", auto_on);
+            self.publish_service(auto_on);
 
             return ActorResponse::r#async(
-                config_fut
+                save_fut
                     .join(state_fut)
-                    .map_err(|e| e.to_string())
-                    .and_then(|a| {
-                        Ok(match a {
-                            (None, None) => None,
-                            _ => Some(()),
-                        })
+                    .and_then(|(save, st)| {
+                        if save == None && st == None {
+                            future::Either::A(future::ok(None))
+                        } else {
+                            future::Either::B(list_fut.map(|r| Some(r)))
+                        }
+                    })
+                    .and_then(move |r| {
+                        if !auto_on {
+                            future::ok(r)
+                        } else {
+                            future::ok(None)
+                        }
+                    })
+                    .and_then(|connected_now| match connected_now {
+                        Some(connected) => future::Either::A(get_saved_hubs_fut.and_then(
+                            move |saved_hubs: HashSet<SocketAddr>| {
+                                if !connected.is_empty() {
+                                    info!("Disconnecting all hubs except saved: {:?}", &saved_hubs);
+                                }
+                                future::join_all(connected.into_iter().filter_map(
+                                    move |(hub, _)| {
+                                        if !saved_hubs.contains(&hub) {
+                                            info!("Disconnecting {:?}", &hub);
+                                            Some(
+                                                connections_copy
+                                                    .send(Disconnect(hub.clone()))
+                                                    .map_err(|e| e.to_string())
+                                                    .and_then(|a| a),
+                                            )
+                                        } else {
+                                            None
+                                        }
+                                    },
+                                ))
+                                .and_then(|_| future::ok(Some(())))
+                            },
+                        )),
+                        None => future::Either::B(future::ok(None)),
                     })
                     .into_actor(self),
             );
