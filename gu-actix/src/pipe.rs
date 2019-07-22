@@ -132,7 +132,6 @@ impl<T, E> futures::Sink for AsyncWriter<T, E> {
 
 impl io::Write for Writer<Bytes, io::Error> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
-        use bytes::Bytes;
         self.send(Ok(Bytes::from(buf)))
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         Ok(buf.len())

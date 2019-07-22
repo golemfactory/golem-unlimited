@@ -102,15 +102,14 @@ angular.module('gu')
             console.log('selected peers for', peers);
 
             function isInList(nodeId) {
-                let v = _.any(peers, p => p == nodeId);
-                console.log('nodeId=', nodeId, 'peers=', peers, 'v=',v);
+                let v = _.any(peers, p => p.nodeId ? p.nodeId === nodeId : p === nodeId);
+                console.log('nodeId=', nodeId, 'peers=', peers, 'v=', v);
                 return v;
             }
 
             const peersPromise = $http.get('/peers').then(r => r.data)
                 .then(peers => _.filter(peers, peer => isInList(peer.nodeId)))
                 .then(peers => {
-                    console.log('peers=', peers);
                     return peers;
                 });
 
@@ -224,13 +223,21 @@ angular.module('gu')
                 return $http.get(`/sessions/${this.id}/config`).then(response => response.data);
             }
 
+            updateConfig(updateFn) {
+                return this.getConfig().then(data => {
+                    updateFn(data);
+                    this.setConfig(data)
+                })
+            }
+
             peers() {
-                return $http.get(`/sessions/${this.id}/peers`).then(response => _.map(response.data, peer => peer.nodeId));
+                return $http.get(`/sessions/${this.id}/peers`).then(response => _.map(response.data, peer => new HubSessionPeer(this, peer.nodeId, peer)));
             }
 
             addPeers(peers) {
 
                 let sessionId = this.id;
+
                 function addPeersInner(peers) {
                     return $http.post(`/sessions/${sessionId}/peers`, peers).then(response => response.data);
                 }
@@ -238,7 +245,7 @@ angular.module('gu')
                 if (Array.isArray(peers)) {
                     return addPeersInner(peers);
                 }
-                if (typeof  peers === 'string') {
+                if (typeof peers === 'string') {
                     return addPeersInner(arguments);
                 }
                 throw 'invalid peer list';
@@ -251,16 +258,136 @@ angular.module('gu')
             tagValue(name, value) {
                 let prefix = `${name}=`;
                 let tag = _.find(this.spec.tags, tag => tag.startsWith(prefix));
-                if (typeof  value === 'undefined') {
+                if (typeof value === 'undefined') {
                     if (tag) {
                         return tag.substring(prefix.length);
                     }
                     return undefined;
                 }
-
             }
 
+            get _url() {
+                return `/sessions/${this.id}`;
+            }
         }
+
+        class HubSessionPeer {
+            constructor(hubSession, nodeId, peerInfo) {
+                this.hubSession = hubSession;
+                this.nodeId = nodeId;
+                this.peerInfo = peerInfo;
+            }
+
+            get id() {
+                return this.nodeId;
+            }
+
+            get os() {
+                if (this._hardware === undefined) {
+                    this._refresh();
+                }
+                return this._hardware.Ok && this._hardware.Ok.os;
+            }
+
+            get ram() {
+                if (this._hardware === undefined) {
+                    this._refresh();
+                }
+                return this._hardware.Ok && this._hardware.Ok.ram;
+            }
+
+            get hostName() {
+
+                return this._hardware.Ok && this._hardware.Ok.hostname;
+            }
+
+            get numCores() {
+                return this._hardware.Ok && this._hardware.Ok.num_cores;
+            }
+
+            get gpu() {
+                if (this._hardware === undefined) {
+                    this._refresh();
+                }
+
+                return this._hardware.Ok && this._hardware.Ok.gpu;
+            }
+
+            get deployments() {
+                return $http.get(`${this._url}/deployments`).then(response => {
+                    let deployments = response.data;
+
+                    return deployments.map(deployment => new HubSessionDeployment(this, deployment.id, deployment));
+                });
+            }
+
+            async createDeployment(spec) {
+                let response = await $http.post(`${this._url}/deployments`, spec);
+
+                return new HubSessionDeployment(this, response.data.deploymentId, response.data);
+            }
+
+            async createHdDeployment(spec) {
+                let nativeSpec = {
+                    name: spec.name,
+                    tags: spec.tags
+                };
+
+                nativeSpec.envType = 'hd';
+                let os = await getOs(this.nodeId);
+                nativeSpec.image = spec.images[os];
+                return await this.createDeployment(nativeSpec);
+            }
+
+            get _url() {
+                return `${this.hubSession._url}/peers/${this.nodeId}`;
+            }
+
+            async _refresh() {
+                if (this._hardware === undefined) {
+                    this._hardware = {};
+                    this._hardware = await hubApi.callRemote(this.nodeId, 19354, null);
+                }
+            }
+        }
+
+        class HubSessionDeployment {
+
+            constructor(hubPeer, deploymentId, deploymentInfo) {
+                this.hubPeer = hubPeer;
+                this.deploymentId = deploymentId;
+                if (typeof deploymentInfo === "object") {
+                    this.deploymentInfo = deploymentInfo;
+                }
+            }
+
+            async update(commands) {
+                return (await $http.patch(this._url, commands)).data
+            }
+
+            async tags(refresh) {
+                if (refresh || !!this.deploymentInfo) {
+                    let response = await $http.get(this._url);
+
+                    this.deploymentInfo = response.data;
+                }
+
+                return [...this.deploymentInfo.tags];
+            }
+
+            get node() {
+                return this.hubPeer;
+            }
+
+            delete() {
+                return $http.delete(this._url);
+            }
+
+            get _url() {
+                return `${this.hubPeer._url}/deployments/${this.deploymentId}`;
+            }
+        }
+
 
         return {
             create: create,

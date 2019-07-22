@@ -5,7 +5,7 @@ After=network.target
 [Service]
 User=golemu
 WorkingDirectory=/usr/lib/golemu
-ExecStart=/usr/bin/gu-hub server 
+ExecStart=/usr/bin/gu-hub server run
 
 LimitNOFILE=150000
 StandardOutput=syslog+console

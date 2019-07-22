@@ -32,7 +32,7 @@ impl Actor for SessionsManager {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
-        let path = ConfigModule::new().work_dir().join("sessions");
+        let path = ConfigModule::new().work_dir().join("hub-sessions");
 
         fs::DirBuilder::new()
             .recursive(true)

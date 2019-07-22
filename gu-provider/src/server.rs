@@ -3,6 +3,7 @@
 use std::{
     collections::HashSet,
     net::{SocketAddr, ToSocketAddrs},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -10,7 +11,7 @@ use ::actix::prelude::*;
 use actix_web::*;
 use clap::ArgMatches;
 use futures::{future, prelude::*};
-use log::{error, info};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
@@ -118,12 +119,10 @@ impl Module for ServerModule {
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         self.daemon_command = DaemonHandler::consume(matches);
-
         self.daemon_command != DaemonCommand::None
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
-        use gu_base;
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
 
@@ -133,12 +132,19 @@ impl Module for ServerModule {
 
         let sys = System::new("gu-provider");
 
+        let socket_path = config_module.runtime_dir().join("gu-provider.socket");
+        let keystore_path = config_module.keystore_path();
+
         gu_base::run_once(move || {
             let dec = decorator.to_owned();
             let config_module: &ConfigModule = dec.extract().unwrap();
             let _ = HdMan::start(config_module);
 
-            ProviderServer::from_registry().do_send(InitServer { decorator });
+            ProviderServer::from_registry().do_send(InitServer {
+                decorator,
+                socket_path,
+                keystore_path,
+            });
         });
 
         let _ = sys.run();
@@ -190,10 +196,12 @@ impl Handler<PublishMdns> for ProviderServer {
     }
 }
 
-#[derive(Message, Clone, Copy)]
+#[derive(Message, Clone)]
 #[rtype(result = "Result<(), ()>")]
 struct InitServer<D: Decorator> {
     decorator: D,
+    socket_path: PathBuf,
+    keystore_path: PathBuf,
 }
 
 impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
@@ -202,6 +210,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
         use std::ops::Deref;
 
+        let uds_path = msg.clone().socket_path;
+        let keystore_path = msg.clone().keystore_path;
         let server = server::new(move || {
             msg.decorator
                 .decorate_webapp(App::new().scope("/m", rpc::mock::scope))
@@ -214,12 +224,45 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .and_then(|config: Arc<ProviderConfig>| Ok(config.deref().clone()))
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
-                .and_then(|config: ProviderConfig, act: &mut Self, _ctx| {
-                    let keys =
-                        EthAccount::load_or_generate(ConfigModule::new().keystore_path(), "")
-                            .unwrap();
+                .and_then(move |config: ProviderConfig, act: &mut Self, _ctx| {
+                    let keys = EthAccount::load_or_generate(keystore_path, "").unwrap();
 
-                    let _ = server.bind(config.p2p_addr()).unwrap().start();
+                    if cfg!(unix) {
+                        let dir_path = uds_path.parent().unwrap();
+                        if !dir_path.exists() {
+                            info!("Creating {:?}.", dir_path);
+                            let _ = std::fs::create_dir_all(dir_path)
+                                .and_then(|_| Ok(info!("Created {:?}.", dir_path)))
+                                .or_else(|_| Err(warn!("Cannot create {:?}.", dir_path)));
+                        }
+                        let listener = tokio_uds::UnixListener::bind(&uds_path)
+                            .or_else(|e| {
+                                info!("Cannot bind to socket ({:?}), error: {}.", uds_path, e);
+                                if (std::path::Path::new(&uds_path)).exists() {
+                                    info!("Removing {:?}.", uds_path);
+                                    let _ = std::fs::remove_file(&uds_path).or_else(|e| {
+                                        warn!("{}", e);
+                                        Err(e)
+                                    });
+                                    info!("Binding again to {:?}.", uds_path);
+                                    tokio_uds::UnixListener::bind(&uds_path)
+                                } else {
+                                    Err(e)
+                                }
+                            })
+                            .map_err(|e| {
+                                error!(
+                                    "Cannot bind to: {:?}. Please run with --user to create and \
+                                     use a unix domain socket in the user home directory",
+                                    uds_path
+                                );
+                                e
+                            })
+                            .unwrap();
+                        let _ = server.start_incoming(listener.incoming(), false);
+                    } else {
+                        let _ = server.bind(config.p2p_addr()).unwrap().start();
+                    }
 
                     act.node_id = Some(get_node_id(keys));
                     act.p2p_port = Some(config.p2p_port);
@@ -261,22 +304,70 @@ impl Handler<ConnectModeMessage> for ProviderServer {
     fn handle(&mut self, msg: ConnectModeMessage, _ctx: &mut Context<Self>) -> Self::Result {
         if let Some(ref connections) = self.connections {
             let mode = msg.mode.clone();
-            let config_fut =
+            let save_fut =
                 optional_save_future(move || connect::edit_config_connect_mode(mode), msg.save);
             let state_fut = connections
                 .send(AutoMdns(msg.mode == ConnectMode::Auto))
                 .map_err(|e| e.to_string())
                 .and_then(|r| r);
+            let list_fut = connections
+                .send(ListSockets)
+                .map_err(|e| e.to_string())
+                .and_then(|r| r);
+            let get_saved_hubs_fut = ConfigManager::from_registry()
+                .send(GetConfig::new())
+                .flatten_fut()
+                .and_then(move |c: Arc<ProviderConfig>| future::ok(c.hub_addrs.clone()))
+                .map_err(|e| e.to_string());
+
+            let connections_copy = connections.clone();
+            let auto_on = msg.mode == ConnectMode::Auto;
+
+            info!("Connect automatically: {}", auto_on);
+            self.publish_service(auto_on);
 
             return ActorResponse::r#async(
-                config_fut
+                save_fut
                     .join(state_fut)
-                    .map_err(|e| e.to_string())
-                    .and_then(|a| {
-                        Ok(match a {
-                            (None, None) => None,
-                            _ => Some(()),
-                        })
+                    .and_then(|(save, st)| {
+                        if save == None && st == None {
+                            future::Either::A(future::ok(None))
+                        } else {
+                            future::Either::B(list_fut.map(|r| Some(r)))
+                        }
+                    })
+                    .and_then(move |r| {
+                        if !auto_on {
+                            future::ok(r)
+                        } else {
+                            future::ok(None)
+                        }
+                    })
+                    .and_then(|connected_now| match connected_now {
+                        Some(connected) => future::Either::A(get_saved_hubs_fut.and_then(
+                            move |saved_hubs: HashSet<SocketAddr>| {
+                                if !connected.is_empty() {
+                                    info!("Disconnecting all hubs except saved: {:?}", &saved_hubs);
+                                }
+                                future::join_all(connected.into_iter().filter_map(
+                                    move |(hub, _)| {
+                                        if !saved_hubs.contains(&hub) {
+                                            info!("Disconnecting {:?}", &hub);
+                                            Some(
+                                                connections_copy
+                                                    .send(Disconnect(hub.clone()))
+                                                    .map_err(|e| e.to_string())
+                                                    .and_then(|a| a),
+                                            )
+                                        } else {
+                                            None
+                                        }
+                                    },
+                                ))
+                                .and_then(|_| future::ok(Some(())))
+                            },
+                        )),
+                        None => future::Either::B(future::ok(None)),
                     })
                     .into_actor(self),
             );

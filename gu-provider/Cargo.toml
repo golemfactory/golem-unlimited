@@ -1,7 +1,7 @@
 [package]
 name = "gu-provider"
 version = "0.2.0"
-license = "MIT"
+license = "GPL-3.0"
 publish = false
 authors = ["golemfactory"]
 edition = "2018"
@@ -15,7 +15,7 @@ gu-hdman = { path = "../gu-hdman" }
 gu-lan = { path = "../gu-lan" }
 gu-model = { path = "../gu-model" }
 gu-net = { path = "../gu-net" }
-gu-persist = { path = "../gu-persist" }
+gu-persist = { path = "../gu-persist", features=["uds_server"] }
 
 actix = "0.7"
 actix-web = { version = "0.7", default-features = false }

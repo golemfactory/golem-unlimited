@@ -1,10 +1,10 @@
-use std::{borrow::Cow, net::ToSocketAddrs, sync::Arc};
+use std::{net::ToSocketAddrs, path::PathBuf, sync::Arc};
 
 use actix::prelude::*;
 use actix_web;
 use clap::{App, ArgMatches};
 use futures::Future;
-use log::error;
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
@@ -72,14 +72,12 @@ impl config::HasSectionId for HubConfig {
 
 pub struct ServerModule {
     daemon_command: DaemonCommand,
-    config_path: Option<String>,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
             daemon_command: DaemonCommand::None,
-            config_path: None,
         }
     }
 }
@@ -90,11 +88,6 @@ impl Module for ServerModule {
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        self.config_path = match matches.value_of("config-dir") {
-            Some(v) => Some(v.to_string()),
-            None => None,
-        };
-
         self.daemon_command = DaemonHandler::consume(matches);
         self.daemon_command != DaemonCommand::None
     }
@@ -108,7 +101,7 @@ impl Module for ServerModule {
 
         let sys = actix::System::new("gu-hub");
 
-        let _config = ServerConfigurer::new(decorator.clone(), self.config_path.clone()).start();
+        let _config = ServerConfigurer::new(decorator.clone(), config_module.config_dir()).start();
 
         let _ = sys.run();
     }
@@ -130,21 +123,17 @@ fn chat_route(
 
 pub(crate) struct ServerConfigurer<D: Decorator> {
     decorator: D,
-    path: Option<String>,
+    path: PathBuf,
 }
 
 impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
-    fn new(decorator: D, path: Option<String>) -> Self {
+    fn new(decorator: D, path: PathBuf) -> Self {
         Self { decorator, path }
     }
 
     pub fn config(&self) -> Addr<ConfigManager> {
         let config = config::ConfigManager::from_registry();
-        println!("path={:?}", &self.path);
-
-        if let Some(path) = &self.path {
-            config.do_send(config::SetConfigPath::FsPath(Cow::Owned(path.clone())));
-        }
+        info!("Server configuration path: {:?}", &self.path);
         config
     }
 

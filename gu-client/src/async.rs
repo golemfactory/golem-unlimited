@@ -5,6 +5,7 @@ use std::{env, str};
 use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
 use futures::{future, prelude::*};
+use log::debug;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use url::Url;
@@ -45,7 +46,7 @@ impl Default for HubConnection {
 }
 
 impl HubConnection {
-    /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61621
+    /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61622
     pub fn from_addr<T: Into<String>>(addr: T) -> Result<HubConnection, Error> {
         Url::parse(&format!("http://{}/", addr.into()))
             .map_err(Error::InvalidAddress)
@@ -534,6 +535,10 @@ impl PeerSession {
         &self,
         commands: Vec<envman::Command>,
     ) -> impl Future<Item = Vec<String>, Error = Error> {
+        debug!(
+            "Sending the following commands to {:?}: {:?}",
+            self.peer.node_id, commands
+        );
         let url = format!(
             "{}sessions/{}/peers/{}/deployments/{}",
             self.peer

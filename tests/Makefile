@@ -1,7 +1,10 @@
 
 tests: gu-client.tests
 
-gu-client.tests:
+build:
+	docker-compose build
+
+gu-client.tests: build
 	docker-compose up -d
 	HUB_ADDR=$$(docker-compose exec hub gu-hub --json lan list -I hub | jq -r '.[0].Addresses'); \
 		 echo $$HUB_ADDR; \

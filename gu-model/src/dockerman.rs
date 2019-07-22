@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct CreateOptions {
     #[serde(default)]
     pub volumes: Vec<VolumeDef>,
@@ -9,6 +9,8 @@ pub struct CreateOptions {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub net: Option<NetDef>,
+    #[serde(default)] // default is false
+    pub autostart: bool,
 }
 
 impl CreateOptions {
@@ -23,7 +25,7 @@ pub enum VolumeDef {
     BindRw { src: String, target: String },
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum NetDef {
     #[serde(rename = "host")]
     Host {},

@@ -5,8 +5,8 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     marker::PhantomData,
-    path::{Path, PathBuf},
-    sync::Arc,
+    path::PathBuf,
+    sync::{Arc, RwLock},
 };
 
 use actix::{fut, prelude::*};
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{self, Value as JsonValue};
 
 use gu_actix::*;
-use gu_base::{App, Arg, Module};
+use gu_base::{App, Arg, ArgMatches, Module};
 
 pub use super::error::*;
 use super::storage::{Fetch, Put};
@@ -31,9 +31,10 @@ pub struct ConfigManager {
 
 impl ConfigManager {
     fn storage(&mut self) -> &Addr<Storage> {
+        let config_dir = ConfigModule::new().config_dir();
         let storage = match self.storage.take() {
             Some(v) => v,
-            None => SyncArbiter::start(1, || Storage::from_path(default_config_dir())),
+            None => SyncArbiter::start(1, move || Storage::from_path(&config_dir)),
         };
         self.storage = Some(storage);
         self.storage.as_ref().unwrap()
@@ -42,14 +43,6 @@ impl ConfigManager {
 
 impl Actor for ConfigManager {
     type Context = Context<Self>;
-}
-
-fn default_config_dir() -> PathBuf {
-    use directories::ProjectDirs;
-
-    let p = ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap();
-
-    p.config_dir().into()
 }
 
 impl Supervised for ConfigManager {}
@@ -95,13 +88,6 @@ impl<T: ConfigSection> SetConfig<T> {
     pub fn new(inner: T) -> Self {
         SetConfig(Arc::new(inner))
     }
-}
-
-#[derive(Message)]
-#[rtype(result = "Result<()>")]
-pub enum SetConfigPath {
-    Default(Cow<'static, str>),
-    FsPath(Cow<'static, str>),
 }
 
 impl<T: ConfigSection + 'static + Send + Sync> Handler<GetConfig<T>> for ConfigManager {
@@ -175,54 +161,115 @@ impl<T: ConfigSection + 'static> Handler<SetConfig<T>> for ConfigManager {
     }
 }
 
-impl Handler<SetConfigPath> for ConfigManager {
-    type Result = Result<()>;
+pub struct ConfigModule;
 
-    fn handle(&mut self, msg: SetConfigPath, _ctx: &mut Self::Context) -> Self::Result {
-        let path = match msg {
-            SetConfigPath::Default(app_name) => {
-                use directories::ProjectDirs;
-
-                ProjectDirs::from("network", "Golem", app_name.as_ref())
-                    .unwrap()
-                    .config_dir()
-                    .into()
-            }
-            SetConfigPath::FsPath(path) => PathBuf::from(path.as_ref()),
-        };
-
-        info!("new config path={:?}", path);
-
-        let file_storage = SyncArbiter::start(1, move || Storage::from_path(&path));
-
-        self.storage = Some(file_storage);
-
-        Ok(())
-    }
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfigPaths {
+    work_dir: PathBuf,
+    cache_dir: PathBuf,
+    #[serde(skip)]
+    config_dir: PathBuf,
+    runtime_dir: PathBuf,
 }
 
-pub struct ConfigModule(ProjectDirs);
+lazy_static! {
+    static ref CONFIG_PATHS_LOCK: RwLock<ConfigPaths> = RwLock::new(ConfigPaths {
+        work_dir: PathBuf::from("/var/lib/golemu/data/"),
+        cache_dir: PathBuf::from("/var/cache/golemu/"),
+        config_dir: PathBuf::from("/var/lib/golemu/conf/"),
+        runtime_dir: PathBuf::from("/var/run/golemu/"),
+    });
+    static ref CONFIG_DIR_ENV_VAR_LOCK: RwLock<Option<PathBuf>> = RwLock::new(None);
+}
+
+fn create_app_dirs() -> std::io::Result<()> {
+    let paths = CONFIG_PATHS_LOCK.read().unwrap();
+    for dir in &[
+        &paths.work_dir,
+        &paths.cache_dir,
+        &paths.config_dir,
+        &paths.runtime_dir,
+    ] {
+        if !dir.exists() {
+            std::fs::create_dir_all(&dir).map_err(|e| {
+                error!("Cannot create {:?}.", dir);
+                e
+            })?
+        }
+    }
+    Ok(())
+}
+
+fn set_config_path(config_path: PathBuf) {
+    let mut unlocked_paths = CONFIG_PATHS_LOCK.write().unwrap();
+    let dir_paths = config_path.clone().join("dir-paths.json");
+    let join_if_relative = |path: PathBuf, config_dir: &PathBuf| {
+        if path.is_relative() {
+            config_dir.join(path)
+        } else {
+            path
+        }
+    };
+    if let Ok(data) = std::fs::read_to_string(&dir_paths) {
+        let config_paths: ConfigPaths =
+            serde_json::from_str(&data).expect(&format!("Cannot deserialize {:?}", dir_paths));
+        unlocked_paths.work_dir = join_if_relative(config_paths.work_dir, &config_path);
+        unlocked_paths.cache_dir = join_if_relative(config_paths.cache_dir, &config_path);
+        unlocked_paths.runtime_dir = join_if_relative(config_paths.runtime_dir, &config_path);
+    } else {
+        let default_content = serde_json::to_string_pretty(&*unlocked_paths).unwrap();
+        error!(
+            "Could not find {:?}; creating this file using defaults: {}.",
+            &dir_paths, &default_content,
+        );
+        use std::{
+            fs::{create_dir_all, File},
+            io::Write,
+        };
+        if !config_path.exists() {
+            let _ = create_dir_all(&config_path).map_err(|e| error!("{}", e));
+        }
+        let _ = File::create(dir_paths).and_then(|mut f| f.write_all(default_content.as_bytes()));
+    }
+    unlocked_paths.config_dir = config_path;
+}
+
+fn set_paths_local() {
+    let dirs = ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap();
+    let paths = ConfigPaths {
+        work_dir: dirs.data_local_dir().to_path_buf().join("data"),
+        cache_dir: dirs.cache_dir().to_path_buf(),
+        config_dir: dirs.config_dir().to_path_buf(),
+        runtime_dir: dirs.data_local_dir().to_path_buf().join("run"),
+    };
+    *CONFIG_PATHS_LOCK.write().unwrap() = paths;
+}
 
 impl ConfigModule {
     const KEYSTORE_FILE: &'static str = "keystore.json";
 
     pub fn new() -> Self {
-        ConfigModule(ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap())
+        ConfigModule {}
     }
 
     /// TODO: for extracted sessions
-    pub fn work_dir(&self) -> &Path {
-        self.0.data_local_dir()
+    pub fn work_dir(&self) -> PathBuf {
+        CONFIG_PATHS_LOCK.read().unwrap().work_dir.clone()
     }
 
     /// TODO: for downloaded images
-    pub fn cache_dir(&self) -> &Path {
-        self.0.cache_dir()
+    pub fn cache_dir(&self) -> PathBuf {
+        CONFIG_PATHS_LOCK.read().unwrap().cache_dir.clone()
     }
 
     /// TODO: for configs and ethkeys
-    pub fn config_dir(&self) -> &Path {
-        self.0.config_dir()
+    pub fn config_dir(&self) -> PathBuf {
+        CONFIG_PATHS_LOCK.read().unwrap().config_dir.clone()
+    }
+
+    pub fn runtime_dir(&self) -> PathBuf {
+        CONFIG_PATHS_LOCK.read().unwrap().runtime_dir.clone()
     }
 
     pub fn keystore_path(&self) -> PathBuf {
@@ -234,13 +281,45 @@ impl ConfigModule {
 
 impl Module for ConfigModule {
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
+        *CONFIG_DIR_ENV_VAR_LOCK.write().unwrap() = match app.get_name() {
+            "Golem Unlimited Provider" => std::env::var("GU_PROV_CONF_DIR").ok().map(PathBuf::from),
+            "Golem Unlimited Hub" => std::env::var("GU_HUB_CONF_DIR").ok().map(PathBuf::from),
+            _ => None,
+        };
         app.arg(
             Arg::with_name("config-dir")
                 .short("c")
                 .takes_value(true)
                 .value_name("PATH")
-                .help("config dir path"),
+                .help("Set configuration directory path."),
         )
+        .arg(
+            Arg::with_name("user")
+                .long("user")
+                .global(true)
+                .help("Set application directories in local user directory (e.g. ~/.local/)"),
+        )
+    }
+
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        if matches.is_present("user") {
+            set_paths_local()
+        }
+        /* override config dir path if env variable is defined */
+        match *CONFIG_DIR_ENV_VAR_LOCK.read().unwrap() {
+            Some(ref path) => set_config_path(path.clone()),
+            None => (),
+        }
+        /* override config dir path if -c argument was used */
+        match matches.value_of("config-dir") {
+            Some(path) => {
+                info!("Using config dir: {}", path);
+                set_config_path(PathBuf::from(path));
+            }
+            _ => (),
+        }
+        let _ = create_app_dirs().map_err(|_| error!("Cannot create app dirs. Please use --user option to use local user home dirs (recommended) or -c to set config dir."));
+        false
     }
 }
 

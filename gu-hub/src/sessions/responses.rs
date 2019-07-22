@@ -68,6 +68,8 @@ pub enum SessionErr {
     CannotDeletePeerDeployment,
     #[fail(display = "Cannot update peer deployment")]
     CannotUpdatePeerDeployment,
+    #[fail(display = "Blob is not uploaded yet")]
+    BlobNotYetUploaded,
 }
 
 impl From<MailboxError> for SessionErr {

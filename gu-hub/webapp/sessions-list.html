@@ -7,6 +7,7 @@
                 <th>Type</th>
                 <th>Created</th>
                 <th>Name</th>
+                <th>Status</th>
                 <th>Actions</th>
             </tr>
             </thead>
@@ -20,6 +21,14 @@
                 </td>
                 <td>{{session.created | date: 'yyyy-MM-dd HH:mm:ss'}}</td>
                 <td>{{session.name}}</td>
+                <td>
+                    <uib-progress max="100" animate="false" ng-if="process(session).isActive">
+                        <uib-bar value="process(session).progress" type="success"
+                                 title="work done">
+                        </uib-bar>
+
+
+                </td>
                 <td>
                     <a class="btn btn-xs btn-danger" ng-click="deleteSession(session)"><i class="glyphicon glyphicon-trash"></i> </a>
                 </td>

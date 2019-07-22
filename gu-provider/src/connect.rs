@@ -420,7 +420,7 @@ pub(crate) fn change_single_connection(
         use std::ops::Deref;
 
         let mut config = c.deref().clone();
-        /* TODO change from vector to hashset */
+
         config.hub_addrs = config
             .hub_addrs
             .into_iter()
@@ -444,7 +444,6 @@ where
     A: 'static,
     F: Fn(&C, A) -> Option<C> + 'static,
 {
-    use futures::{future, Future};
     use std::{ops::Deref, sync::Arc};
     let manager = ConfigManager::from_registry();
 
@@ -483,7 +482,7 @@ fn edit_config_list(
             new_set.insert(s);
         }),
         ConnectionChange::Disconnect => modify_addrs.into_iter().for_each(|s| {
-            new_set.insert(s);
+            new_set.remove(&s);
         }),
     }
 
@@ -630,7 +629,7 @@ impl Handler<AutoMdns> for ConnectManager {
             ActorResponse::r#async(
                 MdnsActor::<Continuous>::from_registry()
                     .send(SubscribeInstance {
-                        service: ServiceDescription::new("gu-hub", "_unlimited._tcp"),
+                        service: ServiceDescription::new("_gu_hub._tcp", "local"),
                         rec: ctx.address().recipient(),
                     })
                     .flatten_fut()
