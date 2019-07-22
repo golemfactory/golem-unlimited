@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use actix::prelude::*;
 use actix_web::http::StatusCode;
@@ -64,10 +64,14 @@ impl DockerSession {
     }
 
     fn do_start(&mut self) -> impl Future<Item = String, Error = String> {
+        let id = self.container.id().to_owned();
         self.container
             .start()
             .map_err(|e| format!("{}", e))
-            .and_then(|_| Ok("OK".into()))
+            .and_then(move |_| {
+                info!("Container {} started", id);
+                Ok("OK".into())
+            })
     }
 
     fn do_wait(&mut self) -> impl Future<Item = String, Error = String> {
@@ -116,12 +120,28 @@ impl DockerSession {
         file_path: String,
     ) -> impl Future<Item = String, Error = String> {
         let mut outf = Vec::new();
+
+        // tar expects a relative path, so strip the leading `/`
+        let rel_path = match (|| -> Result<_, std::path::StripPrefixError> {
+            let path = Path::new(&file_path);
+            if path.is_absolute() {
+                Ok(Cow::from(path.strip_prefix("/")?))
+            } else {
+                Ok(Cow::from(path))
+            }
+        })() {
+            Ok(rp) => rp,
+            Err(e) => {
+                return future::Either::B(future::err(format!("Error stripping path: {}", e)))
+            }
+        };
+
         match (|| -> std::io::Result<()> {
             let mut b = tar::Builder::new(&mut outf);
 
             let mut header = tar::Header::new_ustar();
             header.set_size(content.len() as u64);
-            header.set_path(&file_path)?;
+            header.set_path(&rel_path)?;
             header.set_mode(0o644);
             header.set_uid(0);
             header.set_gid(0);
