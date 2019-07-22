@@ -81,15 +81,20 @@ impl DockerSession {
         &mut self,
         executable: String,
         mut args: Vec<String>,
+        working_dir: Option<String>,
     ) -> impl Future<Item = String, Error = String> {
         args.insert(0, executable);
         let cfg = {
             use async_docker::models::*;
 
-            ExecConfig::new()
+            let mut config = ExecConfig::new()
                 .with_attach_stdout(true)
                 .with_attach_stderr(true)
-                .with_cmd(args)
+                .with_cmd(args);
+            if let Some(working_dir) = working_dir {
+                config.set_working_dir(working_dir)
+            }
+            config
         };
 
         self.container
@@ -420,15 +425,23 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                 ActorResponse::r#async(fut::wrap_future(pull_and_create).and_then(
                     move |id, act: &mut DockerMan, _| {
                         if let Some(ref api) = act.docker_api {
-                            let deploy = DockerSession {
+                            let mut deploy = DockerSession {
                                 workspace,
                                 container: api.container(Cow::from(id.clone())),
                                 status: PeerSessionStatus::CREATED,
                             };
+                            let maybe_start = if msg.options.autostart {
+                                info!("Autostarting the container");
+                                let autostart_future =
+                                    deploy.do_start().map_err(Error::Error).map(|_| ());
+                                fut::Either::A(fut::wrap_future(autostart_future))
+                            } else {
+                                fut::Either::B(fut::ok(()))
+                            };
                             act.deploys.insert_deploy(id.clone(), deploy);
-                            fut::ok(id)
+                            fut::Either::A(maybe_start.and_then(|_, _, _| fut::ok(id)))
                         } else {
-                            fut::err(Error::UnknownEnv(msg.env_type.clone()))
+                            fut::Either::B(fut::err(Error::UnknownEnv(msg.env_type.clone())))
                         }
                     },
                 ))
@@ -469,10 +482,13 @@ fn run_command(
     match command {
         Command::Open => docker_man.run_for_deployment(session_id, DockerSession::do_open),
         Command::Close => docker_man.run_for_deployment(session_id, DockerSession::do_close),
-        Command::Exec { executable, args } => docker_man
-            .run_for_deployment(session_id, |deployment| {
-                deployment.do_exec(executable, args)
-            }),
+        Command::Exec {
+            executable,
+            args,
+            working_dir,
+        } => docker_man.run_for_deployment(session_id, |deployment| {
+            deployment.do_exec(executable, args, working_dir)
+        }),
         // TODO: FIXME @destruktiv: same as Exec but async
         Command::Start {
             executable: _,

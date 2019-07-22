@@ -9,6 +9,8 @@ pub struct CreateOptions {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub net: Option<NetDef>,
+    #[serde(default)] // default is false
+    pub autostart: bool,
 }
 
 impl CreateOptions {

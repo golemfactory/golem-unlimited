@@ -115,6 +115,9 @@ pub enum Command {
         // return cmd output
         executable: String,
         args: Vec<String>,
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        working_dir: Option<String>,
     },
     Open,
     Close,
@@ -233,6 +236,7 @@ mod test {
         if let Command::Exec {
             ref executable,
             ref args,
+            ..
         } = u.commands[0]
         {
             assert_eq!(executable, "gu-mine");
