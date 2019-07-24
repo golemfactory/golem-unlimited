@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 use ethkey::prelude::*;
 use gu_actix::flatten::FlattenFuture;
 use gu_base::{Decorator, Module, SubCommand};
+#[cfg(unix)]
+use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
@@ -30,11 +32,6 @@ use crate::connect::{
     ConnectionChangeMessage, Disconnect, ListSockets,
 };
 use crate::hdman::HdMan;
-use windows_service::service::{ServiceStatus, ServiceState, ServiceExitCode};
-use windows_service::service_dispatcher;
-
-#[cfg(unix)]
-use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -141,8 +138,8 @@ impl Module for ServerModule {
 
     #[cfg(windows)]
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        self.daemon_command = DaemonHandler::consume(matches);
-        self.daemon_command != DaemonCommand::None
+        //self.daemon_command = DaemonHandler::consume(matches);
+        //self.daemon_command != DaemonCommand::None
         if let Some(m) = matches.subcommand_matches("server") {
             self.run = true;
         }
@@ -152,11 +149,8 @@ impl Module for ServerModule {
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
-
         #[cfg(unix)]
         {
-            let dec = decorator.clone();
-            let config_module: &ConfigModule = dec.extract().unwrap();
             if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
                 return;
             }

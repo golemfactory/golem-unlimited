@@ -6,12 +6,6 @@ publish = false
 authors = ["golemfactory"]
 edition = "2018"
 
-[features]
-default=["env-docker"]
-win-service=["windows-service"]
-clinfo=["gu-hardware/clinfo"]
-env-docker=["async_docker"]
-
 [dependencies]
 ethkey = { path = "../ethkey" }
 gu-actix = { path = "../gu-actix" }
@@ -43,7 +37,6 @@ tar = "0.4"
 tokio-io = "0.1"
 tokio-uds = "0.2"
 uuid = { version = "0.7", features = ["v4"] }
-crossbeam-channel="0.3.6"
 windows-service = { version = "0.2.0", optional = true }
 
 async_docker = { git = "https://github.com/golemfactory/async-docker", optional = true, branch = "swagger", version = "0.1.1" }
@@ -52,6 +45,12 @@ tar-async = { git = "https://github.com/prekucki/tar-async.git" }
 
 [build-dependencies]
 vergen = "3"
+
+[features]
+default = ["env-docker"]
+win-service = ["windows-service"]
+clinfo = ["gu-hardware/clinfo"]
+env-docker = ["async_docker"]
 
 [package.metadata.deb]
 depends = "$auto, systemd"

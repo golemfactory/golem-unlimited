@@ -63,22 +63,26 @@ mod version {
 const VERSION: &str = env!("VERGEN_SEMVER_LIGHTWEIGHT");
 
 fn inner() {
+    let config_module = gu_persist::config::ConfigModule::new();
+
     GuApp(|| {
         App::new("Golem Unlimited Provider")
             .setting(AppSettings::ArgRequiredElseHelp)
             .version(VERSION)
     })
-        .run(
-            gu_persist::config::ConfigModule::new()
-                .chain(dockerman::module())
-                .chain(gu_lan::module::LanModule::module())
-                .chain(gu_hardware::module())
-                .chain(status::module())
-                .chain(connect::module())
-                .chain(permission::module())
-                .chain(AutocompleteModule::new())
-                .chain(server::ServerModule::new()),
-        );
+    .run(
+        LogModule
+            .chain(version::module())
+            .chain(config_module)
+            .chain(dockerman::module())
+            .chain(gu_lan::module::LanModule::module())
+            .chain(gu_hardware::module())
+            .chain(status::module())
+            .chain(connect::module())
+            .chain(permission::module())
+            .chain(AutocompleteModule::new())
+            .chain(server::ServerModule::new()),
+    );
 }
 
 fn main() {

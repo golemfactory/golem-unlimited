@@ -12,10 +12,11 @@ extern crate tar;
 #[macro_use]
 extern crate lazy_static;
 extern crate env_logger;
-extern crate libc;
 
 #[cfg(unix)]
 extern crate daemonize;
+extern crate libc;
+
 #[cfg(unix)]
 pub mod daemon;
 #[cfg(unix)]
