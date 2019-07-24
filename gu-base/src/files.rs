@@ -188,7 +188,9 @@ pub fn read_async<P: AsRef<Path>>(path: P) -> impl Stream<Item = Bytes, Error = 
         .map_err(move |e| {
             format!(
                 "error opening {}: {}",
-                path.as_ref().to_str().unwrap_or("(cannot convert to utf-8)"),
+                path.as_ref()
+                    .to_str()
+                    .unwrap_or("(cannot convert to utf-8)"),
                 e
             )
         })
