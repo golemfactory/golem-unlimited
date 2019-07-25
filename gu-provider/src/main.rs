@@ -109,9 +109,11 @@ fn windows_inner() {
     }
 
     fn run_service() -> windows_service::Result<()> {
-        use windows_service::service::{ServiceStatus, ServiceState, ServiceExitCode, ServiceControl, ServiceControlAccept};
-        use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
         use std::time::Duration;
+        use windows_service::service::{
+            ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
+        };
+        use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
 
         let event_handler = move |control_event| -> ServiceControlHandlerResult {
             match control_event {
@@ -119,7 +121,7 @@ fn windows_inner() {
                 ServiceControl::Stop => {
                     actix::System::current().stop();
                     ServiceControlHandlerResult::NoError
-                },
+                }
                 _ => ServiceControlHandlerResult::NotImplemented,
             }
         };
@@ -148,7 +150,7 @@ fn windows_inner() {
         Ok(())
     }
 
-    let _ = service_dispatcher::start(SERVICE_NAME, ffi_service_main).map_err(|e|{
+    let _ = service_dispatcher::start(SERVICE_NAME, ffi_service_main).map_err(|e| {
         log::error!("{:?}", e);
     });
 }

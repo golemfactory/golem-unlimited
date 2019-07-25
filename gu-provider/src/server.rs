@@ -16,9 +16,9 @@ use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{Decorator, Module, SubCommand};
 #[cfg(unix)]
 use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
+use gu_base::{Decorator, Module, SubCommand};
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
@@ -125,8 +125,12 @@ impl Module for ServerModule {
 
     #[cfg(windows)]
     fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
-        app.subcommand(SubCommand::with_name("server")
-            .about("Runs Golem Unlimited server"))
+        app.subcommand(
+            SubCommand::with_name("server")
+                .setting(gu_base::AppSettings::SubcommandRequiredElseHelp)
+                .about("Runs, gets status or stops a server on this machine")
+                .subcommand(SubCommand::with_name("run").about("Run server in foreground")),
+        )
     }
 
     #[cfg(unix)]
@@ -138,10 +142,14 @@ impl Module for ServerModule {
 
     #[cfg(windows)]
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
-        //self.daemon_command = DaemonHandler::consume(matches);
-        //self.daemon_command != DaemonCommand::None
         if let Some(m) = matches.subcommand_matches("server") {
-            self.run = true;
+            self.run = match m.subcommand_name() {
+                Some("run") => true,
+                _ => {
+                    warn!("windows: use 'gu-provider server run'");
+                    false
+                }
+            }
         }
         self.run
     }
@@ -186,10 +194,6 @@ impl Module for ServerModule {
     fn decorate_webapp<S: 'static>(&self, app: actix_web::App<S>) -> actix_web::App<S> {
         app
     }
-}
-
-fn p2p_server(_r: &HttpRequest) -> &'static str {
-    "ok"
 }
 
 #[derive(Default)]
@@ -247,6 +251,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
         use std::ops::Deref;
 
+        #[cfg(unix)]
         let uds_path = msg.clone().socket_path;
         let keystore_path = msg.clone().keystore_path;
         let server = server::new(move || {
@@ -264,7 +269,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .and_then(move |config: ProviderConfig, act: &mut Self, _ctx| {
                     let keys = EthAccount::load_or_generate(keystore_path, "").unwrap();
 
-                    if cfg!(unix) {
+                    #[cfg(unix)]
+                    {
                         let dir_path = uds_path.parent().unwrap();
                         if !dir_path.exists() {
                             info!("Creating {:?}.", dir_path);
@@ -297,7 +303,9 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                             })
                             .unwrap();
                         let _ = server.start_incoming(listener.incoming(), false);
-                    } else {
+                    }
+                    #[cfg(windows)]
+                    {
                         let _ = server.bind(config.p2p_addr()).unwrap().start();
                     }
 
