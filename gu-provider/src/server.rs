@@ -1,11 +1,8 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use std::{
-    collections::HashSet,
-    net::{SocketAddr, ToSocketAddrs},
-    path::PathBuf,
-    sync::Arc,
-};
+#[cfg(windows)]
+use std::net::ToSocketAddrs;
+use std::{collections::HashSet, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use ::actix::prelude::*;
 use actix_web::*;
@@ -18,7 +15,9 @@ use ethkey::prelude::*;
 use gu_actix::flatten::FlattenFuture;
 #[cfg(unix)]
 use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
-use gu_base::{Decorator, Module, SubCommand};
+#[cfg(windows)]
+use gu_base::SubCommand;
+use gu_base::{Decorator, Module};
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
@@ -76,6 +75,7 @@ pub(crate) enum ConnectMode {
 }
 
 impl ProviderConfig {
+    #[cfg(windows)]
     fn p2p_addr(&self) -> impl ToSocketAddrs {
         ("0.0.0.0", self.p2p_port)
     }
