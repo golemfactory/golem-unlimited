@@ -423,7 +423,9 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                 workspace
                     .create_dirs()
                     .expect("Creating session dirs failed");
-                let host_config = async_docker::models::HostConfig::new().with_binds(binds);
+                let host_config = async_docker::models::HostConfig::new()
+                    .with_binds(binds)
+                    .with_cap_add(msg.options.cap_add.clone());
 
                 let host_config = match msg.options.net {
                     Some(NetDef::Host {}) => host_config.with_network_mode("host".to_string()),
