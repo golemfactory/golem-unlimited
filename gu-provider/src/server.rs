@@ -221,7 +221,7 @@ impl Actor for ProviderServer {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        println!("started");
+        info!("provider server actor started");
     }
 }
 
