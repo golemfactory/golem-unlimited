@@ -431,6 +431,10 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                     Some(NetDef::Host {}) => host_config.with_network_mode("host".to_string()),
                     _ => host_config,
                 };
+                let host_config = match msg.options.shm_size {
+                    Some(size) => host_config.with_shm_size(size as i32), // FIXME usize
+                    None => host_config
+                };
 
                 let opts = Self::container_config(url.clone(), host_config);
                 info!("config: {:?}", &opts);

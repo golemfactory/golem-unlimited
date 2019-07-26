@@ -14,6 +14,9 @@ pub struct CreateOptions {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cap_add: Vec<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shm_size: Option<usize>,
 }
 
 impl CreateOptions {
