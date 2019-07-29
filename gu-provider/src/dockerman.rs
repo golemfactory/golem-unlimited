@@ -33,12 +33,12 @@ struct DockerMan {
 }
 
 impl DockerMan {
-    fn new(config: &ConfigModule) -> Self {
-        DockerMan {
+    fn new(config: &ConfigModule) -> Option<Self> {
+        WorkspacesManager::new(&config, "docker").map(|workspaces_man| DockerMan {
             docker_api: None,
             deploys: DeployManager::default(),
-            workspaces_man: WorkspacesManager::new(&config, "docker").unwrap(),
-        }
+            workspaces_man,
+        })
     }
 }
 
@@ -643,7 +643,11 @@ impl gu_base::Module for Init {
     fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
         gu_base::run_once(move || {
             let config_module: &ConfigModule = decorator.extract().unwrap();
-            let _ = DockerMan::new(&config_module).start();
+            if let Some(docker_manager) = DockerMan::new(&config_module) {
+                docker_manager.start();
+            } else {
+                error!("Cannot start docker manager.");
+            }
         });
     }
 }
