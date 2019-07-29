@@ -358,7 +358,10 @@ where
             ConfigManager::from_registry()
                 .send(config::GetConfig::new())
                 .flatten_fut()
-                .map_err(|_e| error::ErrorKind::ConfigError.into())
+                .map_err(|_e| {
+                    error!("Cannot load configuration.");
+                    error::ErrorKind::ConfigError.into()
+                })
                 .and_then(move |config: Arc<C>| {
                     let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
                     use tokio_uds::UnixStream;
