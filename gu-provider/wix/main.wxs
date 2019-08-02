@@ -1,0 +1,98 @@
+<?xml version='1.0' encoding='utf-8'?>
+
+<?if $(var.Platform) = x64 ?>
+    <?define Win64 = "yes" ?>
+    <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+<?else ?>
+  <?define Win64 = "no" ?>
+  <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+<?endif ?>
+
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product
+        Id='*'
+        Name='Golem Unlimited Provider'
+        UpgradeCode='705B21C0-7C31-4893-BBC5-4BD89CB80109'
+        Manufacturer='golemfactory'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'>
+
+        <Package Id='*'
+            Keywords='Installer'
+            Manufacturer='golemfactory'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perMachine'
+            SummaryCodepage='1252'
+            Platform='$(var.Platform)'/>
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
+
+        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
+        <Property Id='DiskPrompt' Value='gu_provider Installation'/>
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='GolemUnlimited'>
+                    <Component Id='License' Guid='*' Win64='$(var.Win64)'>
+                        <File Id='LicenseFile'
+                            Name='License'
+                            DiskId='1'
+                            Source='wix\LICENSE.rtf'
+                            KeyPath='yes'/>
+                    </Component>
+
+                    <Directory Id='Bin' Name='bin'>
+                        <Component Id='gu_providerBinary' Guid='*' Win64='$(var.Win64)'>
+                            <File
+                                Id='gu_providerEXE'
+                                Name='gu_provider.exe'
+                                DiskId='1'
+                                Source='..\target\release\gu-provider.exe'
+                                KeyPath='yes'>
+                            </File>
+                            <ServiceInstall
+                                    Id="ServiceInstaller"
+                                    Type="ownProcess"
+                                    Name="gu-provider"
+                                    DisplayName="Golem Unlimited's Provider"
+                                    Description="Instance of a Golem Unlimited network"
+                                    Account="[SERVICEACCOUNT]"
+                                    Password="[SERVICEPASSWORD]"
+                                    Start="auto"
+                                    ErrorControl="normal"
+                                    Arguments="server"/>
+                            <ServiceControl Id="StartService" Start="install" Stop="both" Remove="uninstall" Name="gu-provider" Wait="yes" />
+                        </Component>
+                    </Directory>
+                </Directory>
+            </Directory>
+        </Directory>
+
+        <Feature
+            Id='MainProgram'
+            Title='Application'
+            Description='Installs the executable and license.'
+            Level='1'
+            ConfigurableDirectory='APPLICATIONFOLDER'
+            AllowAdvertise='no'
+            Display='expand'
+            Absent='disallow'>
+            <ComponentRef Id='License'/>
+
+            <ComponentRef Id='gu_providerBinary'/>
+        </Feature>
+
+        <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+
+        <UI>
+            <UIRef Id='WixUI_FeatureTree'/>
+        </UI>
+        <WixVariable Id='WixUILicenseRtf' Value='wix\LICENSE.rtf'/>
+    </Product>
+
+</Wix>

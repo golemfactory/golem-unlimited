@@ -5,7 +5,9 @@ use actix::{
 use actix_web::client::Connection;
 use actix_web::{self, client::ClientRequest, http, Body, HttpMessage};
 use bytes::Bytes;
-use config::{self, ConfigManager, ConfigModule, HasSectionId};
+#[cfg(all(unix, feature = "uds_server"))]
+use config::ConfigModule;
+use config::{self, ConfigManager, HasSectionId};
 use futures::{future, Future};
 use gu_actix::flatten::FlattenFuture;
 use serde::{
