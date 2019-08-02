@@ -128,20 +128,23 @@ impl Module for ServerModule {
     }
 
     fn run<D: Decorator + 'static + Sync + Send>(&self, decorator: D) {
-        if self.daemon_command == DaemonCommand::None {
-            return;
-        }
-        let config_module: &ConfigModule = decorator.extract().unwrap();
-
         #[cfg(unix)]
         {
-            if !DaemonHandler::hub(self.daemon_command, config_module.work_dir()).run() {
+            if self.daemon_command == DaemonCommand::None {
                 return;
             }
         }
         #[cfg(windows)]
         {
             if !self.run {
+                return;
+            }
+        }
+        let config_module: &ConfigModule = decorator.extract().unwrap();
+
+        #[cfg(unix)]
+        {
+            if !DaemonHandler::hub(self.daemon_command, config_module.work_dir()).run() {
                 return;
             }
         }

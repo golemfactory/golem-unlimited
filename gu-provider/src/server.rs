@@ -155,21 +155,23 @@ impl Module for ServerModule {
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
-        if self.daemon_command == DaemonCommand::None {
-            return;
+        #[cfg(unix)]
+        {
+            if self.daemon_command == DaemonCommand::None {
+                return;
+            }
+        }
+        #[cfg(windows)]
+        {
+            if !self.run {
+                return;
+            }
         }
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
         #[cfg(unix)]
         {
             if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
-                return;
-            }
-        }
-
-        #[cfg(windows)]
-        {
-            if !self.run {
                 return;
             }
         }

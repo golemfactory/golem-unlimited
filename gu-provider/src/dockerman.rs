@@ -14,6 +14,9 @@ use futures::prelude::*;
 use log::{debug, error, info};
 use serde_json::json;
 
+#[cfg(windows)]
+use gu_base::SubCommand;
+#[cfg(unix)]
 use gu_base::{
     daemon_lib::{DaemonCommand, DaemonHandler},
     App,
@@ -647,12 +650,38 @@ struct Init {
 }
 
 impl gu_base::Module for Init {
-    fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
+    #[cfg(unix)]
+    fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
         app.subcommand(DaemonHandler::subcommand())
     }
 
+    #[cfg(windows)]
+    fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
+        app.subcommand(
+            SubCommand::with_name("server")
+                .setting(gu_base::AppSettings::SubcommandRequiredElseHelp)
+                .about("Runs, gets status or stops a server on this machine")
+                .subcommand(SubCommand::with_name("run").about("Run server in foreground")),
+        )
+    }
+
+    #[cfg(unix)]
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         self.should_run = DaemonHandler::consume(matches) != DaemonCommand::None;
+        self.should_run
+    }
+
+    #[cfg(windows)]
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        if let Some(m) = matches.subcommand_matches("server") {
+            self.should_run = match m.subcommand_name() {
+                Some("run") => true,
+                _ => {
+                    error!("windows: use 'gu-provider server run'");
+                    false
+                }
+            }
+        }
         self.should_run
     }
 
