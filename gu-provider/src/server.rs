@@ -123,6 +123,9 @@ impl Module for ServerModule {
     }
 
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
+        if self.daemon_command == DaemonCommand::None {
+            return;
+        }
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
 

@@ -8,11 +8,16 @@ use actix::prelude::*;
 use actix_web::http::StatusCode;
 use async_docker::models::ContainerConfig;
 use async_docker::{self, new_docker, DockerApi};
+use clap::ArgMatches;
 use futures::future;
 use futures::prelude::*;
 use log::{debug, error, info};
 use serde_json::json;
 
+use gu_base::{
+    daemon_lib::{DaemonCommand, DaemonHandler},
+    App,
+};
 use gu_model::dockerman::{CreateOptions, NetDef, VolumeDef};
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
@@ -637,21 +642,34 @@ impl Handler<DestroySession> for DockerMan {
     }
 }
 
-struct Init;
+struct Init {
+    should_run: bool,
+}
 
 impl gu_base::Module for Init {
+    fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
+        app.subcommand(DaemonHandler::subcommand())
+    }
+
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        self.should_run = DaemonHandler::consume(matches) != DaemonCommand::None;
+        self.should_run
+    }
+
     fn run<D: gu_base::Decorator + Clone + 'static>(&self, decorator: D) {
-        gu_base::run_once(move || {
-            let config_module: &ConfigModule = decorator.extract().unwrap();
-            if let Some(docker_manager) = DockerMan::new(&config_module) {
-                docker_manager.start();
-            } else {
-                error!("Cannot start docker manager.");
-            }
-        });
+        if self.should_run {
+            gu_base::run_once(move || {
+                let config_module: &ConfigModule = decorator.extract().unwrap();
+                if let Some(docker_manager) = DockerMan::new(&config_module) {
+                    docker_manager.start();
+                } else {
+                    error!("Cannot start docker manager.");
+                }
+            });
+        }
     }
 }
 
 pub fn module() -> impl gu_base::Module {
-    Init
+    Init { should_run: false }
 }

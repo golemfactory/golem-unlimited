@@ -93,6 +93,9 @@ impl Module for ServerModule {
     }
 
     fn run<D: Decorator + 'static + Sync + Send>(&self, decorator: D) {
+        if self.daemon_command == DaemonCommand::None {
+            return;
+        }
         let config_module: &ConfigModule = decorator.extract().unwrap();
 
         if !DaemonHandler::hub(self.daemon_command, config_module.work_dir()).run() {
