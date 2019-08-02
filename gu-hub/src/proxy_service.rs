@@ -116,7 +116,7 @@ impl Module for ProxyModule {
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
         let inner = self.inner.clone();
 
-        let manager = Some(
+        let _manager = Some(
             ProxyManager {
                 inner: inner.clone(),
             }
