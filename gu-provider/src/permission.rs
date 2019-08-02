@@ -538,7 +538,7 @@ fn run_configure() {
 
     System::run(|| {
         let get_config = config_future()
-            .map_err(|e| error!("{}", e))
+            .map_err(|e| error!("Cannot get config. Use --user to access configuration files for local user ({})", e))
             .and_then(|c: Arc<PermissionConfig>| Ok(c));
 
         Arbiter::spawn(
