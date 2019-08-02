@@ -14,13 +14,10 @@ use futures::prelude::*;
 use log::{debug, error, info};
 use serde_json::json;
 
+#[cfg(unix)]
+use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
 #[cfg(windows)]
 use gu_base::SubCommand;
-#[cfg(unix)]
-use gu_base::{
-    daemon_lib::{DaemonCommand, DaemonHandler},
-    App,
-};
 use gu_model::dockerman::{CreateOptions, NetDef, VolumeDef};
 use gu_model::envman::*;
 use gu_net::rpc::peer::PeerSessionInfo;
