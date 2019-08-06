@@ -210,7 +210,7 @@ impl Module for ConnectModule {
                             );
                             Ok(())
                         })
-                        .map_err(|e| error!("list {:?}", e))
+                        .map_err(|e| error!("Cannot list nodes. Error: {}", e))
                         .then(|_r| Ok(System::current().stop())),
                 ),
                 _ => unimplemented!(),

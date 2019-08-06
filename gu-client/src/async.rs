@@ -353,8 +353,26 @@ impl HubSession {
         .map_err(Error::CreateRequest)
         .and_then(|request| request.send().from_err())
         .and_then(|response| match response.status() {
-            http::StatusCode::OK => future::ok(()),
-            status => future::err(Error::ResponseErr(status)),
+            http::StatusCode::OK => {
+                future::Either::A(future::Either::A(response.json().from_err()))
+            }
+            http::StatusCode::INTERNAL_SERVER_ERROR => {
+                if response.content_type() == "application/json"
+                    && response.headers().get("x-processing-error").is_some()
+                {
+                    future::Either::A(future::Either::B(
+                        response
+                            .json()
+                            .from_err()
+                            .and_then(|v: Vec<String>| Err(Error::ProcessingResult(v))),
+                    ))
+                } else {
+                    future::Either::B(future::err(Error::ResponseErr(
+                        http::StatusCode::INTERNAL_SERVER_ERROR,
+                    )))
+                }
+            }
+            status => future::Either::B(future::err(Error::ResponseErr(status))),
         })
     }
     /// deletes hub session

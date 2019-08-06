@@ -171,6 +171,8 @@ struct ConfigPaths {
     #[serde(skip)]
     config_dir: PathBuf,
     runtime_dir: PathBuf,
+    #[serde(skip)]
+    tried_to_create: bool,
 }
 
 lazy_static! {
@@ -179,6 +181,7 @@ lazy_static! {
         cache_dir: PathBuf::from("/var/cache/golemu/"),
         config_dir: PathBuf::from("/var/lib/golemu/conf/"),
         runtime_dir: PathBuf::from("/var/run/golemu/"),
+        tried_to_create: false,
     });
     static ref CONFIG_DIR_ENV_VAR_LOCK: RwLock<Option<PathBuf>> = RwLock::new(None);
 }
@@ -199,6 +202,15 @@ fn create_app_dirs() -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn create_dirs_on_first_use() {
+    if CONFIG_PATHS_LOCK.read().unwrap().tried_to_create == false {
+        CONFIG_PATHS_LOCK.write().unwrap().tried_to_create = true;
+        if create_app_dirs().is_err() {
+            error!("Cannot create app dirs. Please use --user option to use local user home dirs (recommended) or -c to set config dir.");
+        }
+    }
 }
 
 fn set_config_path(config_path: PathBuf) {
@@ -242,6 +254,7 @@ fn set_paths_local() {
         cache_dir: dirs.cache_dir().to_path_buf(),
         config_dir: dirs.config_dir().to_path_buf(),
         runtime_dir: dirs.data_local_dir().to_path_buf().join("run"),
+        tried_to_create: false,
     };
     *CONFIG_PATHS_LOCK.write().unwrap() = paths;
 }
@@ -255,20 +268,24 @@ impl ConfigModule {
 
     /// TODO: for extracted sessions
     pub fn work_dir(&self) -> PathBuf {
+        create_dirs_on_first_use();
         CONFIG_PATHS_LOCK.read().unwrap().work_dir.clone()
     }
 
     /// TODO: for downloaded images
     pub fn cache_dir(&self) -> PathBuf {
+        create_dirs_on_first_use();
         CONFIG_PATHS_LOCK.read().unwrap().cache_dir.clone()
     }
 
     /// TODO: for configs and ethkeys
     pub fn config_dir(&self) -> PathBuf {
+        create_dirs_on_first_use();
         CONFIG_PATHS_LOCK.read().unwrap().config_dir.clone()
     }
 
     pub fn runtime_dir(&self) -> PathBuf {
+        create_dirs_on_first_use();
         CONFIG_PATHS_LOCK.read().unwrap().runtime_dir.clone()
     }
 
@@ -318,7 +335,6 @@ impl Module for ConfigModule {
             }
             _ => (),
         }
-        let _ = create_app_dirs().map_err(|_| error!("Cannot create app dirs. Please use --user option to use local user home dirs (recommended) or -c to set config dir."));
         false
     }
 }

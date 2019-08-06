@@ -182,10 +182,18 @@ fn write_bytes(x: Bytes, pos: u64, file: File) -> impl Future<Item = (), Error =
 }
 
 pub fn read_async<P: AsRef<Path>>(path: P) -> impl Stream<Item = Bytes, Error = String> {
-    let file_fut = future::result(File::open(path));
+    let file_fut = future::result(File::open(&path));
 
     file_fut
-        .map_err(|e| e.to_string())
+        .map_err(move |e| {
+            format!(
+                "error opening {}: {}",
+                path.as_ref()
+                    .to_str()
+                    .unwrap_or("(cannot convert to utf-8)"),
+                e
+            )
+        })
         .and_then(|file| Ok(ReadFile { file, range: None }))
         .and_then(|read| Ok(FILE_HANDLER.read_file(read)))
         .flatten_stream()
