@@ -13,6 +13,7 @@ extern crate tar;
 extern crate lazy_static;
 extern crate env_logger;
 
+#[cfg(unix)]
 extern crate daemonize;
 extern crate libc;
 

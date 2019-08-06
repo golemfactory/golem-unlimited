@@ -109,7 +109,9 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                         })
                         .and_then(|update_result| match update_result {
                             Ok(update_result) => Ok(HttpResponse::Ok().json(update_result)),
-                            Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
+                            Err(e) => Ok(HttpResponse::InternalServerError()
+                                .header("x-processing-error", "1")
+                                .json(e)),
                         })
                 },
             );

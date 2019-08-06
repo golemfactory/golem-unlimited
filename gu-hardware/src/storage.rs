@@ -40,7 +40,7 @@ pub(crate) fn storage_info<T: AsRef<Path>>(path: T) -> Result<StorageInfo> {
 }
 
 #[cfg(not(unix))]
-pub(crate) fn storage_info<T: AsRef<Path>>(path: T) -> Result<StorageInfo> {
+pub(crate) fn storage_info<T: AsRef<Path>>(_path: T) -> Result<StorageInfo> {
     Err(Error::StorageNotSupported)
 }
 

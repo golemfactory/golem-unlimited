@@ -1,11 +1,16 @@
+#[cfg(not(all(unix, feature = "uds_server")))]
+use actix::SystemService;
 use actix::{
-    Actor, ActorResponse, ArbiterService, Context, Handler, Message, Supervised, SystemService,
-    WrapFuture,
+    Actor, ActorResponse, ArbiterService, Context, Handler, Message, Supervised, WrapFuture,
 };
 use actix_web::client::Connection;
 use actix_web::{self, client::ClientRequest, http, Body, HttpMessage};
 use bytes::Bytes;
-use config::{self, ConfigManager, ConfigModule, HasSectionId};
+#[cfg(all(unix, feature = "uds_server"))]
+use config::ConfigModule;
+use config::HasSectionId;
+#[cfg(not(all(unix, feature = "uds_server")))]
+use config::{self, ConfigManager};
 use futures::{future, Future};
 use gu_actix::flatten::FlattenFuture;
 use serde::{
@@ -13,7 +18,9 @@ use serde::{
     Serialize,
 };
 use serde_json;
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
+#[cfg(not(all(unix, feature = "uds_server")))]
+use std::sync::Arc;
 
 mod error {
     use actix::MailboxError;
@@ -355,36 +362,39 @@ where
     fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
         let path = msg.path().to_string();
         ActorResponse::r#async(
-            ConfigManager::from_registry()
-                .send(config::GetConfig::new())
-                .flatten_fut()
-                .map_err(|_e| error::ErrorKind::ConfigError.into())
-                .and_then(move |config: Arc<C>| {
-                    let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
-                    use tokio_uds::UnixStream;
-                    let uds_path = ConfigModule::new().runtime_dir().join("gu-provider.socket");
-                    info!("Connecting to unix domain socket at {:?}", &uds_path);
-                    UnixStream::connect(uds_path)
-                        .map_err(|e| error::ErrorKind::IOError(e).into())
-                        .join(future::ok(url))
-                })
-                .and_then(move |(stream, url)| {
-                    let connection = actix_web::client::Connection::from_stream(stream);
-                    let client = match msg.into_request(&url, Some(connection)) {
-                        Ok(cli) => cli,
-                        Err(err) => return future::Either::B(future::err(err.into())),
-                    };
-                    future::Either::A(
-                        client
-                            .send()
-                            .map_err(|e| error::ErrorKind::SendRequestError(e).into())
-                            .and_then(|r| {
-                                r.json::<T>()
-                                    .map_err(move |e| error::ErrorKind::Json(e).into())
-                            }),
-                    )
-                })
-                .into_actor(self),
+            future::lazy(move || {
+                /* ip and port are not important - using unix domain sockets */
+                let url = format!("http://127.0.0.1:{}{}", 61621, &path);
+                use tokio_uds::UnixStream;
+                let uds_path = ConfigModule::new().runtime_dir().join("gu-provider.socket");
+                info!("Connecting to unix domain socket at {:?}", &uds_path);
+                UnixStream::connect(uds_path)
+                    .map_err(|e| {
+                        error!(
+                            "Cannot connect to unix domain socket. Is the server running? \
+                             Use --user to connect to local user domain socket."
+                        );
+                        error::ErrorKind::IOError(e).into()
+                    })
+                    .join(future::ok(url))
+            })
+            .and_then(move |(stream, url)| {
+                let connection = actix_web::client::Connection::from_stream(stream);
+                let client = match msg.into_request(&url, Some(connection)) {
+                    Ok(cli) => cli,
+                    Err(err) => return future::Either::B(future::err(err.into())),
+                };
+                future::Either::A(
+                    client
+                        .send()
+                        .map_err(|e| error::ErrorKind::SendRequestError(e).into())
+                        .and_then(|r| {
+                            r.json::<T>()
+                                .map_err(move |e| error::ErrorKind::Json(e).into())
+                        }),
+                )
+            })
+            .into_actor(self),
         )
     }
 
@@ -395,7 +405,10 @@ where
             ConfigManager::from_registry()
                 .send(config::GetConfig::new())
                 .flatten_fut()
-                .map_err(|_e| error::ErrorKind::ConfigError.into())
+                .map_err(|_e| {
+                    error!("Cannot load configuration. Run with --user to use configuration from a server running with user privileges or use sudo to use global configuration files.");
+                    error::ErrorKind::ConfigError.into()
+                })
                 .and_then(move |config: Arc<C>| {
                     let url = format!("http://127.0.0.1:{}{}", config.port(), &path);
                     let client = match msg.into_request(&url, None) {
