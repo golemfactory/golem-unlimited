@@ -26,7 +26,7 @@ pub fn module() -> impl Module {
     LocalServiceModule {
         plugin_commands: Arc::new(RwLock::new(BTreeMap::new())),
         command_proxy_path: Arc::new(RwLock::new(BTreeMap::new())),
-        manager: None,
+        _manager: None,
     }
 }
 
@@ -111,7 +111,7 @@ struct LocalServiceModule {
     // <plugin> -> <path> -> <url>
     plugin_commands: Arc<RwLock<BTreeMap<String, BTreeSet<String>>>>,
     command_proxy_path: Arc<RwLock<BTreeMap<String, ProxyPath>>>,
-    manager: Option<Addr<ProxyManager>>,
+    _manager: Option<Addr<ProxyManager>>,
 }
 
 #[derive(Deserialize)]
@@ -139,8 +139,8 @@ fn split_path2(path: &str) -> Option<(&str, &str, &str)> {
 
 impl Module for LocalServiceModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
-        let plugin_commands = self.plugin_commands.clone();
-        self.manager = Some(ProxyManager { plugin_commands }.start());
+        //let plugin_commands = self.plugin_commands.clone();
+        //self.manager = Some(ProxyManager { plugin_commands }.start());
         false
     }
 

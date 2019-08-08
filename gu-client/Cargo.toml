@@ -6,6 +6,8 @@ edition = "2018"
 
 [dependencies]
 gu-actix = { path = "../gu-actix" }
+# it is a dev dependency, but with an optional feature, so it has to be here
+gu-hardware = { path = "../gu-hardware" }
 gu-model = { path = "../gu-model" }
 gu-net = { path = "../gu-net" }
 
@@ -21,7 +23,6 @@ url = "1.7.2"
 
 [dev-dependencies]
 gu-actix = { path = "../gu-actix" }
-gu-hardware = { path = "../gu-hardware" }
 
 common-path = "1.0"
 crossbeam-channel = "0.3"

@@ -1,11 +1,8 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use std::{
-    collections::HashSet,
-    net::{SocketAddr, ToSocketAddrs},
-    path::PathBuf,
-    sync::Arc,
-};
+#[cfg(windows)]
+use std::net::ToSocketAddrs;
+use std::{collections::HashSet, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use ::actix::prelude::*;
 use actix_web::*;
@@ -16,10 +13,11 @@ use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
 use gu_actix::flatten::FlattenFuture;
-use gu_base::{
-    daemon_lib::{DaemonCommand, DaemonHandler},
-    Decorator, Module,
-};
+#[cfg(unix)]
+use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
+#[cfg(windows)]
+use gu_base::SubCommand;
+use gu_base::{Decorator, Module};
 use gu_lan::MdnsPublisher;
 use gu_net::{rpc, NodeId};
 use gu_persist::{
@@ -77,6 +75,7 @@ pub(crate) enum ConnectMode {
 }
 
 impl ProviderConfig {
+    #[cfg(windows)]
     fn p2p_addr(&self) -> impl ToSocketAddrs {
         ("0.0.0.0", self.p2p_port)
     }
@@ -95,13 +94,19 @@ impl HasSectionId for ProviderConfig {
 }
 
 pub struct ServerModule {
+    #[cfg(unix)]
     daemon_command: DaemonCommand,
+    #[cfg(windows)]
+    run: bool,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
+            #[cfg(unix)]
             daemon_command: DaemonCommand::None,
+            #[cfg(windows)]
+            run: false,
         }
     }
 }
@@ -113,21 +118,62 @@ fn get_node_id(keys: Box<EthAccount>) -> NodeId {
 }
 
 impl Module for ServerModule {
+    #[cfg(unix)]
     fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
         app.subcommand(DaemonHandler::subcommand())
     }
 
+    #[cfg(windows)]
+    fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
+        app.subcommand(
+            SubCommand::with_name("server")
+                .setting(gu_base::AppSettings::SubcommandRequiredElseHelp)
+                .about("Runs, gets status or stops a server on this machine")
+                .subcommand(SubCommand::with_name("run").about("Run server in foreground")),
+        )
+    }
+
+    #[cfg(unix)]
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         self.daemon_command = DaemonHandler::consume(matches);
+
         self.daemon_command != DaemonCommand::None
     }
 
+    #[cfg(windows)]
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        if let Some(m) = matches.subcommand_matches("server") {
+            self.run = match m.subcommand_name() {
+                Some("run") => true,
+                _ => {
+                    warn!("windows: use 'gu-provider server run'");
+                    false
+                }
+            }
+        }
+        self.run
+    }
+
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
+        #[cfg(unix)]
+        {
+            if self.daemon_command == DaemonCommand::None {
+                return;
+            }
+        }
+        #[cfg(windows)]
+        {
+            if !self.run {
+                return;
+            }
+        }
         let dec = decorator.clone();
         let config_module: &ConfigModule = dec.extract().unwrap();
-
-        if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
-            return;
+        #[cfg(unix)]
+        {
+            if !DaemonHandler::provider(self.daemon_command, config_module.work_dir()).run() {
+                return;
+            }
         }
 
         let sys = System::new("gu-provider");
@@ -180,7 +226,7 @@ impl Actor for ProviderServer {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        println!("started");
+        info!("provider server actor started");
     }
 }
 
@@ -210,6 +256,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
     fn handle(&mut self, msg: InitServer<D>, _ctx: &mut Context<Self>) -> Self::Result {
         use std::ops::Deref;
 
+        #[cfg(unix)]
         let uds_path = msg.clone().socket_path;
         let keystore_path = msg.clone().keystore_path;
         let server = server::new(move || {
@@ -227,7 +274,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .and_then(move |config: ProviderConfig, act: &mut Self, _ctx| {
                     let keys = EthAccount::load_or_generate(keystore_path, "").unwrap();
 
-                    if cfg!(unix) {
+                    #[cfg(unix)]
+                    {
                         let dir_path = uds_path.parent().unwrap();
                         if !dir_path.exists() {
                             info!("Creating {:?}.", dir_path);
@@ -260,7 +308,9 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                             })
                             .unwrap();
                         let _ = server.start_incoming(listener.incoming(), false);
-                    } else {
+                    }
+                    #[cfg(windows)]
+                    {
                         let _ = server.bind(config.p2p_addr()).unwrap().start();
                     }
 

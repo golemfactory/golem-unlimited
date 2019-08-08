@@ -2,17 +2,20 @@ use std::{net::ToSocketAddrs, path::PathBuf, sync::Arc};
 
 use actix::prelude::*;
 use actix_web;
-use clap::{App, ArgMatches};
+#[cfg(unix)]
+use clap::App;
+use clap::ArgMatches;
 use futures::Future;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 use ethkey::prelude::*;
 use gu_actix::*;
-use gu_base::{
-    daemon_lib::{DaemonCommand, DaemonHandler},
-    Decorator, Module,
-};
+#[cfg(unix)]
+use gu_base::daemon_lib::{DaemonCommand, DaemonHandler};
+#[cfg(windows)]
+use gu_base::SubCommand;
+use gu_base::{Decorator, Module};
 use gu_lan::MdnsPublisher;
 use gu_net::{
     rpc::{self, mock},
@@ -71,32 +74,79 @@ impl config::HasSectionId for HubConfig {
 }
 
 pub struct ServerModule {
+    #[cfg(unix)]
     daemon_command: DaemonCommand,
+    #[cfg(windows)]
+    run: bool,
 }
 
 impl ServerModule {
     pub fn new() -> Self {
         ServerModule {
+            #[cfg(unix)]
             daemon_command: DaemonCommand::None,
+            #[cfg(windows)]
+            run: false,
         }
     }
 }
 
 impl Module for ServerModule {
+    #[cfg(unix)]
     fn args_declare<'a, 'b>(&self, app: App<'a, 'b>) -> App<'a, 'b> {
         app.subcommand(DaemonHandler::subcommand())
     }
 
+    #[cfg(windows)]
+    fn args_declare<'a, 'b>(&self, app: gu_base::App<'a, 'b>) -> gu_base::App<'a, 'b> {
+        app.subcommand(
+            SubCommand::with_name("server")
+                .setting(gu_base::AppSettings::SubcommandRequiredElseHelp)
+                .about("Runs, gets status or stops a server on this machine")
+                .subcommand(SubCommand::with_name("run").about("Run server in foreground")),
+        )
+    }
+
+    #[cfg(unix)]
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
         self.daemon_command = DaemonHandler::consume(matches);
         self.daemon_command != DaemonCommand::None
     }
 
+    #[cfg(windows)]
+    fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        if let Some(m) = matches.subcommand_matches("server") {
+            self.run = match m.subcommand_name() {
+                Some("run") => true,
+                _ => {
+                    error!("windows: use 'gu-hub server run'");
+                    false
+                }
+            }
+        }
+        self.run
+    }
+
     fn run<D: Decorator + 'static + Sync + Send>(&self, decorator: D) {
+        #[cfg(unix)]
+        {
+            if self.daemon_command == DaemonCommand::None {
+                return;
+            }
+        }
+        #[cfg(windows)]
+        {
+            if !self.run {
+                return;
+            }
+        }
         let config_module: &ConfigModule = decorator.extract().unwrap();
 
-        if !DaemonHandler::hub(self.daemon_command, config_module.work_dir()).run() {
-            return;
+        #[cfg(unix)]
+        {
+            if !DaemonHandler::hub(self.daemon_command, config_module.work_dir()).run() {
+                return;
+            }
         }
 
         let sys = actix::System::new("gu-hub");

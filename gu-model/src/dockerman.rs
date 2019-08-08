@@ -11,6 +11,9 @@ pub struct CreateOptions {
     pub net: Option<NetDef>,
     #[serde(default)] // default is false
     pub autostart: bool,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cap_add: Vec<String>,
 }
 
 impl CreateOptions {
