@@ -84,6 +84,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .route("", Method::GET, list_peers)
         .resource("/{nodeId}", |r| r.get().with(fetch_peer))
+        .resource("/{nodeId}/hardware", |r| r.get().with(fetch_peer_hardware))
         .resource("/{nodeId}/deployments", |r| {
             r.get().with(fetch_deployments);
             r.post().with(new_deployment)
@@ -182,6 +183,30 @@ fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
                 tags: info.tags.into_iter().collect(),
                 sessions: Vec::new(),
             })),
+        })
+        .responder()
+}
+
+fn fetch_peer_hardware(info: Path<PeerPath>) -> impl Responder {
+    use gu_hardware::actor::HardwareQuery;
+    peer(info.node_id)
+        .into_endpoint()
+        .send(HardwareQuery::default())
+        .map_err(|e| match e {
+            SendError::NoDestination => {
+                actix_web::error::ErrorNotFound("Peer not found (no destination error)")
+            }
+            SendError::NotConnected(node_id) => {
+                actix_web::error::ErrorNotFound(format!("Peer not connected: {:?}", node_id))
+            }
+            _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
+        })
+        .and_then(|hardware_result| match hardware_result {
+            Ok(hardware) => Ok(HttpResponse::Ok().json(hardware)),
+            Err(e) => Err(actix_web::error::ErrorInternalServerError(format!(
+                "Error: {:?}",
+                e
+            ))),
         })
         .responder()
 }
