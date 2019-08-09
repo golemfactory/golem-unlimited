@@ -270,6 +270,57 @@ paths:
           description: Session not found
         '409':
           description: Conflicting version
+  '/sessions/{sessionId}/queues':
+    parameters:
+      - $ref: '#/parameters/sessionId'
+    post:
+      tags:
+        - session
+      operationId: createQueues
+      summary: Creates new session queue
+      consumes:
+        - application/json
+      responses:
+        201:
+          description: Created
+          schema:
+            type: number
+            format: int64
+            description: unsigned u64 integer.
+        404:
+          description: session not found
+  '/sessions/{sessionId}/queues/{queueId}':
+    parameters:
+      - $ref: '#/parameters/sessionId'
+      - name: queueId
+        in: path
+        required: true
+        type: number
+        format: int64
+    get:
+      parameters:
+        - name: ack
+          in: query
+          type: number
+          format: int64
+          description: last event id
+        - name: timeout
+          in: query
+          type: number
+          description: request timeout in seconds
+      tags:
+        - session
+      operationId: getEventsFromQueue
+      responses:
+        200:
+          description: events
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Event'
+
+
+
   '/sessions/{sessionId}/peers':
     parameters:
       - $ref: '#/parameters/sessionId'
@@ -817,6 +868,46 @@ definitions:
     enum:
       - raw
       - tar
+
+  MessageType:
+    type: string
+    enum:
+      - request
+      - reply
+      - event
+
+  QueueMessage:
+    type: object
+    required:
+      - id
+    properties:
+      id:
+        type: number
+        format: int64
+      replyTo:
+        type: string
+        description: replyTo url.
+      ts:
+        type: string
+        format: 'date-time'
+      validTo:
+        type: string
+        format: 'date-time'
+      msgType:
+        $ref: '#/definitions/MessageType'
+      tags:
+        type: array
+        items:
+          type: string
+          uniqueItems: true
+
+      text:
+        type: string
+      binary:
+        type: string
+        format: binary
+      object:
+        type: object
 
 securityDefinitions:
   serviceToken:
