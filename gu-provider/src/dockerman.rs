@@ -129,7 +129,7 @@ impl DockerSession {
                     })
                     .and_then(|(status, output)| match status {
                         0 => future::ok(output),
-                        exit_code => future::err(format!("{}\n{}", output, exit_code)),
+                        exit_code => future::err(format!("{}\nExit code: {}", output, exit_code)),
                     })
             })
     }
