@@ -106,16 +106,26 @@ impl DockerSession {
             config
         };
 
+        let container_copy = self.container.clone();
+
         self.container
             .exec(&cfg)
             .map_err(|e| format!("{}", e))
-            .fold(String::new(), |mut s, (_t, it)| {
-                match std::str::from_utf8(it.into_bytes().as_ref()) {
-                    Ok(chunk_str) => s.push_str(chunk_str),
-                    Err(_) => (),
-                };
-
-                Ok::<String, String>(s)
+            .and_then(|(stream, id)| {
+                stream
+                    .fold(String::new(), |mut s, (_t, it)| {
+                        match std::str::from_utf8(it.into_bytes().as_ref()) {
+                            Ok(chunk_str) => s.push_str(chunk_str),
+                            Err(_) => (),
+                        };
+                        Ok::<String, String>(s)
+                    })
+                    .and_then(move |output| container_copy.check_exec_status(&id).join(Ok(output)))
+                    .map_err(|e| format!("{}", e))
+                    .and_then(|(status, output)| match status {
+                        0 => Ok(output),
+                        exit_code => Err(format!("{}\nExit code: {}", output, exit_code)),
+                    })
             })
     }
 
