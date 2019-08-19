@@ -124,7 +124,7 @@ impl DockerSession {
                     .map_err(|e| format!("{}", e))
                     .and_then(|(status, output)| match status {
                         0 => Ok(output),
-                        exit_code => Err(format!("{}\n{}", output, exit_code)),
+                        exit_code => Err(format!("{}\nExit code: {}", output, exit_code)),
                     })
             })
     }
