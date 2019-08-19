@@ -120,16 +120,11 @@ impl DockerSession {
                         };
                         Ok::<String, String>(s)
                     })
+                    .and_then(move |output| container_copy.check_exec_status(&id).join(Ok(output)))
                     .map_err(|e| format!("{}", e))
-                    .and_then(move |output| {
-                        let exit_status = container_copy
-                            .check_exec_status(&id)
-                            .map_err(|e| format!("{}", e));
-                        exit_status.join(future::ok(output))
-                    })
                     .and_then(|(status, output)| match status {
-                        0 => future::ok(output),
-                        exit_code => future::err(format!("{}\n{}", output, exit_code)),
+                        0 => Ok(output),
+                        exit_code => Err(format!("{}\n{}", output, exit_code)),
                     })
             })
     }
