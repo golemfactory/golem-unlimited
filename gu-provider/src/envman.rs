@@ -12,10 +12,11 @@ use serde_json::Value as JsonValue;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+
 /// Actor
 #[derive(Default)]
 struct EnvMan {
-    create_map: BTreeMap<String, Box<CreateSender>>,
+    create_map: BTreeMap<String, Box<dyn CreateSender>>,
     session_update_map: BTreeMap<String, Recipient<SessionUpdate>>,
     get_sessions_map: BTreeMap<String, Recipient<GetSessions>>,
     destroy_session_map: BTreeMap<String, Recipient<DestroySession>>,
@@ -39,7 +40,7 @@ pub trait EnvManService {
 }
 
 trait CreateSender {
-    fn send(&self, msg: CreateSession<JsonValue>) -> Box<Future<Item = String, Error = Error>>;
+    fn send(&self, msg: CreateSession<JsonValue>) -> Box<dyn Future<Item = String, Error = Error>>;
 }
 
 struct CreateRecipient<T: EnvManService>(Recipient<CreateSession<T::CreateOptions>>);

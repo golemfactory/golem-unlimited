@@ -1,10 +1,12 @@
 use std::{fmt, io};
 
+use super::Map;
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use gu_net::rpc::peer::PeerSessionInfo;
 use gu_net::rpc::PublicMessage;
+use crate::queue::{EventType, QueueId};
 
 /// Errors
 // impl note: can not use error_chain bc it does not support SerDe
@@ -118,6 +120,9 @@ pub enum Command {
         #[serde(default)]
         #[serde(skip_serializing_if = "Option::is_none")]
         working_dir: Option<String>,
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_empty")]
+        on_events: Map<EventType, QueueId>
     },
     Open,
     Close,
@@ -125,6 +130,9 @@ pub enum Command {
         // return child process id
         executable: String,
         args: Vec<String>,
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_empty")]
+        on_events: Map<EventType, QueueId>
     },
 
     #[serde(rename_all = "camelCase")]

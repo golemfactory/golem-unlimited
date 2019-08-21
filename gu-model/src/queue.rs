@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-type QueueId = u64;
+pub type QueueId = u64;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +56,7 @@ impl<T> Default for MessageBody<T> {
     }
 }
 
+#[derive(Clone)]
 pub enum EventType {
     Stdout,
     Stderr,
