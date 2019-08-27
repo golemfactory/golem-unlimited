@@ -1,27 +1,37 @@
 swagger: '2.0'
 info:
-  title: Golem unlimited low level hub API
-  description: API description in Markdown.
-  version: 1.0.0
+  title: Golem Unlimited Hub low level API
+  description: GU Hub is an entry point to the whole subnetwork. It manages all subordinate resources from connected peers. This is low level API to access and utilise those resources.
+
+  version: 1.0.1
+  license:
+    name: GPL 3.0
+    url: 'https://www.gnu.org/licenses/gpl-3.0.html'
+
 host: '127.0.0.1:61622'
+
 tags:
   - name: session
-    description: HUB Session managment.
+    description: Unlimited Hub Session managment.
   - name: peer
-    description: Unlimited network peer info managment.
+    description: Unlimited Provider node managment.
 
 schemes:
   - http
+
 security:
   - serviceToken: []
   - systemName: []
+
 paths:
+
   /info:
     get:
       tags:
         - session
         - peer
       operationId: getHubInfo
+      summary: get information about given HUB.
       produces:
         - application/json
       responses:
@@ -29,12 +39,13 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/HubInfo'
+
   /peers:
     get:
       tags:
         - peer
       operationId: listPeers
-      summary: Returns a list hub peers.
+      summary: List all Providers connected with information about each of them
       parameters:
         - $ref: '#/parameters/offset'
         - $ref: '#/parameters/limit'
@@ -47,6 +58,7 @@ paths:
             type: array
             items:
               $ref: '#/definitions/PeerInfo'
+
   /peers/{nodeId}:
     parameters:
       - $ref: '#/parameters/nodeId'
@@ -54,20 +66,20 @@ paths:
       tags:
         - peer
       operationId: getPeerDetails
-      summary: 'Returns detailed peer info'
+      summary: Returns detailed Provider information
       responses:
         200:
           description: OK
           schema:
             $ref: '#/definitions/PeerDetails'
+
   /peers/{nodeId}/deployments:
     parameters:
       - $ref: '#/parameters/nodeId'
-
     post:
       tags:
         - peer
-      operationId: 'createDeployment'
+      operationId: createDeployment
       parameters:
         - name: spec
           in: body
@@ -91,7 +103,7 @@ paths:
     get:
       tags:
         - peer
-      operationId: 'listDeployments'
+      operationId: listDeployments
       responses:
         200:
           description: OK
@@ -101,6 +113,7 @@ paths:
               $ref: '#/definitions/DeploymentInfo'
         404:
           description: peer not found
+
   /peers/{nodeId}/deployments/{deploymentId}:
     parameters:
       - $ref: '#/parameters/nodeId'
@@ -115,8 +128,7 @@ paths:
               $ref: '#/definitions/Command'
       tags:
         - peer
-      operationId: 'updateDeployment'
-
+      operationId: updateDeployment
       responses:
         200:
           description: OK
@@ -128,11 +140,10 @@ paths:
       tags:
         - peer
       summary: Removes deployment
-      operationId: dropDeployment
+      operationId: deleteDeployment
       responses:
         204:
           description: Deployment uninstalled
-
 
   /sessions:
     get:
@@ -231,6 +242,7 @@ paths:
           description: Deleted
         404:
           description: 'Session not found'
+
   '/sessions/{sessionId}/config':
     parameters:
       - $ref: '#/parameters/sessionId'
@@ -270,13 +282,14 @@ paths:
           description: Session not found
         '409':
           description: Conflicting version
+
   '/sessions/{sessionId}/peers':
     parameters:
       - $ref: '#/parameters/sessionId'
     get:
       tags:
         - session
-      summary: List session peers
+      summary: List all Providers within selected session with information about each of them
       operationId: listSessionPeers
       responses:
         200:
@@ -317,11 +330,12 @@ paths:
           description: Session not found
         '500':
           description: Internal Error
+
   '/sessions/{sessionId}/peers/{nodeId}/deployments':
     post:
       tags:
         - session
-      operationId: createDeployment
+      operationId: createSessionDeployment
       summary: 'Creates new deployment'
       parameters:
         - $ref: '#/parameters/sessionId'
@@ -344,6 +358,7 @@ paths:
             description: exec environment session instance id
         '404':
           description: not found (session / peer)
+
   '/sessions/{sessionId}/peers/{nodeId}/deployments/{deploymentId}':
     parameters:
       - $ref: '#/parameters/sessionId'
@@ -352,11 +367,11 @@ paths:
     patch:
       tags:
         - session
-      operationId: updateDeployment
+      operationId: updateSessionDeployment
       summary: 'Sends multiple commands for peer'
       consumes:
         - application/json
-      produces: 
+      produces:
         - application/json
       parameters:
         - name: commands
@@ -372,7 +387,7 @@ paths:
     delete:
       tags:
         - session
-      operationId: deleteDeployment
+      operationId: deleteSessionDeployment
       responses:
         204:
           description: Deleted
@@ -483,7 +498,7 @@ definitions:
         description: git commit id
 
   HubInfo:
-    description: General information about given HUB.
+    description: General information about GU Hub.
     type: object
     properties:
       nodeId:
@@ -503,9 +518,8 @@ definitions:
         items:
           type: string
 
-
   PeerInfo:
-    description: General information about GU subnetwork node
+    description: General information about GU Provider.
     required:
       - peerAddr
     properties:
@@ -526,6 +540,9 @@ definitions:
           type: string
 
   PeerDetails:
+    description: Detailed information about GU Provider.
+    required:
+      - peerAddr
     properties:
       nodeName:
         type: string
@@ -604,6 +621,7 @@ definitions:
         items:
           type: string
           pattern: '^[a-zA-Z][a-zA-Z0-9_:-]*$'
+
   DeploymentSpec:
     properties:
       envType:
@@ -629,9 +647,7 @@ definitions:
         $ref: '#/definitions/CreateOptions'
 
   CreateOptions:
-    anyOf:
-    - type: null
-    - $ref: '#/definitions/DockerCreateOptions'
+    $ref: '#/definitions/DockerCreateOptions'
 
   DockerCreateOptions:
     type: object
@@ -652,25 +668,27 @@ definitions:
     properties:
       host:
         type: object
+
   VolumeDef:
     type: object
     properties:
       BindRw:
         type: object
         properties:
-          src: 
-            type: string 
-          target: 
+          src:
             type: string
+          target:
+            type: string
+
   Command:
     type: object
     properties:
       exec:
         $ref: '#/definitions/ExecCommand'
       open:
-        type: null
+        $ref: 'null'
       close:
-        type: null
+        $ref: 'null'
       start:
         $ref: '#/definitions/StartCommand'
       stop:
@@ -689,6 +707,7 @@ definitions:
         $ref: '#/definitions/DownloadFileCommand'
       uploadFile:
         $ref: '#/definitions/UploadFileCommand'
+
   ExecCommand:
     description: synchronous exec of session entry point
     type: object
@@ -699,6 +718,7 @@ definitions:
         type: array
         items:
           type: string
+
   StartCommand:
     properties:
       executable:
@@ -707,11 +727,13 @@ definitions:
         type: array
         items:
           type: string
+
   StopCommand:
     properties:
       childId:
         description: 'id of asynchronous process, started with StartCommand'
         type: string
+
   DownloadFileCommand:
     properties:
       uri:
@@ -721,6 +743,7 @@ definitions:
         type: string
       format:
         $ref: '#/definitions/FileFormat'
+
   UploadFileCommand:
     properties:
       uri:
@@ -728,6 +751,7 @@ definitions:
         format: url
       filePath:
         type: string
+
   ConfigStash:
     description: 'Free style configuration object'
     type: object
@@ -736,12 +760,10 @@ definitions:
   EnvType:
     description: |-
       Exec environment type.
-
       * hd - Host Direct mode
       * docker - Docker Container mode
       * wasm - WebAssembly mode
       * vm - virtual machine mode.
-
     type: string
     enum:
       - hd
@@ -749,6 +771,7 @@ definitions:
       - wasm
       - graphne
       - vm
+
   BlobInfo:
     type: object
     description: 'Binary large object basic information'
@@ -796,7 +819,6 @@ definitions:
             type: string
             format: date-time
 
-
   ProcessCollection:
     type: object
     additionalProperties:
@@ -811,6 +833,7 @@ definitions:
         items:
           type: string
         uniqueItems: true
+
   FileFormat:
     type: string
     default: raw
@@ -829,6 +852,7 @@ securityDefinitions:
     in: header
     name: X-GU-APPNAME
     description: 'Integration identifier'
+
 parameters:
   limit:
     name: limit
