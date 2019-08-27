@@ -1,8 +1,9 @@
 swagger: '2.0'
 info:
   title: Golem Unlimited Hub low level API
-  description: GU Hub is an entry point to the whole subnetwork. It manages all subordinate resources from connected peers. This is low level API to access and utilise those resources.
-
+  description: 'GU Hub is an entry point to the whole subnetwork.
+    It manages all subordinate resources from connected peers.
+    This is low level API to access and utilise those resources.'
   version: 1.0.1
   license:
     name: GPL 3.0
@@ -12,9 +13,9 @@ host: '127.0.0.1:61622'
 
 tags:
   - name: session
-    description: Unlimited Hub Session managment.
+    description: 'Unlimited Hub Session management.'
   - name: peer
-    description: Unlimited Provider node managment.
+    description: 'Unlimited Provider node management.'
 
 schemes:
   - http
@@ -30,8 +31,8 @@ paths:
       tags:
         - session
         - peer
+      summary: 'Get information about given Hub.'
       operationId: getHubInfo
-      summary: get information about given HUB.
       produces:
         - application/json
       responses:
@@ -44,8 +45,8 @@ paths:
     get:
       tags:
         - peer
+      summary: 'List all Providers connected to this Hub with information about each of them.'
       operationId: listPeers
-      summary: List all Providers connected with information about each of them
       parameters:
         - $ref: '#/parameters/offset'
         - $ref: '#/parameters/limit'
@@ -65,8 +66,8 @@ paths:
     get:
       tags:
         - peer
+      summary: 'Returns detailed Provider information.'
       operationId: getPeerDetails
-      summary: Returns detailed Provider information
       responses:
         200:
           description: OK
@@ -79,6 +80,7 @@ paths:
     post:
       tags:
         - peer
+      summary: 'Creates new deployment on given Provider.'
       operationId: createDeployment
       parameters:
         - name: spec
@@ -89,7 +91,7 @@ paths:
 
       responses:
         '201':
-          description: created
+          description: 'Created'
           headers:
             location:
               type: string
@@ -97,16 +99,17 @@ paths:
               description: 'Uri of new deployment'
           schema:
             type: string
-            description: exec environment session instance id
+            description: 'Execution environment session instance id'
         '404':
-          description: peer not found
+          description: 'Provider not found'
     get:
       tags:
         - peer
+      summary: 'Lists all deployments on given Provider.'
       operationId: listDeployments
       responses:
         200:
-          description: OK
+          description: 'OK'
           schema:
             type: array
             items:
@@ -119,6 +122,10 @@ paths:
       - $ref: '#/parameters/nodeId'
       - $ref: '#/parameters/deploymentId'
     patch:
+      tags:
+        - peer
+      summary: 'Sends list of commands to be executed within given deployment on given Provider.'
+      operationId: updateDeployment
       parameters:
         - name: commands
           in: body
@@ -126,12 +133,9 @@ paths:
             type: array
             items:
               $ref: '#/definitions/Command'
-      tags:
-        - peer
-      operationId: updateDeployment
       responses:
         200:
-          description: OK
+          description: 'OK'
           schema:
             type: array
             items:
@@ -139,24 +143,24 @@ paths:
     delete:
       tags:
         - peer
-      summary: Removes deployment
+      summary: 'Removes deployment from given Provider.'
       operationId: deleteDeployment
       responses:
         204:
-          description: Deployment uninstalled
+          description: 'Deployment uninstalled'
 
   /sessions:
     get:
       tags:
         - session
-      summary: Lists current hub sessions.
+      summary: 'Lists current Hub sessions.'
       operationId: listSessions
       parameters:
         - $ref: '#/parameters/limit'
         - $ref: '#/parameters/offset'
       responses:
         '200':
-          description: OK list sessions
+          description: 'Sessions list'
           schema:
             type: array
             items:
@@ -164,15 +168,15 @@ paths:
     post:
       tags:
         - session
+      summary: 'Creates new Hub session.'
       operationId: createSession
-      summary: 'Creates new hub session.'
-      description: |-
-        Allowed fileds:
+      description: '|-
+        Allowed fields:
 
         * name        - human readable session name
         * expires     - session expiration timestamp
         * allocation  - resource allocation mode.
-
+        '
       consumes:
         - application/json
       produces:
@@ -185,16 +189,16 @@ paths:
             $ref: '#/definitions/HubSession'
       responses:
         '201':
-          description: Session created
+          description: 'Session created'
           schema:
             type: integer
             format: int64
-            description: Created hub session id
+            description: 'Created Hub session id'
         '500':
-          description: Error
+          description: 'Error'
           schema:
             type: string
-            description: Error message
+            description: 'Error message'
 
   '/sessions/{sessionId}':
     parameters:
@@ -202,24 +206,24 @@ paths:
     get:
       tags:
         - session
-      summary: Gets hub session info
+      summary: 'Gets Hub session info.'
       operationId: getSession
       responses:
         '200':
-          description: OK
+          description: 'OK'
           schema:
             $ref: '#/definitions/HubSession'
         '404':
-          description: Session not found
+          description: 'Session not found'
         '500':
-          description: Internal Error
+          description: 'Internal Error'
           schema:
             type: string
     patch:
       tags:
         - session
+      summary: 'Sends command to be executed within given Hub session.'
       operationId: updateSession
-      summary: 'Hub session update'
       consumes:
         - application/json
       parameters:
@@ -230,16 +234,17 @@ paths:
 
       responses:
         200:
-          description: OK
+          description: 'OK'
         404:
           description: 'Session Not found'
     delete:
       tags:
         - session
       operationId: deleteSession
+      summary: 'Removes session'
       responses:
         204:
-          description: Deleted
+          description: 'Deleted'
         404:
           description: 'Session not found'
 
@@ -249,7 +254,7 @@ paths:
     get:
       tags:
         - session
-      summary: Gets configuration from stash
+      summary: 'Gets configuration from the stash within given Hub session.'
       operationId: getConfig
       responses:
         '200':
@@ -257,31 +262,31 @@ paths:
           schema:
             $ref: '#/definitions/ConfigStash'
         '404':
-          description: Session not found
+          description: 'Session not found'
         '500':
-          description: Internal Error
+          description: 'Internal Error'
     put:
       tags:
         - session
-      summary: Sets configuration stash
+      summary: 'Sets configuration stash within given Hub session.'
       operationId: setConfig
       parameters:
         - name: config
-          description: New config stash value
+          description: 'New config stash value'
           in: body
           required: true
           schema:
             $ref: '#/definitions/ConfigStash'
       responses:
         '200':
-          description: OK
+          description: 'OK'
           schema:
             type: integer
             format: int64
         '404':
-          description: Session not found
+          description: 'Session not found'
         '409':
-          description: Conflicting version
+          description: 'Conflicting version'
 
   '/sessions/{sessionId}/peers':
     parameters:
@@ -289,7 +294,7 @@ paths:
     get:
       tags:
         - session
-      summary: List all Providers within selected session with information about each of them
+      summary: 'List all Providers within given Hub session with information about each of them.'
       operationId: listSessionPeers
       responses:
         200:
@@ -303,7 +308,7 @@ paths:
     post:
       tags:
         - session
-      summary: Manually adds peers to hub session
+      summary: 'Adds Providers to given Hub session.'
       operationId: addSessionPeers
       parameters:
         - name: peerSet
@@ -335,8 +340,8 @@ paths:
     post:
       tags:
         - session
+      summary: 'Creates new deployment on given Provider within given Hub session.'
       operationId: createSessionDeployment
-      summary: 'Creates new deployment'
       parameters:
         - $ref: '#/parameters/sessionId'
         - $ref: '#/parameters/nodeId'
@@ -367,8 +372,8 @@ paths:
     patch:
       tags:
         - session
+      summary: 'Sends multiple commands to be executed on given Provider within given Hub session and deployment.'
       operationId: updateSessionDeployment
-      summary: 'Sends multiple commands for peer'
       consumes:
         - application/json
       produces:
@@ -387,6 +392,7 @@ paths:
     delete:
       tags:
         - session
+      summary: 'Removes session deployment'
       operationId: deleteSessionDeployment
       responses:
         204:
@@ -398,8 +404,8 @@ paths:
     post:
       tags:
         - session
+      summary: 'Creates new lob within given Hub session.'
       operationId: createBlob
-      summary: 'Creates new lob'
       consumes:
         - multipart/form-data
       parameters:
@@ -418,14 +424,14 @@ paths:
                 items:
                   type: integer
                   format: int64
-            description: 'BLob uniq id'
+            description: 'Blob unique id'
         404:
           description: 'Session not found'
     get:
       tags:
         - session
+      summary: 'Lists all currently allocated lobs within given Hub session.'
       operationId: listBlobs
-      summary: 'Lists currently allocated lobs'
       responses:
         200:
           description: OK
@@ -443,8 +449,8 @@ paths:
     put:
       tags:
         - session
+      summary: 'Uploads a binary content for previously created lob within given Hub session.'
       operationId: uploadBlob
-      summary: Uploads a binary content to the hub.
       parameters:
         - name: body
           in: body
@@ -460,7 +466,7 @@ paths:
       tags:
         - session
       operationId: downloadBlob
-      summary: Downloads binary content from the hub
+      summary: 'Downloads binary content from given lob within Hub session.'
       produces:
         - 'application/octet-stream'
       responses:
@@ -473,12 +479,12 @@ paths:
       tags:
         - session
       operationId: deleteBlob
+      summary: 'Removes given lob from the Hub session.'
       responses:
         201:
           description: Deleted
         404:
           description: Not found
-
 
 
 definitions:
@@ -686,9 +692,9 @@ definitions:
       exec:
         $ref: '#/definitions/ExecCommand'
       open:
-        $ref: 'null'
+        $ref: '#/definitions/OpenCommand'
       close:
-        $ref: 'null'
+        $ref: '#/definitions/CloseCommand'
       start:
         $ref: '#/definitions/StartCommand'
       stop:
@@ -718,6 +724,16 @@ definitions:
         type: array
         items:
           type: string
+
+  OpenCommand:
+    properties:
+      name:
+        type: string
+
+  CloseCommand:
+    properties:
+      name:
+        type: string
 
   StartCommand:
     properties:
