@@ -324,9 +324,11 @@ impl IntoDeployInfo for DockerSession {
 impl Destroy for DockerSession {
     fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
         let workspace = self.workspace.clone();
+        let container_copy = self.container.clone();
         Box::new(
             self.container
-                .delete()
+                .stop(None)
+                .and_then(move |_| container_copy.delete())
                 .then(|x| {
                     if x.is_ok() {
                         return Ok(());
