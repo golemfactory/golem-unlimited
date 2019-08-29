@@ -11,7 +11,7 @@ use async_docker::{self, new_docker, DockerApi};
 use clap::ArgMatches;
 use futures::future;
 use futures::prelude::*;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use serde_json::json;
 
 #[cfg(unix)]
@@ -328,21 +328,29 @@ impl Destroy for DockerSession {
         Box::new(
             self.container
                 .stop(None)
-                .and_then(move |_| container_copy.delete())
+                .and_then(move |_| {
+                    info!("Container stopped. Deleting container.");
+                    container_copy.delete()
+                })
                 .then(|x| {
                     if x.is_ok() {
+                        info!("Container deleted.");
                         return Ok(());
                     }
 
                     match x.unwrap_err().kind() {
-                        async_docker::ErrorKind::DockerApi(_a, status) => {
+                        async_docker::ErrorKind::DockerApi(a, status) => {
                             if &StatusCode::from_u16(404).unwrap() == status {
                                 Ok(())
                             } else {
+                                warn!("Docker API: error deleting container: {:?}, {}", a, status);
                                 Err(Error::Error("docker error".into()))
                             }
                         }
-                        _e => Err(Error::Error("docker error".into())),
+                        e => {
+                            warn!("Error deleting container: {:?}", e);
+                            Err(Error::Error("docker error".into()))
+                        }
                     }
                 })
                 .and_then(move |_| {
@@ -517,7 +525,7 @@ fn run_command(
     if docker_man.docker_api.is_none() {
         return Box::new(fut::err("Docker API not initialized properly".to_string()));
     }
-
+    info!("Running command: {:?}", command);
     match command {
         Command::Open => docker_man.run_for_deployment(session_id, DockerSession::do_open),
         Command::Close => docker_man.run_for_deployment(session_id, DockerSession::do_close),

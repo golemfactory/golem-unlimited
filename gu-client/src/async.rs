@@ -5,7 +5,7 @@ use std::{env, str};
 use actix_web::{client, http, HttpMessage};
 use bytes::Bytes;
 use futures::{future, prelude::*};
-use log::debug;
+use log::{debug, info};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use url::Url;
@@ -148,7 +148,8 @@ impl HubConnection {
             .finish()
             .into_future()
             .map_err(Error::CreateRequest)
-            .and_then(|r| r.send().from_err())
+            .inspect(|r| debug!("Deleting resource: {}", r.uri()))
+            .and_then(|r| r.send().timeout(Duration::from_secs(3600)).from_err())
             .and_then(|response| match response.status() {
                 http::StatusCode::NO_CONTENT => future::Either::A(future::ok(())),
                 http::StatusCode::OK => future::Either::B(
@@ -613,7 +614,10 @@ impl PeerSession {
             self.peer.node_id,
             self.session_id,
         );
-
+        info!(
+            "Deleting peer session. Hub session: {}, peer session: {}",
+            self.peer.hub_session.session_id, self.session_id
+        );
         self.peer.hub_session.hub_connection.delete_resource(&url)
     }
 }
