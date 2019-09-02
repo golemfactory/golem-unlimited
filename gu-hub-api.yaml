@@ -1,9 +1,10 @@
 swagger: '2.0'
 info:
   title: Golem Unlimited Hub low level API
-  description: 'GU Hub is an entry point to the whole subnetwork.
+  description: |-
+    GU Hub is an entry point to the whole subnetwork.
     It manages all subordinate resources from connected peers.
-    This is low level API to access and utilise those resources.'
+    This is low level API to access and utilise those resources.
   version: 1.0.1
   license:
     name: GPL 3.0
@@ -170,13 +171,12 @@ paths:
         - session
       summary: 'Creates new Hub session.'
       operationId: createSession
-      description: '|-
+      description: |-
         Allowed fields:
 
         * name        - human readable session name
         * expires     - session expiration timestamp
         * allocation  - resource allocation mode.
-        '
       consumes:
         - application/json
       produces:
@@ -692,9 +692,9 @@ definitions:
       exec:
         $ref: '#/definitions/ExecCommand'
       open:
-        $ref: '#/definitions/OpenCommand'
+        $ref: ''
       close:
-        $ref: '#/definitions/CloseCommand'
+        $ref: ''
       start:
         $ref: '#/definitions/StartCommand'
       stop:
@@ -724,16 +724,6 @@ definitions:
         type: array
         items:
           type: string
-
-  OpenCommand:
-    properties:
-      name:
-        type: string
-
-  CloseCommand:
-    properties:
-      name:
-        type: string
 
   StartCommand:
     properties:
