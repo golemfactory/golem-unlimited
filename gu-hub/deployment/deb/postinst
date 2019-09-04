@@ -13,14 +13,15 @@ umask 022
 
 setup_user() {
         if ! getent passwd golemu >/dev/null; then
-                adduser --quiet --system --no-create-home --home /var/lib/golemu --shell /usr/sbin/nologin golemu
-		mkdir -p -m 700 /var/lib/golemu/
-		chown golemu /var/lib/golemu
+                adduser --quiet --system --group --no-create-home --home /var/lib/golemu --shell /usr/sbin/nologin golemu
+                mkdir -p -m 700 /var/cache/golemu/ /var/lib/golemu/
+                mkdir -p -m 755 /var/run/golemu/
+                chown golemu:golemu /var/cache/golemu /var/lib/golemu /var/run/golemu
         fi
 }
 
 if [ "$action" = configure ]; then
-	setup_user
+        setup_user
 fi
 
 systemctl enable gu-hub
