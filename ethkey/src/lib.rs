@@ -13,7 +13,7 @@
 //! ## Usage
 //! ```toml
 //! [dependencies]
-//! ethkey = "0.2"
+//! ethkey = "0.3"
 //! ```
 //!
 //! ## Example
@@ -33,7 +33,6 @@
 use std::{
     fmt,
     fs::File,
-    num::NonZeroU32,
     path::{Path, PathBuf},
 };
 
@@ -55,7 +54,7 @@ pub type Message = [u8; 32];
 pub type Password = Protected;
 
 /// HMAC fn iteration count; a compromise between security and performance
-pub const KEY_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(10240) };
+pub const KEY_ITERATIONS: u32 = 10240;
 pub const KEYSTORE_VERSION: u64 = 3;
 
 /// An Ethereum Account keys with store.
@@ -83,17 +82,17 @@ impl EthAccount {
     }
 
     /// signs given message with self secret key
-    pub fn sign(&self, msg: &Message) -> error::Result<Signature> {
+    pub fn sign(&self, msg: &Message) -> failure::Fallible<Signature> {
         Ok(self.secret.sign(msg)?)
     }
 
     /// verifies signature for given message and self public key
-    pub fn verify(&self, sig: &Signature, msg: &Message) -> error::Result<bool> {
+    pub fn verify(&self, sig: &Signature, msg: &Message) -> failure::Fallible<bool> {
         Ok(self.public.verify(sig, msg)?)
     }
 
     /// reads keys from disk or generates new ones and stores to disk; password needed
-    pub fn load_or_generate<P, W>(file_path: P, password: W) -> error::Result<Box<Self>>
+    pub fn load_or_generate<P, W>(file_path: P, password: W) -> failure::Fallible<Box<Self>>
     where
         P: AsRef<Path>,
         W: Into<Password>,
@@ -102,7 +101,7 @@ impl EthAccount {
         let (secret, log_msg) = match File::open(&file_path) {
             Ok(file) => {
                 let key_file: KeyFile = serde_json::from_reader(file)?;
-                let secret = SecretKey::from_crypto(&key_file.crypto, &pwd)?;
+                let secret = key_file.to_secret_key(&pwd)?;
                 (secret, "loaded")
             }
             Err(_e) => {
@@ -125,14 +124,14 @@ impl EthAccount {
     }
 
     /// stores keys on disk with changed password
-    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> error::Result<()> {
+    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> failure::Fallible<()> {
         save_key(&self.secret, &self.file_path, new_password.into())?;
         info!("changed password for {}", self);
         Ok(())
     }
 }
 
-fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> error::Result<()>
+fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> failure::Fallible<()>
 where
     P: AsRef<Path>,
     W: Into<Password>,
@@ -178,19 +177,6 @@ impl fmt::Debug for EthAccount {
             .field("public", &self.public)
             .field("file_path", &self.file_path)
             .finish()
-    }
-}
-
-mod error {
-    use error_chain::*;
-
-    error_chain! {
-        foreign_links {
-            IoError(std::io::Error);
-            EthsignError(ethsign::Error);
-            Secp256k1Error(secp256k1::Error);
-            SerdeJsonError(serde_json::Error);
-        }
     }
 }
 
