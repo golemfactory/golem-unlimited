@@ -22,10 +22,19 @@
 //! use ethkey::prelude::*;
 //!
 //! fn main() {
-//!     let key = EthAccount::load_or_generate("/path/to/keystore", "passwd")
+//!     let key = EthAccount::load_or_generate("/tmp/path/to/keystore", "passwd")
 //!         .expect("should load or generate new eth key");
 //!
-//!     println!("{:?}", key.address())
+//!     println!("{:?}", key.address());
+//!
+//!     let message = [7_u8; 32];
+//!
+//!     // sign the message
+//!     let signature = key.sign(&message).unwrap();
+//!
+//!     // verify the signature
+//!     let result = key.verify(&signature, &message).unwrap();
+//!     println!("{}", if result {"verification ok"} else {"wrong signature"});
 //! }
 //! ```
 //!
@@ -67,7 +76,7 @@ pub struct EthAccount {
     secret: SecretKey,
     public: PublicKey,
     address: Address,
-    file_path: PathBuf,
+    kestore_path: PathBuf,
 }
 
 impl EthAccount {
@@ -79,6 +88,11 @@ impl EthAccount {
     /// Ethereum address
     pub fn address(&self) -> &Address {
         &self.address
+    }
+
+    /// Key store path
+    pub fn kestore_path(&self) -> &PathBuf {
+        &self.kestore_path
     }
 
     /// signs given message with self secret key
@@ -115,7 +129,7 @@ impl EthAccount {
             address: secret.public().address().as_ref().into(),
             public: secret.public(),
             secret,
-            file_path: ::std::fs::canonicalize(file_path)?,
+            kestore_path: ::std::fs::canonicalize(file_path)?,
         };
 
         info!("{} {}", log_msg, eth_account);
@@ -125,7 +139,7 @@ impl EthAccount {
 
     /// stores keys on disk with changed password
     pub fn change_password<W: Into<Password>>(&self, new_password: W) -> failure::Fallible<()> {
-        save_key(&self.secret, &self.file_path, new_password.into())?;
+        save_key(&self.secret, &self.kestore_path, new_password.into())?;
         info!("changed password for {}", self);
         Ok(())
     }
@@ -166,7 +180,7 @@ impl fmt::Display for EthAccount {
             fmt,
             "EthAccount address: {}, path: {:?}",
             self.address(),
-            self.file_path
+            self.kestore_path
         )
     }
 }
@@ -175,7 +189,7 @@ impl fmt::Debug for EthAccount {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
         fmt.debug_struct("EthAccount")
             .field("public", &self.public)
-            .field("file_path", &self.file_path)
+            .field("file_path", &self.kestore_path)
             .finish()
     }
 }
@@ -331,7 +345,7 @@ mod tests {
         let key = EthAccount::load_or_generate(&rel_path, "hekloo").unwrap();
 
         // then
-        assert_eq!(key.file_path, abs_path);
+        assert_eq!(key.kestore_path, abs_path);
     }
 
     #[test]
