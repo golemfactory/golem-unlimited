@@ -276,6 +276,8 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
 
                     #[cfg(unix)]
                     {
+                        use std::fs::Permissions;
+                        use std::os::unix::fs::PermissionsExt;
                         let dir_path = uds_path.parent().unwrap();
                         if !dir_path.exists() {
                             info!("Creating {:?}.", dir_path);
@@ -307,6 +309,7 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                                 e
                             })
                             .unwrap();
+                        let _ = std::fs::set_permissions(uds_path, Permissions::from_mode(0o770));
                         let _ = server.start_incoming(listener.incoming(), false);
                     }
                     #[cfg(windows)]

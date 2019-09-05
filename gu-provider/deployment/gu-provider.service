@@ -1,4 +1,4 @@
-[Unit]                                                                                                                                                                          
+[Unit]
 Description=gu-provider
 After=network.target
 
