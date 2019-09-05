@@ -12,6 +12,7 @@ use tokio_io::io;
 use tokio_process::{Child, CommandExt};
 
 use gu_actix::{async_result, async_try};
+use gu_model::envman;
 
 type Map<K, V> = HashMap<K, V>;
 
@@ -195,5 +196,19 @@ impl Handler<Stop> for ProcessPool {
 
     fn handle(&mut self, msg: Stop, _ctx: &mut Self::Context) -> <Self as Handler<Stop>>::Result {
         self.stop_process(msg.0)
+    }
+}
+
+pub struct KillAll;
+
+impl Message for KillAll {
+    type Result = Result<(), envman::Error>;
+}
+
+impl Handler<KillAll> for ProcessPool {
+    type Result = Result<(), envman::Error>;
+
+    fn handle(&mut self, msg: KillAll, ctx: &mut Self::Context) -> Self::Result {
+        Ok(self.kill_all())
     }
 }
