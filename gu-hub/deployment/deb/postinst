@@ -10,7 +10,6 @@ oldversion="$2"
 
 umask 022
 
-
 setup_user() {
         if ! getent passwd golemu >/dev/null; then
                 adduser --quiet --system --group --no-create-home --home /var/lib/golemu --shell /usr/sbin/nologin golemu
@@ -26,4 +25,3 @@ fi
 
 systemctl enable gu-hub
 systemctl start gu-hub
-
