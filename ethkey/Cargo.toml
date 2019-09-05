@@ -1,9 +1,9 @@
 [package]
 name = "ethkey"
-version = "0.2.5"
+version = "0.3.0"
 description = "Ethereum keys management supporting keystores, signing and verification"
 authors = ["Golem Factory <contact@golem.network>"]
-homepage = "https://github.com/golemfactory/golem-unlimited/tree/ethsign/ethkey"
+homepage = "https://github.com/golemfactory/golem-unlimited/tree/ethkey/ethkey"
 repository = "https://github.com/golemfactory/golem-unlimited"
 documentation = "https://docs.rs/crate/ethkey"
 license = "MIT"
@@ -11,8 +11,8 @@ edition = "2018"
 
 [dependencies]
 env_logger = "0.5"
-error-chain = "0.12"
-ethsign = "0.5"
+ethsign = "0.7"
+failure = "0.1.5"
 log = "0.4"
 parity-crypto = "0.3"
 rand = "0.6"
