@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 User=golemu
-WorkingDirectory=/var/lib/golemu
+WorkingDirectory=/usr/lib/golemu
 ExecStart=/usr/bin/gu-hub server run
 
 LimitNOFILE=150000
