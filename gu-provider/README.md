@@ -2,6 +2,7 @@
 # Golem Unlimited Provider
 
 A worker node for Golem Unlimited. It is subordinate to the [Hub](../gu-hub). 
+It can be run on all three main OS Platforms.
 
 ## Build from src
 
@@ -17,8 +18,8 @@ cargo build --release
 ```
 cargo build --features "async_docker/ssl gu-hardware/clinfo" --release
 ```
-* ssl is needed when you want to utilise docker execution environment within Golem Unlimited  
-* clinfo is needed for proper GPU detection
+* `ssl` is needed when you want to utilise docker execution environment within Golem Unlimited  
+* `clinfo` is needed for proper GPU detection
 
 ## Run
 
@@ -32,7 +33,7 @@ you can omit `--user` when you have administrative priviledges.
 Check other commands by invoking:
 
 ```
-$ gu-hub help
+$ gu-provider help
 ```
 
 ## Configuration
