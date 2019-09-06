@@ -1,31 +1,47 @@
 # Golem Unlimited 
 [![Build Status](https://travis-ci.org/golemfactory/golem-unlimited.svg?branch=release%2F0.2)](https://travis-ci.org/golemfactory/golem-unlimited)
 
-Golem Unlimited utilizes **trusted** heterogeneous computing resources which are part time idle. It is meant for data center-like setup (e.g., render farms, or desktops within organisation LAN) where network participants trust each other, but it will also support trusted P2P subnetworks (e.g., distributed team machines).
+Golem Unlimited utilizes **trusted** heterogeneous computing resources which are part time idle.
+It is meant for data center-like setup (e.g., render farms, or desktops within organisation LAN)
+ where network participants trust each other, but it will also support trusted P2P subnetworks 
+ (e.g., distributed team machines).
 
-It features the [hub](gu-hub) acting as a requestor and additional worker nodes in the hub’s trusted network acting as [providers](gu-provider).
+It features the [hub](gu-hub) acting as a requestor and additional worker nodes in the hub’s 
+trusted network acting as [providers](gu-provider).
 
-Trust within Golem Unlimited subnetwork allows simplifying its design and taking care of only the computation layer. Other components such as economic layers, reputation systems, verification algorithms, and sandboxing (in contrast to the public Golem Network) can be skipped altogether or implemented optionally.
+Trust within Golem Unlimited subnetwork allows simplifying its design and taking care of only
+the computation layer. Other components such as economic layers, reputation systems,
+verification algorithms, and sandboxing (in contrast to the public Golem Network)
+can be skipped altogether or implemented optionally.
 
-Golem Unlimited joint resources can be used to perform tasks for internal requestor - the hub operator - with no fee. At the same time the hub will be able to expose its subordinate trusted providers to the public [Golem](../../../golem) Network. In such a setting hub will act as a provider and earn GNTs.  
+Golem Unlimited joint resources can be used to perform tasks for internal requestor - the hub
+operator - with no fee. At the same time the hub will be able to expose its subordinate trusted
+providers to the public [Golem](../../../golem) Network. In such a setting hub will act as a
+provider and earn GNTs.  
 
-The latter broadens [Golem](../../../golem) Network reach, because it currently supports just single machine nodes. With Golem Unlimited it would allow more complex components, such as a whole subnetworks.
+The latter broadens [Golem](../../../golem) Network reach, because it currently supports just
+single machine nodes. With Golem Unlimited it would allow more complex components, such as a
+whole subnetworks.
 
 # Use cases
 Initially we have prepared plugins for two use cases:
-* [Integer factorization](https://github.com/golemfactory/gu-int-factorization) - a "Hello World" for Golem Unlimited 
+* [Integer factorization](https://github.com/golemfactory/gu-int-factorization) - a "Hello
+World" for Golem Unlimited 
 * Mining - just to showcase the Golem Unlimited, not a industry grade minig solution  
 
 Here you can watch a short demo with above two: https://youtu.be/J0LBdg2j6Tk
 
-There are more integrations being prepared (outside Golem Unlimited team by with our support). To list a few:
+There are more integrations being prepared (outside Golem Unlimited team by with our support).
+To list a few:
 * [gumpi](https://github.com/golemfactory/gumpi) - MPI implemented on top of Golem Unlimited
-* [Hoard Compiler](https://github.com/hoardexchange/HoardCompiler) - Distributed C++ compiler for Visual Studio 2017 and 2019.
+* [Hoard Compiler](https://github.com/hoardexchange/HoardCompiler) - Distributed C++ compiler
+for Visual Studio 2017 and 2019.
 
 
 # Installing and testing
 
-Please bear in mind that Golem Unlimited is in its [Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) stage.
+Please bear in mind that Golem Unlimited is in its 
+[Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) stage.
 
 ## Hub
 Currently we support Hub on Debian based Linux distributions only.
@@ -47,7 +63,8 @@ See the [Provider README](gu-provider) for build instructions.
 
 # Usage
 
-Both [hub](gu-hub) and [provider](gu-provider) can be configured via CLI. Invoke them with `help` command to see what's possible.
+Both [hub](gu-hub) and [provider](gu-provider) can be configured via CLI. Invoke them with `help`
+command to see what's possible.
 
 The [hub](gu-hub) comes also with web UI at:
 ```
