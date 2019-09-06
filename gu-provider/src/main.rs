@@ -8,6 +8,7 @@ use gu_base::*;
 mod connect;
 mod deployment;
 pub mod envman;
+mod fchain;
 mod hdman;
 mod id;
 mod permission;

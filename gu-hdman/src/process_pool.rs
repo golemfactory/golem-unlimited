@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -47,6 +47,7 @@ fn io_err<E: std::error::Error + Send + Sync + 'static>(e: E) -> std::io::Error 
 pub struct ProcessPool {
     // process pool workdir
     work_dir: PathBuf,
+    white_list : HashSet<PathBuf>,
     main_process: Option<Pid>,
     exec_processes: Map<Pid, oneshot::Sender<()>>,
 }
@@ -54,10 +55,16 @@ pub struct ProcessPool {
 impl ProcessPool {
     pub fn with_work_dir<P: Into<PathBuf>>(work_dir: P) -> Self {
         ProcessPool {
+            white_list: Default::default(),
             work_dir: work_dir.into(),
             main_process: None,
             exec_processes: Map::new(),
         }
+    }
+
+    pub fn with_exec(mut self, path : impl Into<PathBuf>) -> Self {
+        self.white_list.insert(path.into());
+        self
     }
 }
 
@@ -73,8 +80,10 @@ impl ProcessPool {
         args: I,
     ) -> impl Future<Item = (String, String), Error = String> {
         let exec = executable.as_ref();
-        if exec.is_absolute() {
-            return async_try!(Err(format!("invalid executable {:?}", exec)));
+        if !self.white_list.contains(exec) {
+            if exec.is_absolute() {
+                return async_try!(Err(format!("invalid executable {:?}", exec)));
+            }
         }
 
         let exec_path = self.work_dir.join(exec);
@@ -155,7 +164,7 @@ impl ProcessPool {
 }
 
 pub struct Exec {
-    pub executable: String,
+    pub executable: PathBuf,
     pub args: Vec<String>,
 }
 

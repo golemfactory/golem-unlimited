@@ -56,6 +56,12 @@ impl Platform {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ResolveResult {
+    ResolvedPath(String),
+}
+
 #[cfg(test)]
 mod test {
     use crate::plugin::Platform;

@@ -2,24 +2,23 @@ use crate::deployment::{DeployManager, Destroy, IntoDeployInfo};
 use crate::workspace::{Workspace, WorkspacesManager};
 use crate::{envman, status};
 use actix::prelude::*;
-use gu_hdman::process_pool::{KillAll, ProcessPool};
-use gu_model::envman::{CreateSession, DestroySession, GetSessions, SessionUpdate};
-use gu_model::plugin::{SimpleExecEnvSpec, PluginManifest};
-use gu_net::rpc::RemotingContext;
-use std::path::{PathBuf, Path};
+use gu_hdman::process_pool::{self as pp, KillAll, ProcessPool};
+use gu_model::envman::{Command, CreateSession, DestroySession, GetSessions, SessionUpdate};
+use gu_model::plugin::{PluginManifest, ResolveResult, SimpleExecEnvSpec};
+use std::path::{Path, PathBuf};
 use std::process;
+use std::{fs, io};
 use tokio_process::CommandExt;
-use std::{io, fs};
 
 use crate::envman::EnvManService;
 use crate::status::GetEnvStatus;
-use futures::Future;
+use futures::{Future, IntoFuture};
+use gu_base::{Decorator, Module};
 use gu_hdman::image_manager;
 use gu_model::envman::Error as EnvError;
 use gu_net::rpc::peer::{PeerSessionInfo, PeerSessionStatus};
 use gu_persist::config::ConfigModule;
 use std::fs::OpenOptions;
-use gu_base::{Module, Decorator};
 
 pub struct PluginMan {
     code: String,
@@ -29,7 +28,7 @@ pub struct PluginMan {
 }
 
 impl PluginMan {
-    fn from_spec(base_path : &Path, spec: SimpleExecEnvSpec, config: &ConfigModule) -> Self {
+    fn from_spec(base_path: &Path, spec: SimpleExecEnvSpec, config: &ConfigModule) -> Self {
         let code = spec.code;
         let exec = base_path.join(spec.exec);
         let deploys = Default::default();
@@ -91,11 +90,12 @@ impl IntoDeployInfo for PlugSession {
 
 impl Destroy for PlugSession {
     fn destroy(&mut self) -> Box<Future<Item = (), Error = EnvError>> {
+        /// TODO Add self.workspace.clear_dir().map_err(From::from).into_future()
         Box::new(
             self.pool
                 .send(KillAll)
                 .map_err(|e| EnvError::Error(format!("{}", e)))
-                .flatten(),
+                .flatten()
         )
     }
 }
@@ -150,7 +150,9 @@ impl Handler<CreateSession<<Self as EnvManService>::CreateOptions>> for PluginMa
                     let workspace_path = workspace.path().clone();
                     let spec_path = workspace_path.join("deployment-spec.json");
                     let session_id = act.deploys.generate_session_id();
-                    let pool = ProcessPool::with_work_dir(&workspace_path).start();
+                    let pool = ProcessPool::with_work_dir(&workspace_path)
+                        .with_exec(&exec)
+                        .start();
 
                     let json = match serde_json::to_vec_pretty(&options) {
                         Ok(json) => json,
@@ -209,14 +211,207 @@ impl Handler<SessionUpdate> for PluginMan {
     type Result = ActorResponse<Self, Vec<String>, Vec<String>>;
 
     fn handle(&mut self, msg: SessionUpdate, ctx: &mut Self::Context) -> Self::Result {
-        unimplemented!()
+        let session = match self.deploys.deploy(&msg.session_id) {
+            Ok(v) => v,
+            Err(e) => return ActorResponse::reply(Err(vec![e.to_string()])),
+        };
+        let session_id = msg.session_id;
+        let exec = session.exec.clone();
+        let image_path = session.image_path.clone();
+        let work_dir = session.workspace.path().clone();
+        let spec_path = session.clone().spec_path.clone();
+        let pool = session.pool.clone();
+
+        ActorResponse::r#async(crate::fchain::process_chain_act(
+            self,
+            ctx,
+            msg.commands,
+            move |command, act, ctx| {
+                match command {
+                    Command::AddTags(new_tags) => {
+                        if let Ok(session) = act.deploys.deploy_mut(&session_id) {
+                            session.workspace.add_tags(new_tags);
+                            Box::new(futures::future::ok(format!(
+                                "tags added. Current tags are: {:?}",
+                                &session.workspace.tags()
+                            )))
+                        }
+                        else {
+                            Box::new(futures::future::err("session closed".into()))
+                        }
+                    }
+                    Command::DelTags(tags) => {
+                        if let Ok(session) = act.deploys.deploy_mut(&session_id) {
+                            session.workspace.remove_tags(tags);
+                            Box::new(futures::future::ok(format!(
+                                "tags deleted. Current tags are: {:?}",
+                                &session.workspace.tags()
+                            )))
+                        }
+                        else {
+                            Box::new(futures::future::err("session closed".into()))
+                        }
+                    }
+
+                    Command::Open => {
+                        pool.do_send(pp::Exec {
+                            executable: exec.clone(),
+                            args: vec![
+                                "open".into(),
+                                "--image".into(),
+                                image_path.to_string_lossy().into(),
+                                "--workdir".into(),
+                                work_dir.to_string_lossy().into(),
+                                "--spec".into(),
+                                spec_path.to_string_lossy().into(),
+                            ],
+                        });
+                        Box::new(futures::future::ok("Ok".into()))
+                    }
+                    Command::Exec {
+                        executable,
+                        mut args,
+                        /*TODO */ working_dir,
+                    } => {
+                        let mut driver_args: Vec<String> = vec![
+                            "exec".into(),
+                            "--image".into(),
+                            image_path.to_string_lossy().into(),
+                            "--workdir".into(),
+                            work_dir.to_string_lossy().into(),
+                            "--spec".into(),
+                            spec_path.to_string_lossy().into(),
+                            "--".into(),
+                            executable,
+                        ];
+                        driver_args.append(&mut args);
+
+                        Box::new(
+                            pool.send(pp::Exec {
+                                executable: exec.clone(),
+                                args: driver_args,
+                            })
+                            .map_err(|_e| "process pool destroyed".into())
+                            .and_then(|r| r)
+                            .and_then(|(stdout, _stderr)| Ok(stdout)),
+                        )
+                    }
+                    Command::DownloadFile {
+                        uri,
+                        file_path,
+                        format,
+                    } => Box::new(
+                        resolve_path(
+                            &exec,
+                            &image_path,
+                            &work_dir,
+                            &spec_path,
+                            file_path.as_ref(),
+                        )
+                        .and_then(move |resp: ResolveResult| match resp {
+                            ResolveResult::ResolvedPath(output_path) => {
+                                crate::provision::download_step(&uri, output_path.into(), format)
+                            }
+                        })
+                        .and_then(|_| Ok("downloaded".into())),
+                    ),
+                    Command::WriteFile { content, file_path } => {
+                        Box::new(resolve_path(
+                            &exec,
+                            &image_path,
+                            &work_dir,
+                            &spec_path,
+                            file_path.as_ref(),
+                        ).and_then(|resp| match resp {
+                            ResolveResult::ResolvedPath(output_path) => {
+                                fs::write(output_path, content).map_err(|e| e.to_string())?;
+                                Ok("OK".to_string())
+                            }
+                        }))
+                    }
+                    Command::UploadFile {
+                        uri,
+                        file_path,
+                        format,
+                    } => Box::new(
+                        resolve_path(
+                            &exec,
+                            &image_path,
+                            &work_dir,
+                            &spec_path,
+                            file_path.as_ref(),
+                        )
+                        .and_then(move |resp: ResolveResult| match resp {
+                            ResolveResult::ResolvedPath(input_path) => {
+                                crate::provision::upload_step(&uri, input_path.into(), format)
+                            }
+                        })
+                        .and_then(|_| Ok("uploaded".into())),
+                    ),
+                    Command::Close => {
+                        Box::new(futures::future::err("Close not implemented".into()))
+                    }
+                    Command::Start {.. } => {
+                        Box::new(futures::future::err("start not implemented".into()))
+                    }
+                    Command::Wait {.. } => {
+                        Box::new(futures::future::err("wait not implemented".into()))
+                    }
+                    Command::Stop { child_id } => {
+                        let pid : pp::Pid = match child_id.parse() {
+                            Ok(pid) => pid,
+                            Err(e) => return Box::new(futures::future::err(e.to_string()))
+                        };
+                        Box::new(pool.send(pp::Stop(pid))
+                            .map_err(|_| "process pool closed".into())
+                            .and_then(|r| r)
+                            .and_then(|_| Ok("killed".into())))
+                    }
+
+                }
+            },
+        ))
     }
+}
+
+fn resolve_path(
+    exec: &Path,
+    image_path: &Path,
+    work_dir: &Path,
+    spec_path: &Path,
+    file_path: &Path,
+) -> impl Future<Item = ResolveResult, Error = String> {
+    process::Command::new(exec)
+        .args(&[
+            "resolve-path".as_ref(),
+            "--image".as_ref(),
+            image_path.as_os_str(),
+            "--workdir".as_ref(),
+            work_dir.as_os_str(),
+            "--spec".as_ref(),
+            spec_path.as_os_str(),
+            file_path.as_ref(),
+        ])
+        .output_async()
+        .map_err(|e| format!("driver error: {}", e))
+        .and_then(|output| {
+            eprintln!(
+                "stderr={}",
+                std::str::from_utf8(output.stderr.as_ref()).unwrap()
+            );
+            eprintln!(
+                "output={}",
+                std::str::from_utf8(output.stdout.as_ref()).unwrap()
+            );
+            serde_json::from_slice(output.stdout.as_ref())
+                .map_err(|e| format!("driver error: {}", e))
+        })
 }
 
 impl Handler<GetSessions> for PluginMan {
     type Result = Result<Vec<PeerSessionInfo>, ()>;
 
-    fn handle(&mut self, msg: GetSessions, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _: GetSessions, _ctx: &mut Self::Context) -> Self::Result {
         Ok(self.deploys.deploys_info())
     }
 }
@@ -224,7 +419,7 @@ impl Handler<GetSessions> for PluginMan {
 impl Handler<DestroySession> for PluginMan {
     type Result = ActorResponse<Self, String, EnvError>;
 
-    fn handle(&mut self, msg: DestroySession, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: DestroySession, _ctx: &mut Self::Context) -> Self::Result {
         ActorResponse::r#async(
             self.deploys
                 .destroy_deploy(&msg.session_id)
@@ -240,11 +435,10 @@ impl Handler<DestroySession> for PluginMan {
 impl Handler<status::GetEnvStatus> for PluginMan {
     type Result = MessageResult<status::GetEnvStatus>;
 
-    fn handle(&mut self, msg: GetEnvStatus, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _: GetEnvStatus, _ctx: &mut Self::Context) -> Self::Result {
         MessageResult(self.deploys.status())
     }
 }
-
 
 struct ExecPlugModule;
 
@@ -256,8 +450,7 @@ impl Module for ExecPlugModule {
     }
 }
 
-
-fn scan_for_plugins(work_dir : &Path, config : &ConfigModule) -> io::Result<()> {
+fn scan_for_plugins(work_dir: &Path, config: &ConfigModule) -> io::Result<()> {
     for item in fs::read_dir(work_dir.join("plugins"))? {
         match item {
             Ok(ent) => {
@@ -265,21 +458,17 @@ fn scan_for_plugins(work_dir : &Path, config : &ConfigModule) -> io::Result<()> 
                 let ftype = ent.file_type()?;
                 if ftype.is_dir() && ent.path().extension() == Some("gu-plugin".as_ref()) {
                     eprintln!("plugin: {}", path.display());
-                    let manifest : PluginManifest = serde_json::from_reader(fs::File::open(path.join("gu-plugin.json"))?)
-                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                    let manifest: PluginManifest =
+                        serde_json::from_reader(fs::File::open(path.join("gu-plugin.json"))?)
+                            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                     if let Some(p) = manifest.provider {
                         for activator in p.simple_exec_env {
                             let _ = PluginMan::from_spec(&path, activator, config).start();
                         }
                     }
-
                 }
-                else {
-                    eprintln!("not plugin: {}", path.display());
-                }
-
-            },
-            Err(_) => ()
+            }
+            Err(_) => (),
         }
     }
     Ok(())
