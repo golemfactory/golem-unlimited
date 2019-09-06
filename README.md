@@ -28,7 +28,7 @@ There are more integrations being prepared (outside Golem Unlimited team by with
 Please bear in mind that Golem Unlimited is in its [Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) stage.
 
 ## Hub
-Currently we support Hub only for Ubuntu distributions.
+Currently we support Hub on Debian based Linux distributions only.
 
 To install Hub you can use the [released](https://github.com/golemfactory/golem-unlimited/releases) Ubuntu `deb`.
 
