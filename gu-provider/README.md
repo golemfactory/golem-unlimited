@@ -1,45 +1,44 @@
 
-# gu-provider
+# Golem Unlimited Provider
 
-Golem Unlimited worker node.
+A worker node for Golem Unlimited. It is subordinate to the [Hub](../gu-hub). 
 
-## Install from src
+## Build from src
 
-Clone the repo, go to the `gu-provider` dir and
+To perform build you need working [Rust](https://rustup.rs) on your platform.
+
+### on Ubuntu
+
+Clone the repo, go to the `gu-provider` dir and run:
 ```
-cargo build
+cargo build --release
 ```
-### on MacOS
+### on MacOS and Windows
 ```
-cargo run --features "async_docker/ssl gu-hardware/clinfo"
+cargo build --features "async_docker/ssl gu-hardware/clinfo" --release
 ```
-* ssl is needed in order to communicate with docker 
+* ssl is needed when you want to utilise docker execution environment within Golem Unlimited  
 * clinfo is needed for proper GPU detection
 
-## Command line options
+## Run
 
-Run server
+To run the Provider invoke:
 ```
-$ gu-provider server run
-```
-
-Start server as daemon
-```
-$ gu-provider server start
+$ gu-provider --user server run
 ```
 
-Check server status
-```
-$ gu-provider server status
-```
+you can omit `--user` when you have administrative priviledges.
 
-Stop server daemon
-```
-$ gu-provider server stop
-```
-
-List available lan peers
+Check other commands by invoking:
 
 ```
-$ gu-porovider lan list
+$ gu-hub help
 ```
+
+## Configuration
+
+To configure the provider run:
+```
+$ gu-provider --user configure
+```
+than select Hub you want to join (one that you trust) and save the configuration. 
