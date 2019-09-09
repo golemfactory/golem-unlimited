@@ -95,7 +95,7 @@ impl Destroy for PlugSession {
             self.pool
                 .send(KillAll)
                 .map_err(|e| EnvError::Error(format!("{}", e)))
-                .flatten()
+                .flatten(),
         )
     }
 }
@@ -235,8 +235,7 @@ impl Handler<SessionUpdate> for PluginMan {
                                 "tags added. Current tags are: {:?}",
                                 &session.workspace.tags()
                             )))
-                        }
-                        else {
+                        } else {
                             Box::new(futures::future::err("session closed".into()))
                         }
                     }
@@ -247,8 +246,7 @@ impl Handler<SessionUpdate> for PluginMan {
                                 "tags deleted. Current tags are: {:?}",
                                 &session.workspace.tags()
                             )))
-                        }
-                        else {
+                        } else {
                             Box::new(futures::future::err("session closed".into()))
                         }
                     }
@@ -315,20 +313,21 @@ impl Handler<SessionUpdate> for PluginMan {
                         })
                         .and_then(|_| Ok("downloaded".into())),
                     ),
-                    Command::WriteFile { content, file_path } => {
-                        Box::new(resolve_path(
+                    Command::WriteFile { content, file_path } => Box::new(
+                        resolve_path(
                             &exec,
                             &image_path,
                             &work_dir,
                             &spec_path,
                             file_path.as_ref(),
-                        ).and_then(|resp| match resp {
+                        )
+                        .and_then(|resp| match resp {
                             ResolveResult::ResolvedPath(output_path) => {
                                 fs::write(output_path, content).map_err(|e| e.to_string())?;
                                 Ok("OK".to_string())
                             }
-                        }))
-                    }
+                        }),
+                    ),
                     Command::UploadFile {
                         uri,
                         file_path,
@@ -351,23 +350,24 @@ impl Handler<SessionUpdate> for PluginMan {
                     Command::Close => {
                         Box::new(futures::future::err("Close not implemented".into()))
                     }
-                    Command::Start {.. } => {
+                    Command::Start { .. } => {
                         Box::new(futures::future::err("start not implemented".into()))
                     }
-                    Command::Wait {.. } => {
+                    Command::Wait { .. } => {
                         Box::new(futures::future::err("wait not implemented".into()))
                     }
                     Command::Stop { child_id } => {
-                        let pid : pp::Pid = match child_id.parse() {
+                        let pid: pp::Pid = match child_id.parse() {
                             Ok(pid) => pid,
-                            Err(e) => return Box::new(futures::future::err(e.to_string()))
+                            Err(e) => return Box::new(futures::future::err(e.to_string())),
                         };
-                        Box::new(pool.send(pp::Stop(pid))
-                            .map_err(|_| "process pool closed".into())
-                            .and_then(|r| r)
-                            .and_then(|_| Ok("killed".into())))
+                        Box::new(
+                            pool.send(pp::Stop(pid))
+                                .map_err(|_| "process pool closed".into())
+                                .and_then(|r| r)
+                                .and_then(|_| Ok("killed".into())),
+                        )
                     }
-
                 }
             },
         ))

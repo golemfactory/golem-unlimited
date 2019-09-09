@@ -47,7 +47,7 @@ fn io_err<E: std::error::Error + Send + Sync + 'static>(e: E) -> std::io::Error 
 pub struct ProcessPool {
     // process pool workdir
     work_dir: PathBuf,
-    white_list : HashSet<PathBuf>,
+    white_list: HashSet<PathBuf>,
     main_process: Option<Pid>,
     exec_processes: Map<Pid, oneshot::Sender<()>>,
 }
@@ -62,7 +62,7 @@ impl ProcessPool {
         }
     }
 
-    pub fn with_exec(mut self, path : impl Into<PathBuf>) -> Self {
+    pub fn with_exec(mut self, path: impl Into<PathBuf>) -> Self {
         self.white_list.insert(path.into());
         self
     }

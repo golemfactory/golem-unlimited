@@ -39,7 +39,7 @@ pub enum Platform {
 impl Platform {
     #[cfg(target_arch = "x86_64")]
     #[cfg(target_os = "linux")]
-    fn current() -> Platform {
+    pub fn current() -> Platform {
         Platform::X86_64LinuxGnu
     }
 
