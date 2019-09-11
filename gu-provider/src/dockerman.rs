@@ -32,7 +32,7 @@ use super::envman;
 
 // Actor.
 struct DockerMan {
-    docker_api: Option<Box<DockerApi>>,
+    docker_api: Option<Box<dyn DockerApi>>,
     deploys: DeployManager<DockerSession>,
     workspaces_man: WorkspacesManager,
 }
@@ -209,7 +209,7 @@ impl DockerSession {
                 false => Ok(()),
             });
 
-        let stream: Box<Stream<Item = bytes::Bytes, Error = String>> = match format {
+        let stream: Box<dyn Stream<Item = bytes::Bytes, Error = String>> = match format {
             ResourceFormat::Raw => {
                 let name = untar_path.clone().file_name().map(|x| x.to_os_string());
                 untar_path.pop();
@@ -269,7 +269,7 @@ impl DockerSession {
             .archive_get(file_path.as_str())
             .map_err(|e| e.to_string());
 
-        let response: Box<Future<Item = actix_web::client::ClientResponse, Error = String>> =
+        let response: Box<dyn Future<Item = actix_web::client::ClientResponse, Error = String>> =
             match format {
                 ResourceFormat::Raw => {
                     let url = url.clone();
@@ -322,7 +322,7 @@ impl IntoDeployInfo for DockerSession {
 }
 
 impl Destroy for DockerSession {
-    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
+    fn destroy(&mut self) -> Box<dyn Future<Item = (), Error = Error>> {
         let workspace = self.workspace.clone();
         let container_copy = self.container.clone();
         Box::new(
@@ -503,7 +503,7 @@ impl DockerMan {
         &mut self,
         deployment_id: String,
         f: F,
-    ) -> Box<ActorFuture<Actor = DockerMan, Item = String, Error = String>>
+    ) -> Box<dyn ActorFuture<Actor = DockerMan, Item = String, Error = String>>
     where
         F: FnOnce(&mut DockerSession) -> R,
         R: Future<Item = String, Error = String> + 'static,
@@ -521,7 +521,7 @@ fn run_command(
     docker_man: &mut DockerMan,
     session_id: String,
     command: Command,
-) -> Box<ActorFuture<Actor = DockerMan, Item = String, Error = String>> {
+) -> Box<dyn ActorFuture<Actor = DockerMan, Item = String, Error = String>> {
     if docker_man.docker_api.is_none() {
         return Box::new(fut::err("Docker API not initialized properly".to_string()));
     }
