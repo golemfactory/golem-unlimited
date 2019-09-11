@@ -25,9 +25,16 @@ use crate::server::ConnectMode;
 use futures::future;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+enum AccessLevel {
+    NoAccess = 0,
+    Sandbox = 1,
+    FullAccess = 2,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 enum Permission {
-    ManagedBy(NodeId),
+    ManagedBy(NodeId, AccessLevel),
     Read(NodeId),
     // Can create session in given environment
     CreateSession(NodeId, String),
@@ -56,21 +63,21 @@ impl PermissionConfig {
 
     fn is_managed_by(&self, node_id: &NodeId) -> bool {
         self.permissions.iter().any(|p| match p {
-            Permission::ManagedBy(perm_node_id) => node_id == perm_node_id,
+            Permission::ManagedBy(perm_node_id, _) => node_id == perm_node_id,
             _ => false,
         })
     }
 
     fn remove_managed_permissions_except_for(&mut self, except_nodes: &HashSet<NodeId>) {
         self.permissions.retain(|perm| match perm {
-            Permission::ManagedBy(node_id) => except_nodes.contains(node_id),
+            Permission::ManagedBy(node_id, _) => except_nodes.contains(node_id),
             _ => true,
         });
     }
 }
 
 impl HasSectionId for PermissionConfig {
-    const SECTION_ID: &'static str = "permission";
+    const SECTION_ID: &'static str = "permissions";
 }
 
 #[derive(Clone)]
@@ -119,7 +126,7 @@ fn get_allowed_nodes_and_auto_future() -> impl Future<Item = String, Error = ()>
                 .permissions
                 .iter()
                 .filter_map(|e| match e {
-                    Permission::ManagedBy(n) => Some(*n),
+                    Permission::ManagedBy(n, _) => Some(*n),
                     _ => None,
                 })
                 .collect();
@@ -161,7 +168,7 @@ fn set_node_status_future(
                     new_config.allow_any = turn_on;
                 }
                 NodeOrAuto::Node(n) => {
-                    let perm = Permission::ManagedBy(n.clone());
+                    let perm = Permission::ManagedBy(n.clone(), AccessLevel::FullAccess);
                     if turn_on {
                         if host_name.is_some() && ip.is_some() {
                             new_config.saved_hub_desc.insert(
@@ -390,7 +397,8 @@ impl Module for PermissionModule {
                             .send(GetConfig::new())
                             .flatten_fut()
                             .and_then(move |c: Arc<PermissionConfig>| {
-                                let new_config = c.add(Permission::ManagedBy(group_id));
+                                let new_config =
+                                    c.add(Permission::ManagedBy(group_id, AccessLevel::FullAccess));
                                 config_manager
                                     .send(SetConfig::new(new_config))
                                     .flatten_fut()
@@ -528,9 +536,20 @@ fn run_configure() {
 
     fn toggle_managed_by(config: &mut PermissionConfig, hub: &gu_lan::HubDesc) {
         let node_id = hub.node_id;
-        let managed_by = Permission::ManagedBy(node_id);
-
-        if !config.permissions.remove(&managed_by) {
+        let managed_by = Permission::ManagedBy(node_id, AccessLevel::FullAccess);
+        let mut removed = false;
+        config.permissions.retain(|perm| match perm {
+            Permission::ManagedBy(n, _) => {
+                if *n == node_id {
+                    removed = true;
+                    false
+                } else {
+                    true
+                }
+            }
+            _ => true,
+        });
+        if !removed {
             config.permissions.insert(managed_by);
             config.saved_hub_desc.insert(node_id, hub.clone());
         }
@@ -577,9 +596,10 @@ fn run_configure() {
 
                             if config.is_managed_by(&hub.node_id) {
                                 selected_hubs.insert(hub.address);
-                                config
-                                    .permissions
-                                    .insert(Permission::ManagedBy(hub.node_id));
+                                config.permissions.insert(Permission::ManagedBy(
+                                    hub.node_id,
+                                    AccessLevel::FullAccess,
+                                ));
                             }
                         });
                         println!(
