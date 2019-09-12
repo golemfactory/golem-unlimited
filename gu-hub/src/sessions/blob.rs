@@ -31,14 +31,14 @@ struct FileLockActor {
     path: PathBuf,
 
     /// Future that gives current sha1 checksum of the file
-    sha1_fut: Shared<Box<Future<Item = Sha1, Error = SessionErr> + Send>>,
+    sha1_fut: Shared<Box<dyn Future<Item = Sha1, Error = SessionErr> + Send>>,
     /// Map of currently running, outer futures
-    write_futs: BTreeMap<(u64, u64), Shared<Box<Future<Item = (), Error = ()> + Send>>>,
+    write_futs: BTreeMap<(u64, u64), Shared<Box<dyn Future<Item = (), Error = ()> + Send>>>,
 }
 
 impl FileLockActor {
     fn new(path: PathBuf, new: bool) -> Self {
-        let sha1_fut: Box<Future<Item = Sha1, Error = SessionErr> + Send> = match new {
+        let sha1_fut: Box<dyn Future<Item = Sha1, Error = SessionErr> + Send> = match new {
             false => Box::new(recalculate_sha1(path.clone())),
             true => Box::new(future::err(SessionErr::BlobNotYetUploaded)),
         };
@@ -53,7 +53,7 @@ impl FileLockActor {
 
 impl Default for FileLockActor {
     fn default() -> Self {
-        let x: Box<Future<Item = Sha1, Error = SessionErr> + Send> =
+        let x: Box<dyn Future<Item = Sha1, Error = SessionErr> + Send> =
             Box::new(future::err(SessionErr::BlobLockedError));
 
         FileLockActor {
@@ -195,7 +195,7 @@ impl Handler<DropWriter> for FileLockActor {
     fn handle(&mut self, _msg: DropWriter, _ctx: &mut Context<Self>) -> () {
         self.writers -= 1;
 
-        let x: Box<Future<Item = Sha1, Error = SessionErr> + Send> =
+        let x: Box<dyn Future<Item = Sha1, Error = SessionErr> + Send> =
             Box::new(recalculate_sha1(self.path.clone()));
         self.sha1_fut = x.shared()
     }
@@ -213,7 +213,7 @@ fn recalculate_sha1(path: PathBuf) -> impl Future<Item = Sha1, Error = SessionEr
 
 // Generate future that will complete when it will be possible to write to file
 fn write_dag_future(
-    queue: &mut BTreeMap<(u64, u64), Shared<Box<Future<Item = (), Error = ()> + Send>>>,
+    queue: &mut BTreeMap<(u64, u64), Shared<Box<dyn Future<Item = (), Error = ()> + Send>>>,
 ) -> impl Future<Item = (), Error = SessionErr> + Send {
     let write_begin = std::u64::MIN;
     let write_end = std::u64::MAX;
@@ -237,7 +237,7 @@ fn write_dag_future(
         queue.remove(&x);
     }
 
-    let x: Box<Future<Item = (), Error = ()> + Send> =
+    let x: Box<dyn Future<Item = (), Error = ()> + Send> =
         Box::new(future::join_all(wait_list).then(|_| Ok(())));
     let x: Shared<Box<_>> = x.shared();
     queue.insert((write_begin, write_end), x.clone());

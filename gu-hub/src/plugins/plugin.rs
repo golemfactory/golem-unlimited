@@ -205,7 +205,7 @@ impl PluginHandler for ZipHandler {
 
 #[derive(Debug)]
 pub struct Plugin {
-    handler: Box<PluginHandler>,
+    handler: Box<dyn PluginHandler>,
     status: PluginStatus,
 }
 
