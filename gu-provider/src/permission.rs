@@ -7,6 +7,7 @@ use std::{
 
 use log::error;
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use actix::prelude::*;
 use actix_web::{HttpResponse, Path, Query, Scope};
@@ -24,11 +25,18 @@ use crate::connect::{
 use crate::server::ConnectMode;
 use futures::future;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize_repr, Deserialize_repr, Clone, PartialEq, Eq, Hash, Copy)]
+#[repr(u8)]
 enum AccessLevel {
     NoAccess = 0,
     Sandbox = 1,
     FullAccess = 2,
+}
+
+impl Default for AccessLevel {
+    fn default() -> AccessLevel {
+        AccessLevel::NoAccess
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
@@ -43,7 +51,7 @@ enum Permission {
 #[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 struct PermissionConfig {
-    allow_any: bool,
+    allow_any: AccessLevel,
     permissions: HashSet<Permission>,
     #[serde(default)]
     saved_hub_desc: HashMap<NodeId, HubDesc>,
@@ -61,11 +69,23 @@ impl PermissionConfig {
         }
     }
 
+    fn highest_permission(&self, node_id: &NodeId) -> AccessLevel {
+        self.permissions
+            .iter()
+            .fold(AccessLevel::NoAccess, |h, x| match x {
+                Permission::ManagedBy(n, level) => {
+                    if *level as i32 > h as i32 && *n == *node_id {
+                        *level
+                    } else {
+                        h
+                    }
+                }
+                _ => h,
+            })
+    }
+
     fn is_managed_by(&self, node_id: &NodeId) -> bool {
-        self.permissions.iter().any(|p| match p {
-            Permission::ManagedBy(perm_node_id, _) => node_id == perm_node_id,
-            _ => false,
-        })
+        self.highest_permission(node_id) != AccessLevel::NoAccess
     }
 
     fn remove_managed_permissions_except_for(&mut self, except_nodes: &HashSet<NodeId>) {
@@ -117,7 +137,7 @@ fn list_saved_hubs_future() -> impl Future<Item = String, Error = ()> {
 fn get_allowed_nodes_and_auto_future() -> impl Future<Item = String, Error = ()> {
     #[derive(Serialize)]
     struct Reply {
-        auto: bool,
+        auto: AccessLevel,
         allow: Vec<NodeId>,
     }
     config_future()
@@ -139,11 +159,11 @@ fn get_allowed_nodes_and_auto_future() -> impl Future<Item = String, Error = ()>
         .map_err(|e| error!("{}", e))
 }
 
-fn get_node_status_future(node_or_auto: NodeOrAuto) -> impl Future<Item = bool, Error = ()> {
+fn get_node_status_future(node_or_auto: NodeOrAuto) -> impl Future<Item = AccessLevel, Error = ()> {
     config_future()
         .and_then(move |c: Arc<PermissionConfig>| {
             Ok(match node_or_auto {
-                NodeOrAuto::Node(node_id) => c.is_managed_by(&node_id),
+                NodeOrAuto::Node(node_id) => c.highest_permission(&node_id),
                 NodeOrAuto::Auto => c.allow_any,
             })
         })
@@ -151,7 +171,7 @@ fn get_node_status_future(node_or_auto: NodeOrAuto) -> impl Future<Item = bool, 
 }
 
 fn set_node_status_future(
-    turn_on: bool,
+    access_level: AccessLevel,
     node_or_auto: NodeOrAuto,
     ip: Option<SocketAddr>,
     host_name: Option<String>,
@@ -165,11 +185,14 @@ fn set_node_status_future(
             let mut new_config = (*c).clone();
             match node_or_auto {
                 NodeOrAuto::Auto => {
-                    new_config.allow_any = turn_on;
+                    new_config.allow_any = access_level;
                 }
                 NodeOrAuto::Node(n) => {
-                    let perm = Permission::ManagedBy(n.clone(), AccessLevel::FullAccess);
-                    if turn_on {
+                    new_config.permissions.retain(|perm| match perm {
+                        Permission::ManagedBy(n2, _) => *n2 != n,
+                        _ => true,
+                    });
+                    if access_level != AccessLevel::NoAccess {
                         if host_name.is_some() && ip.is_some() {
                             new_config.saved_hub_desc.insert(
                                 n.clone(),
@@ -180,9 +203,8 @@ fn set_node_status_future(
                                 },
                             );
                         }
+                        let perm = Permission::ManagedBy(n.clone(), access_level);
                         new_config.permissions.insert(perm);
-                    } else {
-                        new_config.permissions.remove(&perm);
                     }
                 }
             };
@@ -193,7 +215,7 @@ fn set_node_status_future(
         .map_err(|_| eprintln!("Cannot save permissions."))
         .and_then(move |_| match node_or_auto_copy {
             NodeOrAuto::Auto => futures::future::Either::A(
-                edit_config_connect_mode(if turn_on {
+                edit_config_connect_mode(if access_level != AccessLevel::NoAccess {
                     ConnectMode::Auto
                 } else {
                     ConnectMode::Manual
@@ -203,7 +225,7 @@ fn set_node_status_future(
             NodeOrAuto::Node(_node_id) => futures::future::Either::B(
                 change_single_connection(
                     ip.unwrap(),
-                    if turn_on {
+                    if access_level != AccessLevel::NoAccess {
                         ConnectionChange::Connect
                     } else {
                         ConnectionChange::Disconnect
@@ -414,24 +436,34 @@ impl Module for PermissionModule {
                 System::run(move || {
                     Arbiter::spawn(
                         get_node_status_future(node_or_auto_copy)
-                            .and_then(|status| Ok(println!("{}", status)))
+                            .and_then(|status| {
+                                Ok(println!(
+                                    "{}",
+                                    serde_json::to_string_pretty(&status).unwrap()
+                                ))
+                            })
                             .then(|_| Ok(System::current().stop())),
                     )
                 });
             }
             PermissionModule::AllowNode(node_or_auto, ip, host_name)
             | PermissionModule::DenyNode(node_or_auto, ip, host_name) => {
-                let turn_on = match self {
-                    PermissionModule::AllowNode(_, _, _) => true,
-                    _ => false,
+                let access_level = match self {
+                    PermissionModule::AllowNode(_, _, _) => AccessLevel::FullAccess,
+                    _ => AccessLevel::NoAccess,
                 };
                 let node_or_auto_copy = node_or_auto.clone();
                 let ip_copy = ip.clone();
                 let host_name_copy = host_name.clone();
                 System::run(move || {
                     Arbiter::spawn(
-                        set_node_status_future(turn_on, node_or_auto_copy, ip_copy, host_name_copy)
-                            .then(|_| Ok(System::current().stop())),
+                        set_node_status_future(
+                            access_level,
+                            node_or_auto_copy,
+                            ip_copy,
+                            host_name_copy,
+                        )
+                        .then(|_| Ok(System::current().stop())),
                     )
                 });
             }
@@ -464,9 +496,10 @@ fn extract_node_or_auto(path: Path<String>) -> Result<NodeOrAuto, ()> {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct IpAndHostName {
+struct IpHostNameAccessLevel {
     pub address: Option<SocketAddr>,
     pub host_name: Option<String>,
+    pub access_level: Option<AccessLevel>,
 }
 
 fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
@@ -492,20 +525,25 @@ fn config_methods<S: 'static>(scope: Scope<S>) -> Scope<S> {
                             .map_err(|_| actix_web::error::ErrorNotFound("node not found"))
                             .and_then(|selected| {
                                 future::ok::<_, actix_web::Error>(
-                                    HttpResponse::Ok().body(format!("{}", selected)),
+                                    HttpResponse::Ok()
+                                        .body(serde_json::to_string_pretty(&selected).unwrap()),
                                 )
                             })
                     })
             });
 
-            let put_delete_handler = |turn_on: bool| {
-                move |(path, hub): (Path<String>, actix_web::Json<IpAndHostName>)| {
+            let put_delete_handler = |is_put: bool| {
+                move |(path, hub): (Path<String>, actix_web::Json<IpHostNameAccessLevel>)| {
                     extract_node_or_auto(path)
                         .into_future()
                         .map_err(|_| actix_web::error::ErrorInternalServerError("bad format"))
                         .and_then(move |node_or_auto| {
                             set_node_status_future(
-                                turn_on,
+                                if is_put {
+                                    hub.access_level.unwrap_or(AccessLevel::FullAccess)
+                                } else {
+                                    AccessLevel::NoAccess
+                                },
                                 node_or_auto,
                                 hub.address,
                                 hub.host_name.clone(),
@@ -604,13 +642,13 @@ fn run_configure() {
                         });
                         println!(
                             "{} *) Access is granted to everyone",
-                            check_box(config.allow_any)
+                            check_box(config.allow_any != AccessLevel::NoAccess)
                         );
                         println!("    s) Save configuration");
                         println!();
 
                         let mut input_buf = String::new();
-                        let connect_mode = if config.allow_any {
+                        let connect_mode = if config.allow_any != AccessLevel::NoAccess {
                             ConnectMode::Auto
                         } else {
                             ConnectMode::Manual
@@ -620,7 +658,11 @@ fn run_configure() {
                         io::stdin().read_line(&mut input_buf).unwrap();
                         let input = input_buf.trim();
                         if input == "*" {
-                            config.allow_any = !config.allow_any;
+                            config.allow_any = if config.allow_any == AccessLevel::NoAccess {
+                                AccessLevel::FullAccess
+                            } else {
+                                AccessLevel::NoAccess
+                            }
                         } else if input == "s" {
                             return ConfigManager::from_registry()
                                 .send(SetConfig::new(config))
@@ -657,16 +699,17 @@ pub fn module() -> impl Module {
 
 #[cfg(test)]
 mod test {
-    use super::IpAndHostName;
+    use super::IpHostNameAccessLevel;
 
     #[test]
-    fn test_serialize() {
+    fn test_deserialize() {
         let input = r#"{
             "hostName": "localhost",
-            "address": "127.0.0.1:80"
+            "address": "127.0.0.1:80",
+            "accessLevel": 1
             }"#;
 
-        let _: IpAndHostName = serde_json::from_str(input).unwrap();
+        let _: IpHostNameAccessLevel = serde_json::from_str(input).unwrap();
     }
 
 }
