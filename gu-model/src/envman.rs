@@ -1,9 +1,12 @@
 use std::{fmt, io};
 
+#[cfg(feature = "with-actix")]
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "with-actix")]
 use gu_net::rpc::peer::PeerSessionInfo;
+#[cfg(feature = "with-actix")]
 use gu_net::rpc::PublicMessage;
 
 /// Errors
@@ -24,6 +27,7 @@ impl From<io::Error> for Error {
     }
 }
 
+#[cfg(feature = "with-actix")]
 impl From<actix::MailboxError> for Error {
     fn from(e: MailboxError) -> Self {
         Error::Error(format!("{}", e))
@@ -75,11 +79,13 @@ pub struct CreateSession<Options = ()> {
 
 pub type GenericCreateSession = CreateSession<::serde_json::Value>;
 
+#[cfg(feature = "with-actix")]
 impl<Options> PublicMessage for CreateSession<Options> {
     const ID: u32 = 37;
 }
 
 /// returns session_id
+#[cfg(feature = "with-actix")]
 impl<Options> Message for CreateSession<Options> {
     type Result = Result<String, Error>;
 }
@@ -91,6 +97,7 @@ pub struct SessionUpdate {
     pub commands: Vec<Command>,
 }
 
+#[cfg(feature = "with-actix")]
 impl PublicMessage for SessionUpdate {
     const ID: u32 = 38;
 }
@@ -155,6 +162,7 @@ pub enum Command {
     },
 }
 
+#[cfg(feature = "with-actix")]
 impl Message for SessionUpdate {
     type Result = Result<Vec<String>, Vec<String>>;
 }
@@ -162,10 +170,12 @@ impl Message for SessionUpdate {
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct GetSessions {}
 
+#[cfg(feature = "with-actix")]
 impl PublicMessage for GetSessions {
     const ID: u32 = 39;
 }
 
+#[cfg(feature = "with-actix")]
 impl Message for GetSessions {
     type Result = Result<Vec<PeerSessionInfo>, ()>;
 }
@@ -176,10 +186,12 @@ pub struct DestroySession {
     pub session_id: String,
 }
 
+#[cfg(feature = "with-actix")]
 impl PublicMessage for DestroySession {
     const ID: u32 = 40;
 }
 
+#[cfg(feature = "with-actix")]
 impl Message for DestroySession {
     type Result = Result<String, Error>;
 }
