@@ -28,6 +28,7 @@ impl WorkspacesManager {
             .join("sessions")
             .join(name.as_ref());
 
+        log::debug!("createing session dir: {}", session_dir.display());
         fs::create_dir_all(&session_dir)
             .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
             .map(|_| WorkspacesManager {

@@ -44,6 +44,7 @@ async_docker = { git = "https://github.com/golemfactory/async-docker", optional 
 tar-async = { git = "https://github.com/prekucki/tar-async.git" }
 #async_docker = { path = "../../async-docker", optional = true }
 tokio-process = "0.2.3"
+openssl = { version = "0.10", features = ["vendored"], optional=true }
 
 [build-dependencies]
 vergen = "3"
@@ -53,6 +54,7 @@ default = ["env-docker"]
 win-service = ["windows-service"]
 clinfo = ["gu-hardware/clinfo"]
 env-docker = ["async_docker"]
+ssl=["openssl/vendored", "actix-web/ssl"]
 
 [package.metadata.deb]
 depends = "$auto, systemd"
@@ -60,5 +62,6 @@ assets = [
     ["target/release/gu-provider", "usr/bin/", "755"],
     ["deployment/gu-provider.service", "lib/systemd/system/", "644"],
 ]
+features=['ssl']
 
 maintainer-scripts = "deployment/deb"
