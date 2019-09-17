@@ -446,6 +446,12 @@ impl Module for ExecPlugModule {
     fn run<D: Decorator + Clone + 'static>(&self, decorator: D) {
         let config: &ConfigModule = decorator.extract().unwrap();
         let work_dir = config.work_dir();
+        let _ = scan_for_plugins("/var/lib/golemu/plugins".as_ref(), config).unwrap_or_else(|e| log::debug!("on scan /var/lib/golemu/plugins: {}", e));
+        let _ = scan_for_plugins("/usr/lib/golemu/plugins".as_ref(), config).unwrap_or_else(|e| log::debug!("on scan /usr/lib/golemu/plugins: {}", e));
+        #[cfg(windows)]
+        {
+            let _ = scan_for_plugins("plugins".as_ref(), config);
+        }
         let _ = scan_for_plugins(&work_dir, config).unwrap();
     }
 }
