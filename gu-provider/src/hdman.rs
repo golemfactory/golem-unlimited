@@ -52,7 +52,7 @@ impl IntoDeployInfo for HdSessionInfo {
 }
 
 impl Destroy for HdSessionInfo {
-    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
+    fn destroy(&mut self) -> Box<dyn Future<Item = (), Error = Error>> {
         debug!("killing all running child processes");
         let _ = self
             .processes

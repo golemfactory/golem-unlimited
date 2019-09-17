@@ -151,17 +151,18 @@ fn list_hubs<S>(_r: HttpRequest<S>) -> impl Responder {
         .send(ServicesDescription::new(vec!["hub".into()]))
         .map_err(|e| error!("error! {}", e))
         .and_then(|r| {
-            Ok(HttpResponse::Ok().json(
-                r.unwrap_or(HashSet::new())
-                    .iter()
-                    .map(|instance| Reply {
-                        serv_type: instance.service(),
-                        host_name: instance.host.clone(),
-                        addr: format_addresses(&instance.addrs_v4, &instance.ports),
-                        desc: instance.txt.join("\n"),
-                    })
-                    .collect::<Vec<Reply>>(),
-            ))
+            let mut vec = r
+                .unwrap_or(HashSet::new())
+                .iter()
+                .map(|instance| Reply {
+                    serv_type: instance.service(),
+                    host_name: instance.host.clone(),
+                    addr: format_addresses(&instance.addrs_v4, &instance.ports),
+                    desc: instance.txt.join("\n"),
+                })
+                .collect::<Vec<Reply>>();
+            vec.sort_by(|x, y| x.host_name.cmp(&y.host_name));
+            Ok(HttpResponse::Ok().json(vec))
         })
         .map_err(|_| actix_web::error::ErrorInternalServerError(""))
         .responder()
