@@ -5,9 +5,8 @@ After=network.target
 [Service]
 User=golemu
 Group=golemu
-PermissionsStartOnly=true
-ExecStartPre=/usr/bin/mkdir -p -m 755 /var/run/golemu
-ExecStartPre=/usr/bin/chown golemu:golemu /var/run/golemu
+ExecStartPre=+/usr/bin/mkdir -p -m 755 /var/run/golemu
+ExecStartPre=+/usr/bin/chown golemu:golemu /var/run/golemu
 ExecStart=/usr/bin/gu-provider server run
 
 LimitNOFILE=150000
