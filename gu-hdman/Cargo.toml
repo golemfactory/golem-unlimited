@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2018"
 
 
-#[features]
-#default = ["ssl"]
-#ssl = ["actix-web/rust-tls"]
+[features]
+default = ["ssl"]
+ssl = ["actix-web/ssl"]
 
 [dependencies]
 

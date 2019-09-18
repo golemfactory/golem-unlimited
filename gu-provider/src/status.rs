@@ -6,6 +6,7 @@ use futures::{future, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use gu_base::Module;
+use std::borrow::Cow;
 
 pub fn module() -> impl Module {
     StatusModule
@@ -73,18 +74,21 @@ impl Message for ListEnvStatus {
 }
 
 #[derive(Message)]
-pub struct AddProvider(&'static str, Recipient<GetEnvStatus>);
+pub struct AddProvider(Cow<'static, str>, Recipient<GetEnvStatus>);
 
 impl AddProvider {
     #[inline]
-    pub fn new(name: &'static str, handler: Recipient<GetEnvStatus>) -> AddProvider {
-        AddProvider(name, handler)
+    pub fn new(
+        name: impl Into<Cow<'static, str>>,
+        handler: Recipient<GetEnvStatus>,
+    ) -> AddProvider {
+        AddProvider(name.into(), handler)
     }
 }
 
 #[derive(Default)]
 pub struct StatusManager {
-    providers: BTreeMap<&'static str, Recipient<GetEnvStatus>>,
+    providers: BTreeMap<Cow<'static, str>, Recipient<GetEnvStatus>>,
 }
 
 impl Actor for StatusManager {

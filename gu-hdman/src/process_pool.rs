@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -12,6 +12,7 @@ use tokio_io::io;
 use tokio_process::{Child, CommandExt};
 
 use gu_actix::{async_result, async_try};
+use gu_model::envman;
 
 type Map<K, V> = HashMap<K, V>;
 
@@ -46,6 +47,7 @@ fn io_err<E: std::error::Error + Send + Sync + 'static>(e: E) -> std::io::Error 
 pub struct ProcessPool {
     // process pool workdir
     work_dir: PathBuf,
+    white_list: HashSet<PathBuf>,
     main_process: Option<Pid>,
     exec_processes: Map<Pid, oneshot::Sender<()>>,
 }
@@ -53,10 +55,16 @@ pub struct ProcessPool {
 impl ProcessPool {
     pub fn with_work_dir<P: Into<PathBuf>>(work_dir: P) -> Self {
         ProcessPool {
+            white_list: Default::default(),
             work_dir: work_dir.into(),
             main_process: None,
             exec_processes: Map::new(),
         }
+    }
+
+    pub fn with_exec(mut self, path: impl Into<PathBuf>) -> Self {
+        self.white_list.insert(path.into());
+        self
     }
 }
 
@@ -72,8 +80,10 @@ impl ProcessPool {
         args: I,
     ) -> impl Future<Item = (String, String), Error = String> {
         let exec = executable.as_ref();
-        if exec.is_absolute() {
-            return async_try!(Err(format!("invalid executable {:?}", exec)));
+        if !self.white_list.contains(exec) {
+            if exec.is_absolute() {
+                return async_try!(Err(format!("invalid executable {:?}", exec)));
+            }
         }
 
         let exec_path = self.work_dir.join(exec);
@@ -154,7 +164,7 @@ impl ProcessPool {
 }
 
 pub struct Exec {
-    pub executable: String,
+    pub executable: PathBuf,
     pub args: Vec<String>,
 }
 
@@ -195,5 +205,19 @@ impl Handler<Stop> for ProcessPool {
 
     fn handle(&mut self, msg: Stop, _ctx: &mut Self::Context) -> <Self as Handler<Stop>>::Result {
         self.stop_process(msg.0)
+    }
+}
+
+pub struct KillAll;
+
+impl Message for KillAll {
+    type Result = Result<(), envman::Error>;
+}
+
+impl Handler<KillAll> for ProcessPool {
+    type Result = Result<(), envman::Error>;
+
+    fn handle(&mut self, msg: KillAll, ctx: &mut Self::Context) -> Self::Result {
+        Ok(self.kill_all())
     }
 }

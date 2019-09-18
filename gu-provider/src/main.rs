@@ -8,6 +8,7 @@ use gu_base::*;
 mod connect;
 mod deployment;
 pub mod envman;
+mod fchain;
 mod hdman;
 mod id;
 mod permission;
@@ -25,6 +26,8 @@ mod dockerman;
 mod dockerman {
     pub use gu_base::empty::module;
 }
+
+mod exec_plugin;
 
 mod version {
     use gu_base::*;
@@ -75,6 +78,7 @@ fn inner() {
             .chain(version::module())
             .chain(config_module)
             .chain(dockerman::module())
+            .chain(exec_plugin::module())
             .chain(gu_lan::module::LanModule::module())
             .chain(gu_hardware::module())
             .chain(status::module())
