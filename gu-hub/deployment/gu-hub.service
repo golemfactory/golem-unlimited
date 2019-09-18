@@ -6,8 +6,8 @@ After=network.target
 User=golemu
 Group=golemu
 WorkingDirectory=/usr/lib/golemu
-ExecStartPre=+/usr/bin/mkdir -p -m 755 /var/run/golemu
-ExecStartPre=+/usr/bin/chown golemu:golemu /var/run/golemu
+ExecStartPre=+mkdir -p -m 755 /var/run/golemu
+ExecStartPre=+chown golemu:golemu /var/run/golemu
 ExecStart=/usr/bin/gu-hub server run
 
 LimitNOFILE=150000

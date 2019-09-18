@@ -459,7 +459,12 @@ impl Module for ExecPlugModule {
 }
 
 fn scan_for_plugins(work_dir: &Path, config: &ConfigModule) -> io::Result<()> {
-    for item in fs::read_dir(work_dir.join("plugins"))? {
+    let plugins_dir = work_dir.join("plugins");
+    if !plugins_dir.exists() {
+        let _ = std::fs::create_dir_all(&plugins_dir)
+            .or_else(|_| Err(log::warn!("Cannot create {:?}", &plugins_dir)));
+    }
+    for item in fs::read_dir(plugins_dir)? {
         match item {
             Ok(ent) => {
                 let path = ent.path();
