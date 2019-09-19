@@ -89,7 +89,7 @@ impl IntoDeployInfo for PlugSession {
 }
 
 impl Destroy for PlugSession {
-    fn destroy(&mut self) -> Box<Future<Item = (), Error = EnvError>> {
+    fn destroy(&mut self) -> Box<dyn Future<Item = (), Error = EnvError>> {
         /// TODO Add self.workspace.clear_dir().map_err(From::from).into_future()
         Box::new(
             self.pool
