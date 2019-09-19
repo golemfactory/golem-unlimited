@@ -26,7 +26,7 @@ type Storage = super::file_storage::FileStorage;
 #[derive(Default)]
 pub struct ConfigManager {
     storage: Option<Addr<Storage>>,
-    cache: HashMap<&'static str, Box<Any + 'static>>,
+    cache: HashMap<&'static str, Box<dyn Any + 'static>>,
 }
 
 impl ConfigManager {
