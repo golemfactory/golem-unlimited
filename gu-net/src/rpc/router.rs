@@ -7,8 +7,8 @@ use std::{
 };
 
 pub struct MessageRouter {
-    destinations: HashMap<DestinationId, Box<LocalEndpoint + 'static>>,
-    reply_destinations: HashMap<DestinationId, Box<LocalReplyEndpoint + 'static>>,
+    destinations: HashMap<DestinationId, Box<dyn LocalEndpoint + 'static>>,
+    reply_destinations: HashMap<DestinationId, Box<dyn LocalReplyEndpoint + 'static>>,
     remotes: HashMap<NodeId, Recipient<EmitMessage<String>>>,
 }
 
@@ -32,13 +32,13 @@ pub struct DelEndpoint {
 #[derive(Message)]
 pub struct BindDestination {
     pub destination_id: DestinationId,
-    pub endpoint: Box<LocalEndpoint + 'static + Send>,
+    pub endpoint: Box<dyn LocalEndpoint + 'static + Send>,
 }
 
 #[derive(Message)]
 pub struct BindReplyDestination {
     pub destination_id: DestinationId,
-    pub endpoint: Box<LocalReplyEndpoint + 'static + Send>,
+    pub endpoint: Box<dyn LocalReplyEndpoint + 'static + Send>,
 }
 
 impl MessageRouter {}

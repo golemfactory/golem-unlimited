@@ -56,9 +56,9 @@ struct DigestContentChecker<D: Digest + Clone> {
 
 fn to_hex(ch: u8) -> Result<u8, Error> {
     match ch {
-        b'0'...b'9' => Ok(ch - b'0'),
-        b'a'...b'f' => Ok(ch - b'a' + 10),
-        b'A'...b'F' => Ok(ch - b'a' + 10),
+        b'0'..=b'9' => Ok(ch - b'0'),
+        b'a'..=b'f' => Ok(ch - b'a' + 10),
+        b'A'..=b'F' => Ok(ch - b'a' + 10),
         _ => Err(Error::BadChar(ch)),
     }
 }
