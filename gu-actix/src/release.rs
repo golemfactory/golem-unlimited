@@ -5,6 +5,13 @@ use std::sync::Arc;
 use actix::prelude::*;
 use futures::prelude::*;
 use futures::unsync::oneshot;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static DISABLE_DROP: AtomicBool = AtomicBool::new(false);
+
+pub fn disable_release() {
+    DISABLE_DROP.store(true, Ordering::Relaxed);
+}
 
 pub trait AsyncRelease: Send + 'static {
     type Result: Future<Item = ()> + 'static;
@@ -77,7 +84,9 @@ impl<T: AsyncRelease> Deref for Handle<T> {
 impl<T: AsyncRelease> Drop for Inner<T> {
     fn drop(&mut self) {
         if let Some(h) = self.inner.take() {
-            AsyncResourceManager::from_registry().do_send(DropHandle(h))
+            if !DISABLE_DROP.load(Ordering::Relaxed) {
+                AsyncResourceManager::from_registry().do_send(DropHandle(h));
+            }
         }
     }
 }

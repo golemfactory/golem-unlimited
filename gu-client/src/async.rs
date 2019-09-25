@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use std::time::Duration;
-use std::{env, str};
 use awc as client;
 use awc::http;
 use awc::JsonBody;
+use std::sync::Arc;
+use std::time::Duration;
+use std::{env, str};
 
 use bytes::Bytes;
 use futures::{future, prelude::*};
@@ -65,24 +65,23 @@ impl HubConnection {
         let hub_connection = self.clone();
         let client = awc::Client::new();
 
-        client.post(sessions_url)
+        client
+            .post(sessions_url)
             .send_json(&session_info)
             .into_future()
             .from_err()
             .and_then(|response| match response.status() {
-                        http::StatusCode::CREATED => Ok(response),
-                        status => Err(Error::ResponseErr(status)),
-                    })
-                    .and_then(|mut response| {
-                        response.json().from_err().and_then(|session_id: u64| {
-                            Ok(Handle::new(HubSession {
-                                hub_connection,
-                                session_id,
-                            }))
-                        })
-                    })
-
-
+                http::StatusCode::CREATED => Ok(response),
+                status => Err(Error::ResponseErr(status)),
+            })
+            .and_then(|mut response| {
+                response.json().from_err().and_then(|session_id: u64| {
+                    Ok(Handle::new(HubSession {
+                        hub_connection,
+                        session_id,
+                    }))
+                })
+            })
     }
 
     pub fn auth_app<T: Into<String>, U: Into<String>>(&self, _app_name: T, _token: Option<U>) {}
@@ -131,7 +130,8 @@ impl HubConnection {
         &self,
         url: &str,
     ) -> impl Future<Item = T, Error = Error> + 'static {
-        awc::Client::new().get(url)
+        awc::Client::new()
+            .get(url)
             .send()
             .from_err()
             .and_then(|response| match response.status() {
@@ -142,7 +142,10 @@ impl HubConnection {
     }
 
     fn delete_resource(&self, url: &str) -> impl Future<Item = (), Error = Error> + 'static {
-        awc::Client::new().delete(url).send().from_err()
+        awc::Client::new()
+            .delete(url)
+            .send()
+            .from_err()
             .and_then(|mut response| match response.status() {
                 http::StatusCode::NO_CONTENT => future::Either::A(future::ok(())),
                 http::StatusCode::OK => future::Either::B(
@@ -200,7 +203,9 @@ impl HubSession {
         };
 
         future::Either::B(
-            awc::Client::new().post(&add_url).send_json(&peers)
+            awc::Client::new()
+                .post(&add_url)
+                .send_json(&peers)
                 .from_err()
                 .and_then(|mut response| match response.status() {
                     http::StatusCode::NOT_FOUND => {
@@ -223,20 +228,21 @@ impl HubSession {
 
         let hub_session = self.clone();
 
-        awc::Client::new().post(&new_blob_url).send()
-                .from_err()
-                .and_then(|response| match response.status() {
-                    http::StatusCode::CREATED => Ok(response),
-                    status => Err(Error::ResponseErr(status)),
+        awc::Client::new()
+            .post(&new_blob_url)
+            .send()
+            .from_err()
+            .and_then(|response| match response.status() {
+                http::StatusCode::CREATED => Ok(response),
+                status => Err(Error::ResponseErr(status)),
+            })
+            .and_then(|mut r| r.json().from_err())
+            .and_then(|blob_id: u64| {
+                Ok(Blob {
+                    hub_session,
+                    blob_id,
                 })
-                .and_then(|mut r| r.json().from_err())
-                .and_then(|blob_id: u64| {
-                    Ok(Blob {
-                        hub_session,
-                        blob_id,
-                    })
-                })
-
+            })
     }
     /// gets single peer by its id
     pub fn peer(&self, node_id: NodeId) -> Peer {
@@ -303,7 +309,9 @@ impl HubSession {
             self.hub_connection.url(),
             self.session_id
         );
-        awc::Client::new().put(&url).send_json(&config)
+        awc::Client::new()
+            .put(&url)
+            .send_json(&config)
             .from_err()
             .and_then(|response| match response.status() {
                 http::StatusCode::OK => future::ok(()),
@@ -328,13 +336,14 @@ impl HubSession {
     ) -> impl Future<Item = (), Error = Error> + 'static {
         let url = format!("{}sessions/{}", self.hub_connection.url(), self.session_id);
 
-        awc::Client::new().request(http::Method::PATCH, url)
+        awc::Client::new()
+            .request(http::Method::PATCH, url)
             .send_json(&command)
             .from_err()
-        .and_then(|response| match response.status() {
-            http::StatusCode::OK => future::ok(()),
-            status => future::err(Error::ResponseErr(status)),
-        })
+            .and_then(|response| match response.status() {
+                http::StatusCode::OK => future::ok(()),
+                status => future::err(Error::ResponseErr(status)),
+            })
     }
     /// deletes hub session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> + 'static {
@@ -384,13 +393,14 @@ impl Blob {
             self.blob_id
         );
 
-        awc::Client::new().put(url).send_stream(stream)
-                .from_err()
-                .and_then(|response| match response.status() {
-                    http::StatusCode::NO_CONTENT => future::ok(()),
-                    status => future::err(Error::ResponseErr(status)),
-                })
-
+        awc::Client::new()
+            .put(url)
+            .send_stream(stream)
+            .from_err()
+            .and_then(|response| match response.status() {
+                http::StatusCode::NO_CONTENT => future::ok(()),
+                status => future::err(Error::ResponseErr(status)),
+            })
     }
 
     /// downloads blob
@@ -402,7 +412,11 @@ impl Blob {
             self.blob_id
         );
 
-        awc::Client::build().disable_timeout().finish().get(url).send()
+        awc::Client::build()
+            .disable_timeout()
+            .finish()
+            .get(url)
+            .send()
             .from_err()
             .and_then(|response| match response.status() {
                 http::StatusCode::OK => future::ok(response.from_err()),
@@ -444,23 +458,22 @@ impl Peer {
         );
 
         let peer = self.clone();
-        awc::Client::new().post(url).send_json(&session_info)
-                .from_err()
-                .and_then(|mut response| {
-                    if response.status() != http::StatusCode::CREATED {
-                        return future::Either::A(future::err(Error::ResponseErr(
-                            response.status(),
-                        )));
-                    }
-                    future::Either::B(response.json().map_err(Error::InvalidJSONResponse))
+        awc::Client::new()
+            .post(url)
+            .send_json(&session_info)
+            .from_err()
+            .and_then(|mut response| {
+                if response.status() != http::StatusCode::CREATED {
+                    return future::Either::A(future::err(Error::ResponseErr(response.status())));
+                }
+                future::Either::B(response.json().map_err(Error::InvalidJSONResponse))
+            })
+            .and_then(|answer_json: String| {
+                future::ok(PeerSession {
+                    peer,
+                    session_id: answer_json,
                 })
-                .and_then(|answer_json: String| {
-                    future::ok(PeerSession {
-                        peer,
-                        session_id: answer_json,
-                    })
-                })
-
+            })
     }
     /// gets peer information
     pub fn info(&self) -> impl Future<Item = PeerInfo, Error = Error> {
@@ -514,31 +527,38 @@ impl PeerSession {
             self.session_id,
         );
 
-        client::Client::build().disable_timeout().finish().request(http::Method::PATCH, &url)
-             .send_json(&commands)
+        client::Client::build()
+            .disable_timeout()
+            .finish()
+            .request(http::Method::PATCH, &url)
+            .send_json(&commands)
             .from_err()
             .and_then(|mut response| match response.status() {
-            http::StatusCode::OK => {
-                future::Either::A(future::Either::A(response.json().from_err()))
-            }
-            http::StatusCode::INTERNAL_SERVER_ERROR => {
-                if response.headers().get(http::header::CONTENT_TYPE).map(|h| h.as_bytes()) == Some(b"application/json")
-                    && response.headers().get("x-processing-error").is_some()
-                {
-                    future::Either::A(future::Either::B(
-                        response
-                            .json()
-                            .from_err()
-                            .and_then(|v: Vec<String>| Err(Error::ProcessingResult(v))),
-                    ))
-                } else {
-                    future::Either::B(future::err(Error::ResponseErr(
-                        http::StatusCode::INTERNAL_SERVER_ERROR,
-                    )))
+                http::StatusCode::OK => {
+                    future::Either::A(future::Either::A(response.json().from_err()))
                 }
-            }
-            status => future::Either::B(future::err(Error::ResponseErr(status))),
-        })
+                http::StatusCode::INTERNAL_SERVER_ERROR => {
+                    if response
+                        .headers()
+                        .get(http::header::CONTENT_TYPE)
+                        .map(|h| h.as_bytes())
+                        == Some(b"application/json")
+                        && response.headers().get("x-processing-error").is_some()
+                    {
+                        future::Either::A(future::Either::B(
+                            response
+                                .json()
+                                .from_err()
+                                .and_then(|v: Vec<String>| Err(Error::ProcessingResult(v))),
+                        ))
+                    } else {
+                        future::Either::B(future::err(Error::ResponseErr(
+                            http::StatusCode::INTERNAL_SERVER_ERROR,
+                        )))
+                    }
+                }
+                status => future::Either::B(future::err(Error::ResponseErr(status))),
+            })
     }
     /// deletes peer session
     pub fn delete(self) -> impl Future<Item = (), Error = Error> {
@@ -666,7 +686,8 @@ impl ProviderRef {
             T::ID
         );
 
-        awc::Client::new().post(url)
+        awc::Client::new()
+            .post(url)
             .send_json(&Body { b: msg })
             .from_err()
             .and_then(|mut r| r.json().from_err())
@@ -678,3 +699,6 @@ impl ProviderRef {
 struct Body<T: Serialize + 'static> {
     b: T,
 }
+
+#[doc(hidden)]
+pub use gu_actix::release::disable_release;

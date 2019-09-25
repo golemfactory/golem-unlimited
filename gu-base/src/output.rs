@@ -111,7 +111,7 @@ impl Module for AutocompleteModule {
 
         if let Some(sub_matches) = matches.subcommand_matches("completions") {
             let shell = sub_matches.value_of("SHELL").unwrap();
-            let prg = self.0.as_ref();
+            let prg = &self.0;
             app_gen().gen_completions_to(prg, shell.parse().unwrap(), &mut io::stdout());
             return true;
         }
