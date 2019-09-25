@@ -460,7 +460,7 @@ impl Module for ExecPlugModule {
                 "/Applications/Golem Unlimited Provider.app/Contents/Resources".as_ref(),
                 config,
             )
-            .unwrap_or_else(|e| log::debug!("/Applications/ scanning: {}", work_dir, e));;
+            .unwrap_or_else(|e| log::debug!("/Applications/ scanning: {:?}", work_dir, e));
         }
         let _ = scan_for_plugins(&work_dir, config)
             .unwrap_or_else(|e| log::debug!("on scan {:?}/plugins: {}", work_dir, e));
