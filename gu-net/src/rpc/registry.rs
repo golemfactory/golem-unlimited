@@ -9,7 +9,7 @@ use std::{
 };
 
 struct RemotingRegistry {
-    inner: HashMap<TypeId, Box<Any + Send>>,
+    inner: HashMap<TypeId, Box<dyn Any + Send>>,
 }
 
 impl Default for RemotingRegistry {

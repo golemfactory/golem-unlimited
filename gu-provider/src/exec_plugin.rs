@@ -89,7 +89,7 @@ impl IntoDeployInfo for PlugSession {
 }
 
 impl Destroy for PlugSession {
-    fn destroy(&mut self) -> Box<Future<Item = (), Error = EnvError>> {
+    fn destroy(&mut self) -> Box<dyn Future<Item = (), Error = EnvError>> {
         /// TODO Add self.workspace.clear_dir().map_err(From::from).into_future()
         Box::new(
             self.pool
@@ -451,18 +451,28 @@ impl Module for ExecPlugModule {
         let work_dir = config.work_dir();
         let _ = scan_for_plugins("/var/lib/golemu".as_ref(), config)
             .unwrap_or_else(|e| log::debug!("on scan /var/lib/golemu/plugins: {}", e));
-        let _ = scan_for_plugins("/usr/lib/golemu".as_ref(), config)
+        let _ = scan_for_plugins("/usr/lib/golemu".as_ref(), &config)
             .unwrap_or_else(|e| log::debug!("on scan /usr/lib/golemu/plugins: {}", e));
         #[cfg(windows)]
         {
             let _ = scan_for_plugins("plugins".as_ref(), config);
         }
-        let _ = scan_for_plugins(&work_dir, config).unwrap();
+        #[cfg(target_os = "macos")]
+        {
+            let _ = scan_for_plugins(
+                "/Applications/Golem Unlimited Provider.app/Contents/Resources".as_ref(),
+                config,
+            )
+            .unwrap_or_else(|e| log::debug!("/Applications/ scanning: {}", e));
+        }
+        let _ = scan_for_plugins(&work_dir, config)
+            .unwrap_or_else(|e| log::debug!("on scan {:?}/plugins: {}", work_dir, e));
     }
 }
 
 fn scan_for_plugins(work_dir: &Path, config: &ConfigModule) -> io::Result<()> {
-    for item in fs::read_dir(work_dir.join("plugins"))? {
+    let plugins_dir = work_dir.join("plugins");
+    for item in fs::read_dir(plugins_dir)? {
         match item {
             Ok(ent) => {
                 let path = ent.path();
