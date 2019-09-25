@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use actix_web::error::{ErrorBadRequest, ErrorInternalServerError};
+use actix_web::fs::NamedFile;
 use actix_web::{App, HttpMessage, HttpRequest, HttpResponse};
 use futures::prelude::*;
 use gu_base::Module;
@@ -57,13 +58,16 @@ impl Module for RepoModule {
 
             .resource("/repo/{hash}", move |r| {
                 let cache_path = cache_path_get.clone();
-                r.get().with(move |p: actix_web::Path<(String, )>| -> Result<HttpResponse, actix_web::Error>{
+                r.get().with(move |p: actix_web::Path<(String, )>| -> Result<NamedFile, actix_web::Error>{
                     let hexhash = p.0.as_str();
                     let file_path = cache_path.join(hexhash);
 
+                    Ok(NamedFile::open(file_path)?)
+/*
                     let bytes : Vec<u8> = std::fs::read(file_path)
                         .map_err(|e| ErrorInternalServerError(format!("{}", e)))?;
                     Ok(HttpResponse::Ok().content_type("application/octet-stream").body(bytes))
+*/
                 })
             })
     }
