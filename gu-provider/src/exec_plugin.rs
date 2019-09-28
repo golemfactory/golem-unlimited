@@ -453,7 +453,8 @@ impl Module for ExecPlugModule {
         #[cfg(windows)]
         {
             let cur_dir = std::env::current_dir().unwrap();
-            let _ = scan_for_plugins(cur_dir.as_ref(), config).unwrap_or_else(|e| log::error!("on scan {:?}/plugins: {}", work_dir, e));
+            let _ = scan_for_plugins(cur_dir.as_ref(), config)
+                .unwrap_or_else(|e| log::error!("on scan {:?}/plugins: {}", work_dir, e));
         }
         #[cfg(target_os = "macos")]
         {
