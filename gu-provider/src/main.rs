@@ -9,6 +9,7 @@ mod connect;
 mod deployment;
 pub mod envman;
 mod fchain;
+#[cfg(feature = "env-hd")]
 mod hdman;
 mod id;
 mod permission;

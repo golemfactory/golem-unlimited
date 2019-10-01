@@ -455,7 +455,9 @@ impl Module for ExecPlugModule {
             .unwrap_or_else(|e| log::debug!("on scan /usr/lib/golemu/plugins: {}", e));
         #[cfg(windows)]
         {
-            let _ = scan_for_plugins("plugins".as_ref(), config);
+            let cur_dir = std::env::current_dir().unwrap();
+            let _ = scan_for_plugins(cur_dir.as_ref(), config)
+                .unwrap_or_else(|e| log::error!("on scan {:?}/plugins: {}", work_dir, e));
         }
         #[cfg(target_os = "macos")]
         {
