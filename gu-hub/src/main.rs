@@ -42,6 +42,7 @@ mod local_service;
 mod peer;
 mod plugins;
 mod proxy_service;
+mod repo;
 mod server;
 mod sessions;
 
@@ -65,6 +66,7 @@ fn main() {
             .chain(peer::PeerModule::new())
             .chain(AutocompleteModule::new())
             .chain(hub_info::module())
+            .chain(repo::module())
             .chain(server::ServerModule::new()),
     );
 }
