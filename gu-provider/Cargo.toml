@@ -54,6 +54,7 @@ default = ["env-docker"]
 win-service = ["windows-service"]
 clinfo = ["gu-hardware/clinfo"]
 env-docker = ["async_docker"]
+env-hd = []
 ssl=["openssl/vendored", "actix-web/ssl"]
 
 [package.metadata.deb]
