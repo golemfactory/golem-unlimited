@@ -1,6 +1,6 @@
 [package]
 name = "gu-provider"
-version = "0.2.0"
+version = "0.2.3"
 license = "GPL-3.0"
 publish = false
 authors = ["golemfactory"]

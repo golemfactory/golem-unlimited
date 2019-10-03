@@ -119,6 +119,7 @@ impl Handler<CreateSession<<Self as EnvManService>::CreateOptions>> for PluginMa
             image_path
                 .into_actor(self)
                 .and_then(|image_path, act, _ctx| {
+                    log::debug!("validate: {}", image_path.display());
                     let async_status = match process::Command::new(&act.exec)
                         .args(&["validate-image".as_ref(), image_path.as_path().as_os_str()])
                         .status_async()
@@ -395,11 +396,13 @@ fn resolve_path(
         .output_async()
         .map_err(|e| format!("driver error: {}", e))
         .and_then(|output| {
-            eprintln!(
-                "stderr={}",
-                std::str::from_utf8(output.stderr.as_ref()).unwrap()
-            );
-            eprintln!(
+            if !output.stderr.is_empty() {
+                log::info!(
+                    "stderr={}",
+                    std::str::from_utf8(output.stderr.as_ref()).unwrap()
+                );
+            }
+            log::debug!(
                 "output={}",
                 std::str::from_utf8(output.stdout.as_ref()).unwrap()
             );
