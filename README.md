@@ -23,20 +23,27 @@ The latter broadens [Golem](../../../golem) Network reach, because it currently 
 single machine nodes. With Golem Unlimited it would allow more complex components, such as a
 whole subnetworks.
 
-# Use cases
-Initially we have prepared plugins for two use cases:
-* [Integer factorization](https://github.com/golemfactory/gu-int-factorization) - a "Hello
-World" for Golem Unlimited 
-* Mining - just to showcase the Golem Unlimited, not a industry grade minig solution  
+Golem Unlimited offers three execution environments:
+- host direct -- which does not provide any sandboxing, and requires application integrator to prepare binaries for every operating system
+- docker -- integrator needs to prepare single docker image with application
+- gWASM -- integrator needs to compile desired app to WASM target and conform to gWASM format
 
-Here you can watch a short demo with above two: https://youtu.be/J0LBdg2j6Tk
+# Use cases
+Most current integration for Golem Unlimited is [gwasm-runner](https://github.com/golemfactory/gwasm-runner/) which utlise gWASM execution environment and provides simplistic API that resembles map-reduce paradigm. It enables developers to easily implement simple applications and run them on top of the Golem Unlimited and also on [Brass Golem 0.21 and later](https://blog.golemproject.net/brass-golem-beta-0-21-0-hello-mainnet-gwasm/).
 
 There are more integrations being prepared (outside Golem Unlimited team by with our support).
 To list a few:
-* [gumpi](https://github.com/golemfactory/gumpi) - MPI implemented on top of Golem Unlimited
+* [gumpi](https://github.com/golemfactory/gumpi) - [MPI](https://en.wikipedia.org/wiki/Message_Passing_Interface) implemented on top of Golem Unlimited, utilising docker execution environment
 * [Hoard Compiler](https://github.com/hoardexchange/HoardCompiler) - Distributed C++ compiler
-for Visual Studio 2017 and 2019.
+for Visual Studio 2017 and 2019, which supports host direct mode only for Windows 10.
 
+Initially we have prepared plugins for two use cases:
+* [Integer factorization](https://github.com/golemfactory/gu-int-factorization) - a "Hello
+World" for Golem Unlimited 
+* Mining - just to showcase the Golem Unlimited, not a industry grade minig solution 
+
+Here you can watch a short demo with above two: https://youtu.be/J0LBdg2j6Tk
+They are not maitained any more.
 
 # Installing and testing
 
@@ -44,7 +51,7 @@ Please bear in mind that Golem Unlimited is in its
 [Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) stage.
 
 ## Hub
-Currently we support Hub on Debian based Linux distributions only.
+Currently we support Hub only on Ubuntu 16.04 LTS and later.
 
 To install Hub you can use the [released](https://github.com/golemfactory/golem-unlimited/releases) Ubuntu `deb`.
 
@@ -53,10 +60,7 @@ To run Hub on other OS Plaforms refer the [Hub README](gu-hub).
 
 ## Provider
 
-To install Provider you can use the [released](https://github.com/golemfactory/golem-unlimited/releases) Ubuntu `deb`
-and MacOs `dmg` binary packages. There are also pre-released Provider for Windows builds (`exe`)
-
-To install you can follow steps shown in our demo https://youtu.be/J0LBdg2j6Tk
+To install Provider you can use the [released](https://github.com/golemfactory/golem-unlimited/releases) MacOs `dmg`, Windows `msi` or Ubuntu `deb` packages.
 
 ### from source
 See the [Provider README](gu-provider) for build instructions.
