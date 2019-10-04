@@ -59,7 +59,7 @@ pub trait Module: Any {
         false
     }
 
-    fn prepare(&mut self) -> Box<Future<Item = (), Error = ()>> {
+    fn prepare(&mut self) -> Box<dyn Future<Item = (), Error = ()>> {
         Box::new(future::ok(()))
     }
 
@@ -146,7 +146,7 @@ where
         b1 || b2
     }
 
-    fn prepare(&mut self) -> Box<Future<Item = (), Error = ()>> {
+    fn prepare(&mut self) -> Box<dyn Future<Item = (), Error = ()>> {
         Box::new(self.m1.prepare().join(self.m2.prepare()).map(|(_, _)| ()))
     }
 

@@ -384,7 +384,7 @@ impl HubSession {
 }
 
 impl AsyncRelease for HubSession {
-    type Result = Box<Future<Item = (), Error = Error>>;
+    type Result = Box<dyn Future<Item = (), Error = Error>>;
     fn release(self) -> Self::Result {
         Box::new(self.delete())
     }
@@ -623,7 +623,7 @@ impl PeerSession {
 }
 
 impl AsyncRelease for PeerSession {
-    type Result = Box<Future<Item = (), Error = Error>>;
+    type Result = Box<dyn Future<Item = (), Error = Error>>;
     fn release(self) -> Self::Result {
         Box::new(self.delete())
     }

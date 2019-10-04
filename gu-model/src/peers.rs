@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "with-actix")]
 use gu_net::NodeId;
+
+#[cfg(not(feature = "with-actix"))]
+type NodeId = String;
 
 use super::deployment::DeploymentInfo;
 use super::Tags;

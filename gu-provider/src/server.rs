@@ -30,6 +30,7 @@ use crate::connect::{
     self, AutoMdns, Connect, ConnectManager, ConnectModeMessage, ConnectionChange,
     ConnectionChangeMessage, Disconnect, ListSockets,
 };
+#[cfg(feature = "env-hd")]
 use crate::hdman::HdMan;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -184,6 +185,8 @@ impl Module for ServerModule {
         gu_base::run_once(move || {
             let dec = decorator.to_owned();
             let config_module: &ConfigModule = dec.extract().unwrap();
+
+            #[cfg(feature = "env-hd")]
             let _ = HdMan::start(config_module);
 
             ProviderServer::from_registry().do_send(InitServer {

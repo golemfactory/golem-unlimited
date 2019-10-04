@@ -52,7 +52,7 @@ impl IntoDeployInfo for HdSessionInfo {
 }
 
 impl Destroy for HdSessionInfo {
-    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
+    fn destroy(&mut self) -> Box<dyn Future<Item = (), Error = Error>> {
         debug!("killing all running child processes");
         let _ = self
             .processes
@@ -101,6 +101,7 @@ impl Actor for HdMan {
 impl HdMan {
     pub fn start(config: &ConfigModule) -> Addr<Self> {
         let cache_dir = config.cache_dir().to_path_buf().join("images");
+        log::info!("creating cache dir: {}", cache_dir.display());
         fs::create_dir_all(&cache_dir)
             .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
             .unwrap();

@@ -123,7 +123,7 @@ impl Module for ProxyModule {
             .start(),
         );
 
-        app.handler("/service/proxy", move |r : &HttpRequest<_>| -> Box<Future<Item = HttpResponse, Error = actix_web::Error>> {
+        app.handler("/service/proxy", move |r : &HttpRequest<_>| -> Box<dyn Future<Item = HttpResponse, Error = actix_web::Error>> {
             let tail = (&r.path()[15..]).to_string();
             if let Some(spos) = tail.find("/") {
                 let plugin_name = &tail[0..spos];

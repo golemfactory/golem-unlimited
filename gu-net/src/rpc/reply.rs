@@ -22,8 +22,8 @@ use std::{collections::HashMap, error::Error, fmt, io};
 #[derive(Debug)]
 pub enum SendError {
     NotConnected(NodeId),
-    GenBody(Box<Error + Send>),
-    ParseBody(Option<Box<Error + Send>>, String),
+    GenBody(Box<dyn Error + Send>),
+    ParseBody(Option<Box<dyn Error + Send>>, String),
     MailBox(MailboxError),
     NoDestination,
     Canceled,
@@ -53,7 +53,7 @@ impl Error for SendError {
         }
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         match self {
             SendError::GenBody(e) => Some(e.as_ref()),
             SendError::ParseBody(Some(e), _) => Some(e.as_ref()),

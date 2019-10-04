@@ -15,7 +15,7 @@ pub trait IntoDeployInfo {
 }
 
 pub trait Destroy {
-    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
+    fn destroy(&mut self) -> Box<dyn Future<Item = (), Error = Error>> {
         Box::new(future::ok(()))
     }
 }

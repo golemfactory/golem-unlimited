@@ -1,9 +1,11 @@
 pub mod dockerman;
 pub mod envman;
+pub mod wasman;
 
 pub mod deployment;
 mod hub;
 pub mod peers;
+pub mod plugin;
 pub mod session;
 
 #[cfg(feature = "hash")]

@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 /// Actor
 #[derive(Default)]
 struct EnvMan {
-    create_map: BTreeMap<String, Box<CreateSender>>,
+    create_map: BTreeMap<String, Box<dyn CreateSender>>,
     session_update_map: BTreeMap<String, Recipient<SessionUpdate>>,
     get_sessions_map: BTreeMap<String, Recipient<GetSessions>>,
     destroy_session_map: BTreeMap<String, Recipient<DestroySession>>,
@@ -39,13 +39,13 @@ pub trait EnvManService {
 }
 
 trait CreateSender {
-    fn send(&self, msg: CreateSession<JsonValue>) -> Box<Future<Item = String, Error = Error>>;
+    fn send(&self, msg: CreateSession<JsonValue>) -> Box<dyn Future<Item = String, Error = Error>>;
 }
 
 struct CreateRecipient<T: EnvManService>(Recipient<CreateSession<T::CreateOptions>>);
 
 impl<T: EnvManService + 'static> CreateSender for CreateRecipient<T> {
-    fn send(&self, msg: CreateSession<JsonValue>) -> Box<Future<Item = String, Error = Error>> {
+    fn send(&self, msg: CreateSession<JsonValue>) -> Box<dyn Future<Item = String, Error = Error>> {
         match serde_json::from_value(msg.options) {
             Ok(options) => Box::new(
                 self.0
