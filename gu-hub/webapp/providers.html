@@ -31,7 +31,14 @@
                         <td gu-peer-ram></td>
                         <td gu-peer-gpu></td>
                         <td gu-peer-num_cores>{{peer.num_cores}}</td>
-                        <td>{{(peer.sessions.length || 0)}}</td>
+                        <td>
+                            <div class="badge-session" 
+                            ng-class="(peer.sessions.length > 0) ? 'badge-session--green' : 'badge-session--red'"
+                            animate-on-change="peer.sessions.length" 
+                            anim-class="badge-anim"
+                            timeout="100">{{(peer.sessions.length || 0)}}
+                            </div>
+                        </td>
                         <td>{{peer.peerAddr}}</td>
                     </tr>
                 </tbody>
