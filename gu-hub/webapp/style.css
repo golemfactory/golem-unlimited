@@ -2,27 +2,27 @@
 @import url(css/progress-wizard.min.css);
 
 body {
-    padding: 6px;
-    font-family: 'Roboto', sans-serif;
+  padding: 6px;
+  font-family: 'Roboto', sans-serif;
 }
 
 .text-monospace {
-    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 .progress-label {
-    position: relative;
-    top: -40px;
-    text-align: center;
-    width: 100%;
-    display: block;
-    height: 0px;
+  position: relative;
+  top: -40px;
+  text-align: center;
+  width: 100%;
+  display: block;
+  height: 0px;
 }
 
 @font-face {
   font-family: 'golem-unlimited';
-  src:  url('fonts/golem-unlimited.eot?3o99p9');
-  src:  url('fonts/golem-unlimited.eot?3o99p9#iefix') format('embedded-opentype'),
+  src: url('fonts/golem-unlimited.eot?3o99p9');
+  src: url('fonts/golem-unlimited.eot?3o99p9#iefix') format('embedded-opentype'),
     url('fonts/golem-unlimited.ttf?3o99p9') format('truetype'),
     url('fonts/golem-unlimited.woff?3o99p9') format('woff'),
     url('fonts/golem-unlimited.svg?3o99p9#golem-unlimited') format('svg');
@@ -30,7 +30,8 @@ body {
   font-style: normal;
 }
 
-[class^="gu-"], [class*=" gu-"] {
+[class^='gu-'],
+[class*=' gu-'] {
   /* use !important to prevent issues with browser extensions that change fonts */
   font-family: 'golem-unlimited' !important;
   speak: none;
@@ -39,7 +40,7 @@ body {
   font-variant: normal;
   text-transform: none;
   line-height: 1;
-  vertical-align:middle;
+  vertical-align: middle;
 
   /* Better Font Rendering =========== */
   -webkit-font-smoothing: antialiased;
@@ -47,24 +48,70 @@ body {
 }
 
 .gu-mining-icon:before {
-  content: "\e900";
+  content: '\e900';
 }
 .gu-factorization-icon:before {
-  content: "\e901";
+  content: '\e901';
 }
 .gu-status-icon:before {
-  content: "\e902";
+  content: '\e902';
 }
 .gu-rendering-icon:before {
-  content: "\e903";
+  content: '\e903';
 }
 .gu-providers-icon:before {
-  content: "\e904";
+  content: '\e904';
 }
 .gu-refresh-icon:before {
-  content: "\e905";
+  content: '\e905';
 }
 
 .gu-icon {
-    font-size: 180%;
+  font-size: 180%;
+}
+
+.badge-session {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: white;
+  text-align: center;
+  transition: 0.5s background-color;
+}
+
+.badge-session--red {
+  background-color: red;
+}
+
+.badge-session--green {
+  background-color: #5cb85c;
+}
+
+/*Popup animation*/
+.badge-anim {
+  animation: popup 0.7s;
+}
+
+@keyframes popup {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.4);
+  }
+  60% {
+    transform: scale(1.1);
+  }
+  70% {
+    transform: scale(1.2);
+  }
+  80% {
+    transform: scale(1);
+  }
+  90% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
 }

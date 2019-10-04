@@ -36,10 +36,13 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
         }
     })
 
-    .controller('GuProvidersController', function ($scope, $http, $uibModal, hubApi, sessionMan) {
-
+    .controller('GuProvidersController', function ($scope, $interval, $http, $timeout, $uibModal, hubApi, sessionMan) {
+        $scope.peers = []
+        let timer;
         $scope.refresh = function refresh() {
-            sessionMan.peers(null, true).then(peers => $scope.peers = peers)
+            sessionMan.peers(null, true).then(peers => {
+                timer = $timeout(() => $scope.peers = peers, 100); //hack flicker fix
+            })
         };
 
 
@@ -60,9 +63,13 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                 }
             })
         };
-
-        $scope.peers = [];
         $scope.refresh();
+        const intervalPromise =  $interval(() => $scope.refresh(), 5000);
+
+        $scope.$on('$destroy', () => {
+            $interval.cancel(intervalPromise);
+            timer && $timeout.cancel(timer);
+        });
 
     })
     .controller('StatusController', function ($scope, $http) {
