@@ -339,11 +339,12 @@ impl Handler<CreateDeployment> for SessionsManager {
             ActorResponse::r#async(
                 fut::wrap_future(session.create_deployment(msg.node_id, msg.deployment_desc))
                     .and_then(move |deployment_id, act: &mut SessionsManager, _ctx| {
-                        act.sessions
-                            .get_mut(&session_id)
-                            .unwrap()
-                            .add_deployment(node_id, deployment_id.clone());
-                        fut::ok(deployment_id)
+                        if let Some(session) = act.sessions.get_mut(&session_id) {
+                            session.add_deployment(node_id, deployment_id.clone());
+                            fut::ok(deployment_id)
+                        } else {
+                            fut::err(SessionErr::SessionNotFoundError)
+                        }
                     }),
             )
         } else {
@@ -382,11 +383,9 @@ impl Handler<DeleteDeployment> for SessionsManager {
             ActorResponse::r#async(
                 fut::wrap_future(session.delete_deployment(msg.node_id, msg.deployment_id))
                     .and_then(move |_, act: &mut SessionsManager, _ctx| {
-                        if !(act
-                            .sessions
-                            .get_mut(&session_id)
-                            .unwrap()
-                            .remove_deployment(node_id, deployment_id.clone()))
+                        if act.sessions.get_mut(&session_id).map(|session| {
+                            session.remove_deployment(node_id, deployment_id.clone())
+                        }) != Some(true)
                         {
                             return fut::err(SessionErr::DeploymentNotFound(deployment_id));
                         }
