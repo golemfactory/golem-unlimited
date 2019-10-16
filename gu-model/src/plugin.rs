@@ -70,5 +70,4 @@ mod test {
     fn test_to_platform() {
         eprintln!("{}", serde_json::to_string(&Platform::current()).unwrap())
     }
-
 }

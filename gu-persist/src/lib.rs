@@ -47,7 +47,6 @@ pub mod error {
             ErrorKind::MailboxError(e).into()
         }
     }
-
 }
 
 pub mod config;

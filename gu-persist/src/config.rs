@@ -247,6 +247,20 @@ fn set_config_path(config_path: PathBuf) {
     unlocked_paths.config_dir = config_path;
 }
 
+fn set_paths_exec_dir() -> std::io::Result<()> {
+    if let Some(exec_dir) = std::env::current_exe()?.parent() {
+        let paths = ConfigPaths {
+            work_dir: exec_dir.join("gu-data").join("data"),
+            cache_dir: exec_dir.join("gu-data").join("cache"),
+            config_dir: exec_dir.join("gu-data").join("config"),
+            runtime_dir: exec_dir.join("gu-data").join("run"),
+            tried_to_create: false,
+        };
+        *CONFIG_PATHS_LOCK.write().unwrap() = paths;
+    }
+    Ok(())
+}
+
 fn set_paths_local() {
     let dirs = ProjectDirs::from("network", "Golem", "Golem Unlimited").unwrap();
     let paths = ConfigPaths {
@@ -319,6 +333,16 @@ impl Module for ConfigModule {
     }
 
     fn args_consume(&mut self, matches: &ArgMatches) -> bool {
+        /* portable version - directories in the directory where the executable is located */
+        if let Ok(path) = std::env::current_exe() {
+            if let Some(dir) = path.parent() {
+                if dir.join(".gu-portable").exists() {
+                    info!("Portable version. Using directories in the local directory.");
+                    let _ = set_paths_exec_dir().map_err(|e| error!("{}", e));
+                }
+            }
+        }
+        /* local user paths, e.g. ~/.config/ */
         if matches.is_present("user") {
             set_paths_local()
         }
@@ -364,5 +388,4 @@ mod test {
 
         let _b = t.to_json().unwrap();
     }
-
 }

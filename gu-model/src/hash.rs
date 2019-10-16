@@ -264,5 +264,4 @@ mod test {
             PathBuf::from("SHA1---c04e69c52dc35d93389a23189c333d150cadd719")
         );
     }
-
 }

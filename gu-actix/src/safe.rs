@@ -89,5 +89,4 @@ mod test {
         assert_eq!(cu32((2u64 << 30).cast_into().unwrap()), 2u32 << 30);
         assert_eq!(CastInto::<u32>::cast_into(2u64 << 32).is_err(), true);
     }
-
 }

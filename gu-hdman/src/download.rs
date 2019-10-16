@@ -315,5 +315,4 @@ mod test {
         assert_eq!(b.chunk_timeout, time::Duration::from_secs(120));
         assert_eq!(b.chunk_size, 3000);
     }
-
 }

@@ -100,5 +100,4 @@ mod test {
     fn test_gpu_count() {
         eprintln!("gpu={:?}", gpu_count().unwrap());
     }
-
 }
