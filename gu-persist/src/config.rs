@@ -262,7 +262,10 @@ fn set_paths_exec_dir() -> std::io::Result<()> {
                 *CONFIG_PATHS_LOCK.write().unwrap() = paths;
                 Ok(())
             }
-            None => std::io::Error::new(std::io::ErrorKind::Other, "Cannot find parent directory."),
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Cannot find parent directory.",
+            )),
         },
         Err(e) => e,
     }
