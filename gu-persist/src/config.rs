@@ -267,7 +267,7 @@ fn set_paths_exec_dir() -> std::io::Result<()> {
                 "Cannot find parent directory.",
             )),
         },
-        Err(e) => e,
+        Err(e) => Err(e),
     }
 }
 
