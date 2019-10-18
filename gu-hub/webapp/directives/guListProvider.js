@@ -26,4 +26,15 @@ angular.module('gu').directive('guListProvider', function () {
             initPeers($scope.peers);
         }
     }
+}).directive('animateOnChange', function($timeout) {
+    return function(scope, element, attr) {
+        scope.$watch(attr.animateOnChange, function(newValue, oldValue) {
+            if (newValue != oldValue) {
+                element.removeClass(attr.animClass);
+                $timeout(function() {
+                    element.addClass(attr.animClass);
+                }, attr.timeout);
+            }
+        });
+    };
 });
