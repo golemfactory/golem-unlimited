@@ -248,17 +248,24 @@ fn set_config_path(config_path: PathBuf) {
 }
 
 fn set_paths_exec_dir() -> std::io::Result<()> {
-    if let Some(exec_dir) = std::env::current_exe()?.parent() {
-        let paths = ConfigPaths {
-            work_dir: exec_dir.join("gu-data").join("data"),
-            cache_dir: exec_dir.join("gu-data").join("cache"),
-            config_dir: exec_dir.join("gu-data").join("config"),
-            runtime_dir: exec_dir.join("gu-data").join("run"),
-            tried_to_create: false,
-        };
-        *CONFIG_PATHS_LOCK.write().unwrap() = paths;
+    match std::env::current_exe() {
+        Ok(exec_file) => match exec_file.parent() {
+            Some(exec_dir) => {
+                info!("Portable version. Using directories in the local directory.");
+                let paths = ConfigPaths {
+                    work_dir: exec_dir.join("gu-data").join("data"),
+                    cache_dir: exec_dir.join("gu-data").join("cache"),
+                    config_dir: exec_dir.join("gu-data").join("config"),
+                    runtime_dir: exec_dir.join("gu-data").join("run"),
+                    tried_to_create: false,
+                };
+                *CONFIG_PATHS_LOCK.write().unwrap() = paths;
+                Ok(())
+            }
+            None => std::io::Error::new(std::io::ErrorKind::Other, "Cannot find parent directory."),
+        },
+        Err(e) => e,
     }
-    Ok(())
 }
 
 fn set_paths_local() {
@@ -337,7 +344,6 @@ impl Module for ConfigModule {
         if let Ok(path) = std::env::current_exe() {
             if let Some(dir) = path.parent() {
                 if dir.join(".gu-portable").exists() {
-                    info!("Portable version. Using directories in the local directory.");
                     let _ = set_paths_exec_dir().map_err(|e| error!("{}", e));
                 }
             }
