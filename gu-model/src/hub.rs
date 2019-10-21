@@ -93,5 +93,4 @@ mod test {
 
         eprintln!("{}", serde_json::to_string_pretty(&hub_info).unwrap());
     }
-
 }

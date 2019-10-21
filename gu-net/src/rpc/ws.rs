@@ -547,5 +547,4 @@ mod test {
 
         assert_eq!(deserialize_from_slice::<RpcMessage>(&buf).unwrap(), rpc)
     }
-
 }

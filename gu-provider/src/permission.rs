@@ -711,5 +711,4 @@ mod test {
 
         let _: IpHostNameAccessLevel = serde_json::from_str(input).unwrap();
     }
-
 }

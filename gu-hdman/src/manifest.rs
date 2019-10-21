@@ -64,5 +64,4 @@ mod tests {
         assert_eq!(m.main.args_prefix, Vec::<String>::new());
         eprintln!("manifest={:?}", m)
     }
-
 }

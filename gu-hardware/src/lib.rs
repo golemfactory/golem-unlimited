@@ -67,7 +67,6 @@ pub mod error {
             Error::Mailbox(e)
         }
     }
-
 }
 
 pub struct HardwareModule {
