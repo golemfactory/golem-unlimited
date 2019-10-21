@@ -1,53 +1,74 @@
 # Golem Unlimited 
 [![Build Status](https://travis-ci.org/golemfactory/golem-unlimited.svg?branch=release%2F0.2)](https://travis-ci.org/golemfactory/golem-unlimited)
 
-Golem Unlimited utilizes **trusted** heterogeneous computing resources which are part time idle. It is meant for data center-like setup (e.g., render farms, or desktops within organisation LAN) where network participants trust each other, but it will also support trusted P2P subnetworks (e.g., distributed team machines).
+Golem Unlimited utilizes **trusted** heterogeneous computing resources which are part time idle.
+It is meant for data center-like setup (e.g., render farms, or desktops within organisation LAN)
+ where network participants trust each other, but it will also support trusted P2P subnetworks 
+ (e.g., distributed team machines).
 
-It features the [hub](gu-hub) acting as a requestor and additional worker nodes in the hub’s trusted network acting as [providers](gu-provider).
+It features the [hub](gu-hub) acting as a requestor and additional worker nodes in the hub’s 
+trusted network acting as [providers](gu-provider).
 
-Trust within Golem Unlimited subnetwork allows simplifying its design and taking care of only the computation layer. Other components such as economic layers, reputation systems, verification algorithms, and sandboxing (in contrast to the public Golem Network) can be skipped altogether or implemented optionally.
+Trust within Golem Unlimited subnetwork allows simplifying its design and taking care of only
+the computation layer. Other components such as economic layers, reputation systems,
+verification algorithms, and sandboxing (in contrast to the public Golem Network)
+can be skipped altogether or implemented optionally.
 
-Golem Unlimited joint resources can be used to perform tasks for internal requestor - the hub operator - with no fee. At the same time the hub will be able to expose its subordinate trusted providers to the public [Golem](../../../golem) Network. In such a setting hub will act as a provider and earn GNTs.  
+Golem Unlimited joint resources can be used to perform tasks for internal requestor - the hub
+operator - with no fee. At the same time the hub will be able to expose its subordinate trusted
+providers to the public [Golem](../../../golem) Network. In such a setting hub will act as a
+provider and earn GNTs.  
 
-The latter broadens [Golem](../../../golem) Network reach, because it currently supports just single machine nodes. With Golem Unlimited it would allow more complex components, such as a whole subnetworks.
+The latter broadens [Golem](../../../golem) Network reach, because it currently supports just
+single machine nodes. With Golem Unlimited it would allow more complex components, such as a
+whole subnetworks.
+
+Golem Unlimited offers three execution environments:
+- host direct -- which does not provide any sandboxing, and requires application integrator to prepare binaries for every operating system
+- docker -- integrator needs to prepare single docker image with application
+- gWASM -- integrator needs to compile desired app to WASM target and conform to gWASM format
 
 # Use cases
-So far we have prepared plugins for two use cases:
-* Integer factorization
-* Mining 
+Most current integration for Golem Unlimited is [gwasm-runner](https://github.com/golemfactory/gwasm-runner/) which utlise gWASM execution environment and provides simplistic API that resembles map-reduce paradigm. It enables developers to easily implement simple applications and run them on top of the Golem Unlimited and also on [Brass Golem 0.21 and later](https://blog.golemproject.net/brass-golem-beta-0-21-0-hello-mainnet-gwasm/).
 
-We will open source those plugins soon.
+There are more integrations being prepared (outside Golem Unlimited team by with our support).
+To list a few:
+* [gumpi](https://github.com/golemfactory/gumpi) - [MPI](https://en.wikipedia.org/wiki/Message_Passing_Interface) implemented on top of Golem Unlimited, utilising docker execution environment
+* [Hoard Compiler](https://github.com/hoardexchange/HoardCompiler) - Distributed C++ compiler
+for Visual Studio 2017 and 2019, which supports host direct mode only for Windows 10.
+
+Initially we have prepared plugins for two use cases:
+* [Integer factorization](https://github.com/golemfactory/gu-int-factorization) - a "Hello
+World" for Golem Unlimited 
+* Mining - just to showcase the Golem Unlimited, not a industry grade minig solution 
+
+Here you can watch a short demo with above two: https://youtu.be/J0LBdg2j6Tk
+They are not maitained any more.
 
 # Installing and testing
 
-Please bear in mind that Golem Unlimited is in its [Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) stage.
+Please bear in mind that Golem Unlimited is in its 
+[Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) stage.
 
-## binary
-To install you can use the [released](../../releases) Ubuntu `deb` and MacOs `dmg` binary packages.
+## Hub
+Currently we support Hub only on Ubuntu 16.04 LTS and later.
 
-The detailed steps can be found in our demo https://youtu.be/J0LBdg2j6Tk
+To install Hub you can use the [released](https://github.com/golemfactory/golem-unlimited/releases) Ubuntu `deb`.
 
-## from source
-To run the hub, please go to the `gu-hub` subdir and perform:
-```
-$ cargo run -- -vv server run
-```
+### from source
+To run Hub on other OS Plaforms refer the [Hub README](gu-hub).
 
-To configure the provider, please go to `gu-provider` subdir and run:
-```
-$ cargo run configure
-```
+## Provider
 
-Please select your hub and save the configuration. Now you can run the provider:
-```
-$ cargo run -- -vv server run
-```
+To install Provider you can use the [released](https://github.com/golemfactory/golem-unlimited/releases) MacOs `dmg`, Windows `msi` or Ubuntu `deb` packages.
+
+### from source
+See the [Provider README](gu-provider) for build instructions.
 
 # Usage
-See our demo for sample usage
-https://youtu.be/J0LBdg2j6Tk
 
-Both [hub](gu-hub) and [provider](gu-provider) can be configured via CLI. Invoke them with `help` command to see what's possible.
+Both [hub](gu-hub) and [provider](gu-provider) can be configured via CLI. Invoke them with `help`
+command to see what's possible.
 
 The [hub](gu-hub) comes also with web UI at:
 ```

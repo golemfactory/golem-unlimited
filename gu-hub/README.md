@@ -3,51 +3,39 @@
 
 Golem Unlimited management node.
 
-## Command line options
+Hub is a central unit within Golem Unilimited subnetwork.
+[Providers](https://github.com/golemfactory/golem-unlimited/blob/release/0.2/gu-provider) are joining subnetwork
+via connecting the Hub. From the other hand client apps are connecting Hub to use all resources from subordinate
+providers.
 
-Run server
-```
-$ gu-hub server run
-```
+Golem Unlimited integrations are build using
+[Hub lo level API](http://editor.swagger.io/?url=https://raw.githubusercontent.com/golemfactory/golem-unlimited/hub-api-documented/gu-hub-api.yaml).
 
-Start server as daemon
-```
-$ gu-hub server start
-```
-
-Check server status
-```
-$ gu-hub server status
-```
-
-Stop server daemon
-```
-$ gu-hub server stop
-```
-
-List connected peers
-
-```
-$ gu-hub peer list
-```
-
-List available peers
-
-```
-$ gu-hub lan list
-```
+Hub serves Web User Interface available at http://localhost:61622/app/index.html by default. 
+Golem Unlimited integrations can (but not have to) provide plugins for the Web UI.
 
 
-## HTTP Paths
+## Build from src
 
- * ```/gu-net``` - net base path
- * ```/gu-net/ws``` - main websocket
- * ```/gu-net/c/{resource-id}``` - path for static resources transmision.
- 
- 
- Reservations:
- 
- * ```/cli/*``` - general mapping for cli commands
- * ```/api/*``` - task API 
+Currently we support Hub on Debian based Linux distributions only.
+To perform build you need working [Rust](https://rustup.rs).
+Clone the repo, go to the `gu-hub` dir and run:
+```
+cargo build --release
+```
+
+## Running
+
+To run the Hub server invoke:
+```
+$ gu-hub --user server run
+```
+you can omit `--user` when you have administrative priviledges.
+
+Check other commands by invoking:
+
+```
+$ gu-hub help
+```
 
  
