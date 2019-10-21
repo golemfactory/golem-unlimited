@@ -457,7 +457,7 @@ impl Module for ExecPlugModule {
         {
             let cur_dir = std::env::current_dir().unwrap();
             let _ = scan_for_plugins(cur_dir.as_ref(), config).unwrap_or_else(|e| {
-                log::error!("on scan {}/plugins: {}", work_dir.to_string_lossy(), e)
+                log::error!("on scan {}/plugins: {}", cur_dir.to_string_lossy(), e)
             });
         }
         #[cfg(target_os = "macos")]
