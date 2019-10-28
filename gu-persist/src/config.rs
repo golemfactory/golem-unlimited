@@ -335,10 +335,18 @@ impl Module for ConfigModule {
                 .help("Set configuration directory path."),
         )
         .arg(
+            Arg::with_name("portable")
+                .long("portable")
+                .global(true)
+                .help(
+                    "Set application directories in the directory where the executable is located",
+                ),
+        )
+        .arg(
             Arg::with_name("user")
                 .long("user")
                 .global(true)
-                .help("Set application directories in local user directory (e.g. ~/.local/)"),
+                .help("Set application directories in the local user directory (e.g. ~/.local/)"),
         )
     }
 
@@ -350,6 +358,9 @@ impl Module for ConfigModule {
                     let _ = set_paths_exec_dir().map_err(|e| error!("{}", e));
                 }
             }
+        }
+        if matches.is_present("portable") {
+            let _ = set_paths_exec_dir().map_err(|e| error!("{}", e));
         }
         /* local user paths, e.g. ~/.config/ */
         if matches.is_present("user") {
