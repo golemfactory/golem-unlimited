@@ -468,6 +468,13 @@ impl Module for ExecPlugModule {
             )
             .unwrap_or_else(|e| log::debug!("/Applications/ scanning: {}", e));
         }
+        let _ = std::env::current_exe().and_then(|exec_file| {
+            Ok(exec_file.parent().and_then(|exec_dir| {
+                Some(scan_for_plugins(exec_dir, config).unwrap_or_else(|e| {
+                    log::debug!("on scan {}/plugins: {}", exec_dir.to_string_lossy(), e)
+                }))
+            }))
+        });
         let _ = scan_for_plugins(&work_dir, config).unwrap_or_else(|e| {
             log::debug!("on scan {}/plugins: {}", work_dir.to_string_lossy(), e)
         });
