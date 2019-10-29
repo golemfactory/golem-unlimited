@@ -467,7 +467,9 @@ impl Handler<CreateSession<CreateOptions>> for DockerMan {
                     .for_each(|x| Ok(debug!("{:?}", x)))
                     .and_then(|_| create_container_fut)
                     .map(|c| c.id().to_owned())
-                    .map_err(|e| Error::IoError(format!("{}", e)));
+                    .map_err(|e| {
+                        Error::IoError(format!("Docker API Error. Is Docker installed? {}", e))
+                    });
 
                 ActorResponse::r#async(fut::wrap_future(pull_and_create).and_then(
                     move |id, act: &mut DockerMan, _| {

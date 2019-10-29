@@ -300,8 +300,11 @@ impl Session {
                 .send(body)
                 .map_err(|_| SessionErr::CannotCreatePeerDeployment)
                 .and_then(|v| {
-                    future::result(v).map_err(|_| SessionErr::CannotCreatePeerDeployment)
-                }),
+                    future::result(v).map_err(|e| {
+                        error!("Cannot create deployment. Is runtime environment (Docker, Wasm) installed? {}", e);
+                        SessionErr::CannotCreatePeerDeployment
+                    })
+                })
         )
     }
 

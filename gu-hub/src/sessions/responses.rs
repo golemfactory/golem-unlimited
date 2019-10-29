@@ -62,7 +62,9 @@ pub enum SessionErr {
     NodeNotFound(NodeId),
     #[fail(display = "{} deployment not found", _0)]
     DeploymentNotFound(String),
-    #[fail(display = "Cannot create peer deployment")]
+    #[fail(
+        display = "Cannot create peer deployment. Is runtime environment (Wasm, Docker) installed?"
+    )]
     CannotCreatePeerDeployment,
     #[fail(display = "Cannot delete peer deployment")]
     CannotDeletePeerDeployment,
