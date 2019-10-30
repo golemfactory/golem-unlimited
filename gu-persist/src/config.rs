@@ -171,6 +171,8 @@ struct ConfigPaths {
     #[serde(skip)]
     config_dir: PathBuf,
     runtime_dir: PathBuf,
+    #[serde(default = "std::env::temp_dir")]
+    tmp_dir: PathBuf,
     #[serde(skip)]
     tried_to_create: bool,
 }
@@ -181,6 +183,7 @@ lazy_static! {
         cache_dir: PathBuf::from("/var/cache/golemu/"),
         config_dir: PathBuf::from("/var/lib/golemu/conf/"),
         runtime_dir: PathBuf::from("/var/run/golemu/"),
+        tmp_dir: std::env::temp_dir(),
         tried_to_create: false,
     });
     static ref CONFIG_DIR_ENV_VAR_LOCK: RwLock<Option<PathBuf>> = RwLock::new(None);
@@ -193,6 +196,7 @@ fn create_app_dirs() -> std::io::Result<()> {
         &paths.cache_dir,
         &paths.config_dir,
         &paths.runtime_dir,
+        &paths.tmp_dir,
     ] {
         if !dir.exists() {
             std::fs::create_dir_all(&dir).map_err(|e| {
@@ -229,6 +233,7 @@ fn set_config_path(config_path: PathBuf) {
         unlocked_paths.work_dir = join_if_relative(config_paths.work_dir, &config_path);
         unlocked_paths.cache_dir = join_if_relative(config_paths.cache_dir, &config_path);
         unlocked_paths.runtime_dir = join_if_relative(config_paths.runtime_dir, &config_path);
+        unlocked_paths.tmp_dir = join_if_relative(config_paths.tmp_dir, &config_path);
     } else {
         let default_content = serde_json::to_string_pretty(&*unlocked_paths).unwrap();
         error!(
@@ -251,12 +256,13 @@ fn set_paths_exec_dir() -> std::io::Result<()> {
     match std::env::current_exe() {
         Ok(exec_file) => match exec_file.parent() {
             Some(exec_dir) => {
-                info!("Portable version. Using directories in the local directory.");
+                info!("Portable version. Using directories in the executable directory.");
                 let paths = ConfigPaths {
                     work_dir: exec_dir.join("gu-data").join("data"),
                     cache_dir: exec_dir.join("gu-data").join("cache"),
                     config_dir: exec_dir.join("gu-data").join("config"),
                     runtime_dir: exec_dir.join("gu-data").join("run"),
+                    tmp_dir: exec_dir.join("gu-data").join("tmp"),
                     tried_to_create: false,
                 };
                 *CONFIG_PATHS_LOCK.write().unwrap() = paths;
@@ -278,6 +284,7 @@ fn set_paths_local() {
         cache_dir: dirs.cache_dir().to_path_buf(),
         config_dir: dirs.config_dir().to_path_buf(),
         runtime_dir: dirs.data_local_dir().to_path_buf().join("run"),
+        tmp_dir: std::env::temp_dir(),
         tried_to_create: false,
     };
     *CONFIG_PATHS_LOCK.write().unwrap() = paths;
@@ -311,6 +318,11 @@ impl ConfigModule {
     pub fn runtime_dir(&self) -> PathBuf {
         create_dirs_on_first_use();
         CONFIG_PATHS_LOCK.read().unwrap().runtime_dir.clone()
+    }
+
+    pub fn tmp_dir(&self) -> PathBuf {
+        create_dirs_on_first_use();
+        CONFIG_PATHS_LOCK.read().unwrap().tmp_dir.clone()
     }
 
     pub fn keystore_path(&self) -> PathBuf {
