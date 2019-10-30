@@ -42,7 +42,7 @@ impl ImageCacheProvider {
     fn path(&self, hash: &str) -> Result<PathBuf, Error> {
         let h = ParsedHash::from_hash_bytes(hash.as_bytes())?;
         Ok(gu_persist::config::ConfigModule::new()
-            .tmp_dir()
+            .cache_dir()
             .join(&h.to_path()?))
     }
 }
