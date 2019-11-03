@@ -12,6 +12,7 @@ gu-model = { path = "../gu-model" }
 gu-net = { path = "../gu-net" }
 
 actix = "0.7"
+actix-utils = "0.4"
 actix-web = { version = "1.0", default-features = false }
 awc = "0.2.3"
 bytes = "0.4.10"
