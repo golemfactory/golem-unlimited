@@ -394,7 +394,10 @@ impl Blob {
     }
 
     /// uploads blob represented by a stream
-    pub fn upload_from_stream<S, T: 'static>(&self, stream: S) -> impl Future<Item = (), Error = Error>
+    pub fn upload_from_stream<S, T: 'static>(
+        &self,
+        stream: S,
+    ) -> impl Future<Item = (), Error = Error>
     where
         S: Stream<Item = Bytes, Error = T> + 'static,
         T: Into<actix_web::Error>,
