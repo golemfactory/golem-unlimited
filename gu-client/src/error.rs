@@ -18,8 +18,8 @@ pub enum Error {
     ResponseErr(actix_web::http::StatusCode),
     #[fail(display = "{}", _0)]
     Utf8Error(#[fail(cause)] str::Utf8Error),
-    #[fail(display = "{}", _0)]
-    SendRequestError(#[fail(cause)] actix_web::client::SendRequestError),
+    //#[fail(display = "{}", _0)]
+    //SendRequestError(#[fail(cause)] awc::error::SendRequestError),
     #[fail(display = "{}", _0)]
     PayloadError(#[fail(cause)] actix_web::error::PayloadError),
 
@@ -45,8 +45,8 @@ impl From<str::Utf8Error> for Error {
     }
 }
 
-impl From<actix_web::client::SendRequestError> for Error {
-    fn from(e: actix_web::client::SendRequestError) -> Self {
+impl From<awc::error::SendRequestError> for Error {
+    fn from(e: awc::error::SendRequestError) -> Self {
         Error::SendRequestError(e)
     }
 }

@@ -2,7 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{env, str};
 
-use actix_web::{client, http, HttpMessage};
+use actix_web::{http, HttpMessage};
+use awc::Client;
 use bytes::Bytes;
 use futures::{future, prelude::*};
 use log::{debug, info};
@@ -62,9 +63,9 @@ impl HubConnection {
     ) -> impl Future<Item = Handle<HubSession>, Error = Error> + 'static {
         let sessions_url = format!("{}sessions", self.hub_connection_inner.url);
         let hub_connection = self.clone();
-        client::ClientRequest::post(sessions_url)
+        Client::ClientRequest::post(sessions_url)
             .json(session_info)
-            .into_future()
+            //.into_future()
             .map_err(Error::CreateRequest)
             .and_then(|request| {
                 request
@@ -131,9 +132,9 @@ impl HubConnection {
         &self,
         url: &str,
     ) -> impl Future<Item = T, Error = Error> + 'static {
-        client::ClientRequest::get(&url)
+        Client::ClientRequest::get(&url)
             .finish()
-            .into_future()
+            //.into_future()
             .map_err(Error::CreateRequest)
             .and_then(|r| r.send().from_err())
             .and_then(|response| match response.status() {
@@ -144,9 +145,9 @@ impl HubConnection {
     }
 
     fn delete_resource(&self, url: &str) -> impl Future<Item = (), Error = Error> + 'static {
-        client::ClientRequest::delete(&url)
+        Client::ClientRequest::delete(&url)
             .finish()
-            .into_future()
+            //.into_future()
             .map_err(Error::CreateRequest)
             .inspect(|r| debug!("Deleting resource: {}", r.uri()))
             .and_then(|r| r.send().timeout(Duration::from_secs(3600)).from_err())
@@ -206,7 +207,7 @@ impl HubSession {
             Err(e) => return future::Either::A(future::err(Error::Other(format!("{}", e)))),
         };
 
-        let request = match client::ClientRequest::post(add_url).json(peers) {
+        let request = match Client::ClientRequest::post(add_url).json(peers) {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CreateRequest(e))),
         };
@@ -233,7 +234,7 @@ impl HubSession {
             self.hub_connection.url(),
             self.session_id
         );
-        let request = match client::ClientRequest::post(new_blob_url).finish() {
+        let request = match Client::ClientRequest::post(new_blob_url).finish() {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CreateRequest(e))),
         };
@@ -320,7 +321,7 @@ impl HubSession {
             self.hub_connection.url(),
             self.session_id
         );
-        future::result(client::ClientRequest::put(url).json(config))
+        future::result(Client::ClientRequest::put(url).json(config))
             .map_err(Error::CreateRequest)
             .and_then(|request| request.send().from_err())
             .and_then(|response| match response.status() {
@@ -346,7 +347,7 @@ impl HubSession {
     ) -> impl Future<Item = (), Error = Error> + 'static {
         let url = format!("{}sessions/{}", self.hub_connection.url(), self.session_id);
         future::result(
-            client::ClientRequest::build()
+            Client::ClientRequest::build()
                 .method(actix_web::http::Method::PATCH)
                 .uri(url)
                 .json(command),
@@ -423,7 +424,7 @@ impl Blob {
             self.hub_session.session_id,
             self.blob_id
         );
-        let request = match client::ClientRequest::put(url).streaming(stream) {
+        let request = match Client::ClientRequest::put(url).streaming(stream) {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CreateRequest(e))),
         };
@@ -447,7 +448,7 @@ impl Blob {
             self.blob_id
         );
 
-        future::result(client::ClientRequest::get(url).finish())
+        future::result(Client::ClientRequest::get(url).finish())
             .map_err(Error::CreateRequest)
             .and_then(|request| request.send().timeout(Duration::from_secs(3600)).from_err())
             .and_then(|response| match response.status() {
@@ -488,7 +489,7 @@ impl Peer {
             self.hub_session.session_id,
             self.node_id.to_string()
         );
-        let request = match client::ClientRequest::post(url).json(session_info) {
+        let request = match Client::ClientRequest::post(url).json(session_info) {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CreateRequest(e))),
         };
@@ -570,7 +571,7 @@ impl PeerSession {
             self.session_id,
         );
         future::result(
-            client::ClientRequest::build()
+            Client::ClientRequest::build()
                 .method(actix_web::http::Method::PATCH)
                 .uri(url)
                 .json(commands),
@@ -734,9 +735,9 @@ impl ProviderRef {
             T::ID
         );
 
-        client::ClientRequest::post(url)
+        Client::ClientRequest::post(url)
             .json(Body { b: msg })
-            .into_future()
+            //.into_future()
             .map_err(|e| Error::Other(format!("client request err: {}", e)))
             .and_then(|r| r.send().from_err())
             .and_then(|r| r.json().from_err())
