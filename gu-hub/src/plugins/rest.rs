@@ -1,3 +1,4 @@
+use gu_downloader::DownloadOptionsBuilder;
 use std::{
     fs::File,
     io::{Cursor, Read},
@@ -6,12 +7,14 @@ use std::{
 
 use actix::{Arbiter, System, SystemService};
 use actix_web::{
+    client,
     error::{ErrorBadRequest, ErrorInternalServerError},
     http, AsyncResponder, HttpMessage, HttpRequest, HttpResponse, Responder, Scope,
 };
 use bytes::{buf::IntoBuf, Bytes};
 use futures::{
     future::{self, Future},
+    prelude::*,
     stream::Stream,
 };
 use log::{debug, error};
@@ -26,6 +29,7 @@ use super::{
     plugin::{format_plugins_table, PluginInfo},
     rest_result::{InstallQueryResult, RestResponse, ToHttpResponse},
 };
+use std::ffi::OsStr;
 
 pub fn list_query() {
     System::run(|| {
@@ -57,18 +61,134 @@ pub fn install_query_inner(buf: Vec<u8>) -> impl Future<Item = (), Error = ()> {
     ServerClient::post("/plug", buf)
         .and_then(|r: RestResponse<InstallQueryResult>| Ok(debug!("{}", r.message.message())))
         .map_err(|e| {
-            error!("Error on server connection");
+            error!("Error on server connection {:?}", e);
             debug!("Error details: {:?}", e)
         })
         .then(|_r| Ok(System::current().stop()))
 }
 
+fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
+    let repo_name = path.to_str().unwrap().to_string();
+    let repo_name_copy = repo_name.clone();
+    println!(
+        "Trying to install plugins from GitHub repository: {}.",
+        repo_name
+    );
+    client::ClientRequest::get(format!(
+        "https://api.github.com/repos/{}/releases",
+        repo_name
+    ))
+    .header("Accept", "application/vnd.github.v3+json")
+    .header("Accept-Encoding", "identity")
+    .finish()
+    .into_future()
+    .map_err(|_| ())
+    .and_then(|request| {
+        request.send().map_err(|e| {
+            error!("Request error {}", e);
+        })
+    })
+    .and_then(move |response| {
+        if !response.status().is_success() {
+            error!("Repository {:?} does not exist.", repo_name_copy);
+            future::Either::A(future::err(()))
+        } else {
+            future::Either::B(response.body().map_err(|e| {
+                error!("Payload error {}", e);
+            }))
+        }
+    })
+    .and_then(|data| {
+        use serde_json::{
+            from_str,
+            Value::{self, *},
+        };
+        let data_str = std::str::from_utf8(&data).expect("Expected utf8 answer.");
+        let json: Value = from_str(data_str).expect("Invalid json.");
+        let assets_json = &json[0]["assets"];
+        match assets_json {
+            Array(assets) => {
+                return future::ok(assets.into_iter()
+                        .filter_map(|asset| match &asset["name"] {
+                            String(name)
+                                if name.ends_with(".guplug")
+                                    || name.ends_with(".gu-plugin") =>
+                                    Some((
+                                        name.clone(),
+                                        asset["browser_download_url"].as_str().unwrap().to_string(),
+                                    )),
+                            _ => None,
+                        })
+                        .collect(),
+                );
+            }
+            _ => {
+                error!("The latest release does not exist or contains no assets.");
+                return future::err(());
+            }
+        }
+    })
+    .and_then(move |plugin_urls: Vec<(String, String)>| {
+        if plugin_urls.len() < 1 {
+            error!("No plugins in the latest release of {}.", repo_name);
+            return future::Either::A(future::err(()));
+        } else {
+            let plugins_to_install = match plugin_urls.len() {
+                1 => {
+                    println!("Installing {}.", plugin_urls[0].1);
+                    plugin_urls
+                },
+                _ => {
+                    plugin_urls
+                    .into_iter()
+                    .filter(|(name, _url)| {
+                        use std::io::Write;
+                        print!("Install {}? (y/n) ", &name);
+                        let _ = std::io::stdout().flush();
+                        let mut install = String::new();
+                        match std::io::stdin().read_line(&mut install) {
+                            Ok(_) => install.trim().to_lowercase() == "y",
+                            Err(_) => false,
+                        }
+                    })
+                    .collect()
+                },
+            };
+            match plugins_to_install.len() {
+                0 => future::Either::A(future::ok(println!("No plugins were installed."))),
+                _ => {
+                    future::Either::B(
+                        ServerClient::post_json("/plug/install-github", plugins_to_install)
+                            .and_then(|r: RestResponse<InstallQueryResult>| {
+                                future::ok(debug!("{}", r.message.message()))
+                            })
+                            .map_err(|e| {
+                                error!(
+                                    "Invalid hub response. Please check if a local hub is running. Err: {}",
+                                    e
+                                )
+                            })
+                            .and_then(|_| future::ok(println!("All selected plugins were installed."))),
+                    )
+                },
+            }
+        }
+    })
+}
+
 pub fn install_query(path: PathBuf) {
     System::run(move || {
         Arbiter::spawn(
-            future::result(read_file(&path))
-                .and_then(|buf| install_query_inner(buf))
-                .then(|_r| Ok(System::current().stop())),
+            path.extension()
+                .and_then(OsStr::to_str)
+                .and_then(|ext| match ext {
+                    "guplug" | "gu-plugin" => Some(future::Either::A(
+                        future::result(read_file(&path)).and_then(|buf| install_query_inner(buf)),
+                    )),
+                    _ => None,
+                })
+                .unwrap_or_else(|| future::Either::B(install_from_github(&path)))
+                .then(|_r: Result<(), ()>| Ok(System::current().stop())),
         )
     });
 }
@@ -119,6 +239,7 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
         .route("", http::Method::GET, list_scope)
         .route("", http::Method::POST, install_scope)
+        .route("/install-github", http::Method::POST, install_github_scope)
         .route("/dev/{pluginPath:.*}", http::Method::POST, dev_scope)
         .route("/{pluginName}", http::Method::DELETE, |r| {
             state_scope(QueriedStatus::Uninstall, r)
@@ -227,6 +348,56 @@ fn install_scope<S>(r: HttpRequest<S>) -> impl Responder {
                 .map_err(|e| ErrorInternalServerError(format!("{:?}", e)))
         })
         .and_then(|result| Ok(result.to_http_response()))
+        .responder()
+}
+
+fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
+    r.payload()
+        .map_err(|e| ErrorBadRequest(format!("Couldn't get request body: {:?}", e)))
+        .concat2()
+        .and_then(|a| {
+            let plugins: Vec<(String, String)> = serde_json::from_slice(&a).unwrap_or_default();
+            Ok(plugins)
+        })
+        .map_err(|e| error!("{}", e))
+        .and_then(move |plugins| {
+            let download_and_save = move |(file_name, url): (String, String)| {
+                let tmp_file_name = format!("{}.tmp", file_name);
+                let tmp_file_name_copy = tmp_file_name.clone();
+                let path_buf = PathBuf::from(tmp_file_name.clone());
+                debug!("Downloading {}...", url);
+                let file_name_copy = file_name.clone();
+                DownloadOptionsBuilder::default()
+                    .download(&url, tmp_file_name)
+                    .for_each(|_| future::ok(()))
+                    .map_err(|e| error!("Download error: {}.", e))
+                    .and_then(move |_| {
+                        debug!("Downloaded {}. Installing...", file_name);
+                        future::result(read_file(&path_buf)).and_then(move |buf| {
+                            PluginManager::from_registry()
+                                .send(InstallPlugin {
+                                    bytes: Bytes::from(buf).into_buf(),
+                                })
+                                .map_err(|e| error!("{:?}", e))
+                        })
+                    })
+                    .and_then(move |_| {
+                        debug!("Installed {}.", &file_name_copy);
+                        future::result(std::fs::remove_file(tmp_file_name_copy))
+                            .map_err(|e| error!("Error removing tmp file: {}", e))
+                    })
+            };
+            // sequential
+            let init: Box<dyn Future<Item = (), Error = ()>> = Box::new(future::ok(()));
+            plugins
+                .into_iter()
+                .fold(init, |prev, cur| {
+                    Box::new(prev.and_then(move |_| download_and_save(cur)))
+                })
+                .map(|_| ())
+        })
+        .map_err(|e| ErrorBadRequest(format!("Plugin installation error: {:?}", e)))
+        .and_then(|_| Ok(InstallQueryResult::Installed.to_http_response()))
         .responder()
 }
 

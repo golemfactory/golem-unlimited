@@ -13,6 +13,7 @@ members = [
     "gu-event-bus",
     "gu-model",
     "gu-client",
+    "gu-downloader",
     "gu-hdman",
     "update/update-trait",
     "update/update-macro",

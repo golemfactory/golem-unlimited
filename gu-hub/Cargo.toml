@@ -16,6 +16,7 @@ gu-lan = { path = "../gu-lan" }
 gu-model = { path = "../gu-model" }
 gu-net = { path = "../gu-net" }
 gu-persist = { path = "../gu-persist" }
+gu-downloader = { path="../gu-downloader"}
 
 tempfile = "3.1.0"
 actix = "0.7"
