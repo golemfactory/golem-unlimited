@@ -143,11 +143,7 @@ fn build_plugin(msg: BuildPluginQuery) -> Result<PathBuf, String> {
     let metadata = parser.metadata()?;
 
     let mut target_file = PathBuf::from(msg.target.clone());
-    target_file.push(format!(
-        "{}.{}",
-        metadata.name(),
-        "gu-plugin"
-    ));
+    target_file.push(format!("{}.{}", metadata.name(), "gu-plugin"));
 
     if target_file.exists() && !msg.overwrite {
         return Err("File exists in target directory".to_string());

@@ -1,9 +1,9 @@
+use gu_downloader::DownloadOptionsBuilder;
 use std::{
     fs::File,
     io::{Cursor, Read},
     path::{Path, PathBuf},
 };
-use gu_downloader::DownloadOptionsBuilder;
 
 use actix::{Arbiter, System, SystemService};
 use actix_web::{
