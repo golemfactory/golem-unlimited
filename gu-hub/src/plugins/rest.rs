@@ -3,6 +3,7 @@ use std::{
     io::{Cursor, Read},
     path::{Path, PathBuf},
 };
+use gu_downloader::DownloadOptionsBuilder;
 
 use actix::{Arbiter, System, SystemService};
 use actix_web::{
@@ -28,11 +29,7 @@ use super::{
     plugin::{format_plugins_table, PluginInfo},
     rest_result::{InstallQueryResult, RestResponse, ToHttpResponse},
 };
-
-use server::HubClient as ServerClient;
-
-const GUPLUG_EXTENSION: &str = "guplug";
-pub(crate) const GUPLUGIN_EXTENSION: &str = "gu-plugin";
+use std::ffi::OsStr;
 
 pub fn list_query() {
     System::run(|| {
@@ -114,8 +111,8 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
                 return future::ok(assets.into_iter()
                         .filter_map(|asset| match &asset["name"] {
                             String(name)
-                                if name.ends_with(GUPLUG_EXTENSION)
-                                    || name.ends_with(GUPLUGIN_EXTENSION) =>
+                                if name.ends_with(".guplug")
+                                    || name.ends_with(".gu-plugin") =>
                                     Some((
                                         name.clone(),
                                         asset["browser_download_url"].as_str().unwrap().to_string(),
@@ -137,6 +134,10 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
             return future::Either::A(future::err(()));
         } else {
             let plugins_to_install = match plugin_urls.len() {
+                1 => {
+                    println!("Installing {}.", plugin_urls[0].1);
+                    plugin_urls
+                },
                 _ => {
                     plugin_urls
                     .into_iter()
@@ -152,11 +153,6 @@ fn install_from_github(path: &PathBuf) -> impl Future<Item = (), Error = ()> {
                     })
                     .collect()
                 },
-                1 => {
-                    println!("Installing {}.", plugin_urls[0].1);
-                    plugin_urls
-                },
-                0 => plugin_urls,
             };
             match plugins_to_install.len() {
                 0 => future::Either::A(future::ok(println!("No plugins were installed."))),
@@ -186,7 +182,7 @@ pub fn install_query(path: PathBuf) {
             path.extension()
                 .and_then(OsStr::to_str)
                 .and_then(|ext| match ext {
-                    GUPLUG_EXTENSION | GUPLUGIN_EXTENSION => Some(future::Either::A(
+                    "guplug" | "gu-plugin" => Some(future::Either::A(
                         future::result(read_file(&path)).and_then(|buf| install_query_inner(buf)),
                     )),
                     _ => None,
@@ -392,7 +388,7 @@ fn install_github_scope<S>(r: HttpRequest<S>) -> impl Responder {
                     })
             };
             // sequential
-            let init: Box<Future<Item = (), Error = ()>> = Box::new(future::ok(()));
+            let init: Box<dyn Future<Item = (), Error = ()>> = Box::new(future::ok(()));
             plugins
                 .into_iter()
                 .fold(init, |prev, cur| {

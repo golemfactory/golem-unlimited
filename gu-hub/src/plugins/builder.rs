@@ -146,7 +146,7 @@ fn build_plugin(msg: BuildPluginQuery) -> Result<PathBuf, String> {
     target_file.push(format!(
         "{}.{}",
         metadata.name(),
-        super::rest::GUPLUGIN_EXTENSION
+        "gu-plugin"
     ));
 
     if target_file.exists() && !msg.overwrite {
