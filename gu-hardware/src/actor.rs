@@ -1,25 +1,29 @@
 use actix::{Actor, ActorResponse, Addr, ArbiterService, Handler, Message, WrapFuture};
 use futures::Future;
 use hostname::get_hostname;
+use num_cpus;
+use serde::{Deserialize, Serialize};
 
-use disk::{DiskInfo, DiskQuery};
 use gu_actix::flatten::FlattenFuture;
-use gu_net::rpc::{RemotingContext, RemotingSystemService};
-use inner_actor::InnerActor;
-use ram::{RamInfo, RamQuery};
+use gu_net::rpc::{PublicMessage, RemotingContext, RemotingSystemService};
+
+pub use crate::disk::{DiskInfo, DiskQuery};
+use crate::inner_actor::InnerActor;
+pub use crate::ram::{RamInfo, RamQuery};
+use crate::storage::storage_info;
+pub use crate::storage::{StorageInfo, StorageQuery};
 
 use super::gpuinfo::{gpu_count, GpuCount};
-use num_cpus;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HardwareQuery;
 
-impl HardwareQuery {
+impl PublicMessage for HardwareQuery {
     const ID: u32 = 19354;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum OsType {
+pub enum OsType {
     Windows,
     MacOs,
     Linux,
@@ -49,6 +53,16 @@ pub struct Hardware {
     #[serde(skip_serializing_if = "Option::is_none")]
     hostname: Option<String>,
     num_cores: usize,
+}
+
+impl Hardware {
+    pub fn num_cores(&self) -> usize {
+        self.num_cores
+    }
+
+    pub fn os(&self) -> Option<&OsType> {
+        self.os.as_ref()
+    }
 }
 
 impl Message for HardwareQuery {
@@ -125,5 +139,17 @@ impl Handler<HardwareQuery> for HardwareActor {
                 })
                 .into_actor(self),
         )
+    }
+}
+
+impl Handler<StorageQuery> for HardwareActor {
+    type Result = ActorResponse<Self, StorageInfo, String>;
+
+    fn handle(
+        &mut self,
+        msg: StorageQuery,
+        _ctx: &mut RemotingContext<Self>,
+    ) -> <Self as Handler<StorageQuery>>::Result {
+        ActorResponse::reply(storage_info(msg.path()).map_err(|e| e.to_string()))
     }
 }

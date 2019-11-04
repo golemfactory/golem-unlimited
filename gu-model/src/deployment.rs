@@ -1,5 +1,6 @@
+use serde::{Deserialize, Serialize};
+
 use super::Tags;
-use serde_derive::*;
 
 pub type Pid = String;
 
@@ -43,6 +44,7 @@ pub struct ProcessInfo {
     pub tags: Tags,
 }
 
+#[cfg(feature = "with-actix")]
 impl From<gu_net::rpc::peer::PeerSessionInfo> for DeploymentInfo {
     fn from(peer: gu_net::rpc::peer::PeerSessionInfo) -> Self {
         DeploymentInfo {
@@ -56,6 +58,7 @@ impl From<gu_net::rpc::peer::PeerSessionInfo> for DeploymentInfo {
     }
 }
 
+#[cfg(feature = "with-actix")]
 impl From<gu_net::rpc::peer::PeerSessionStatus> for DeploymentStatus {
     fn from(raw_status: gu_net::rpc::peer::PeerSessionStatus) -> Self {
         use gu_net::rpc::peer::PeerSessionStatus;

@@ -1,0 +1,9 @@
+<div class="col-md-12" ng-controller="GuSessionsController">
+    <ul class="breadcrumb">
+        <li ng-repeat="bl in backList" ng-class="{'active': $last }">
+            <a href="#" ng-click="bl.activator()" ng-if="!$last"><i class="{{bl.iconClass}}"></i> {{bl.name}}</a>
+            <span  ng-if="$last"><i class="{{bl.iconClass}}"></i> {{bl.name}}</span>
+        </li>
+    </ul>
+    <div ng-include="currentPage"/>
+</div>

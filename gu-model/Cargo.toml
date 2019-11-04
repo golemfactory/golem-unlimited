@@ -2,24 +2,23 @@
 name = "gu-model"
 version = "0.1.0"
 authors = ["Golem Factory"]
-edition='2018'
-
-[features]
-default=['hash']
-hash=['digest', 'sha3', 'sha-1']
+edition = "2018"
 
 [dependencies]
-actix = "0.7"
-actix-web = {version= "0.7", default-features=false}
-serde_derive = "1.0"
-serde_json="1.0"
-serde = "1.0.80"
-gu-net = { path = "../gu-net" }
+gu-net = { path = "../gu-net", optional=true }
+
+actix = { version = "0.7", optional= true }
+actix-web = { version = "0.7", default-features = false, optional=true }
 chrono = { version = "0.4", features = ["serde"] }
-failure="0.1"
+digest = { version = "0.8.0", optional = true }
+failure = "0.1"
+semver = { version = "0.9", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha-1 = { version = "0.8.1", optional = true }
+sha3 = { version = "0.8.1", optional = true }
 
-digest = {version = "0.8.0", optional=true}
-sha3={version="0.8.1", optional=true}
-sha-1={version="0.8.1", optional=true}
-
-[dev-dependencies]
+[features]
+default = ["hash", "with-actix"]
+hash = ["digest", "sha3", "sha-1"]
+with-actix=["actix", "actix-web", "gu-net"]

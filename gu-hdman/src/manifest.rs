@@ -1,5 +1,4 @@
-use serde_derive::*;
-//use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -21,7 +20,7 @@ pub enum Os {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[warn(non_camel_case_types)]
+#[allow(non_camel_case_types)]
 pub enum Arch {
     x86_64,
     Wasm32,
@@ -50,9 +49,9 @@ pub struct HdManifest {
 
 #[cfg(test)]
 mod tests {
+    use serde_json;
 
     use super::*;
-    use serde_json;
 
     #[test]
     fn test_gu_factor() {
@@ -65,5 +64,4 @@ mod tests {
         assert_eq!(m.main.args_prefix, Vec::<String>::new());
         eprintln!("manifest={:?}", m)
     }
-
 }

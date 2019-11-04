@@ -1,23 +1,20 @@
-use actix::{Handler, MailboxError, Message, SystemService};
-use actix_web::Path;
+use actix::SystemService;
 use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError},
-    fs::NamedFile,
-    http,
-    http::{ContentEncoding, Method, StatusCode},
-    App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json,
+    http::{Method, StatusCode},
+    App, AsyncResponder, Error as ActixError, HttpMessage, HttpRequest, HttpResponse, Json, Path,
     Responder, Result as ActixResult, Scope,
 };
-use futures::future::Future;
-use futures::stream::Stream;
+use futures::{future::Future, stream::Stream};
+use serde::Deserialize;
+
 use gu_actix::prelude::*;
 use gu_base::Module;
+use gu_model::deployment::DeploymentInfo;
 use gu_model::session::HubSessionSpec;
 use gu_net::NodeId;
-use serde::de::DeserializeOwned;
-use serde_json::Value;
-use sessions::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
-use std::path::PathBuf;
+
+use super::{manager, manager::SessionsManager, responses::*, session::SessionInfo};
 
 #[derive(Default)]
 pub struct SessionsModule {}
@@ -47,6 +44,7 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                                         id: session_id,
                                         created: Some(session_info.created),
                                         name: session_info.name,
+                                        tags: session_info.tags.unwrap_or_default(),
                                         ..gu_model::session::SessionDetails::default()
                                     }
                                 })
@@ -103,6 +101,24 @@ fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
         .resource("/{sessionId}/peers/{nodeId}/deployments", |r| {
             r.name("hub-session-peers-deployments");
             r.post().with_async(create_deployment);
+
+            let session_maanger = SessionsManager::from_registry();
+            r.get().with_async(move |p: Path<SessionPeerPath>| {
+                let node_id = p.node_id;
+                session_maanger
+                    .send(manager::Update::new(p.session_id, move |session| {
+                        session.list_deployments(node_id)
+                    }))
+                    .flatten_fut()
+                    .and_then(|deployments| {
+                        Ok(HttpResponse::Ok().json(
+                            deployments
+                                .into_iter()
+                                .map(|s| s.into())
+                                .collect::<Vec<DeploymentInfo>>(),
+                        ))
+                    })
+            })
         })
         .resource(
             "/{sessionId}/peers/{nodeId}/deployments/{deploymentId}",
@@ -354,7 +370,12 @@ fn update_deployment(
         ))
         .flatten_fut()
         .from_err()
-        .and_then(|results| Ok(HttpResponse::Ok().json(results)))
+        .and_then(|results| match results {
+            Ok(results) => Ok(HttpResponse::Ok().json(results)),
+            Err(results) => Ok(HttpResponse::InternalServerError()
+                .header("x-processing-error", "1")
+                .json(results)),
+        })
 }
 
 fn session_future_responder<F, E, R>(fut: F) -> impl Responder

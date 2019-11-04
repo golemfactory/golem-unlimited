@@ -1,23 +1,25 @@
-#![allow(dead_code)]
-
-use actix::{Actor, Context, Handler, Message, MessageResult, Supervised, SystemService};
-use bytes::Bytes;
-use gu_event_bus::post_event;
-use gu_persist::config::ConfigModule;
-use plugins::{
-    parser::{BytesPluginParser, PluginParser, ZipParser},
-    plugin::{
-        DirectoryHandler, Plugin, PluginEvent, PluginHandler, PluginInfo, PluginStatus, ZipHandler,
-    },
-    rest_result::InstallQueryResult,
-};
-use semver::Version;
 use std::{
     collections::HashMap,
     fmt,
     fs::{self, remove_file, DirBuilder},
     io::{BufReader, Cursor},
     path::PathBuf,
+};
+
+use actix::{Actor, Context, Handler, Message, MessageResult, Supervised, SystemService};
+use bytes::Bytes;
+use log::{error, info, warn};
+use semver::Version;
+
+use gu_event_bus::post_event;
+use gu_persist::config::ConfigModule;
+
+use super::{
+    parser::{BytesPluginParser, PluginParser, ZipParser},
+    plugin::{
+        DirectoryHandler, Plugin, PluginEvent, PluginHandler, PluginInfo, PluginStatus, ZipHandler,
+    },
+    rest_result::InstallQueryResult,
 };
 
 #[derive(Debug)]
@@ -27,7 +29,7 @@ pub struct PluginManager {
     /// map from a name of plugin into the plugin
     plugins: HashMap<String, Plugin>,
     /// directory containing plugin files
-    directory: PathBuf,
+    directory: Option<PathBuf>,
 }
 
 impl Default for PluginManager {
@@ -35,22 +37,28 @@ impl Default for PluginManager {
         let gu_version = Version::parse(env!("CARGO_PKG_VERSION"))
             .expect("Failed to run UI Plugin Manager:\nCouldn't parse crate version");
 
-        info!(
-            "Plugins dir: {:?}",
-            ConfigModule::new().work_dir().join("plugins")
-        );
-
         Self {
             gu_version,
             plugins: HashMap::new(),
-            directory: ConfigModule::new().work_dir().join("plugins"),
+            directory: None,
         }
     }
 }
 
 impl PluginManager {
+    fn directory(&mut self) -> &PathBuf {
+        if self.directory.is_none() {
+            self.directory = Some(ConfigModule::new().work_dir().join("plugins"));
+            info!("Plugins dir: {:?}", &self.directory);
+        }
+        match self.directory {
+            Some(ref dir) => &dir,
+            None => panic!(),
+        }
+    }
+
     fn install_plugin<T: 'static + PluginHandler>(&mut self, handler: T) -> InstallQueryResult {
-        use plugins::rest_result::InstallQueryResult::*;
+        use super::rest_result::InstallQueryResult::*;
 
         let mut plugin = Plugin::new(handler);
         plugin.activate();
@@ -77,23 +85,23 @@ impl PluginManager {
         }
 
         // TODO: I would prefer some clear function in Plugin trait instead of this
-        let file = self.directory.join(name);
+        let file = self.directory().join(name);
         let _ = remove_file(file).map_err(|_| format!("Cannot remove plugin file {:?}", name));
     }
 
     fn load_zip(&mut self, name: &str) -> InstallQueryResult {
-        let path = self.directory.join(name.to_string());
+        let path = self.directory().join(name.to_string());
         ZipHandler::new(&path, self.gu_version.clone())
             .map_err(|e| InstallQueryResult::InvalidFile(e))
             .map(|handler| self.install_plugin(handler))
             .unwrap_or_else(|e| e)
     }
 
-    fn save_plugin_file(&self, name: &str, bytes: &[u8]) -> Result<(), InstallQueryResult> {
+    fn save_plugin_file(&mut self, name: &str, bytes: &[u8]) -> Result<(), InstallQueryResult> {
         use self::InstallQueryResult::*;
         use std::path::Path;
 
-        let path = self.directory.join(name.to_string());
+        let path = self.directory().join(name.to_string());
         println!("{:?}", &path);
         if Path::new(&path).exists() {
             return Err(FileAlreadyExists);
@@ -108,19 +116,22 @@ impl PluginManager {
     fn reload_plugins(&mut self) {
         self.plugins.clear();
 
-        let dir = fs::read_dir(&self.directory).expect(&format!(
-            "Cannot read plugins directory: {:?}",
-            self.directory
-        ));
+        let dir_res = fs::read_dir(&self.directory());
+        match dir_res {
+            Ok(dir) => {
+                for plug_pack in dir {
+                    let res = plug_pack
+                        .map_err(|e| e.to_string())
+                        .map(|pack| {
+                            self.load_zip(pack.path().to_str().expect("Invalid path of plugin"))
+                        })
+                        .map(|a| format!("{:?}", a))
+                        .unwrap_or_else(|e| e);
 
-        for plug_pack in dir {
-            let res = plug_pack
-                .map_err(|e| e.to_string())
-                .map(|pack| self.load_zip(pack.path().to_str().expect("Invalid path of plugin")))
-                .map(|a| format!("{:?}", a))
-                .unwrap_or_else(|e| e);
-
-            warn!("{:?}", res);
+                    warn!("{:?}", res);
+                }
+            }
+            Err(_) => error!("Cannot open {:?}.", &self.directory()),
         }
     }
 
@@ -144,10 +155,10 @@ impl Actor for PluginManager {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        DirBuilder::new()
-            .recursive(true)
-            .create(&self.directory)
-            .unwrap();
+        match DirBuilder::new().recursive(true).create(&self.directory()) {
+            Ok(_) => (),
+            Err(e) => error!("Cannot create plugin dir ({})", e),
+        }
 
         self.reload_plugins();
     }
@@ -249,7 +260,6 @@ pub enum QueriedStatus {
     Activate,
     Inactivate,
     Uninstall,
-    LogError(String),
 }
 
 impl fmt::Display for QueriedStatus {
@@ -288,7 +298,6 @@ impl Handler<ChangePluginState> for PluginManager {
                 .map(|plug| match msg.state.clone() {
                     QueriedStatus::Activate => plug.activate(),
                     QueriedStatus::Inactivate => plug.inactivate(),
-                    QueriedStatus::LogError(s) => plug.log_error(s),
                     _ => unreachable!(),
                 }),
         };

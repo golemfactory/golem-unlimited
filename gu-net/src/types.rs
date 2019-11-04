@@ -122,9 +122,9 @@ impl ToString for NodeId {
 #[inline]
 fn hex_to_dec(hex: u8) -> Result<u8, ParseError> {
     match hex {
-        b'A'...b'F' => Ok(hex - b'A' + 10),
-        b'a'...b'f' => Ok(hex - b'a' + 10),
-        b'0'...b'9' => Ok(hex - b'0'),
+        b'A'..=b'F' => Ok(hex - b'A' + 10),
+        b'a'..=b'f' => Ok(hex - b'a' + 10),
+        b'0'..=b'9' => Ok(hex - b'0'),
         _ => Err(ParseError("invalid char, expected hex")),
     }
 }
@@ -239,5 +239,4 @@ mod test {
             .parse()
             .unwrap();
     }
-
 }

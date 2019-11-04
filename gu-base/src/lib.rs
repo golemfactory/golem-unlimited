@@ -13,6 +13,7 @@ extern crate tar;
 extern crate lazy_static;
 extern crate env_logger;
 
+#[cfg(unix)]
 extern crate daemonize;
 extern crate libc;
 
@@ -58,7 +59,7 @@ pub trait Module: Any {
         false
     }
 
-    fn prepare(&mut self) -> Box<Future<Item = (), Error = ()>> {
+    fn prepare(&mut self) -> Box<dyn Future<Item = (), Error = ()>> {
         Box::new(future::ok(()))
     }
 
@@ -145,7 +146,7 @@ where
         b1 || b2
     }
 
-    fn prepare(&mut self) -> Box<Future<Item = (), Error = ()>> {
+    fn prepare(&mut self) -> Box<dyn Future<Item = (), Error = ()>> {
         Box::new(self.m1.prepare().join(self.m2.prepare()).map(|(_, _)| ()))
     }
 
@@ -183,7 +184,7 @@ where
     F: Fn() -> App<'static, 'static>,
 {
     pub fn run<M: Module + 'static + Sync + Send>(&mut self, mut module: M) {
-        let mut app_with_args = module.args_declare(self.0());
+        let app_with_args = module.args_declare(self.0());
         let matches = app_with_args.clone().get_matches();
 
         if !(module.args_autocomplete(&matches, &|| app_with_args.clone())

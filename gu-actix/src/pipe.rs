@@ -1,12 +1,14 @@
+use std::fmt::Display;
+use std::sync::Arc;
+use std::{fmt, io};
+
 use bytes::*;
 use crossbeam_channel::{self as cb, Receiver, Sender};
 use futures::task::AtomicTask;
 use futures::{Async, Poll, Stream};
-use std::io;
-use std::sync::Arc;
 
 pub struct SyncReader<T, E> {
-    rx: Receiver<Result<T, E>>,
+    rx: Option<Receiver<Result<T, E>>>,
     task: Arc<AtomicTask>,
     buffer: Option<Bytes>,
 }
@@ -36,9 +38,7 @@ impl<T, E> Stream for AsyncReader<T, E> {
 impl io::Read for SyncReader<Bytes, io::Error> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         if self.buffer.is_none() {
-            let is_full = self.rx.is_full();
-
-            let r = self.rx.recv();
+            let r = self.rx.as_ref().unwrap().recv();
             self.task.notify();
 
             match r {
@@ -64,6 +64,14 @@ impl io::Read for SyncReader<Bytes, io::Error> {
     }
 }
 
+impl<T, E> Drop for SyncReader<T, E> {
+    fn drop(&mut self) {
+        drop(self.rx.take());
+
+        self.task.notify();
+    }
+}
+
 pub struct Writer<T, E> {
     tx: Sender<Result<T, E>>,
     task: Arc<AtomicTask>,
@@ -86,6 +94,15 @@ pub enum WriteError<E> {
     Other(E),
 }
 
+impl<E: Display> Display for WriteError<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            WriteError::BrokenPipe => writeln!(f, "broken pipe"),
+            WriteError::Other(e) => e.fmt(f),
+        }
+    }
+}
+
 impl<T, E> futures::Sink for AsyncWriter<T, E> {
     type SinkItem = T;
     type SinkError = WriteError<E>;
@@ -94,12 +111,10 @@ impl<T, E> futures::Sink for AsyncWriter<T, E> {
         &mut self,
         item: Self::SinkItem,
     ) -> Result<futures::AsyncSink<Self::SinkItem>, Self::SinkError> {
+        self.task.register();
         match self.tx.as_ref().unwrap().try_send(Ok(item)) {
             Ok(()) => Ok(futures::AsyncSink::Ready),
-            Err(cb::TrySendError::Full(Ok(item))) => {
-                self.task.register();
-                Ok(futures::AsyncSink::NotReady(item))
-            }
+            Err(cb::TrySendError::Full(Ok(item))) => Ok(futures::AsyncSink::NotReady(item)),
             Err(cb::TrySendError::Disconnected(_)) => Err(WriteError::BrokenPipe),
             _ => unreachable!(),
         }
@@ -117,7 +132,6 @@ impl<T, E> futures::Sink for AsyncWriter<T, E> {
 
 impl io::Write for Writer<Bytes, io::Error> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
-        use bytes::Bytes;
         self.send(Ok(Bytes::from(buf)))
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         Ok(buf.len())
@@ -154,7 +168,7 @@ pub fn async_to_sync<T, E>(cap: usize) -> (AsyncWriter<T, E>, SyncReader<T, E>) 
             task: task.clone(),
         },
         SyncReader {
-            rx,
+            rx: Some(rx),
             task: task.clone(),
             buffer: None,
         },
@@ -163,44 +177,66 @@ pub fn async_to_sync<T, E>(cap: usize) -> (AsyncWriter<T, E>, SyncReader<T, E>) 
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+    use std::{io, thread};
 
-    use super::*;
     use actix::prelude::*;
     use futures::prelude::*;
-    use std::time::Duration;
-    use std::{io, thread};
     use tokio_timer::Interval;
+
+    use super::*;
 
     #[test]
     fn test_channel_from() {
         let (tx, rx) = async_to_sync(1);
 
-        thread::spawn(move || {
-            use std::io::{BufRead, BufReader, Read};
-            let mut buf = [0; 200];
+        let t = thread::spawn(move || {
+            use std::io::{BufReader, Read};
+            let mut buf = [0; 15];
             let mut r = BufReader::new(rx);
 
             eprintln!("wait");
-            thread::sleep(Duration::from_secs(5));
+            thread::sleep(Duration::from_millis(50));
             eprintln!("start");
             r.read_exact(&mut buf[..]).unwrap();
-            eprintln!("got: {}", std::str::from_utf8(&buf[..]).unwrap())
+            eprintln!("got: {}", std::str::from_utf8(&buf[..]).unwrap());
+            thread::sleep(Duration::from_millis(50));
+            r.read_exact(&mut buf[..]).unwrap();
+            eprintln!("got: {}", std::str::from_utf8(&buf[..]).unwrap());
+            thread::sleep(Duration::from_millis(50));
+            r.read_exact(&mut buf[..]).unwrap();
+            eprintln!("got: {}", std::str::from_utf8(&buf[..]).unwrap());
+            eprintln!("thread done");
         });
 
-        System::run(|| {
-            let f = Interval::new_interval(Duration::from_secs(1))
-                .map(|x| {
-                    eprintln!("it {:?}", x);
-                    Bytes::from(format!("{:?}\n", x))
+        {
+            let mut sys = System::new("test");
+
+            let s = Instant::now();
+
+            let f = Interval::new_interval(Duration::from_millis(1))
+                .map(move |x| {
+                    let d = x.duration_since(s);
+                    eprintln!("it {:04}", d.as_millis());
+                    Bytes::from(format!("{:04}\n", d.as_millis()))
                 })
                 .map_err(|e| WriteError::Other(io::Error::new(io::ErrorKind::Other, e)))
+                .take(50)
                 .forward(tx)
-                .then(|_| {
-                    System::current().stop();
-                    Ok(eprintln!("done"))
+                .then(|v| {
+                    eprintln!("interval done");
+                    Ok::<_, ()>(match v {
+                        Ok(_) => eprintln!("done"),
+                        Err(e) => eprintln!("err: {}", e),
+                    })
                 });
-            Arbiter::spawn(f)
-        });
-    }
 
+            let _ = sys.block_on(f);
+            eprintln!("test done");
+            let _ = t.join();
+            eprintln!("test join done");
+            drop(sys);
+            eprintln!("test drop done");
+        }
+    }
 }

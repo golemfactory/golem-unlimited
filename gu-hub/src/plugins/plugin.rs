@@ -1,10 +1,3 @@
-#![allow(dead_code)]
-
-use gu_base::cli;
-use plugins::parser::{self, PathPluginParser, PluginParser};
-use semver::{Version, VersionReq};
-use serde::de::DeserializeOwned;
-use serde_json::{self, Value as JsonValue};
 use std::{
     collections::HashMap,
     fmt::{self, Debug},
@@ -12,6 +5,16 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
 };
+
+use prettytable::{cell, row};
+use semver::{Version, VersionReq};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use serde_json::{self, Value as JsonValue};
+
+use gu_base::cli;
+
+use super::parser::{self, PathPluginParser, PluginParser};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PluginEvent {
@@ -46,10 +49,6 @@ pub struct PluginMetadata {
 }
 
 impl PluginMetadata {
-    pub fn version(&self) -> Version {
-        self.version.clone()
-    }
-
     pub fn gu_version_req(&self) -> VersionReq {
         self.gu_version_req.clone()
     }
@@ -206,7 +205,7 @@ impl PluginHandler for ZipHandler {
 
 #[derive(Debug)]
 pub struct Plugin {
-    handler: Box<PluginHandler>,
+    handler: Box<dyn PluginHandler>,
     status: PluginStatus,
 }
 
@@ -224,10 +223,6 @@ impl Plugin {
 
     pub fn inactivate(&mut self) {
         self.status = PluginStatus::Installed;
-    }
-
-    pub fn log_error(&mut self, _s: String) {
-        self.status = PluginStatus::Error;
     }
 
     pub fn status(&self) -> PluginStatus {

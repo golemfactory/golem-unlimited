@@ -1,4 +1,3 @@
-use std::ffi::OsStr;
 use std::{
     fs::File,
     io::{Cursor, Read},
@@ -17,9 +16,11 @@ use futures::{
     prelude::*,
     stream::Stream,
 };
+use log::{debug, error};
 
-use gu_hdman::download::DownloadOptionsBuilder;
-use plugins::{
+use crate::server::HubClient as ServerClient;
+
+use super::{
     manager::{
         ChangePluginState, InstallDevPlugin, InstallPlugin, ListPlugins, PluginFile, PluginManager,
         QueriedStatus,
@@ -27,6 +28,7 @@ use plugins::{
     plugin::{format_plugins_table, PluginInfo},
     rest_result::{InstallQueryResult, RestResponse, ToHttpResponse},
 };
+
 use server::HubClient as ServerClient;
 
 const GUPLUG_EXTENSION: &str = "guplug";
@@ -258,7 +260,6 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
 }
 
 fn list_scope<S>(_r: HttpRequest<S>) -> impl Responder {
-    use actix_web::AsyncResponder;
     let manager = PluginManager::from_registry();
 
     manager

@@ -1,7 +1,3 @@
-use bytes::Bytes;
-use plugins::plugin::PluginMetadata;
-use semver::{Version, VersionReq};
-use serde_json;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -9,7 +5,14 @@ use std::{
     io::{BufReader, Cursor, Read, Seek},
     path::{Path, PathBuf},
 };
+
+use bytes::Bytes;
+use log::warn;
+use semver::{Version, VersionReq};
+use serde_json;
 use zip::ZipArchive;
+
+use super::plugin::PluginMetadata;
 
 pub trait PluginParser: Debug {
     /// Performs all checks on plugin resource and returns its metadata on success

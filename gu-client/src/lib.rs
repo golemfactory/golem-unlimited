@@ -5,4 +5,9 @@ pub mod error;
 pub mod sync;
 
 pub use gu_model as model;
+pub use gu_net::rpc::PublicMessage;
 pub use gu_net::NodeId;
+
+#[cfg(feature = "integration_tests")]
+#[cfg(test)]
+mod integration_tests;

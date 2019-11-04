@@ -16,6 +16,19 @@ security:
   - serviceToken: []
   - systemName: []
 paths:
+  /info:
+    get:
+      tags:
+        - session
+        - peer
+      operationId: getHubInfo
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/HubInfo'
   /peers:
     get:
       tags:
@@ -317,7 +330,7 @@ paths:
           in: body
           required: true
           schema:
-            $ref: '#/definitions/DeploymentSpec'
+            $ref: '#/definitions/DeploymentInfo'
       responses:
         '201':
           description: created
@@ -454,6 +467,43 @@ paths:
 
 
 definitions:
+
+  BuildInfo:
+    type: object
+    properties:
+      ts:
+        type: string
+        format: 'date-time'
+      target:
+        type: string
+        description: target platform triple
+        example: 'x86_64-unknown-linux-gnu'
+      commitHash:
+        type: string
+        description: git commit id
+
+  HubInfo:
+    description: General information about given HUB.
+    type: object
+    properties:
+      nodeId:
+        type: string
+        description: node public key hash in ethereum format
+        example: '0x875f272d3b9e7b55a5784a131a60bf3d7a42c73c'
+        readOnly: true
+      version:
+        type: string
+        description: semver of hub.
+        example: '0.2.1'
+      build:
+        $ref: '#/definitions/BuildInfo'
+      caps:
+        description: hub protocol capabilities
+        type: array
+        items:
+          type: string
+
+
   PeerInfo:
     description: General information about GU subnetwork node
     required:
@@ -575,11 +625,52 @@ definitions:
         uniqueItems: true
         items:
           type: string
+      options:
+        $ref: '#/definitions/CreateOptions'
+
+  CreateOptions:
+    anyOf:
+    - type: null
+    - $ref: '#/definitions/DockerCreateOptions'
+
+  DockerCreateOptions:
+    type: object
+    properties:
+      volumes:
+        type: array
+        items:
+          $ref: '#/definitions/VolumeDef'
+      cmd:
+        type: array
+        items:
+          type: string
+      net:
+        $ref: '#/definitions/DockerNetDef'
+
+  DockerNetDef:
+    type: object
+    properties:
+      host:
+        type: object
+  VolumeDef:
+    type: object
+    properties:
+      BindRw:
+        type: object
+        properties:
+          src: 
+            type: string 
+          target: 
+            type: string
   Command:
     type: object
     properties:
       exec:
         $ref: '#/definitions/ExecCommand'
+      open:
+        type: null
+      close:
+        type: null
       start:
         $ref: '#/definitions/StartCommand'
       stop:

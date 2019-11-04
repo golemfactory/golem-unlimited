@@ -56,9 +56,9 @@ struct DigestContentChecker<D: Digest + Clone> {
 
 fn to_hex(ch: u8) -> Result<u8, Error> {
     match ch {
-        b'0'...b'9' => Ok(ch - b'0'),
-        b'a'...b'f' => Ok(ch - b'a' + 10),
-        b'A'...b'F' => Ok(ch - b'a' + 10),
+        b'0'..=b'9' => Ok(ch - b'0'),
+        b'a'..=b'f' => Ok(ch - b'a' + 10),
+        b'A'..=b'F' => Ok(ch - b'a' + 10),
         _ => Err(Error::BadChar(ch)),
     }
 }
@@ -116,8 +116,6 @@ impl<'a> ParsedHash<'a> {
     }
 
     pub fn to_hash_str(&self) -> Result<String, Error> {
-        use std::str::from_utf8;
-
         Ok(format!("{}:{}", self.algo_name()?, self.value()?))
     }
 
@@ -266,5 +264,4 @@ mod test {
             PathBuf::from("SHA1---c04e69c52dc35d93389a23189c333d150cadd719")
         );
     }
-
 }

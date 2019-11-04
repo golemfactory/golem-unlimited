@@ -1,6 +1,6 @@
-use crate::error::Error::InvalidPeer;
+use std::str;
+
 use failure::Fail;
-use std::{error, fmt, str};
 
 //
 /// Errors returned by Rust API for Golem Unlimited
@@ -34,6 +34,9 @@ pub enum Error {
 
     #[fail(display = "{}", _0)]
     IO(#[fail(cause)] std::io::Error),
+
+    #[fail(display = "processing error")]
+    ProcessingResult(Vec<String>),
 }
 
 impl From<str::Utf8Error> for Error {

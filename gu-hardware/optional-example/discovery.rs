@@ -1,17 +1,8 @@
-extern crate actix;
-extern crate futures;
-extern crate gu_actix;
-extern crate gu_hardware;
-extern crate gu_net;
-extern crate serde_json;
-extern crate sysinfo;
-
 use actix::prelude::*;
-use gu_net::rpc::start_actor;
-
-//use std::path::PathBuf;
 use futures::prelude::*;
+
 use gu_hardware::actor::{HardwareActor, HardwareQuery};
+use gu_net::rpc::start_actor;
 
 fn main() {
     System::run(|| {

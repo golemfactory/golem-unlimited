@@ -1,15 +1,18 @@
-use actix::prelude::*;
-use futures::unsync::oneshot;
-use futures::{future, prelude::*};
-use gu_actix::{async_result, async_try, prelude::*};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::string;
+
+use actix::prelude::*;
+use futures::unsync::oneshot;
+use futures::{future, prelude::*};
 use tokio_io::io;
 use tokio_process::{Child, CommandExt};
+
+use gu_actix::{async_result, async_try};
+use gu_model::envman;
 
 type Map<K, V> = HashMap<K, V>;
 
@@ -44,6 +47,7 @@ fn io_err<E: std::error::Error + Send + Sync + 'static>(e: E) -> std::io::Error 
 pub struct ProcessPool {
     // process pool workdir
     work_dir: PathBuf,
+    white_list: HashSet<PathBuf>,
     main_process: Option<Pid>,
     exec_processes: Map<Pid, oneshot::Sender<()>>,
 }
@@ -51,10 +55,16 @@ pub struct ProcessPool {
 impl ProcessPool {
     pub fn with_work_dir<P: Into<PathBuf>>(work_dir: P) -> Self {
         ProcessPool {
+            white_list: Default::default(),
             work_dir: work_dir.into(),
             main_process: None,
             exec_processes: Map::new(),
         }
+    }
+
+    pub fn with_exec(mut self, path: impl Into<PathBuf>) -> Self {
+        self.white_list.insert(path.into());
+        self
     }
 }
 
@@ -70,8 +80,10 @@ impl ProcessPool {
         args: I,
     ) -> impl Future<Item = (String, String), Error = String> {
         let exec = executable.as_ref();
-        if exec.is_absolute() {
-            return async_try!(Err(format!("invalid executable {:?}", exec)));
+        if !self.white_list.contains(exec) {
+            if exec.is_absolute() {
+                return async_try!(Err(format!("invalid executable {:?}", exec)));
+            }
         }
 
         let exec_path = self.work_dir.join(exec);
@@ -86,73 +98,30 @@ impl ProcessPool {
         let stdout = child.stdout().take().unwrap();
         let stderr = child.stderr().take().unwrap();
 
-        let pid = self.spawn_child(ctx, child);
+        self.spawn_child(ctx, child);
 
         async_result!(io::read_to_end(stdout, Vec::new())
             .map_err(|e| format!("stdout read fail: {}", e))
-            .and_then(|(stdout, bytes)| string::String::from_utf8(bytes)
+            .and_then(|(_stdout, bytes)| string::String::from_utf8(bytes)
                 .map_err(|e| format!("invalid output: {}", e)))
             .join(
                 io::read_to_end(stderr, Vec::new())
                     .map_err(|e| format!("stderr read fail: {}", e))
-                    .and_then(|(stdout, bytes)| string::String::from_utf8(bytes)
+                    .and_then(|(_stdout, bytes)| string::String::from_utf8(bytes)
                         .map_err(|e| format!("invalid output: {}", e)))
             ))
     }
 
-    fn start_process<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
-        &mut self,
-        ctx: &mut <Self as Actor>::Context,
-        executable: &P,
-        args: I,
-    ) -> impl Future<Item = Pid, Error = String> {
-        let exec_path = self.work_dir.join(executable);
-        let mut child: Child = async_try!(Command::new(exec_path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .args(args)
-            .current_dir(&self.work_dir)
-            .spawn_async()
-            .map_err(|e| format!("run: {}", e)));
-        let pid = self.spawn_child(ctx, child);
-
-        async_result!(future::ok(pid))
-    }
-
-    fn start_main_process<P: AsRef<Path>, S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
-        &mut self,
-        ctx: &mut <Self as Actor>::Context,
-        executable: &P,
-        args: I,
-    ) -> impl Future<Item = Pid, Error = String> {
-        if self.main_process.is_some() {
-            async_try!(Err("pool already running"))
-        }
-
-        let exec_path = self.work_dir.join(executable);
-        let mut child: Child = async_try!(Command::new(exec_path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .args(args)
-            .current_dir(&self.work_dir)
-            .spawn_async()
-            .map_err(|e| format!("run: {}", e)));
-        let pid = self.spawn_child(ctx, child);
-        self.main_process = Some(pid);
-
-        async_result!(future::ok(pid))
-    }
-
     fn stop_process(&mut self, pid: Pid) -> Result<(), String> {
         if let Some(tx) = self.exec_processes.remove(&pid) {
-            tx.send(()).map_err(|e| format!("kill"))?
+            tx.send(()).map_err(|_e| format!("kill"))?
         }
         Ok(())
     }
 
     fn kill_all(&mut self) {
         // TODO: log error
-        self.exec_processes.drain().for_each(|(pid, tx)| {
+        self.exec_processes.drain().for_each(|(_pid, tx)| {
             let _ = tx.send(());
         });
     }
@@ -176,10 +145,12 @@ impl ProcessPool {
                         Ok(()) => future::Either::B(child),
                     },
                     Err(future::Either::A((e, _rx))) => future::Either::A(future::err(e)),
-                    Err(future::Either::B((e, child))) => future::Either::A(future::err(io_err(e))),
+                    Err(future::Either::B((e, _child))) => {
+                        future::Either::A(future::err(io_err(e)))
+                    }
                 })
                 .into_actor(self)
-                .then(move |r, act, ctx| {
+                .then(move |_r, act, _ctx| {
                     act.exec_processes.remove(&pid);
                     if Some(pid) == act.main_process {
                         act.kill_all()
@@ -193,7 +164,7 @@ impl ProcessPool {
 }
 
 pub struct Exec {
-    pub executable: String,
+    pub executable: PathBuf,
     pub args: Vec<String>,
 }
 
@@ -218,7 +189,7 @@ impl Message for List {
 impl Handler<List> for ProcessPool {
     type Result = MessageResult<List>;
 
-    fn handle(&mut self, msg: List, ctx: &mut Self::Context) -> <Self as Handler<List>>::Result {
+    fn handle(&mut self, _msg: List, _ctx: &mut Self::Context) -> <Self as Handler<List>>::Result {
         MessageResult(self.exec_processes.keys().cloned().collect())
     }
 }
@@ -232,7 +203,21 @@ impl Message for Stop {
 impl Handler<Stop> for ProcessPool {
     type Result = Result<(), String>;
 
-    fn handle(&mut self, msg: Stop, ctx: &mut Self::Context) -> <Self as Handler<Stop>>::Result {
+    fn handle(&mut self, msg: Stop, _ctx: &mut Self::Context) -> <Self as Handler<Stop>>::Result {
         self.stop_process(msg.0)
+    }
+}
+
+pub struct KillAll;
+
+impl Message for KillAll {
+    type Result = Result<(), envman::Error>;
+}
+
+impl Handler<KillAll> for ProcessPool {
+    type Result = Result<(), envman::Error>;
+
+    fn handle(&mut self, msg: KillAll, ctx: &mut Self::Context) -> Self::Result {
+        Ok(self.kill_all())
     }
 }

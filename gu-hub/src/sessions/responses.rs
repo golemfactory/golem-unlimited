@@ -1,17 +1,19 @@
 use actix::prelude::*;
 use actix_web::{
     dev::HttpResponseBuilder,
-    error::InternalError,
     http::{
         header::{HeaderValue, ETAG},
         StatusCode,
     },
-    Error as ActixError, HttpResponse,
+    HttpResponse,
 };
-use gu_model::session::BlobInfo;
-use gu_net::NodeId;
+use failure::Fail;
+use log::error;
 use serde_json::Value;
-use sessions::{blob::Blob, manager::EnumeratedSessionInfo, session::SessionInfo};
+
+use gu_net::NodeId;
+
+use super::{blob::Blob, manager::EnumeratedSessionInfo, session::SessionInfo};
 
 pub type SessionResult = Result<SessionOk, SessionErr>;
 
@@ -24,12 +26,18 @@ fn include_version(mut build: HttpResponseBuilder, v: u64) -> HttpResponseBuilde
 //#[derive(Debug)]
 pub enum SessionOk {
     Ok,
+    #[allow(unused)]
     SessionsList(Vec<EnumeratedSessionInfo>, u64),
+    #[allow(unused)]
     SessionId(u64),
+    #[allow(unused)]
     BlobId(u64),
     Blob(Blob),
+    #[allow(unused)]
     SessionInfo(SessionInfo, u64),
+    #[allow(unused)]
     SessionJson(Value),
+    #[allow(unused)]
     SessionAlreadyDeleted,
     BlobAlreadyDeleted,
 }
@@ -60,6 +68,8 @@ pub enum SessionErr {
     CannotDeletePeerDeployment,
     #[fail(display = "Cannot update peer deployment")]
     CannotUpdatePeerDeployment,
+    #[fail(display = "Blob is not uploaded yet")]
+    BlobNotYetUploaded,
 }
 
 impl From<MailboxError> for SessionErr {

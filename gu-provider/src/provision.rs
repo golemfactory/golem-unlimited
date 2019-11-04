@@ -1,17 +1,19 @@
-use actix_web::client::ClientResponse;
-use actix_web::http::header;
-use actix_web::HttpMessage;
-use futures::{future, prelude::*};
-use gu_actix::{async_result, async_try};
-use gu_base::files::read_async;
-use gu_base::files::{untgz_async, write_async};
-use gu_model::envman::ResourceFormat;
-use log::{debug, info};
 use std::{
     fs,
     path::{Path, PathBuf},
     time,
 };
+
+use actix_web::client::ClientResponse;
+use actix_web::http::header;
+use actix_web::HttpMessage;
+use futures::{future, prelude::*};
+use log::{debug, info};
+
+use gu_actix::{async_result, async_try};
+use gu_base::files::read_async;
+use gu_base::files::{untgz_async, write_async};
+use gu_model::envman::ResourceFormat;
 
 pub fn download_step(
     url: &str,
@@ -58,7 +60,6 @@ pub fn download_step(
 
                                 if entry_type.is_dir() {
                                     // is directory
-                                    use std::fs;
                                     let dir_name = output_path.join(path);
                                     if !dir_name.exists() {
                                         let _ = async_try!(fs::create_dir_all(dir_name)
@@ -147,7 +148,7 @@ where
 
     flat::decode_tar(stream)
         .into_future()
-        .map_err(|(e, tail)| e.to_string())
+        .map_err(|(e, _tail)| e.to_string())
         .and_then(|(head, tail)| match head {
             Some(TarItem::Entry(entry)) => Ok((
                 entry.size(),
@@ -162,6 +163,7 @@ where
 
 // TODO: support redirect
 // TODO: support https
+#[allow(unused)]
 pub fn download(
     url: &str,
     output_path: PathBuf,
@@ -216,6 +218,9 @@ where
     let header = content_length(&resp).and_then(|length| {
         let mut header = tar::Header::new_ustar();
         header.set_size(length);
+        header.set_mode(0o644);
+        header.set_uid(0);
+        header.set_gid(0);
         header
             .set_path(path)
             .map_err(|_| "Incorrect filepath - cannot be set as filepath in tar".to_string())?;

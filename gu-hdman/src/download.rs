@@ -1,29 +1,22 @@
 /*
     Smart downloader
 */
+use std::sync::Arc;
+use std::time;
+
 use actix::prelude::*;
-use bytes::*;
-use failure::Fail;
+use actix_web::http::header;
+use derive_builder::*;
 use futures::prelude::*;
 use futures_cpupool::CpuPool;
+
 use gu_actix::prelude::*;
-use gu_actix::safe::*;
-use serde_derive::*;
-use std::io::Read;
-use std::io::Seek;
-use std::io::Write;
-use std::mem::size_of;
-use std::{fmt, fs, io, path, time};
+
+pub use self::error::Error;
+use self::sync_io::{CheckType, DownloadFile, LogMetadata, Proxy};
 
 mod error;
 mod sync_io;
-
-use self::sync_io::{CheckType, DownloadFile, LogMetadata, Proxy};
-
-pub use self::error::Error;
-use actix_web::{http::header, HttpMessage};
-use derive_builder::*;
-use std::sync::Arc;
 
 #[derive(Builder, Clone)]
 pub struct DownloadOptions {
@@ -81,7 +74,7 @@ fn download_chunk(
     from: u64,
     to: u64,
 ) -> impl Future<Item = Chunk, Error = Error> {
-    use actix_web::{client, http::header, HttpMessage};
+    use actix_web::{client, HttpMessage};
     use futures::future::{self, loop_fn, Loop};
     let limit = (to - from) as usize;
 
@@ -89,7 +82,6 @@ fn download_chunk(
         let proxy = proxy.clone();
         let meta = meta.clone();
         let options = options.clone();
-        let size = meta.size;
 
         proxy
             .with(move |df| df.check_chunk(chunk_nr))
@@ -121,7 +113,7 @@ fn download_chunk(
                                 .with(move |df| df.add_chunk(from, to, bytes.as_ref()))
                                 .from_err()
                         })
-                        .and_then(move |v| Ok(Loop::Break(Chunk { chunk_nr, from, to })))
+                        .and_then(move |_| Ok(Loop::Break(Chunk { chunk_nr, from, to })))
                         .or_else(move |e| {
                             if n_retries > 0 {
                                 Ok(Loop::Continue(n_retries - 1))
@@ -134,11 +126,10 @@ fn download_chunk(
     })
 }
 
-struct UrlInfo {
+pub struct UrlInfo {
     download_url: String,
     size: Option<u64>,
     check: CheckType,
-    accept_ranges: bool,
 }
 
 fn extract_check<M: actix_web::HttpMessage>(resp: &M) -> Result<CheckType, header::ToStrError> {
@@ -156,7 +147,7 @@ fn extract_check<M: actix_web::HttpMessage>(resp: &M) -> Result<CheckType, heade
 
 */
 fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
-    use actix_web::{client, http::header, HttpMessage};
+    use actix_web::{client, HttpMessage};
     use futures::future::{loop_fn, Loop};
 
     loop_fn((url.to_owned(), 0), |(url, retry)| {
@@ -194,7 +185,6 @@ fn check_url(url: &str) -> impl Future<Item = UrlInfo, Error = Error> {
                         download_url: url,
                         size,
                         check,
-                        accept_ranges: true,
                     }))
                 } else {
                     Err(Error::Other(format!(
@@ -211,10 +201,6 @@ fn download(
     url: &str,
     dest_file: String,
 ) -> impl Stream<Item = ProgressStatus, Error = Error> {
-    use actix_web::http::header::HeaderValue;
-    use actix_web::http::HttpTryFrom;
-    use actix_web::HttpMessage;
-
     use futures::{prelude::*, stream, unsync::mpsc};
 
     let (tx, rx) = mpsc::unbounded();
@@ -236,7 +222,7 @@ fn download(
             })
             .from_err()
         })
-        .and_then(move |mut download_file| {
+        .and_then(move |download_file| {
             download_file
                 .with(|df: &mut DownloadFile| {
                     let meta = df.meta();
@@ -250,7 +236,7 @@ fn download(
                     (Arc::new(meta), v)
                 })
                 .and_then(move |(meta, chunks)| {
-                    init_tx.unbounded_send(ProgressStatus {
+                    let _ = init_tx.unbounded_send(ProgressStatus {
                         total_to_download: Some(meta.size),
                         downloaded_bytes: 0,
                     });
@@ -278,8 +264,8 @@ fn download(
                 }))
                 .buffer_unordered(connections as usize)
                 .fold(init_progress, move |mut progress, chunk| {
-                    progress.downloaded_bytes += (chunk.to - chunk.from);
-                    tx.unbounded_send(progress.clone());
+                    progress.downloaded_bytes += chunk.to - chunk.from;
+                    let _ = tx.unbounded_send(progress.clone());
                     Ok::<_, Error>(progress)
                 })
                 .and_then(|_| {
@@ -297,7 +283,7 @@ fn download(
             .map_err(|e| eprintln!("ERR: {}", e)),
     );
 
-    rx.map_err(|e| Error::Other(format!("e")))
+    rx.map_err(|e| Error::Other(format!("receiver error: {:?}", e)))
 }
 
 #[derive(Clone, Debug)]
@@ -328,5 +314,4 @@ mod test {
         assert_eq!(b.chunk_timeout, time::Duration::from_secs(120));
         assert_eq!(b.chunk_size, 3000);
     }
-
 }

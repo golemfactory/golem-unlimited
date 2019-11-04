@@ -2,11 +2,23 @@
 //!
 //! Manages hub session state.
 //!
+
+use std::{cmp, collections::HashMap, fs, path::PathBuf};
+
 use actix::prelude::*;
-use futures::prelude::*;
-use gu_actix::prelude::*;
+use futures::{Future, IntoFuture};
+use log::error;
+use serde::{Deserialize, Serialize};
+
 use gu_net::NodeId;
-use std::marker::PhantomData;
+use gu_persist::config::ConfigModule;
+
+use super::session::Session;
+use super::{
+    blob::Blob,
+    responses::{SessionErr, SessionResult},
+    session::{entries_id_iter, SessionInfo},
+};
 
 #[derive(Default)]
 pub struct SessionsManager {
@@ -20,7 +32,7 @@ impl Actor for SessionsManager {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut <Self as Actor>::Context) {
-        let path = ConfigModule::new().work_dir().join("sessions");
+        let path = ConfigModule::new().work_dir().join("hub-sessions");
 
         fs::DirBuilder::new()
             .recursive(true)
@@ -114,19 +126,6 @@ where
         }
     }
 }
-
-use super::session::Session;
-use futures::{future, Future, IntoFuture};
-use gu_model::session::Metadata;
-use gu_persist::config::ConfigModule;
-use serde_json::Value;
-use sessions::{
-    blob::Blob,
-    responses::{SessionErr, SessionOk, SessionResult},
-    session::{entries_id_iter, SessionInfo},
-};
-
-use std::{cmp, collections::HashMap, fs, path::PathBuf};
 
 impl SessionsManager {
     fn session_fn<R, F>(&self, id: u64, f: F) -> Result<R, SessionErr>
@@ -340,11 +339,12 @@ impl Handler<CreateDeployment> for SessionsManager {
             ActorResponse::r#async(
                 fut::wrap_future(session.create_deployment(msg.node_id, msg.deployment_desc))
                     .and_then(move |deployment_id, act: &mut SessionsManager, _ctx| {
-                        act.sessions
-                            .get_mut(&session_id)
-                            .unwrap()
-                            .add_deployment(node_id, deployment_id.clone());
-                        fut::ok(deployment_id)
+                        if let Some(session) = act.sessions.get_mut(&session_id) {
+                            session.add_deployment(node_id, deployment_id.clone());
+                            fut::ok(deployment_id)
+                        } else {
+                            fut::err(SessionErr::SessionNotFoundError)
+                        }
                     }),
             )
         } else {
@@ -383,11 +383,9 @@ impl Handler<DeleteDeployment> for SessionsManager {
             ActorResponse::r#async(
                 fut::wrap_future(session.delete_deployment(msg.node_id, msg.deployment_id))
                     .and_then(move |_, act: &mut SessionsManager, _ctx| {
-                        if !(act
-                            .sessions
-                            .get_mut(&session_id)
-                            .unwrap()
-                            .remove_deployment(node_id, deployment_id.clone()))
+                        if act.sessions.get_mut(&session_id).map(|session| {
+                            session.remove_deployment(node_id, deployment_id.clone())
+                        }) != Some(true)
                         {
                             return fut::err(SessionErr::DeploymentNotFound(deployment_id));
                         }
@@ -401,7 +399,7 @@ impl Handler<DeleteDeployment> for SessionsManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<Vec<String>, SessionErr>")]
+#[rtype(result = "Result<Result<Vec<String>, Vec<String>>, SessionErr>")]
 pub struct UpdateDeployment {
     session_id: u64,
     node_id: NodeId,
@@ -426,7 +424,7 @@ impl UpdateDeployment {
 }
 
 impl Handler<UpdateDeployment> for SessionsManager {
-    type Result = ActorResponse<SessionsManager, Vec<String>, SessionErr>;
+    type Result = ActorResponse<SessionsManager, Result<Vec<String>, Vec<String>>, SessionErr>;
 
     fn handle(&mut self, msg: UpdateDeployment, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(session) = self.sessions.get_mut(&msg.session_id) {

@@ -1,22 +1,26 @@
 //!
 
 use actix::prelude::*;
-use actix_web::http::Method;
-use actix_web::http::StatusCode;
 use actix_web::{
-    self, http, AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder,
-    Scope,
+    self,
+    http::{Method, StatusCode},
+    AsyncResponder, FromRequest, HttpRequest, HttpResponse, Json, Path, Responder, Scope,
 };
 use futures::prelude::*;
+use log::error;
+use prettytable::{cell, row};
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
+
 use gu_actix::prelude::*;
 use gu_base::{cli, App, AppSettings, ArgMatches, Decorator, Module, SubCommand};
 use gu_model::peers as peers_api;
 use gu_net::{
-    rpc::{peer::PeerInfo, public_destination, reply::CallRemote, reply::CallRemoteUntyped},
+    rpc::{peer, public_destination, reply::CallRemoteUntyped, reply::SendError, ReplyRouter},
     NodeId,
 };
-use serde_json::Value as JsonValue;
-use server::HubClient;
+
+use crate::server::HubClient;
 
 pub struct PeerModule {
     inner: State,
@@ -62,7 +66,7 @@ impl Module for PeerModule {
                 System::run(|| {
                     Arbiter::spawn(
                         HubClient::get("/peers")
-                            .and_then(|r: Vec<PeerInfo>| Ok(format_peer_table(r)))
+                            .and_then(|r: Vec<peer::PeerInfo>| Ok(format_peer_table(r)))
                             .map_err(|e| error!("{}", e))
                             .then(|_r| Ok(System::current().stop())),
                     )
@@ -78,15 +82,15 @@ impl Module for PeerModule {
 
 pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
     scope
-        .route("", http::Method::GET, list_peers)
+        .route("", Method::GET, list_peers)
         .resource("/{nodeId}", |r| r.get().with(fetch_peer))
+        .resource("/{nodeId}/hardware", |r| r.get().with(fetch_peer_hardware))
         .resource("/{nodeId}/deployments", |r| {
             r.get().with(fetch_deployments);
             r.post().with(new_deployment)
         })
         .resource("/{nodeId}/deployments/{deploymentId}", |r| {
             use gu_model::envman::{Command, DestroySession, SessionUpdate};
-            use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
             r.method(Method::PATCH).with_async(
                 |(path, commands): (Path<DeploymentPath>, Json<Vec<Command>>)| {
                     peer(path.node_id)
@@ -106,7 +110,9 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                         })
                         .and_then(|update_result| match update_result {
                             Ok(update_result) => Ok(HttpResponse::Ok().json(update_result)),
-                            Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
+                            Err(e) => Ok(HttpResponse::InternalServerError()
+                                .header("x-processing-error", "1")
+                                .json(e)),
                         })
                 },
             );
@@ -127,24 +133,22 @@ pub fn scope<S: 'static>(scope: Scope<S>) -> Scope<S> {
                         _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
                     })
                     .and_then(|update_result| match update_result {
-                        Ok(update_result) => Ok(HttpResponse::NoContent().finish()),
+                        Ok(_update_result) => Ok(HttpResponse::NoContent().finish()),
                         Err(_) => Err(actix_web::error::ErrorInternalServerError("err")),
                     })
             })
         })
-        .route("/send-to", http::Method::POST, peer_send)
+        .route("/send-to", Method::POST, peer_send)
         .route(
             "/send-to/{nodeId}/{destinationId}",
-            http::Method::POST,
+            Method::POST,
             peer_send_path,
         )
 }
 
 fn list_peers<S>(_r: HttpRequest<S>) -> impl Responder {
-    use gu_net::rpc::peer::*;
-
-    PeerManager::from_registry()
-        .send(ListPeers)
+    peer::PeerManager::from_registry()
+        .send(peer::ListPeers)
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| {
             //debug!("res={:?}", res);
@@ -167,10 +171,8 @@ struct DeploymentPath {
 }
 
 fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
-    use gu_net::rpc::peer::*;
-
-    PeerManager::from_registry()
-        .send(GetPeer(info.node_id))
+    peer::PeerManager::from_registry()
+        .send(peer::GetPeer(info.node_id))
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("err: {}", e)))
         .and_then(|res| match res {
             None => Ok(HttpResponse::build(StatusCode::NOT_FOUND).body("Peer not found")),
@@ -185,10 +187,33 @@ fn fetch_peer(info: Path<PeerPath>) -> impl Responder {
         .responder()
 }
 
+fn fetch_peer_hardware(info: Path<PeerPath>) -> impl Responder {
+    use gu_hardware::actor::HardwareQuery;
+    peer(info.node_id)
+        .into_endpoint()
+        .send(HardwareQuery::default())
+        .map_err(|e| match e {
+            SendError::NoDestination => {
+                actix_web::error::ErrorNotFound("Peer not found (no destination error)")
+            }
+            SendError::NotConnected(node_id) => {
+                actix_web::error::ErrorNotFound(format!("Peer not connected: {:?}", node_id))
+            }
+            _ => actix_web::error::ErrorInternalServerError(format!("{}", e)),
+        })
+        .and_then(|hardware_result| match hardware_result {
+            Ok(hardware) => Ok(HttpResponse::Ok().json(hardware)),
+            Err(e) => Err(actix_web::error::ErrorInternalServerError(format!(
+                "Error: {:?}",
+                e
+            ))),
+        })
+        .responder()
+}
+
 fn fetch_deployments(info: Path<PeerPath>) -> impl Responder {
     use gu_model::deployment::DeploymentInfo;
     use gu_model::envman::GetSessions;
-    use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
 
     peer(info.node_id)
         .into_endpoint()
@@ -216,9 +241,6 @@ fn new_deployment(
     info: Path<PeerPath>,
     body: Json<gu_model::envman::GenericCreateSession>,
 ) -> impl Responder {
-    use gu_model::envman::{CreateSession, Image};
-    use gu_net::rpc::{peer, reply::SendError, ReplyRouter};
-
     peer(info.node_id)
         .into_endpoint()
         .send(body.into_inner())
@@ -249,8 +271,6 @@ fn call_remote_ep(
     destination_id: u32,
     arg: JsonValue,
 ) -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
-    use gu_net::rpc::ReplyRouter;
-
     ReplyRouter::from_registry()
         .send(CallRemoteUntyped(
             node_id,
@@ -287,7 +307,7 @@ fn peer_send_path<S: 'static>(r: HttpRequest<S>) -> impl Responder {
         .responder()
 }
 
-fn format_peer_table(peers: Vec<PeerInfo>) {
+fn format_peer_table(peers: Vec<peer::PeerInfo>) {
     cli::format_table(
         row!["Node id", "Name", "Connection", "Sessions"],
         || "No peers connected",

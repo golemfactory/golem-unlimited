@@ -7,11 +7,11 @@ extern crate actix;
 #[macro_use]
 extern crate actix_derive;
 
+#[macro_use]
+extern crate lazy_static;
+
 extern crate serde;
 extern crate serde_json;
-#[allow(unused_imports)]
-#[macro_use]
-extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
 extern crate bytes;
@@ -23,6 +23,7 @@ extern crate gu_actix;
 extern crate gu_base;
 extern crate tokio_fs;
 extern crate tokio_io;
+extern crate tokio_uds;
 
 pub mod error {
     use actix::MailboxError;
@@ -46,7 +47,6 @@ pub mod error {
             ErrorKind::MailboxError(e).into()
         }
     }
-
 }
 
 pub mod config;

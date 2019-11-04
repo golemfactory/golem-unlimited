@@ -1,5 +1,6 @@
 
-angular.module('gu').service('guProgressMan',function($interval, $q, $log) {
+angular.module('gu')
+    .service('guProgressMan',function($interval, $q, $log) {
 
     class GuProgressDomain {
 

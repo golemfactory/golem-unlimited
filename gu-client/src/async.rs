@@ -1,25 +1,27 @@
-use crate::error::Error;
-use actix_web::{client, http, HttpMessage};
-use bytes::Bytes;
-use futures::{future, prelude::*};
-use gu_actix::release::{AsyncRelease, Handle};
-use gu_model::peers::PeerInfo;
-use gu_model::{
-    deployment::DeploymentInfo,
-    envman,
-    session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata},
-};
-use gu_net::rpc::peer::PeerSessionInfo;
-use gu_net::types::NodeId;
-use gu_net::types::TryIntoNodeId;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::borrow::Borrow;
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, str};
+
+use actix_web::{client, http, HttpMessage};
+use bytes::Bytes;
+use futures::{future, prelude::*};
+use log::{debug, info};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use url::Url;
+
+use gu_actix::release::{AsyncRelease, Handle};
+use gu_model::{
+    deployment::DeploymentInfo,
+    envman,
+    peers::PeerInfo,
+    session::{self, BlobInfo, HubExistingSession, HubSessionSpec, Metadata},
+    HubInfo,
+};
+use gu_net::types::NodeId;
+use gu_net::types::TryIntoNodeId;
+
+use crate::error::Error;
 
 pub type HubSessionRef = Handle<HubSession>;
 
@@ -44,7 +46,7 @@ impl Default for HubConnection {
 }
 
 impl HubConnection {
-    /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61621
+    /// creates a hub connection from a given address:port, e.g. 127.0.0.1:61622
     pub fn from_addr<T: Into<String>>(addr: T) -> Result<HubConnection, Error> {
         Url::parse(&format!("http://{}/", addr.into()))
             .map_err(Error::InvalidAddress)
@@ -146,7 +148,8 @@ impl HubConnection {
             .finish()
             .into_future()
             .map_err(Error::CreateRequest)
-            .and_then(|r| r.send().from_err())
+            .inspect(|r| debug!("Deleting resource: {}", r.uri()))
+            .and_then(|r| r.send().timeout(Duration::from_secs(3600)).from_err())
             .and_then(|response| match response.status() {
                 http::StatusCode::NO_CONTENT => future::Either::A(future::ok(())),
                 http::StatusCode::OK => future::Either::B(
@@ -161,6 +164,11 @@ impl HubConnection {
                 status => future::Either::A(future::err(Error::ResponseErr(status))),
             })
     }
+
+    pub fn info(&self) -> impl Future<Item = HubInfo, Error = Error> + 'static {
+        let url = format!("{}info", self.url());
+        self.fetch_json(&url)
+    }
 }
 
 /// Hub session.
@@ -171,6 +179,10 @@ pub struct HubSession {
 }
 
 impl HubSession {
+    pub fn id(&self) -> u64 {
+        self.session_id
+    }
+
     /// adds peers to the hub session
     pub fn add_peers<T, U: TryIntoNodeId>(
         &self,
@@ -198,7 +210,6 @@ impl HubSession {
             Ok(r) => r,
             Err(e) => return future::Either::A(future::err(Error::CreateRequest(e))),
         };
-        let session_id = self.session_id.clone();
 
         future::Either::B(
             request
@@ -343,8 +354,26 @@ impl HubSession {
         .map_err(Error::CreateRequest)
         .and_then(|request| request.send().from_err())
         .and_then(|response| match response.status() {
-            http::StatusCode::OK => future::ok(()),
-            status => future::err(Error::ResponseErr(status)),
+            http::StatusCode::OK => {
+                future::Either::A(future::Either::A(response.json().from_err()))
+            }
+            http::StatusCode::INTERNAL_SERVER_ERROR => {
+                if response.content_type() == "application/json"
+                    && response.headers().get("x-processing-error").is_some()
+                {
+                    future::Either::A(future::Either::B(
+                        response
+                            .json()
+                            .from_err()
+                            .and_then(|v: Vec<String>| Err(Error::ProcessingResult(v))),
+                    ))
+                } else {
+                    future::Either::B(future::err(Error::ResponseErr(
+                        http::StatusCode::INTERNAL_SERVER_ERROR,
+                    )))
+                }
+            }
+            status => future::Either::B(future::err(Error::ResponseErr(status))),
         })
     }
     /// deletes hub session
@@ -355,7 +384,7 @@ impl HubSession {
 }
 
 impl AsyncRelease for HubSession {
-    type Result = Box<Future<Item = (), Error = Error>>;
+    type Result = Box<dyn Future<Item = (), Error = Error>>;
     fn release(self) -> Self::Result {
         Box::new(self.delete())
     }
@@ -495,6 +524,15 @@ impl Peer {
     }
 }
 
+impl From<Peer> for ProviderRef {
+    fn from(peer: Peer) -> Self {
+        Self {
+            connection: peer.hub_session.hub_connection,
+            node_id: peer.node_id,
+        }
+    }
+}
+
 /// Peer session.
 #[derive(Clone, Debug)]
 pub struct PeerSession {
@@ -507,11 +545,19 @@ impl PeerSession {
         self.peer.node_id
     }
 
+    pub fn id(&self) -> &str {
+        self.session_id.as_ref()
+    }
+
     /// updates deployment session by sending multiple peer commands
     pub fn update(
         &self,
         commands: Vec<envman::Command>,
     ) -> impl Future<Item = Vec<String>, Error = Error> {
+        debug!(
+            "Sending the following commands to {:?}: {:?}",
+            self.peer.node_id, commands
+        );
         let url = format!(
             "{}sessions/{}/peers/{}/deployments/{}",
             self.peer
@@ -537,7 +583,25 @@ impl PeerSession {
                 .from_err()
         })
         .and_then(|response| match response.status() {
-            http::StatusCode::OK => future::Either::A(response.json().from_err()),
+            http::StatusCode::OK => {
+                future::Either::A(future::Either::A(response.json().from_err()))
+            }
+            http::StatusCode::INTERNAL_SERVER_ERROR => {
+                if response.content_type() == "application/json"
+                    && response.headers().get("x-processing-error").is_some()
+                {
+                    future::Either::A(future::Either::B(
+                        response
+                            .json()
+                            .from_err()
+                            .and_then(|v: Vec<String>| Err(Error::ProcessingResult(v))),
+                    ))
+                } else {
+                    future::Either::B(future::err(Error::ResponseErr(
+                        http::StatusCode::INTERNAL_SERVER_ERROR,
+                    )))
+                }
+            }
             status => future::Either::B(future::err(Error::ResponseErr(status))),
         })
     }
@@ -550,13 +614,16 @@ impl PeerSession {
             self.peer.node_id,
             self.session_id,
         );
-
+        info!(
+            "Deleting peer session. Hub session: {}, peer session: {}",
+            self.peer.hub_session.session_id, self.session_id
+        );
         self.peer.hub_session.hub_connection.delete_resource(&url)
     }
 }
 
 impl AsyncRelease for PeerSession {
-    type Result = Box<Future<Item = (), Error = Error>>;
+    type Result = Box<dyn Future<Item = (), Error = Error>>;
     fn release(self) -> Self::Result {
         Box::new(self.delete())
     }
@@ -651,4 +718,33 @@ impl ProviderRef {
                 })
             })
     }
+
+    /// internal use only
+    pub fn rpc_call<T: super::PublicMessage + Serialize + 'static>(
+        &self,
+        msg: T,
+    ) -> impl Future<Item = T::Result, Error = Error>
+    where
+        T::Result: DeserializeOwned,
+    {
+        let url = format!(
+            "{}peers/send-to/{:?}/{}",
+            self.connection.url(),
+            self.node_id,
+            T::ID
+        );
+
+        client::ClientRequest::post(url)
+            .json(Body { b: msg })
+            .into_future()
+            .map_err(|e| Error::Other(format!("client request err: {}", e)))
+            .and_then(|r| r.send().from_err())
+            .and_then(|r| r.json().from_err())
+            .and_then(|r: T::Result| Ok(r))
+    }
+}
+
+#[derive(Serialize)]
+struct Body<T: Serialize + 'static> {
+    b: T,
 }

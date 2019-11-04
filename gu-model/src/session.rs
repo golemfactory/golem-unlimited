@@ -1,9 +1,10 @@
-use super::Map;
-use super::Tags;
 use chrono::prelude::*;
 use chrono::DateTime;
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+
+use super::Map;
+use super::Tags;
 
 #[derive(Serialize, Deserialize)]
 pub struct HubSessionUpdate {
@@ -68,6 +69,14 @@ pub struct Metadata {
     pub entry: Map<String, JsonValue>,
 }
 
+impl Metadata {
+    pub fn extract<'a, T: serde::de::DeserializeOwned>(&self, k: &str) -> Option<T> {
+        self.entry
+            .get(k)
+            .and_then(|json_val| serde_json::from_value(json_val.clone()).ok())
+    }
+}
+
 #[derive(Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDetails {
@@ -92,8 +101,9 @@ pub struct BlobInfo {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_metadata() {
@@ -137,5 +147,4 @@ mod test {
         };
         eprintln!("{}", serde_json::to_string(&command).unwrap());
     }
-
 }

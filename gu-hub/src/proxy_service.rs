@@ -1,15 +1,18 @@
-#![allow(dead_code)]
-
-use super::plugins::{self, ListPlugins, PluginEvent, PluginManager, PluginStatus};
-use actix::{fut, prelude::*};
-use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse};
-use futures::{future, prelude::*};
-use gu_base::{ArgMatches, Module};
-use gu_event_bus;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
 };
+
+use actix::{fut, prelude::*};
+use actix_web::{self, App, AsyncResponder, HttpMessage, HttpRequest, HttpResponse};
+use futures::{future, prelude::*};
+use log::debug;
+use serde::{Deserialize, Serialize};
+
+use gu_base::{ArgMatches, Module};
+use gu_event_bus;
+
+use super::plugins::{self, ListPlugins, PluginEvent, PluginManager, PluginStatus};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -21,7 +24,6 @@ struct ServiceConfig {
 pub fn module() -> impl Module {
     ProxyModule {
         inner: Arc::new(RwLock::new(BTreeMap::new())),
-        manager: None,
     }
 }
 
@@ -104,20 +106,24 @@ impl Handler<gu_event_bus::Event<PluginEvent>> for ProxyManager {
 struct ProxyModule {
     // <plugin> -> <path> -> <url>
     inner: Arc<RwLock<BTreeMap<String, BTreeMap<String, String>>>>,
-    manager: Option<Addr<ProxyManager>>,
 }
 
 impl Module for ProxyModule {
     fn args_consume(&mut self, _matches: &ArgMatches) -> bool {
-        let inner = self.inner.clone();
-        self.manager = Some(ProxyManager { inner }.start());
         false
     }
 
     fn decorate_webapp<S: 'static>(&self, app: App<S>) -> App<S> {
         let inner = self.inner.clone();
 
-        app.handler("/service/proxy", move |r : &HttpRequest<_>| -> Box<Future<Item = HttpResponse, Error = actix_web::Error>> {
+        let _manager = Some(
+            ProxyManager {
+                inner: inner.clone(),
+            }
+            .start(),
+        );
+
+        app.handler("/service/proxy", move |r : &HttpRequest<_>| -> Box<dyn Future<Item = HttpResponse, Error = actix_web::Error>> {
             let tail = (&r.path()[15..]).to_string();
             if let Some(spos) = tail.find("/") {
                 let plugin_name = &tail[0..spos];
@@ -147,5 +153,3 @@ impl Module for ProxyModule {
         })
     }
 }
-
-struct ProxyHandler(Arc<RwLock<BTreeMap<String, BTreeMap<String, String>>>>);

@@ -1,9 +1,8 @@
-#![allow(dead_code)]
-
 use gu_model::dockerman::VolumeDef;
 use gu_persist::config::ConfigModule;
 use log::{debug, error};
 use serde_json::Value;
+use std::borrow::Cow;
 use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::fs::DirBuilder;
@@ -13,14 +12,23 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 pub struct WorkspacesManager {
-    namespace: &'static str,
+    namespace: Cow<'static, str>,
     path: PathBuf,
 }
 
 impl WorkspacesManager {
-    pub fn new(config: &ConfigModule, name: &'static str) -> Option<WorkspacesManager> {
-        let session_dir = config.work_dir().to_path_buf().join("sessions").join(name);
+    pub fn new(
+        config: &ConfigModule,
+        name: impl Into<Cow<'static, str>>,
+    ) -> Option<WorkspacesManager> {
+        let name = name.into();
+        let session_dir = config
+            .work_dir()
+            .to_path_buf()
+            .join("sessions")
+            .join(name.as_ref());
 
+        log::debug!("creating session dir: {}", session_dir.display());
         fs::create_dir_all(&session_dir)
             .map_err(|e| error!("Cannot create HdMan dir: {:?}", e))
             .map(|_| WorkspacesManager {
@@ -31,7 +39,10 @@ impl WorkspacesManager {
     }
 
     pub fn workspace(&self) -> Workspace {
-        Workspace::new(self.namespace, self.path.join(Uuid::new_v4().to_string()))
+        Workspace::new(
+            self.namespace.clone(),
+            self.path.join(Uuid::new_v4().to_string()),
+        )
     }
 }
 
@@ -39,7 +50,7 @@ type Set<K> = BTreeSet<K>;
 
 #[derive(Clone)]
 pub struct Workspace {
-    name: &'static str,
+    name: Cow<'static, str>,
     path: PathBuf,
     metadata: Value,
     tags: Set<String>,
@@ -47,7 +58,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub(self) fn new(name: &'static str, path: PathBuf) -> Self {
+    pub(self) fn new(name: Cow<'static, str>, path: PathBuf) -> Self {
         Self {
             name,
             path,
@@ -57,8 +68,8 @@ impl Workspace {
         }
     }
 
-    pub fn name(&self) -> &'static str {
-        &self.name
+    pub fn name(&self) -> &str {
+        &self.name.as_ref()
     }
 
     pub fn tags(&self) -> Vec<String> {
@@ -77,10 +88,12 @@ impl Workspace {
         }
     }
 
+    #[allow(unused)]
     pub fn metadata(&self) -> &Value {
         &self.metadata
     }
 
+    #[allow(unused)]
     pub fn set_metadata(&mut self, val: Value) {
         self.metadata = val;
     }
@@ -89,6 +102,7 @@ impl Workspace {
         self.volumes.insert(s);
     }
 
+    #[allow(unused)]
     pub fn remove_volume(&mut self, s: &VolumeDef) {
         self.volumes.remove(s);
     }
@@ -132,7 +146,7 @@ mod tests {
     #[test]
     fn create_dirs() {
         let path = "/tmp/gu-unlimited/tests";
-        let mut work = Workspace::new("work", path.into());
+        let mut work = Workspace::new("work".into(), path.into());
 
         work.add_volume(VolumeDef::BindRw {
             src: "test1".to_string(),
@@ -152,7 +166,7 @@ mod tests {
     #[test]
     fn tags() {
         let path = "/tmp/gu-unlimited/tests";
-        let mut work = Workspace::new("work", path.into());
+        let mut work = Workspace::new("work".into(), path.into());
         let tags = ["tag1".to_string(), "tag2".to_string()].to_vec();
 
         work.add_tags(tags.clone());

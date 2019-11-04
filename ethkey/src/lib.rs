@@ -13,7 +13,7 @@
 //! ## Usage
 //! ```toml
 //! [dependencies]
-//! ethkey = "0.2"
+//! ethkey = "0.3"
 //! ```
 //!
 //! ## Example
@@ -22,25 +22,26 @@
 //! use ethkey::prelude::*;
 //!
 //! fn main() {
-//!     let key = EthAccount::load_or_generate("/path/to/keystore", "passwd")
+//!     let key = EthAccount::load_or_generate("/tmp/path/to/keystore", "passwd")
 //!         .expect("should load or generate new eth key");
 //!
-//!     println!("{:?}", key.address())
+//!     println!("{:?}", key.address());
+//!
+//!     let message = [7_u8; 32];
+//!
+//!     // sign the message
+//!     let signature = key.sign(&message).unwrap();
+//!
+//!     // verify the signature
+//!     let result = key.verify(&signature, &message).unwrap();
+//!     println!("{}", if result {"verification ok"} else {"wrong signature"});
 //! }
 //! ```
 //!
 
-use error_chain::{
-    error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
-    impl_extract_backtrace,
-};
-use log::info;
-use rand::{thread_rng, RngCore};
 use std::{
     fmt,
     fs::File,
-    io,
-    num::NonZeroU32,
     path::{Path, PathBuf},
 };
 
@@ -49,9 +50,12 @@ use ethsign::{
     Protected,
 };
 pub use ethsign::{PublicKey, SecretKey, Signature};
+use log::info;
+use rand::{thread_rng, RngCore};
+
+pub use address::Address;
 
 mod address;
-pub use address::Address;
 
 /// 32 bytes Message for signing and verification
 pub type Message = [u8; 32];
@@ -59,7 +63,7 @@ pub type Message = [u8; 32];
 pub type Password = Protected;
 
 /// HMAC fn iteration count; a compromise between security and performance
-pub const KEY_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(10240) };
+pub const KEY_ITERATIONS: u32 = 10240;
 pub const KEYSTORE_VERSION: u64 = 3;
 
 /// An Ethereum Account keys with store.
@@ -72,7 +76,7 @@ pub struct EthAccount {
     secret: SecretKey,
     public: PublicKey,
     address: Address,
-    file_path: PathBuf,
+    kestore_path: PathBuf,
 }
 
 impl EthAccount {
@@ -86,18 +90,23 @@ impl EthAccount {
         &self.address
     }
 
+    /// Key store path
+    pub fn kestore_path(&self) -> &PathBuf {
+        &self.kestore_path
+    }
+
     /// signs given message with self secret key
-    pub fn sign(&self, msg: &Message) -> Result<Signature> {
+    pub fn sign(&self, msg: &Message) -> failure::Fallible<Signature> {
         Ok(self.secret.sign(msg)?)
     }
 
     /// verifies signature for given message and self public key
-    pub fn verify(&self, sig: &Signature, msg: &Message) -> Result<bool> {
+    pub fn verify(&self, sig: &Signature, msg: &Message) -> failure::Fallible<bool> {
         Ok(self.public.verify(sig, msg)?)
     }
 
     /// reads keys from disk or generates new ones and stores to disk; password needed
-    pub fn load_or_generate<P, W>(file_path: P, password: W) -> Result<Box<Self>>
+    pub fn load_or_generate<P, W>(file_path: P, password: W) -> failure::Fallible<Box<Self>>
     where
         P: AsRef<Path>,
         W: Into<Password>,
@@ -106,7 +115,7 @@ impl EthAccount {
         let (secret, log_msg) = match File::open(&file_path) {
             Ok(file) => {
                 let key_file: KeyFile = serde_json::from_reader(file)?;
-                let secret = SecretKey::from_crypto(&key_file.crypto, &pwd)?;
+                let secret = key_file.to_secret_key(&pwd)?;
                 (secret, "loaded")
             }
             Err(_e) => {
@@ -120,7 +129,7 @@ impl EthAccount {
             address: secret.public().address().as_ref().into(),
             public: secret.public(),
             secret,
-            file_path: ::std::fs::canonicalize(file_path)?,
+            kestore_path: ::std::fs::canonicalize(file_path)?,
         };
 
         info!("{} {}", log_msg, eth_account);
@@ -129,14 +138,14 @@ impl EthAccount {
     }
 
     /// stores keys on disk with changed password
-    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> Result<()> {
-        save_key(&self.secret, &self.file_path, new_password.into())?;
+    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> failure::Fallible<()> {
+        save_key(&self.secret, &self.kestore_path, new_password.into())?;
         info!("changed password for {}", self);
         Ok(())
     }
 }
 
-fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> Result<()>
+fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> failure::Fallible<()>
 where
     P: AsRef<Path>,
     W: Into<Password>,
@@ -147,6 +156,14 @@ where
         crypto: secret.to_crypto(&password.into(), KEY_ITERATIONS)?,
         address: Some(Bytes(secret.public().address().to_vec())),
     };
+    let parent_dir = file_path.as_ref().parent().ok_or(std::io::Error::new(
+        std::io::ErrorKind::Other,
+        "Cannot find parent dir",
+    ))?;
+    if !parent_dir.exists() {
+        info!("Creating dir {:?} for key file.", parent_dir);
+        std::fs::create_dir_all(parent_dir)?
+    }
     serde_json::to_writer_pretty(&File::create(&file_path)?, &key_file)?;
     Ok(())
 }
@@ -163,7 +180,7 @@ impl fmt::Display for EthAccount {
             fmt,
             "EthAccount address: {}, path: {:?}",
             self.address(),
-            self.file_path
+            self.kestore_path
         )
     }
 }
@@ -172,17 +189,8 @@ impl fmt::Debug for EthAccount {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
         fmt.debug_struct("EthAccount")
             .field("public", &self.public)
-            .field("file_path", &self.file_path)
+            .field("file_path", &self.kestore_path)
             .finish()
-    }
-}
-
-error_chain! {
-    foreign_links {
-        IoError(io::Error);
-        EthsignError(ethsign::Error);
-        Secp256k1Error(secp256k1::Error);
-        SerdeJsonError(serde_json::Error);
     }
 }
 
@@ -200,11 +208,13 @@ pub mod prelude {
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use std::{env, fs::File, path::PathBuf};
+
     use ethsign::keyfile::KeyFile;
     use rustc_hex::ToHex;
-    use std::{env, fs::File, path::PathBuf};
     use tempfile::tempdir;
+
+    use crate::prelude::*;
 
     fn tmp_path() -> PathBuf {
         let mut dir = tempdir().unwrap().into_path();
@@ -335,7 +345,7 @@ mod tests {
         let key = EthAccount::load_or_generate(&rel_path, "hekloo").unwrap();
 
         // then
-        assert_eq!(key.file_path, abs_path);
+        assert_eq!(key.kestore_path, abs_path);
     }
 
     #[test]

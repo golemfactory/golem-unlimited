@@ -1,18 +1,21 @@
-use crate::id::generate_new_id;
-use crate::status;
-use futures::future::{self, Future, IntoFuture};
-use gu_model::envman::Error;
-use gu_net::rpc::peer::PeerSessionInfo;
-use log::debug;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+
+use futures::future::{self, Future, IntoFuture};
+use log::debug;
+
+use gu_model::envman::Error;
+use gu_net::rpc::peer::PeerSessionInfo;
+
+use crate::id::generate_new_id;
+use crate::status;
 
 pub trait IntoDeployInfo {
     fn convert(&self, id: &String) -> PeerSessionInfo;
 }
 
 pub trait Destroy {
-    fn destroy(&mut self) -> Box<Future<Item = (), Error = Error>> {
+    fn destroy(&mut self) -> Box<dyn Future<Item = (), Error = Error>> {
         Box::new(future::ok(()))
     }
 }
@@ -58,6 +61,7 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
         self.deploys.contains_key(key)
     }
 
+    #[allow(unused)]
     pub fn deploy(&self, deploy_id: &String) -> Result<&T, Error> {
         match self.deploys.get(deploy_id) {
             Some(deploy) => Ok(deploy),
@@ -72,6 +76,7 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
         }
     }
 
+    #[allow(unused)]
     pub fn deploy_entry(&mut self, deploy_id: String) -> Entry<String, T> {
         self.deploys.entry(deploy_id)
     }
@@ -109,6 +114,6 @@ impl<T: IntoDeployInfo + Destroy + GetStatus> DeployManager<T> {
 
 impl<T: IntoDeployInfo + Destroy> Drop for DeployManager<T> {
     fn drop(&mut self) {
-        future::join_all(self.deploys.values_mut().map(Destroy::destroy)).wait();
+        let _ = future::join_all(self.deploys.values_mut().map(Destroy::destroy)).wait();
     }
 }

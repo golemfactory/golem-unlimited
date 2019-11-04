@@ -1,0 +1,52 @@
+<div class="panel panel-default">
+    <div class="panel-body">
+        <table class="table table-hover">
+            <thead>
+            <tr>
+                <th>Id</th>
+                <th>Type</th>
+                <th>Created</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr ng-repeat="session in sessions | orderBy:'id' track by session.id">
+                <td>
+                    <a href="#" ng-click="activateSession(session)"><i class="glyphicon glyphicon-link"></i> {{session.id}} </a>
+                </td>
+                <td>
+                    <span class="label label-default" ng-repeat="plugin in detectPlugin(session)">{{plugin.name}}</span>
+                </td>
+                <td>{{session.created | date: 'yyyy-MM-dd HH:mm:ss'}}</td>
+                <td>{{session.name}}</td>
+                <td>
+                    <uib-progress max="100" animate="false" ng-if="process(session).isActive">
+                        <uib-bar value="process(session).progress" type="success"
+                                 title="work done">
+                        </uib-bar>
+
+
+                </td>
+                <td>
+                    <a class="btn btn-xs btn-danger" ng-click="deleteSession(session)"><i class="glyphicon glyphicon-trash"></i> </a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="panel-footer">
+        <div uib-dropdown>
+            <button type="button" class="btn btn-default" uib-dropdown-toggle><i class="glyphicon glyphicon-plus"></i>
+                New Session
+            </button>
+            <ul class="dropdown-menu" uib-dropdown-menu role="menu" aria-labelledby="btn-append-to-body">
+                <li role="menuitem" ng-repeat="plugin in plugins"><a href="#" ng-click="newSession(plugin)"><i
+                        class="{{plugin.iconClass}}"></i> {{plugin.name}}</a></li>
+                <li class="text-error" ng-if="plugins.length == 0"><a href="#"><i class="glyphicon glyphicon-alert"></i>
+                    No plugins installed</a></li>
+            </ul>
+        </div>
+    </div>
+</div>

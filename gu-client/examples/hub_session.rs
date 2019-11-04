@@ -9,10 +9,10 @@ extern crate serde_json;
 use actix::Arbiter;
 use bytes::Bytes;
 use futures::{future, stream, Future, Stream};
+
 use gu_client::r#async::HubConnection;
 use gu_model::envman::{self, CreateSession, Image};
 use gu_model::session::{BlobInfo, HubSessionSpec};
-use gu_net::types::NodeId;
 
 fn main() {
     let hub_connection = HubConnection::from_addr("127.0.0.1:61622").expect("Invalid address.");
@@ -102,6 +102,7 @@ fn main() {
                         envman::Command::Exec {
                             executable: "gu-factor".to_string(),
                             args: vec!["100".to_string()],
+                            working_dir: None,
                         },
                         envman::Command::AddTags(vec!["my_tag_2".to_string()]),
                     ]))

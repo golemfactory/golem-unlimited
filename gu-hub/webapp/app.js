@@ -1,91 +1,231 @@
-
 var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
-  .filter("prettyJSON", () => json => JSON.stringify(json, null, " "))
-  .controller('AppController', function($scope, pluginManager) {
-      $scope.tabs = [
-        {iconClass: 'gu-status-icon', name: 'Status', page: 'status.html'},
-        {iconClass: 'gu-providers-icon', name: 'Providers', page: 'providers.html'}
-      ];
-      $scope.pluginTabs = pluginManager.getTabs();
-      $scope.activeTab =  $scope.tabs[0];
+    .filter("prettyJSON", () => json => JSON.stringify(json, null, " "))
+    .controller('AppController', function ($scope, pluginManager) {
 
-      $scope.openTab = tab => {
-        $scope.activeTab = tab;
-      }
-  })
-  .controller('ProvidersController', function($scope, $http, $uibModal, hubApi, sessionMan) {
+        function tabActivator(tab) {
+            return {
+                name: tab.name,
+                iconClass: tab.iconClass,
+                activator: () => $scope.openTab(tab)
+            }
+        }
 
-     $scope.refresh = function refresh() {
-        sessionMan.peers(null, true).then(peers => $scope.peers = peers)
-     }
+        $scope.tabs = [
+            {iconClass: 'glyphicon glyphicon-home', name: 'Status', page: 'status.html'},
+            {iconClass: 'gu-providers-icon', name: 'Providers', page: 'providers.html'},
+            {iconClass: 'glyphicon glyphicon-list', name: 'Sessions', page: 'sessions.html'},
+        ];
+        $scope.pluginTabs = pluginManager.getTabs();
+        $scope.activeTab = $scope.tabs[0];
+        $scope.backList = [];
+
+        function updateBl() {
+            var bl = [ tabActivator($scope.tabs[0])];
+
+            if ($scope.activeTab !== $scope.tabs[0]) {
+                bl.push(tabActivator($scope.activeTab))
+            }
+
+            bl[bl.length-1].act = true;
+            $scope.backList = bl;
+        };
+
+        $scope.openTab = tab => {
+            $scope.activeTab = tab;
+            updateBl();
+        }
+    })
+
+    .controller('GuProvidersController', function ($scope, $interval, $http, $timeout, $uibModal, hubApi, sessionMan) {
+        $scope.peers = []
+        let timer;
+        $scope.refresh = function refresh() {
+            sessionMan.peers(null, true).then(peers => {
+                timer = $timeout(() => $scope.peers = peers, 100); //hack flicker fix
+            })
+        };
 
 
-     $scope.show = function(peer) {
-        $uibModal.open({
-            animate: true,
-            templateUrl: 'hdsession.html',
-            controller: function($scope, $uibModalInstance) {
-                peer.refreshSessions();
-                $scope.peer = peer;
-                $scope.ok = function() {
-                    $uibModalInstance.close()
-                }
-                $scope.destroySession = function(peer, session) {
-                    session.destroy();
+        $scope.show = function (peer) {
+            $uibModal.open({
+                animate: true,
+                templateUrl: 'hdsession.html',
+                controller: function ($scope, $uibModalInstance) {
                     peer.refreshSessions();
+                    $scope.peer = peer;
+                    $scope.ok = function () {
+                        $uibModalInstance.close()
+                    };
+                    $scope.destroySession = function (peer, session) {
+                        session.destroy();
+                        peer.refreshSessions();
+                    }
                 }
-            }
-        })
-     }
+            })
+        };
+        $scope.refresh();
+        const intervalPromise =  $interval(() => $scope.refresh(), 5000);
 
-     $scope.peers = [];
-     $scope.refresh();
-
-  })
-  .controller('StatusController', function($scope, $http) {
-     function refresh() {
-        $http.post('/m/19354', "null").then(r => {
-            var ok = r.data.Ok;
-            if (ok) {
-                if (typeof ok.disk.disk_type !== 'string') ok.disk.disk_type = '';
-                $scope.hub = ok
-            }
+        $scope.$on('$destroy', () => {
+            $interval.cancel(intervalPromise);
+            timer && $timeout.cancel(timer);
         });
-        $http.get('/peers').then(r => {
-            $scope.peers = r.data;
-        });
-     };
 
-     $scope.refresh = refresh;
+    })
+    .controller('StatusController', function ($scope, $http) {
+        function refresh() {
+            $http.post('/m/19354', "null").then(r => {
+                var ok = r.data.Ok;
+                if (ok && ok.disk) {
+                    if (typeof ok.disk.disk_type !== 'string') ok.disk.disk_type = '';
+                    $scope.hub = ok
+                }
+            });
+            $http.get('/peers').then(r => {
+                $scope.peers = r.data;
+            });
+        };
 
-     $scope.hub = {};
-     refresh();
+        $scope.refresh = refresh;
 
-  })
-  .service('hubApi', function($http) {
+        $scope.hub = {};
+        refresh();
+
+    })
+
+    .controller('GuSessionsController', function ($scope, $http, $log, $uibModal, pluginManager, hubApi, sessionMan, guProcessMan) {
+
+        let baseTabs = $scope.$eval('backList');
+
+        baseTabs[baseTabs.length-1].activator = function() {
+            $scope.currentPage = "sessions-list.html";
+            $scope.refresh();
+            $scope.backList = baseTabs;
+        };
+
+        $scope.backList = baseTabs;
+
+        $scope.refresh = function refresh() {
+            hubApi.listSessions().then(sessions => {
+                $scope.sessions = sessions;
+            })
+        };
+
+        $scope.process = function(session) {
+            return guProcessMan.getProcess(session);
+        };
+
+
+        $scope.show = function (peer) {
+            $uibModal.open({
+                animate: true,
+                templateUrl: 'hdsession.html',
+                controller: function ($scope, $uibModalInstance) {
+                    peer.refreshSessions();
+                    $scope.peer = peer;
+                    $scope.ok = function () {
+                        $uibModalInstance.close()
+                    };
+                    $scope.destroySession = function (peer, session) {
+                        session.destroy();
+                        peer.refreshSessions();
+                    };
+                }
+            })
+        };
+
+        $scope.selectSession = function(session) {
+
+        };
+
+        let context = {
+            setPage(session, pageUrl) {
+                let name = (typeof session === 'undefined') ? "New Session" : session.id;
+                $scope.currentPage = pageUrl;
+                $scope.currentSession = session;
+                $scope.backList = baseTabs.concat([{name: name}])
+            }
+        };
+
+        $scope.newSession = function(plugin) {
+            plugin.controller('new-session', context);
+            $scope.sessionContext = context;
+        };
+
+        function haveTags(tags, innerTags) {
+            return _.intersection(tags, innerTags).length == innerTags.length;
+        }
+
+        $scope.detectPlugin = function(session) {
+            return _.filter($scope.plugins, plugin => haveTags(session.tags, plugin.sessionTag));
+        };
+
+        $scope.deleteSession = function(session) {
+            sessionMan.getSession(session.id).then(session => session.delete()).then(() => $scope.refresh());
+        };
+
+        $scope.activateSession = function(session) {
+            let plugins = $scope.detectPlugin(session);
+            if (plugins.length > 0) {
+                sessionMan.getSession(session.id).then(session => {
+                    $scope.sessionContext = context;
+                    _.forEach(plugins, plugin => plugin.controller('browse', context, session));
+                });
+            }
+        };
+
+        $scope.sessions = [];
+        $scope.plugins = pluginManager.getActivators();
+        $scope.currentPage = "sessions-list.html";
+        $scope.refresh();
+
+    })
+
+    .service('hubApi', function ($http) {
         function callRemote(nodeId, destinationId, body) {
             return $http.post('/peers/send-to/' + nodeId + '/' + destinationId, {b: body}).then(r => r.data);
         }
 
-        return { callRemote: callRemote};
-  })
-  .service('pluginManager', function($log) {
-        var plugins = [];
+        function listSessions() {
+            return $http.get('/sessions').then(r => r.data);
+        }
+
+        return {
+            callRemote: callRemote,
+            listSessions: listSessions
+        };
+    })
+    .service('pluginManager', function ($log) {
+        var tabs = [];
+        var activators = [];
 
         function addTab(desc) {
             $log.info('add', desc);
-            plugins.push(desc)
+            tabs.push(desc)
         }
 
         function getTabs() {
-            $log.info('get')
-            return plugins;
+            return tabs;
+        }
+        
+        function addActivator(desc) {
+            activators.push(desc);
+        }
+        
+        function getActivators() {
+            return $.extend([], activators);
         }
 
-        return {addTab: addTab, getTabs: getTabs}
-  })
+        return {
+            addTab: addTab,
+            getTabs: getTabs,
 
-  .service('hdMan', function($http, hubApi, $q, $log) {
+            addActivator: addActivator,
+            getActivators: getActivators
+        };
+    })
+
+    .service('hdMan', function ($http, hubApi, $q, $log) {
         var cache = {};
 
         const HDMAN_CREATE = 37;
@@ -125,7 +265,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             }
 
             sessionsFast() {
-            // TODO: FIXME
+                // TODO: FIXME
                 if (this.nodeId in cache) {
                     $log.debug("sessionFast: cache used", $q.when(cache[this.nodeId]), this.sessions())
                     return $q.when(cache[this.nodeId]);
@@ -145,8 +285,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                         this.id = id.Ok;
                         this.status = 'CREATED';
                         return id.Ok;
-                    }
-                    else {
+                    } else {
                         $log.error('create session fail', id);
                         this.status = 'FAIL';
                         return null;
@@ -159,7 +298,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                     hubApi.callRemote(this.nodeId, HDMAN_UPDATE, {
                         sessionId: id,
                         commands: [
-                            {exec: {executable: entry, args: (args||[])}}
+                            {exec: {executable: entry, args: (args || [])}}
                         ]
                     })
                 ).then(result => {
@@ -173,7 +312,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
                     hubApi.callRemote(this.nodeId, HDMAN_UPDATE, {
                         sessionId: id,
                         commands: [
-                            {start: {executable: entry, args: (args||[])}},
+                            {start: {executable: entry, args: (args || [])}},
                             {addTags: angular.isArray(tag) ? tag : [tag]}
                         ]
                     })
@@ -202,7 +341,7 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             destroy() {
                 this.status = 'DELETED';
 
-                return hubApi.callRemote(this.nodeId, HDMAN_DESTROY, {session_id : this.id}).then(result => {
+                return hubApi.callRemote(this.nodeId, HDMAN_DESTROY, {session_id: this.id}).then(result => {
                     if (result.Ok) {
                         $log.info("session", this.id, "closed: ", result);
                     } else {
@@ -217,21 +356,24 @@ var app = angular.module('gu', ['ui.bootstrap', 'angularjs-gauge'])
             return new HdMan(nodeId);
         }
 
-        return { peer: peer }
-  });
+        return {peer: peer}
+    });
 
 fetch('/plug')
-.then(b => b.json())
-.then(plugins => {
-    var body = $('body');
+    .then(b => b.json())
+    .then(plugins => {
+        var body = $('body');
 
-    angular.forEach(plugins, plugin => {
-        if (plugin.status === 'Active') {
-            angular.forEach(plugin.load, loadSrc => {
-                var script = $('<script></script>').attr('src', '/plug/' + plugin.name + '/' + loadSrc);
-                body.append(script);
-            });
-        }
-    })
-    $('<script>angular.bootstrap(document, [\'gu\']);</script>').appendTo(body);
-})
+        angular.forEach(plugins, plugin => {
+            if (plugin.status === 'Active') {
+                angular.forEach(plugin.load, loadSrc => {
+                    var script = $('<script></script>').attr('src', '/plug/' + plugin.name + '/' + loadSrc);
+                    body.append(script);
+                });
+            }
+        });
+
+        $(function () {
+            $('<script>angular.bootstrap(document, [\'gu\']);</script>').appendTo(body);
+        });
+    });

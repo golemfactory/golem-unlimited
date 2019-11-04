@@ -1,17 +1,5 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use gu_actix::prelude::*;
-
-use super::responses::*;
-use actix::{Actor, ActorResponse, Addr, AsyncContext, Context, Handler, Recipient, WrapFuture};
-use actix_web::{dev::Payload, fs::NamedFile, http::header::HeaderValue};
-use futures::{
-    future::{self, Shared, SharedError, SharedItem},
-    sync::oneshot::{self, Sender},
-    Future, Stream,
-};
-use gu_base::files::{read_async, write_async};
-use sha1::Sha1;
 use std::fmt::Debug;
 use std::{
     collections::BTreeMap,
@@ -21,6 +9,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use actix::prelude::*;
+use actix_web::{fs::NamedFile, http::header::HeaderValue};
+use futures::{
+    future::{self, Shared, SharedError, SharedItem},
+    sync::oneshot::{self, Sender},
+    Future, Stream,
+};
+use sha1::Sha1;
+
+use gu_actix::prelude::*;
+use gu_base::files::{read_async, write_async};
+
+use super::responses::*;
+
 struct FileLockActor {
     to_notify: Vec<Sender<()>>,
     readers: usize,
@@ -29,16 +31,16 @@ struct FileLockActor {
     path: PathBuf,
 
     /// Future that gives current sha1 checksum of the file
-    sha1_fut: Shared<Box<Future<Item = Sha1, Error = SessionErr> + Send>>,
+    sha1_fut: Shared<Box<dyn Future<Item = Sha1, Error = SessionErr> + Send>>,
     /// Map of currently running, outer futures
-    write_futs: BTreeMap<(u64, u64), Shared<Box<Future<Item = (), Error = ()> + Send>>>,
+    write_futs: BTreeMap<(u64, u64), Shared<Box<dyn Future<Item = (), Error = ()> + Send>>>,
 }
 
 impl FileLockActor {
     fn new(path: PathBuf, new: bool) -> Self {
-        let sha1_fut: Box<Future<Item = Sha1, Error = SessionErr> + Send> = match new {
+        let sha1_fut: Box<dyn Future<Item = Sha1, Error = SessionErr> + Send> = match new {
             false => Box::new(recalculate_sha1(path.clone())),
-            true => Box::new(future::err(SessionErr::BlobLockedError)),
+            true => Box::new(future::err(SessionErr::BlobNotYetUploaded)),
         };
 
         FileLockActor {
@@ -51,7 +53,7 @@ impl FileLockActor {
 
 impl Default for FileLockActor {
     fn default() -> Self {
-        let x: Box<Future<Item = Sha1, Error = SessionErr> + Send> =
+        let x: Box<dyn Future<Item = Sha1, Error = SessionErr> + Send> =
             Box::new(future::err(SessionErr::BlobLockedError));
 
         FileLockActor {
@@ -77,7 +79,9 @@ impl Handler<ReadAccessRequest> for FileLockActor {
     type Result = ActorResponse<Self, ReadAccess, SessionErr>;
 
     fn handle(&mut self, _msg: ReadAccessRequest, ctx: &mut Context<Self>) -> Self::Result {
-        ActorResponse::r#async(
+        log::debug!("Read access request for {:?}", self.path);
+        ActorResponse::r#async({
+            log::debug!("{} writers for {:?}", self.writers, self.path);
             match self.writers {
                 0 => future::Either::A({
                     let rec = ctx.address().recipient();
@@ -92,8 +96,8 @@ impl Handler<ReadAccessRequest> for FileLockActor {
                 }),
                 _ => future::Either::B(future::err(SessionErr::BlobLockedError)),
             }
-            .into_actor(self),
-        )
+            .into_actor(self)
+        })
     }
 }
 
@@ -105,6 +109,7 @@ impl Handler<WriteAccessRequest> for FileLockActor {
     type Result = ActorResponse<Self, WriteAccess, SessionErr>;
 
     fn handle(&mut self, _msg: WriteAccessRequest, ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!("Write access request  for {:?}", self.path);
         self.writers += 1;
         let readers = self.readers;
         let recipient = ctx.address().recipient();
@@ -190,7 +195,7 @@ impl Handler<DropWriter> for FileLockActor {
     fn handle(&mut self, _msg: DropWriter, _ctx: &mut Context<Self>) -> () {
         self.writers -= 1;
 
-        let x: Box<Future<Item = Sha1, Error = SessionErr> + Send> =
+        let x: Box<dyn Future<Item = Sha1, Error = SessionErr> + Send> =
             Box::new(recalculate_sha1(self.path.clone()));
         self.sha1_fut = x.shared()
     }
@@ -208,12 +213,10 @@ fn recalculate_sha1(path: PathBuf) -> impl Future<Item = Sha1, Error = SessionEr
 
 // Generate future that will complete when it will be possible to write to file
 fn write_dag_future(
-    queue: &mut BTreeMap<(u64, u64), Shared<Box<Future<Item = (), Error = ()> + Send>>>,
+    queue: &mut BTreeMap<(u64, u64), Shared<Box<dyn Future<Item = (), Error = ()> + Send>>>,
 ) -> impl Future<Item = (), Error = SessionErr> + Send {
-    use std::u64;
-
-    let write_begin = u64::MIN;
-    let write_end = u64::MAX;
+    let write_begin = std::u64::MIN;
+    let write_end = std::u64::MAX;
     let mut wait_list = Vec::new();
     let mut remove_list = Vec::new();
 
@@ -234,7 +237,7 @@ fn write_dag_future(
         queue.remove(&x);
     }
 
-    let x: Box<Future<Item = (), Error = ()> + Send> =
+    let x: Box<dyn Future<Item = (), Error = ()> + Send> =
         Box::new(future::join_all(wait_list).then(|_| Ok(())));
     let x: Shared<Box<_>> = x.shared();
     queue.insert((write_begin, write_end), x.clone());
@@ -265,6 +268,7 @@ impl Blob {
         }
     }
 
+    #[allow(unused)]
     pub fn path(&self) -> &Path {
         self.path.as_ref()
     }
