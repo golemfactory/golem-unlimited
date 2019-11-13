@@ -52,9 +52,9 @@ https://github.com/golemfactory/golem-unlimited/releases
 
 Before launching it on Linux, please make sure that the current user is in the golemu group. To do this, please enter:
 
-```# adduser $USER golemu```
+```$ sudo adduser $USER golemu```
 
-after installing the package and restart your computer.
+after installing the package and relogin (sometimes restart is needed to apply new groups). 
 
 To configure the provider, please right-click its icon in the menu bar or system tray and choose "Configure". A window with a list of all hubs in the local area network should be displayed.
 
