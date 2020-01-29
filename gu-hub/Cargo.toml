@@ -7,7 +7,7 @@ authors = ["golemfactory"]
 edition = "2018"
 
 [dependencies]
-ethkey = { path = "../ethkey" }
+ethkey = "0.3"
 gu-actix = { path = "../gu-actix" }
 gu-base = { path = "../gu-base" }
 gu-event-bus = { path = "../gu-event-bus" }
