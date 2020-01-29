@@ -275,7 +275,10 @@ impl<D: Decorator + 'static> Handler<InitServer<D>> for ProviderServer {
                 .map_err(|e| error!("{}", e))
                 .into_actor(self)
                 .and_then(move |config: ProviderConfig, act: &mut Self, _ctx| {
-                    let keys = EthAccount::load_or_generate(keystore_path, "").unwrap();
+                    let keys = EthAccount::load_or_generate(&keystore_path, "").expect(&format!(
+                        "cannot load or generate key at: {:?}",
+                        keystore_path
+                    ));
 
                     #[cfg(unix)]
                     {

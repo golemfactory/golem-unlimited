@@ -189,8 +189,13 @@ impl<D: Decorator + 'static + Sync + Send> ServerConfigurer<D> {
 
     fn hub_configuration(&mut self, c: Arc<HubConfig>) -> Result<(), String> {
         let config_module: &ConfigModule = self.decorator.extract().unwrap();
-        let key = EthAccount::load_or_generate(config_module.keystore_path(), "")
-            .expect("should load or generate eth key");
+        let key = EthAccount::load_or_generate(config_module.keystore_path(), "").map_err(|e| {
+            format!(
+                "loading key from {:?} error: {}",
+                config_module.keystore_path(),
+                e
+            )
+        })?;
 
         let decorator = self.decorator.clone();
         let node_id = NodeId::from(key.address().as_ref());
