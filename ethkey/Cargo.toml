@@ -6,7 +6,7 @@ authors = ["Golem Factory <contact@golem.network>"]
 homepage = "https://github.com/golemfactory/golem-unlimited/tree/ethkey/ethkey"
 repository = "https://github.com/golemfactory/golem-unlimited"
 documentation = "https://docs.rs/crate/ethkey"
-license = "MIT"
+license = "GPL-3.0"
 edition = "2018"
 
 [dependencies]
