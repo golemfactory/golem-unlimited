@@ -56,6 +56,10 @@ use rand::{thread_rng, RngCore};
 pub use address::Address;
 
 mod address;
+mod error;
+pub use error::Error;
+
+pub type Result<T> = std::result::Result<T, error::Error>;
 
 /// 32 bytes Message for signing and verification
 pub type Message = [u8; 32];
@@ -96,17 +100,17 @@ impl EthAccount {
     }
 
     /// signs given message with self secret key
-    pub fn sign(&self, msg: &Message) -> failure::Fallible<Signature> {
+    pub fn sign(&self, msg: &Message) -> Result<Signature> {
         Ok(self.secret.sign(msg)?)
     }
 
     /// verifies signature for given message and self public key
-    pub fn verify(&self, sig: &Signature, msg: &Message) -> failure::Fallible<bool> {
+    pub fn verify(&self, sig: &Signature, msg: &Message) -> Result<bool> {
         Ok(self.public.verify(sig, msg)?)
     }
 
     /// reads keys from disk or generates new ones and stores to disk; password needed
-    pub fn load_or_generate<P, W>(file_path: P, password: W) -> failure::Fallible<Box<Self>>
+    pub fn load_or_generate<P, W>(file_path: P, password: W) -> Result<Box<Self>>
     where
         P: AsRef<Path>,
         W: Into<Password>,
@@ -132,20 +136,20 @@ impl EthAccount {
             kestore_path: ::std::fs::canonicalize(file_path)?,
         };
 
-        info!("{} {}", log_msg, eth_account);
+        info!("eth account {} {}", eth_account, log_msg);
 
         Ok(Box::new(eth_account))
     }
 
     /// stores keys on disk with changed password
-    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> failure::Fallible<()> {
+    pub fn change_password<W: Into<Password>>(&self, new_password: W) -> Result<()> {
         save_key(&self.secret, &self.kestore_path, new_password.into())?;
         info!("changed password for {}", self);
         Ok(())
     }
 }
 
-fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> failure::Fallible<()>
+fn save_key<P, W>(secret: &SecretKey, file_path: &P, password: W) -> Result<()>
 where
     P: AsRef<Path>,
     W: Into<Password>,
@@ -262,7 +266,10 @@ mod tests {
 
         // then
         assert!(key.is_err());
-        assert_eq!(key.unwrap_err().to_string(), "Is a directory (os error 21)");
+        assert_eq!(
+            key.unwrap_err().to_string(),
+            "Serde JSON error: Is a directory (os error 21)"
+        );
     }
 
     #[test]
@@ -274,7 +281,7 @@ mod tests {
         assert!(key.is_err());
         assert_eq!(
             key.unwrap_err().to_string(),
-            "Permission denied (os error 13)"
+            "IO error: Permission denied (os error 13)"
         );
     }
 

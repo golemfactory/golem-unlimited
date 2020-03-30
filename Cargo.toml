@@ -24,3 +24,5 @@ members = [
 codegen-units = 1
 lto = true
 
+[patch.crates-io]
+ethkey = { path = "ethkey" }
